@@ -27,9 +27,9 @@ def scan_ips_without_nmap_results(batch_size: int = 10):
     logger.info(f"定時任務啟動：查找無 Nmap 記錄的 IP (Limit {batch_size})")
 
     ips_to_scan = (
-        IP.objects.annotate(scan_count=Count("nmap_scans"))
+        IP.objects.annotate(scan_count=Count("discovered_by_scans"))
         .filter(scan_count=0)
-        .select_related("which_target")[:batch_size]
+        .select_related("which_seed")[:batch_size]
     )
 
     actual_count = len(ips_to_scan)
@@ -61,7 +61,7 @@ def scan_subdomains_without_url_results(batch_size: int = 5):
     logger.info(f"定時任務啟動：查找無 URL 掃描的子域名 (Limit {batch_size})")
 
     subdomains_to_scan = (
-        Subdomain.objects.annotate(scan_count=Count("scans_targeted"))
+        Subdomain.objects.annotate(scan_count=Count("discovered_by_scans"))
         .filter(scan_count=0, is_active=True, is_resolvable=True)
         .order_by("-id")[:batch_size]
     )
@@ -219,35 +219,6 @@ def is_content_already_analyzed(url_obj, analysis_type="AI"):
 @shared_task(name="scheduler.tasks.trigger_scan_urls_without_ai_results")
 @log_function_call()
 def trigger_scan_urls_without_ai_results(batch_size: int = 5):
-    logger.info(f"定時任務：AI 分析 URL (Limit {batch_size}, 智能去重)")
-
-    # 獲取候選集：多取一些(x2)，因為去重會篩掉一部分
-    candidate_qs = (
-        URLResult.objects.filter(content_fetch_status="SUCCESS_FETCHED")
-        .exclude(ai_analysis__status__in=["COMPLETED", "RUNNING"])
-        .exclude(status_code=404)
-        .order_by("-id")[: batch_size * 2]
-    )
-
-    # 執行內存級去重
-    target_urls = get_unique_urls_for_analysis(candidate_qs)
-
-    # 再次截斷到用戶要求的 batch_size
-    target_urls = target_urls[:batch_size]
-
-    if not target_urls:
-        return "No unique URLs for AI analysis."
-
-    try:
-        requests.post(AI_ANALYZES_URL, json={"urls": target_urls}, timeout=5)
-        return f"Dispatched {len(target_urls)} Unique URLs to AI."
-    except Exception as e:
-        logger.error(f"AI URL API Failed: {e}")
-
-
-@shared_task(name="scheduler.tasks.trigger_scan_urls_without_ai_results")
-@log_function_call()
-def trigger_scan_urls_without_ai_results(batch_size: int = 5):
     logger.info(f"定時任務：AI 分析 URL (Limit {batch_size}, 全局去重模式)")
 
     # 1. 初步獲取候選集 (多取一點，因為很多會被過濾掉)
@@ -319,6 +290,30 @@ def trigger_scan_urls_without_nuclei_results(batch_size: int = 5):
         return f"Dispatched {len(valid_targets)} Unique URLs to Nuclei."
     except Exception as e:
         logger.error(f"Nuclei URL API Failed: {e}")
+
+
+# 8. Nuclei 分析 Subdomain 觸發器
+@shared_task(name="scheduler.tasks.trigger_scan_subdomains_without_nuclei_results")
+@log_function_call()
+def trigger_scan_subdomains_without_nuclei_results(batch_size: int = 5):
+    logger.info(f"定時任務：Nuclei 掃描子域名 (Limit {batch_size})")
+
+    subdomains_qs = (
+        Subdomain.objects.filter(is_active=True)
+        .exclude(nuclei_scans__status__in=["COMPLETED", "RUNNING"])
+        .order_by("-id")[:batch_size]
+    )
+    targets = list(subdomains_qs.values_list("name", flat=True))
+
+    if not targets:
+        return
+
+    try:
+        requests.post(
+            f"{NUCLEI_SCAN_URL}/subdomains", json={"subdomains": targets}, timeout=5
+        )
+    except Exception as e:
+        logger.error(f"Nuclei Subdomain API Failed: {e}")
 
 
 # 9. Nuclei 分析 IP 觸發器 (邏輯修復版)

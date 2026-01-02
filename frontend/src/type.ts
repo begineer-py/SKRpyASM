@@ -1,6 +1,9 @@
 // src/type.ts
 
-// === 基础枚举和 Payload ===
+// ==================================================================
+// 1. 基础枚举和 API Payloads
+// ==================================================================
+
 export type ScanStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
 export type ScanMode = 'DOMAIN' | 'IP' | 'URL';
 
@@ -18,13 +21,14 @@ export interface AddSeedPayload {
   value: string;
   type?: string;
 }
-
 export interface DomainReconTriggerPayload {
   seed_id: number;
 }
 
+// ==================================================================
+// 2. 核心资产模型 (Assets)
+// ==================================================================
 
-// === 核心数据模型 ===
 export interface Target {
   id: number;
   name: string;
@@ -48,12 +52,6 @@ export interface IP {
   ipv6?: string | null;
 }
 
-export interface Subdomain {
-  id: number;
-  name: string;
-  created_at: string;
-}
-
 export interface UrlResult {
   id: number;
   url: string;
@@ -61,20 +59,33 @@ export interface UrlResult {
   content_fetch_status?: string;
 }
 
-// === 扫描记录模型 ===
+export interface Subdomain {
+  id: number;
+  name: string;
+  created_at: string;
+  core_urlscans: UrlScan[];
+  core_urlresult_related_subdomains: {
+    core_urlresult: UrlResult;
+  }[];
+}
+
+
+// ==================================================================
+// 3. 扫描记录模型 (Scan Records)
+// ==================================================================
+
 export interface SubfinderScan {
   id: number;
   status: ScanStatus;
   created_at: string;
   completed_at?: string | null;
-  added_count?: number;
+  added_count: number;
 }
 
 export interface NmapScan {
   id: number;
   status: ScanStatus;
   completed_at?: string | null;
-  target_ip_id: number;
 }
 
 export interface UrlScan {
@@ -82,9 +93,14 @@ export interface UrlScan {
   status: ScanStatus;
   created_at: string;
   completed_at?: string | null;
+  added_count: number;
 }
 
-// === AI 分析结果模型 ===
+
+// ==================================================================
+// 4. AI 分析模型
+// ==================================================================
+
 export interface SubdomainAIAnalysis {
   risk_score: number;
   summary: string;
@@ -101,66 +117,67 @@ export interface SubdomainAIAnalysis {
   raw_response?: any;
 }
 
-// === GraphQL 聚合响应模型 ===
 
-// -- 用於 SeedReconPage --
-export interface SeedIntelligenceData extends Seed {
-  core_nmapscans: NmapScan[];
-  core_subfinderscans: SubfinderScan[];
-  core_subdomains: Subdomain[];
-}
-export interface SeedIntelligenceResponse {
-  core_seed: SeedIntelligenceData[];
-  core_ip: IP[];
-  core_urlscan: UrlScan[];
-  core_urlresult: UrlResult[];
-}
+// ==================================================================
+// 5. GraphQL 聚合响应模型 (最重要的部分)
+// ==================================================================
 
-// -- 用於 SubdomainDetailPage --
-export interface SubdomainDetail extends Subdomain {
-  is_active: boolean;
-  is_resolvable: boolean;
-  is_cdn: boolean;
-  is_waf: boolean;
-  cname?: string | null;
-  cdn_name?: string | null;
-  waf_name?: string | null;
-  core_subdomain_ips: {
-    ip_id: number;
-    core_ip: IP;
-  }[];
-  // 修正：根据上个 issue，这里应该是对象而不是数组
-  core_subdomainaianalysis: SubdomainAIAnalysis | null; 
-}
-export interface SubdomainIntelResponse {
-  core_subdomain_by_pk: SubdomainDetail;
-  core_urlresult: UrlResult[];
-}
-export interface GauScan {
-  id: number;
-  status: ScanStatus;
-  created_at: string;
-  completed_at?: string | null;
-  added_count: number;
-}
-
-// URL 扫描发现的结果 (和之前的 UrlResult 可以复用或扩展)
-// 我们这里复用并确保有 id
-export interface UrlResult {
-  id: number; // 确保有 id
-  url: string;
-  content_length?: number;
-  content_fetch_status?: string;
-}
-
-
-// [新增] 聚合 URL Seed 情报的顶级结构
-export interface UrlSeedIntelligence {
+/**
+ * [修正] Seed 及其关联资产的层级结构，现在是一个独立的、可导出的类型。
+ */
+export interface SeedIntelligenceData {
   id: number;
   value: string;
   type: string;
-  // 假设 Hasura 中建立了名为 core_gauscans 的关系
-  core_gauscans: GauScan[]; 
-  // 假设 Hasura 中建立了名为 core_urlresults 的关系
-  core_urlresults: UrlResult[];
+  is_active: boolean;
+  created_at: string;
+  core_nmapscans: NmapScan[];
+  core_subfinderscans: SubfinderScan[];
+  core_subdomains: Subdomain[];
+  core_ip_which_seeds: {
+    core_ip: IP;
+  }[];
+}
+
+/**
+ * @description 用于 SeedReconPage 的终极情报聚合体
+ */
+export interface SeedIntelligenceResponse {
+  core_seed: SeedIntelligenceData[];
+}
+
+/**
+ * @description 用于 SubdomainDetailPage 的深度情报聚合体
+ */
+export interface SubdomainIntelResponse {
+  core_subdomain_by_pk: {
+    id: number;
+    name: string;
+    created_at: string;
+    is_active: boolean;
+    is_resolvable: boolean;
+    is_cdn: boolean;
+    is_waf: boolean;
+    cname?: string | null;
+    cdn_name?: string | null;
+    waf_name?: string | null;
+    core_subdomain_ips: {
+      core_ip: IP;
+    }[];
+    core_subdomainaianalysis: SubdomainAIAnalysis | null;
+  };
+  core_urlresult: UrlResult[];
+}
+
+/**
+ * @description 用于 UrlReconPage 的情报聚合体
+ */
+export interface UrlSeedIntelligenceResponse {
+  core_seed_by_pk: {
+    id: number;
+    value: string;
+    type: string;
+    core_gauscans: UrlScan[];
+    core_urlresults: UrlResult[];
+  };
 }

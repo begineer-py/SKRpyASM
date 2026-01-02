@@ -81,16 +81,32 @@ function SeedReconPage() {
   }, [nSeedId]);
 
   if (loading) return <div>LOADING INTEL...</div>;
-  if (!intel || intel.core_seed.length === 0) return <div>SEED NOT FOUND</div>;
 
-  const seedData: SeedIntelligenceData = intel.core_seed[0];
+  // [修正] 从新的数据结构中提取 seedData
+  const seedData = intel?.core_seed?.[0];
+
+  if (!seedData) return <div>SEED NOT FOUND</div>;
+
   const isRunning = seedData.core_subfinderscans.some(
     (s) => s.status === "PENDING" || s.status === "RUNNING"
   );
 
+  // === [核心重写] 数据提取逻辑，以匹配新的嵌套结构 ===
+  const allIPs = (seedData.core_ip_which_seeds || []).map(
+    (relation) => relation.core_ip
+  );
+
+  const allURLs = (seedData.core_subdomains || []).flatMap((sub) =>
+    (sub.core_urlresult_related_subdomains || []).map(
+      (relation) => relation.core_urlresult
+    )
+  );
+
+  // ... (在 SeedReconPage.tsx 中，接在数据提取逻辑之后)
+
   return (
     <div className="recon-container">
-      {/* Header */}
+      {/* Header - 使用 seedData */}
       <div className="recon-header-card">
         <div>
           <div className="seed-info-large">{seedData.value}</div>
@@ -109,7 +125,7 @@ function SeedReconPage() {
         </button>
       </div>
 
-      {/* 掃描記錄 */}
+      {/* 掃描記錄 - 使用 seedData */}
       <AssetCard
         title="Subdomain Scans"
         count={seedData.core_subfinderscans.length}
@@ -136,10 +152,9 @@ function SeedReconPage() {
         )}
       </AssetCard>
 
-      {/* === 渲染所有資產 === */}
       <h3 style={{ marginTop: 30 }}>DISCOVERED ASSETS</h3>
 
-      {/* 子域名資產 */}
+      {/* 子域名資產 - 使用 seedData */}
       <AssetCard title="Subdomains" count={seedData.core_subdomains.length}>
         {seedData.core_subdomains.length > 0 ? (
           <table className="assets-table">
@@ -157,11 +172,10 @@ function SeedReconPage() {
                   <td>{sub.name}</td>
                   <td>{new Date(sub.created_at).toLocaleString()}</td>
                   <td>
-                    {/* [修正] 使用標準 <a> 標籤，保留按鈕樣式 */}
                     <a
                       href={`/target/${targetId}/subdomain/${sub.id}`}
                       className="btn btn-ghost btn-sm"
-                      style={{ textDecoration: "none" }} // 確保按鈕樣式不被下劃線破壞
+                      style={{ textDecoration: "none" }}
                     >
                       Detail
                     </a>
@@ -176,8 +190,9 @@ function SeedReconPage() {
         )}
       </AssetCard>
 
-      <AssetCard title="IP Addresses" count={intel.core_ip.length}>
-        {intel.core_ip.length > 0 ? (
+      {/* IP 資產 - [修正] 使用提取出的 allIPs */}
+      <AssetCard title="IP Addresses" count={allIPs.length}>
+        {allIPs.length > 0 ? (
           <table className="assets-table">
             <thead>
               <tr>
@@ -186,11 +201,10 @@ function SeedReconPage() {
               </tr>
             </thead>
             <tbody>
-              {intel.core_ip.map((ip: IP) => (
+              {allIPs.map((ip: IP) => (
                 <tr key={ip.id}>
                   <td>{ip.id}</td>
                   <td>
-                    {/* [修正] 使用標準 <a> 標籤，移除 onClick 攔截，與 SubdomainDetail 保持一致 */}
                     <a
                       href={`/target/${targetId}/ip/${ip.id}`}
                       className="asset-link ip-link"
@@ -207,9 +221,9 @@ function SeedReconPage() {
         )}
       </AssetCard>
 
-      {/* URL 資產 */}
-      <AssetCard title="URLs Found" count={intel.core_urlresult.length}>
-        {intel.core_urlresult.length > 0 ? (
+      {/* URL 資產 - [修正] 使用提取出的 allURLs */}
+      <AssetCard title="URLs Found" count={allURLs.length}>
+        {allURLs.length > 0 ? (
           <table className="assets-table">
             <thead>
               <tr>
@@ -218,10 +232,9 @@ function SeedReconPage() {
               </tr>
             </thead>
             <tbody>
-              {intel.core_urlresult.map((url: UrlResult) => (
+              {allURLs.map((url: UrlResult) => (
                 <tr key={url.id}>
                   <td>
-                    {/* 外部鏈接保持不變 */}
                     <a
                       href={url.url}
                       target="_blank"
@@ -232,7 +245,6 @@ function SeedReconPage() {
                     </a>
                   </td>
                   <td>
-                    {/* [修正] 使用標準 <a> 標籤，指向內部詳情頁 */}
                     <a
                       href={`/target/${targetId}/url/${url.id}`}
                       className="btn btn-ghost btn-sm"

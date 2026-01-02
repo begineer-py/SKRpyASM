@@ -46,54 +46,54 @@ export const GET_SEED_INFO = `
 
 // [替換] 使用你的終極查詢
 export const GET_SEED_ULTIMATE_INTEL_QUERY = `
-  query GetSeedUltimateIntel($seed_id: bigint!) {
-    # 查詢 Seed 及其直接關聯的掃描和子域名
-    core_seed(where: {id: {_eq: $seed_id}}) {
-      id
-      target_id
-      type
-      value
-      is_active
-      created_at
-      core_nmapscans(order_by: {completed_at: desc}) {
-        completed_at
-        status
-        id
-      }
-      core_subfinderscans(order_by: {created_at: desc}) {
-        completed_at
-        added_count
-        id
-        created_at
-        status
-        started_at
-      }
-      core_subdomains(order_by: {name: asc}) {
-        created_at
-        name
-        id
-      }
-    }
-    
-    # 查詢其他可能與子域名關聯的獨立資產表
-    # 注意：這裡沒有直接的過濾條件，會拉取所有數據。
-    # 在生產環境中，這需要優化，但我們先按你的要求實現。
-    core_ip {
-      ipv4
-      ipv6
-      id
-    }
-    core_urlscan {
+query GetSeedUltimateIntel($seed_id: bigint!) {
+  core_seed(where: {id: {_eq: $seed_id}}) {
+    id
+    target_id
+    type
+    value
+    is_active
+    created_at
+    core_nmapscans(order_by: {completed_at: desc}) {
+      completed_at
       status
       id
-      created_at
-      completed_at
     }
-    core_urlresult {
-      content_fetch_status
-      content_length
-      url
+    core_subfinderscans(order_by: {created_at: desc}) {
+      completed_at
+      added_count
       id
+      created_at
+      status
+      started_at
+    }
+    core_subdomains(order_by: {name: asc}) {
+      created_at
+      name
+      id
+      core_urlscans {
+        status
+        id
+        created_at
+        completed_at
+      }
+      core_urlresult_related_subdomains {
+        core_urlresult {
+          content_fetch_status
+          content_length
+          url
+          id
+        }
+      }
+    }
+    core_ip_which_seeds {
+      core_ip {
+        id
+        ipv4
+        ipv6
+      }
     }
   }
+}
+
 `;

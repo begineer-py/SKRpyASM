@@ -1,5 +1,6 @@
 # subdomain_finder/tasks.py
 
+from curses import raw
 import logging
 import subprocess
 import json
@@ -31,13 +32,7 @@ def start_subfinder(self, scan_id: int):
         scan.save(update_fields=["status", "started_at"])
 
         # [逻辑保留] 保持你原来的命令行构造方式
-        command = [
-            "subfinder",
-            "-d",
-            seed.value,
-            "-json",
-            "-silent",
-        ]
+        command = ["subfinder", "-d", seed.value, "-json", "-silent", "-all"]
         # 如果你的 SubfinderScan 模型需要 timeout, 你应该加上
         # if scan.timeout:
         #    command.extend(["-timeout", str(scan.timeout)])
@@ -49,19 +44,24 @@ def start_subfinder(self, scan_id: int):
 
         if process.returncode == 0:
             logger.info(f"Subfinder 掃描成功 for Scan ID {scan.id}。準備更新資產庫。")
-
-            # [逻辑保留] 保持你原来的 JSON 解析和聚合逻辑
             current_subdomains_map = defaultdict(set)
-            stdout_lines = process.stdout.strip().split("\n")
-            for line in stdout_lines:
-                try:
-                    data = json.loads(line.strip())
-                    host, source = data.get("host"), data.get("source")
-                    if host and source:
-                        current_subdomains_map[host].add(source)
-                except (json.JSONDecodeError, KeyError) as e:
-                    logger.warning(f"解析 JSON 行失敗，已跳過: {line} - 錯誤: {e}")
-
+            raw_output = process.stdout.strip()
+            if raw_output:
+                lines = raw_output.split("\n")
+                for line in lines:
+                    clean_line = line.strip()
+                    if not clean_line:
+                        continue
+                    try:
+                        data = json.loads(clean_line)
+                        subdomain = data.get("host")
+                        if subdomain:
+                            current_subdomains_map[subdomain].add(data.get("source"))
+                    except json.JSONDecodeError:
+                        logger.warning(f"無法解析 JSON 格式: {clean_line}")
+            else:
+                logger.warning("Subfinder 沒有輸出任何結果")
+                raw_output = []
             # [逻辑保留] 保持你原来的集合对比逻辑
             current_subdomains_set = set(current_subdomains_map.keys())
             # [修正] 数据源从 Target 改为 Seed
@@ -159,101 +159,130 @@ def resolve_dns_for_seed(self, seed_id: int, subfinder_scan_id: int):
         seed = Seed.objects.get(id=seed_id)
         logger.info(f"開始 DNS 解析 for Seed: '{seed.value}'")
 
-        # [修正] 数据源从 Target 改为 Seed
+        # 1. 獲取活躍子域名
         subdomains_qs = Subdomain.objects.filter(which_seed=seed, is_active=True)
-        if not subdomains_qs.exists():
-            logger.info("沒有活躍的子域名需要解析。")
-            return
-
-        logger.info(f"共篩選出 {subdomains_qs.count()} 個子域名進行解析。")
         subdomain_map = {sub.name: sub for sub in subdomains_qs}
+
+        if seed.value not in subdomain_map:
+            # 獲取或創建一個代表 Seed 自身的 Subdomain 條目
+            seed_sub, _ = Subdomain.objects.get_or_create(
+                which_seed=seed,
+                name=seed.value,
+                defaults={"is_active": True, "sources_text": "seed_self"},
+            )
+            subdomain_map[seed.value] = seed_sub
+
         dnsx_input_data = "\n".join(subdomain_map.keys())
 
+        # 2. 執行 dnsx
+        # -a: IPv4, -aaaa: IPv6, -cname: CNAME, -json: 輸出格式, -silent: 靜默模式
         command = ["dnsx", "-a", "-aaaa", "-cname", "-json", "-silent"]
-        logger.info(f"執行 dnsx 命令: {' '.join(command)}")
+        logger.info(f"執行 dnsx 命令對應 {len(subdomain_map) or 1} 個域名")
+
         process = subprocess.run(
             command, input=dnsx_input_data, capture_output=True, text=True, timeout=600
         )
 
         if process.returncode != 0:
-            logger.error(f"dnsx 執行失敗: {process.stderr}")
-            # [逻辑保留] 保持你原来的失败后继续下一步的逻辑
+            logger.error(
+                f"dnsx 執行失敗 (Return Code {process.returncode}): {process.stderr}"
+            )
+            # 即使失敗也繼續下一步，避免任務鏈中斷
             check_protection_for_seed.delay(
                 seed_id=seed_id, subfinder_scan_id=subfinder_scan_id
             )
             return
 
-        lines = process.stdout.strip().split("\n")
+        # 3. 解析結果
+        raw_output = process.stdout.strip()
+        if not raw_output:
+            logger.warning("dnsx 解析結束，但沒有返回任何結果。")
+            lines = []
+        else:
+            lines = raw_output.split("\n")
+
         updates_count = 0
         resolved_hosts = set()
 
         with transaction.atomic():
             for line in lines:
+                clean_line = line.strip()
+                if not clean_line:
+                    continue
+
                 try:
-                    data = json.loads(line.strip())
+                    data = json.loads(clean_line)
                     host = data.get("host")
-                    if host not in subdomain_map:
-                        continue
-
-                    resolved_hosts.add(host)
-                    sub_obj = subdomain_map[host]
-
                     ipv4_list = data.get("a", [])
                     ipv6_list = data.get("aaaa", [])
-                    cname_list = data.get("cname", [])
 
-                    # [逻辑保留] 保持原来的解析状态处理
-                    is_resolvable_now = bool(ipv4_list or ipv6_list or cname_list)
-                    if not sub_obj.is_resolvable and is_resolvable_now:
+                    # 1. 處理 IPv4 並綁定到 Seed
+                    for ip_val in ipv4_list:
+                        # 在 IP 表中獲取或創建，注意 ipv4 欄位在你的模型中是 GenericIPAddressField
+                        ip_obj, created = IP.objects.get_or_create(ipv4=ip_val)
+
+                        # 更新掃描來源資訊 (根據你的模型欄位)
+                        ip_obj.last_scan_type = "DnsxScan"
+                        ip_obj.last_scan_id = subfinder_scan_id
+                        ip_obj.save(update_fields=["last_scan_type", "last_scan_id"])
+
+                        # 核心綁定：建立與 Seed 的 ManyToMany 關聯
+                        ip_obj.which_seed.add(seed)
+
+                    # 2. 處理 IPv6 並綁定到 Seed
+                    for ip_val in ipv6_list:
+                        ip_obj, created = IP.objects.get_or_create(ipv6=ip_val)
+
+                        ip_obj.last_scan_type = "DnsxScan"
+                        ip_obj.last_scan_id = subfinder_scan_id
+                        ip_obj.save(update_fields=["last_scan_type", "last_scan_id"])
+
+                        ip_obj.which_seed.add(seed)
+
+                    # 3. 處理子域名資產關聯 (如果有 sub_obj)
+                    sub_obj = subdomain_map.get(host)
+                    if sub_obj:
+                        # 這裡假設你的 Subdomain 模型也有一個 ManyToMany 關聯到 IP
+                        # 如果 Subdomain.ips 存在，則進行關聯
+                        if hasattr(sub_obj, "ips"):
+                            # 將上述找到的 IP 加入子域名關聯
+                            for ip_val in ipv4_list + ipv6_list:
+                                ip_target = (
+                                    IP.objects.filter(ipv4=ip_val).first()
+                                    or IP.objects.filter(ipv6=ip_val).first()
+                                )
+                                if ip_target:
+                                    sub_obj.ips.add(ip_target)
+
+                        # 更新子域名本身的狀態
                         sub_obj.is_resolvable = True
-                        sub_obj.save(update_fields=["is_resolvable"])
-
-                    # [修正] 关联 IP (注意：这里需要你决定 IP 归属于 Target 还是 Seed，当前模型是 ManyToManyField，可以归属多个 Seed)
-                    if ipv4_list or ipv6_list:
-                        for ip_str in ipv4_list:
-                            ip_obj, _ = IP.objects.get_or_create(ipv4=ip_str)
-                            sub_obj.ips.add(ip_obj)  # ManyToMany add
-                        for ip_str in ipv6_list:
-                            ip_obj, _ = IP.objects.get_or_create(ipv6=ip_str)
-                            sub_obj.ips.add(ip_obj)
-
-                    # [逻辑保留] 保持原来的 CNAME 和 dns_records 更新
-                    cname_str = ",".join(cname_list) if cname_list else ""
-                    updated_fields = []
-                    if sub_obj.cname != cname_str:
-                        sub_obj.cname = cname_str
-                        updated_fields.append("cname")
-                    if sub_obj.dns_records != data:
+                        sub_obj.cname = ",".join(data.get("cname", []))
                         sub_obj.dns_records = data
-                        updated_fields.append("dns_records")
-
-                    sub_obj.last_scan_type = "DnsxScan"
-                    sub_obj.last_scan_id = subfinder_scan_id
-                    updated_fields.extend(["last_scan_type", "last_scan_id"])
-
-                    if updated_fields:
-                        sub_obj.save(update_fields=updated_fields)
+                        sub_obj.save(
+                            update_fields=["is_resolvable", "cname", "dns_records"]
+                        )
                         updates_count += 1
-                except json.JSONDecodeError:
-                    pass
 
-        # [逻辑保留] 保持原来的处理未解析域名的逻辑
+                except json.JSONDecodeError:
+                    continue
+
+        # 4. 處理那些「曾經活躍但現在解析失敗」的子域名
         unresolved_hosts = set(subdomain_map.keys()) - resolved_hosts
         if unresolved_hosts:
-            logger.warning(
-                f"發現 {len(unresolved_hosts)} 個無法解析的子域名，將其標記。"
-            )
+            logger.info(f"標記 {len(unresolved_hosts)} 個子域名為不可解析。")
             Subdomain.objects.filter(
                 which_seed=seed, name__in=unresolved_hosts, is_resolvable=True
             ).update(is_resolvable=False)
 
         logger.info(
-            f"DNS 解析完成。更新了 {updates_count} 個子域名，標記了 {len(unresolved_hosts)} 個為不可解析。"
+            f"DNS 解析完成。成功解析: {updates_count}, 失敗: {len(unresolved_hosts)}。"
         )
+
     except Exception as e:
-        logger.exception(f"DNS 解析任務 for Seed ID {seed_id} 發生錯誤: {e}")
+        logger.exception(f"DNS 解析任務發生未預期錯誤: {e}")
     finally:
-        logger.info(f"觸發 CDN/WAF 檢測任務 for Seed ID: {seed_id}")
+        # 無論如何，進入 CDN/WAF 檢測環節
+        logger.info(f"任務鏈轉向 CDN/WAF 檢測 | Seed ID: {seed_id}")
         check_protection_for_seed.delay(
             seed_id=seed_id, subfinder_scan_id=subfinder_scan_id
         )

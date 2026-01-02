@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom"; // 雖然 navigate 少用了，但 hook 仍可能需要保留以防擴展
+import { useParams, useNavigate } from "react-router-dom";
 import { gqlFetcher } from "../../services/api";
 import {
   ReconService,
@@ -7,13 +7,13 @@ import {
 } from "../../services/api_recon";
 import type {
   SeedIntelligenceResponse,
-  SeedIntelligenceData,
   Subdomain,
   IP,
   UrlResult,
 } from "../../type";
+import "../SeedReconPageSub/SeedReconPage.css";
 
-// 可折疊卡片組件 (保持不變)
+// 可折叠卡片组件 (保持不变)
 const AssetCard: React.FC<{
   title: string;
   count: number;
@@ -62,9 +62,7 @@ function SeedReconPage() {
     if (!nSeedId) return;
     setTriggering(true);
     try {
-      // 呼叫後端 API 觸發掃描
       await ReconService.startDomainRecon(nSeedId);
-      // 延遲一秒後刷新，給後端時間創建 PENDING 記錄
       setTimeout(fetchIntel, 1000);
     } catch (err: any) {
       alert(`指令被拒絕: ${err.message}`);
@@ -80,11 +78,23 @@ function SeedReconPage() {
   }, [nSeedId]);
 
   if (loading) return <div>LOADING INTEL...</div>;
-  if (!intel || intel.core_seed.length === 0) return <div>SEED NOT FOUND</div>;
 
-  const seedData: SeedIntelligenceData = intel.core_seed[0];
-  const isRunning = seedData.core_subfinderscans.some(
+  const seedData = intel?.core_seed?.[0];
+
+  if (!seedData) return <div>SEED NOT FOUND</div>;
+
+  const isRunning = (seedData.core_subfinderscans || []).some(
     (s) => s.status === "PENDING" || s.status === "RUNNING"
+  );
+
+  const allIPs = (seedData.core_ip_which_seeds || []).map(
+    (relation) => relation.core_ip
+  );
+
+  const allURLs = (seedData.core_subdomains || []).flatMap((sub) =>
+    (sub.core_urlresult_related_subdomains || []).map(
+      (relation) => relation.core_urlresult
+    )
   );
 
   return (
@@ -111,9 +121,9 @@ function SeedReconPage() {
       {/* 掃描記錄 */}
       <AssetCard
         title="Subdomain Scans"
-        count={seedData.core_subfinderscans.length}
+        count={(seedData.core_subfinderscans || []).length}
       >
-        {seedData.core_subfinderscans.length > 0 ? (
+        {(seedData.core_subfinderscans || []).length > 0 ? (
           <div className="scan-history-list">
             {seedData.core_subfinderscans.map((scan) => (
               <div key={scan.id} className="scan-item">
@@ -135,12 +145,14 @@ function SeedReconPage() {
         )}
       </AssetCard>
 
-      {/* === 渲染所有資產 === */}
       <h3 style={{ marginTop: 30 }}>DISCOVERED ASSETS</h3>
 
       {/* 子域名資產 */}
-      <AssetCard title="Subdomains" count={seedData.core_subdomains.length}>
-        {seedData.core_subdomains.length > 0 ? (
+      <AssetCard
+        title="Subdomains"
+        count={(seedData.core_subdomains || []).length}
+      >
+        {(seedData.core_subdomains || []).length > 0 ? (
           <table className="assets-table">
             <thead>
               <tr>
@@ -156,11 +168,10 @@ function SeedReconPage() {
                   <td>{sub.name}</td>
                   <td>{new Date(sub.created_at).toLocaleString()}</td>
                   <td>
-                    {/* [修正] 使用標準 <a> 標籤，保留按鈕樣式 */}
                     <a
                       href={`/target/${targetId}/subdomain/${sub.id}`}
                       className="btn btn-ghost btn-sm"
-                      style={{ textDecoration: "none" }} // 確保按鈕樣式不被下劃線破壞
+                      style={{ textDecoration: "none" }}
                     >
                       Detail
                     </a>
@@ -175,8 +186,9 @@ function SeedReconPage() {
         )}
       </AssetCard>
 
-      <AssetCard title="IP Addresses" count={intel.core_ip.length}>
-        {intel.core_ip.length > 0 ? (
+      {/* IP 資產 */}
+      <AssetCard title="IP Addresses" count={allIPs.length}>
+        {allIPs.length > 0 ? (
           <table className="assets-table">
             <thead>
               <tr>
@@ -185,11 +197,10 @@ function SeedReconPage() {
               </tr>
             </thead>
             <tbody>
-              {intel.core_ip.map((ip: IP) => (
+              {allIPs.map((ip: IP) => (
                 <tr key={ip.id}>
                   <td>{ip.id}</td>
                   <td>
-                    {/* [修正] 使用標準 <a> 標籤，移除 onClick 攔截，與 SubdomainDetail 保持一致 */}
                     <a
                       href={`/target/${targetId}/ip/${ip.id}`}
                       className="asset-link ip-link"
@@ -207,8 +218,8 @@ function SeedReconPage() {
       </AssetCard>
 
       {/* URL 資產 */}
-      <AssetCard title="URLs Found" count={intel.core_urlresult.length}>
-        {intel.core_urlresult.length > 0 ? (
+      <AssetCard title="URLs Found" count={allURLs.length}>
+        {allURLs.length > 0 ? (
           <table className="assets-table">
             <thead>
               <tr>
@@ -217,10 +228,9 @@ function SeedReconPage() {
               </tr>
             </thead>
             <tbody>
-              {intel.core_urlresult.map((url: UrlResult) => (
+              {allURLs.map((url: UrlResult) => (
                 <tr key={url.id}>
                   <td>
-                    {/* 外部鏈接保持不變 */}
                     <a
                       href={url.url}
                       target="_blank"
@@ -231,7 +241,6 @@ function SeedReconPage() {
                     </a>
                   </td>
                   <td>
-                    {/* [修正] 使用標準 <a> 標籤，指向內部詳情頁 */}
                     <a
                       href={`/target/${targetId}/url/${url.id}`}
                       className="btn btn-ghost btn-sm"
