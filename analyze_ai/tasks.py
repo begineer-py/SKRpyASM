@@ -81,84 +81,66 @@ query GetSubdomainsDetails($ids: [bigint!]) {
           content_fetch_status
           headers
           final_url
-          tech_stack
+          core_techstacks {
+            categories
+            name
+            version
+          }
           used_flaresolverr
         }
       }
     }
     dns_records
-    core_subdomain_ips {
-      core_ip {
-        ipv4
-        ipv6
-        core_ports {
-          state
-          service_version
-          service_name
-          protocol
-          port_number
-        }
       }
     }
-  }
-}
+
+
 
 """
 )
 
 GET_URLS_DETAILS_QUERY = gql(
     """
-    query GetURLsDetails($ids: [bigint!]) {
-      core_urlresult(where: {id: {_in: $ids}}) {
-        id
-        url
-        title
-        status_code
-        content_length
-        used_flaresolverr
-        
-        # 1. 核心漏洞發現
-        core_analysisfindings {
-          pattern_name
-          match_content
-          line_number
-        }
-        
-        # 2. 交互入口
-        core_forms {
-          action
-          method
-          parameters
-        }
-        
-        # 3. 技術棧
-        tech_stack
-        
-        # 4. Headers
-        headers
-        
-        # 5. 路徑發現
-        core_endpoints(limit: 30) {
-          path
-          source
-        }
-        
-        # 6. JS 文件
-        core_javascriptfiles(limit: 40) {
-          src
-        }
-        
-        # 7. 註釋
-        core_comments(limit: 20) {
-          content
-        }
-        
-        # 8. Meta
-        core_metatags(limit: 20) {
-          attributes
-        }
-      }
+query GetURLsDetails($ids: [bigint!]) {
+  core_urlresult(where: {id: {_in: $ids}}) {
+    id
+    url
+    title
+    status_code
+    content_length
+    used_flaresolverr
+    core_analysisfindings {
+      pattern_name
+      match_content
+      line_number
     }
+    core_forms {
+      action
+      method
+      parameters
+    }
+    headers
+    core_endpoints(limit: 30) {
+      path
+      source
+    }
+    core_javascriptfiles(limit: 40) {
+      src
+    }
+    core_comments(limit: 20) {
+      content
+    }
+    core_metatags(limit: 20) {
+      attributes
+    }
+    core_techstacks {
+      name
+      version
+      categories
+    }
+  }
+}
+
 """
 )
 

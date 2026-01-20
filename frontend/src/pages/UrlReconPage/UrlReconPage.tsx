@@ -34,7 +34,7 @@ const AssetCard: React.FC<{
   );
 };
 
-function SeedReconPage() {
+function UrlReconPage() {
   const { targetId, seedId } = useParams();
   const navigate = useNavigate();
   const nSeedId = Number(seedId);
@@ -261,4 +261,4 @@ function SeedReconPage() {
   );
 }
 
-export default SeedReconPage;
+export default UrlReconPage;

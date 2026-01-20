@@ -120,7 +120,7 @@ class TechScanner:
                     technologies.append(tech_name)
                     fingerprints_info.append(
                         {
-                            "tech_name": tech_name,
+                            "name": tech_name,
                             "version": (
                                 tech_data.get("versions", ["N/A"])[0]
                                 if tech_data.get("versions")
@@ -129,13 +129,6 @@ class TechScanner:
                             "categories": [
                                 cat for cat in tech_data.get("categories", [])
                             ],
-                            "confidence": tech_data.get(
-                                "confidenceTotal", "N/A"
-                            ),  # 庫裡有個 confidenceTotal
-                            "match_type": "N/A",  # python-wappalyzer 不會提供這麼細的匹配類型
-                            "key": "N/A",
-                            "pattern": "N/A",
-                            "value": "N/A",
                         }
                     )
             else:  # 如果不是預期的字典，那就退化處理，只記錄原始輸出
@@ -148,14 +141,9 @@ class TechScanner:
                     technologies = sorted(list(detected_apps_raw))
                     fingerprints_info = [
                         {
-                            "tech_name": t,
+                            "name": t,
                             "version": "N/A",
                             "categories": [],
-                            "confidence": "N/A",
-                            "match_type": "N/A",
-                            "key": "N/A",
-                            "pattern": "N/A",
-                            "value": "N/A",
                         }
                         for t in technologies
                     ]

@@ -56,6 +56,7 @@ async def start_crawl(
     perform_scan_for_url.delay(  # 調用 Celery 任務的 delay 方法，將任務異步放入隊列
         url=trigger_data.url,  # 傳遞 URL 參數給任務
         method=trigger_data.method,  # 傳遞 HTTP 方法參數給任務
+        seed_id=trigger_data.seed_id,
     )
 
     # 返回一個有意義的回應，告訴前端「老子已經把任務交辦下去了」

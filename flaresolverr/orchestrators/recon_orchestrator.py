@@ -1,20 +1,13 @@
-# flaresolverr/orchestrators/recon_orchestrator.py
 import os
 import logging
 from typing import List, Dict, Any
 from .bs4_handler import BS4Handler
 import hashlib
 
-# 操，注意這個 import 路径！
 from ..my_spider import MySpider
-
-# 把 TechScanner 也導入進來
 from ..web_tech.tech_scanner import TechScanner
-
-
-# 導入本地項目內的分析引擎
 from flaresolverr.gf.hacker_gf.pygf import PatternAnalyzer
-
+from flaresolverr.spider_utils.content_type import ContentTypeDetector
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +17,6 @@ class ReconOrchestrator:
     v1.0 指揮官：
     1. 負責協調 MySpider, TechScanner 和 PatternAnalyzer。
     2. 吃進一個 URL，吐出一個包含所有戰果的字典。
-    3. 自己不干髒活，只負責指揮和打包。
     """
 
     def __init__(self, url: str, method: str = "GET", cookie_string: str = ""):
@@ -48,72 +40,78 @@ class ReconOrchestrator:
         logger.info(f"作戰開始: {self.url}")
 
         # --- 第一階段：派遣先鋒部隊 (MySpider) ---
-        response, used_flaresolverr, self.content_fetch_status = self.spider.send()
+        # response_data 是一個 dict (raw data from httpx or standard data from flaresolverr)
+        response_data, used_flaresolverr, self.content_fetch_status = self.spider.send()
 
         tech_stack_data = {
             "technologies": [],
             "fingerprints_matched": [],
             "error": "Spider failed, tech scan skipped.",
         }
-
-        # 如果連 response 對象都沒有，直接報錯
-        if not response:
-            logger.error(f"作戰失敗: 先鋒部隊未能為 {self.url} 奪取任何情報。")
-            return {
-                "success": False,
-                "url": self.url,
-                "error": "Spider failed to get a response.",
-                "spider_result": None,
-                "analysis_result": None,
-                "tech_stack_result": tech_stack_data,
-                "content_fetch_status": self.content_fetch_status,  # <--- 這裡也要返回狀態
-            }
-
-        logger.info(
-            f"先鋒部隊成功返回情報 for {self.url}, 狀態碼: {response.status_code}"
-        )
+        content_type, is_text_content, is_binary_url = ContentTypeDetector(
+            response_data, used_flaresolverr, self.content_fetch_status, self.url
+        ).detect()
+        # [修正點 1] 使用 .get() 獲取狀態碼，因為 response_data 是字典
+        status_code = response_data.get("status_code")
+        logger.info(f"先鋒部隊成功返回情報 for {self.url}, 狀態碼: {status_code}")
 
         # --- 第二階段：情報整理 ---
-        spider_json_report = self.spider.translate_into_json(response)
-
-        # 關鍵：獲取 Content-Type 並標準化
-        response_headers = spider_json_report.get("response_headers", {})
-        # 處理 key 大小寫可能不一致的問題 (Content-Type vs content-type)
-        content_type = next(
-            (v for k, v in response_headers.items() if k.lower() == "content-type"), ""
-        ).lower()
-
-        logger.info(f"偵測到的 Content-Type: {content_type}")
-
+        # MySpider.send() 已直接回傳標準 JSON，這裡直接使用
+        spider_json_report = response_data
         # 準備響應文本
         response_text = spider_json_report.get("response_text", "")
 
-        # 判斷是否為「可分析文本」 (Text-based)
-        # 如果是 image/gif, application/zip 等二進位，這個標誌為 False
-        analyzable_types = ["text", "html", "json", "xml", "javascript", "ecmascript"]
-        is_text_content = (
-            any(t in content_type for t in analyzable_types) or not content_type
-        )
-
         # --- 第三階段：技術偵測 (TechScanner) ---
-        # 技術偵測通常基於 Headers 和 HTML，如果是純圖片也可以跑 Headers 部分，所以這裡不強制過濾
+        # 注意：如果是 Httpx 來源，spider_json_report 裡可能已經帶有 "tech" 欄位
+        # 但為了保險和統一，我們還是跑一遍 Python 版的 TechScanner (如果需要處理 raw headers/html)
+        # 或者，如果 spider_json_report 已經有 tech，我們可以合併
+
         tech_stack_data = self.tech_scanner.scan(
             response_headers=spider_json_report.get("response_headers", {}),
-            response_text=(
-                response_text if is_text_content else ""
-            ),  # 如果是二進位，不要傳內容進去亂搞
+            response_text=(response_text if is_text_content else ""),
             response_cookies=spider_json_report.get("response_cookies", {}),
             url=spider_json_report.get("response_url", self.url),
         )
-        logger.info(
-            f"技術偵測完成，發現 {len(tech_stack_data.get('technologies', []))} 種技術。"
-        )
+        md5 = response_data["md5"]
+        # 2. 合併 Httpx 原生偵測結果 (補強)
+        # Httpx 返回格式通常是 list of strings: ["Nginx", "PHP:7.4", "React"]
+        httpx_tech_list = spider_json_report.get("tech", [])
 
+        # 取得目前已有的技術名稱集合 (避免重複)
+        existing_tech_names = {
+            item["name"].lower()
+            for item in tech_stack_data.get("fingerprints_matched", [])
+        }
+
+        # 準備要追加的列表
+        matched_fingerprints = tech_stack_data.get("fingerprints_matched", [])
+
+        if httpx_tech_list:
+            logger.info(f"Httpx 原生偵測到: {httpx_tech_list}")
+            for tech_str in httpx_tech_list:
+                # 解析 "Name:Version" 或 "Name"
+                parts = tech_str.split(":")
+                name = parts[0]
+                version = parts[1] if len(parts) > 1 else None
+
+                # 如果這個技術還沒被記錄，就加進去
+                if name.lower() not in existing_tech_names:
+                    matched_fingerprints.append(
+                        {
+                            "name": name,
+                            "version": version,
+                            "categories": [],  # Httpx 不提供分類，留空
+                            "source": "httpx",  # 標記來源 (可選)
+                        }
+                    )
+                    existing_tech_names.add(name.lower())
+
+        # 更新回去
+        tech_stack_data["fingerprints_matched"] = matched_fingerprints
         # --- 第四階段：HTML 結構化分析 (BS4Handler) ---
         html_analysis = self.bs4_handler.get_empty_analysis()
 
-        # 只有當 Content-Type 包含 html 且確實有內容時，才跑 BeautifulSoup
-        if "html" in content_type and response_text and len(response_text) > 0:
+        if is_text_content and not is_binary_url:
             final_url = spider_json_report.get("response_url", self.url)
             html_analysis = (
                 self.bs4_handler.analyze_html(response_text, base_url=final_url)
@@ -132,46 +130,20 @@ class ReconOrchestrator:
         meta_tags_found = html_analysis.get("meta_tags", [])
         iframes_found = html_analysis.get("iframes", [])
 
-        # 更新 Spider 報告中的標題
-        spider_json_report["title"] = extracted_title
+        # 更新 Spider 報告中的標題 (如果 BS4 找到了更好的)
+        if extracted_title:
+            spider_json_report["title"] = extracted_title
 
         # --- 第五階段：情報洩漏分析 (HackerGF) ---
         analysis_findings = []
 
-        # 這裡是最重要的過濾：
-        # 1. 必須是文本類型 (is_text_content)
-        # 2. 必須有內容
-        # 3. 避免對明顯的二進位擴展名跑正則 (即使 Content-Type 騙人)
-        is_binary_url = any(
-            self.url.lower().endswith(ext)
-            for ext in [
-                ".jpg",
-                ".jpeg",
-                ".png",
-                ".gif",
-                ".ico",
-                ".woff",
-                ".ttf",
-                ".pdf",
-                ".zip",
-            ]
-        )
-
         if is_text_content and response_text and not is_binary_url:
             lines = response_text.splitlines()
-            # 限制行數或長度，避免對超大 JS 文件跑正則導致卡死 (可選，這裡先不加)
             analysis_findings = self.analyzer.run_all_patterns(lines)
             logger.info(f"HackerGF 分析完成，發現 {len(analysis_findings)} 個潛在點。")
         else:
-            logger.info(f"跳過 HackerGF 分析 (非文本內容、二進位 URL 或內容為空)。")
-        if response_text:
-            # 使用 md5 算法，更輕量，速度更快
-            raw_response_hash = hashlib.md5(
-                response_text.encode("utf-8", errors="ignore")
-            ).hexdigest()
-            logger.info(f"計算響應內容 MD5 Hash: {raw_response_hash}")
-        else:
-            logger.info("響應內容為空，跳過 Hash 計算。")
+            logger.info(f"跳過 HackerGF 分析。")
+
         # --- 第六階段：打包最終戰報 ---
         logger.info(f"作戰成功結束 for {self.url}")
         actual_final_url = spider_json_report.get("response_url", self.url)
@@ -190,6 +162,6 @@ class ReconOrchestrator:
             "comments_result": comments_found,
             "meta_tags_result": meta_tags_found,
             "iframes_result": iframes_found,
-            "content_fetch_status": self.content_fetch_status,  # 確保傳回狀態
-            "raw_response_hash": raw_response_hash,
+            "content_fetch_status": self.content_fetch_status,
+            "raw_response_hash": md5,
         }

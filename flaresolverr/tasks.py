@@ -12,6 +12,7 @@ from c2_core.config.utils import sanitize_for_db
 
 from core.models import (
     Subdomain,
+    Seed,
     URLScan,
     URLResult,
     AnalysisFinding,
@@ -21,14 +22,70 @@ from core.models import (
     Comment,
     MetaTag,
     Iframe,
+    TechStack,
 )
 
 logger = logging.getLogger(__name__)
 
 
+def save_tech_stack_to_db(url_result_obj, tech_stack_result: dict):
+    """
+    全量更新模式：
+    1. 刪除該 URL 關聯的所有舊 TechStack。
+    2. 寫入本次掃描發現的所有新 TechStack。
+    """
+    from core.models.assets import TechStack
+
+    fingerprints = tech_stack_result.get("fingerprints_matched", [])
+    if not fingerprints:
+        # 如果這次沒掃到任何技術，也要清空舊的嗎？
+        # 通常是的，這代表目標隱藏了指紋
+        TechStack.objects.filter(which_url_result=url_result_obj).delete()
+        return
+
+    # 1. 清理舊數據 (這一步確保資料庫裡不會有殘留的過時版本)
+    TechStack.objects.filter(which_url_result=url_result_obj).delete()
+
+    to_create = []
+    seen_in_batch = set()
+
+    for item in fingerprints:
+        name = item.get("name")
+        if not name:
+            continue
+
+        version = item.get("version")
+        clean_version = version if version and version.lower() != "n/a" else None
+
+        # 本次批次內去重
+        if (name, clean_version) in seen_in_batch:
+            continue
+        seen_in_batch.add((name, clean_version))
+
+        categories = item.get("categories", [])
+        if not isinstance(categories, list):
+            categories = []
+
+        to_create.append(
+            TechStack(
+                which_url_result=url_result_obj,
+                name=name,
+                version=clean_version,
+                categories=categories,
+            )
+        )
+
+    # 2. 寫入新數據 (不需要 ignore_conflicts 了，因為舊的都刪了)
+    if to_create:
+        TechStack.objects.bulk_create(to_create)
+        logger.info(
+            f"已更新 {url_result_obj.url} 的技術棧: 寫入 {len(to_create)} 條記錄。"
+        )
+
+
 @shared_task(bind=True)
 @log_function_call()
-def perform_scan_for_url(self, url: str, method: str = "GET"):
+def perform_scan_for_url(self, url: str, method: str = "GET", seed_id: int = None):
     """
     對指定 URL 執行深度偵察。
     適配：URLScan (target_url/target_subdomain) 和 URLResult (related_subdomains M2M)。
@@ -43,10 +100,19 @@ def perform_scan_for_url(self, url: str, method: str = "GET"):
         if not hostname:
             raise ValueError(f"URL '{url}' 格式無效，無法解析 hostname。")
 
-        subdomain, _ = Subdomain.objects.get_or_create(
+        subdomain, created = Subdomain.objects.get_or_create(
             name=hostname,
+            defaults={"is_active": True, "last_seen": timezone.now()},
         )
-
+        # 將子域名與 Seed 綁定 (M2M)
+        if seed_id:
+            try:
+                seed_obj = Seed.objects.get(id=seed_id)
+                subdomain.which_seed.add(seed_obj)
+            except Seed.DoesNotExist:
+                logger.warning(f"提供的 seed_id 不存在: {seed_id}")
+        if created:
+            logger.info(f"發現並創建了新子域名資產: {hostname}")
         # --- 初始化階段 (Atomic) ---
         with transaction.atomic():
             # 3. 準備 URLResult (被掃描的對象)
@@ -128,9 +194,6 @@ def perform_scan_for_url(self, url: str, method: str = "GET"):
                 spider_data.get("response_text", "")
             )
             url_result_to_update.title = spider_data.get("title")
-            url_result_to_update.tech_stack = sanitize_for_db(
-                result.get("tech_stack_result", {})
-            )
             url_result_to_update.content_fetch_status = result.get(
                 "content_fetch_status", "COMPLETED"
             )
@@ -151,7 +214,8 @@ def perform_scan_for_url(self, url: str, method: str = "GET"):
                     [
                         JavaScriptFile(which_url=url_result_to_update, **i)
                         for i in scripts_data
-                    ]
+                    ],
+                    ignore_conflicts=True,
                 )
 
             links_data = result.get("links_result", [])
@@ -197,6 +261,9 @@ def perform_scan_for_url(self, url: str, method: str = "GET"):
                     for match in group.get("matches", [])
                 ]
                 AnalysisFinding.objects.bulk_create(findings)
+            tech_stack_data = result.get("tech_stack_result", {})
+            if tech_stack_data:
+                save_tech_stack_to_db(url_result_to_update, tech_stack_data)
 
         # 10. 完成任務
         if scan_task:

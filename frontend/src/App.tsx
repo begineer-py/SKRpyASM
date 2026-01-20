@@ -13,7 +13,6 @@ import TargetDashboard from "./pages/TargetDashboard/TargetDashboard.tsx";
 import ScanResultPage from "./pages/NmapScanResultPage/ScanResultPage.tsx";
 import SeedReconPage from "./pages/SeedReconPageSub/SeedReconPage.tsx";
 import SubdomainDetailPage from "./pages/SubdomainDetailPage/SubdomainDetailPage.tsx";
-//import URLScanResultPage from './pages/URLScanResultPage/URLScanResultPage.tsx';
 function App() {
   return (
     <BrowserRouter>
@@ -26,12 +25,11 @@ function App() {
         <Routes>
           <Route path="/" element={<TargetListPage />} />
           <Route path="/target/:targetId" element={<TargetDashboard />} />
-          <Route path="/target/namp/:targetId" element={<ScanResultPage />} />
+          <Route path="/target/nmap/:targetId" element={<ScanResultPage />} />
           <Route
-            path="/target/:targetId/seed/:seedId/url"
+            path="/target/:targetId/seed/:seedId/url/:urlId"
             element={<UrlReconPage />}
           />
-
           <Route
             path="/target/:targetId/seed/:seedId/subdomain"
             element={<SeedReconPage />}
@@ -40,7 +38,6 @@ function App() {
             path="/target/:targetId/subdomain/:subdomainId"
             element={<SubdomainDetailPage />}
           />
-          {/* <Route path="/target/url/:targetId/" element={<URLScanResultPage />} /> */}
         </Routes>
       </main>
     </BrowserRouter>

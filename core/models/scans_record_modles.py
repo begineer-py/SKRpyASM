@@ -153,6 +153,7 @@ class NucleiScan(models.Model):
     severity_filter = models.CharField(max_length=10, blank=True)
     output_file = models.CharField(max_length=255, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         app_label = "core"

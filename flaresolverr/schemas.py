@@ -24,6 +24,7 @@ class FlaresolverrTriggerSchema(BaseModel):
     url: str
     method: str
     use_tool: str | None = None
+    seed_id: int | None = None
 
 
 class check_flaresolverr(BaseModel):

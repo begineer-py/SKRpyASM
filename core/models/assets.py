@@ -19,6 +19,18 @@ class Target(models.Model):
         return self.name
 
 
+class SubdomainSeed(models.Model):
+    subdomain = models.ForeignKey(
+        "Subdomain", on_delete=models.CASCADE, related_name="seed_links"
+    )
+    seed = models.ForeignKey("Seed", on_delete=models.CASCADE, related_name="sub_links")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        app_label = "core"
+        unique_together = ("subdomain", "seed")
+
+
 class Seed(models.Model):
     SEED_TYPE_CHOICES = [
         ("DOMAIN", "Root Domain (e.g., google.com)"),
@@ -94,8 +106,8 @@ class Port(models.Model):
 
 
 class Subdomain(models.Model):
-    which_seed = models.ForeignKey(
-        Seed, on_delete=models.CASCADE, related_name="subdomains"
+    which_seed = models.ManyToManyField(
+        "core.Seed", related_name="subdomains", through="SubdomainSeed"
     )
     discovered_by_scans = models.ManyToManyField(
         "core.SubfinderScan", blank=True, related_name="updated_subdomains"
@@ -126,8 +138,7 @@ class Subdomain(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ("which_seed", "name")
-        indexes = [models.Index(fields=["which_seed", "name"])]
+        app_label = "core"
 
     def __str__(self):
         return self.name
@@ -147,6 +158,7 @@ class URLResult(models.Model):
             ("SUCCESS_FETCHED", "SUCCESS_FETCHED"),
             ("FAILED_NO_CONTENT", "FAILED_NO_CONTENT"),
             ("FAILED_NETWORK_ERROR", "FAILED_NETWORK_ERROR"),
+            ("FAILED_BLOCKED", "FAILED_BLOCKED"),
         ],
         default="PENDING",
         db_index=True,
@@ -157,7 +169,6 @@ class URLResult(models.Model):
     title = models.CharField(max_length=512, null=True, blank=True)
     content_length = models.PositiveIntegerField(null=True, blank=True)
     headers = models.JSONField(null=True, blank=True)
-    tech_stack = models.JSONField(null=True, blank=True)
     raw_response = models.TextField(null=True, blank=True)
     is_important = models.BooleanField(default=False, db_index=True)
     used_flaresolverr = models.BooleanField(default=False)
@@ -171,7 +182,6 @@ class URLResult(models.Model):
     raw_response_hash = models.CharField(
         max_length=64, null=True, blank=True, db_index=True
     )
-
     # 歷史記錄
     history = HistoricalRecords()
 
@@ -293,3 +303,49 @@ class Comment(models.Model):
 
     def __str__(self):
         return self.content[:50]
+
+
+# core/models/assets.py
+
+
+class TechStack(models.Model):
+    """
+    技術棧明細表：記錄 Nginx, PHP, Ubuntu 等具體技術
+    """
+
+    # 關聯到 URLResult (當前層級)
+    which_url_result = models.ForeignKey(
+        "URLResult",
+        on_delete=models.CASCADE,
+        related_name="technologies",
+        null=True,
+        blank=True,
+    )
+    # 也可以關聯到 Subdomain，方便全局查詢
+    subdomain = models.ForeignKey(
+        "Subdomain",
+        on_delete=models.CASCADE,
+        related_name="technologies",
+        null=True,
+        blank=True,
+    )
+
+    name = models.CharField(
+        max_length=100, db_index=True, help_text="技術名稱，如 PHP, Nginx"
+    )
+    version = models.CharField(
+        max_length=100, null=True, blank=True, help_text="版本號"
+    )
+    categories = models.JSONField(
+        default=list, help_text="分類，如 ['Web servers', 'Reverse proxies']"
+    )
+
+    # 擴展信息
+    last_seen = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        app_label = "core"
+        unique_together = ("which_url_result", "name", "version")  # 防止重複記錄
+
+    def __str__(self):
+        return f"{self.name} {self.version or ''}"

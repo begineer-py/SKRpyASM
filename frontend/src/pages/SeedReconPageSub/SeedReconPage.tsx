@@ -246,7 +246,7 @@ function SeedReconPage() {
                   </td>
                   <td>
                     <a
-                      href={`/target/${targetId}/url/${url.id}`}
+                      href={`/target/${targetId}/seed/${seedData.id}/url/${url.id}`}
                       className="btn btn-ghost btn-sm"
                       style={{ textDecoration: "none" }}
                     >

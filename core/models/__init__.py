@@ -13,6 +13,7 @@ from .assets import (
     MetaTag,
     Iframe,
     Comment,
+    TechStack,
 )
 from .analyze_ai_models import (
     IPAIAnalysis,

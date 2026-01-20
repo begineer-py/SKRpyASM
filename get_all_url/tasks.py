@@ -19,10 +19,11 @@ BLACKLIST_EXTS = "png,jpg,jpeg,gif,webp,svg,ico,css,js,woff,woff2,ttf,eot,mp4,mp
 @log_function_call()
 def scan_all_url(self, subdomain_id: int, threads: int = 50):
     try:
-        subdomain = Subdomain.objects.select_related("which_seed").get(id=subdomain_id)
-        logger.info(
-            f"开始对 {subdomain.name} (Seed: {subdomain.which_seed.value}) 进行被动 URL 扫描"
+        subdomain = Subdomain.objects.prefetch_related("which_seed").get(
+            id=subdomain_id
         )
+        seed_values = ",".join([s.value for s in subdomain.which_seed.all()])
+        logger.info(f"开始对 {subdomain.name} (Seeds: {seed_values}) 进行被动 URL 扫描")
 
         # === 修正點 1: 適配新的 URLScan 模型 ===
         # 使用 target_subdomain，並標記工具為 gau

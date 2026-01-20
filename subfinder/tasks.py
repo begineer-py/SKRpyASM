@@ -79,14 +79,14 @@ def start_subfinder(self, scan_id: int):
                 # [修正] 创建资产时绑定到 Seed
                 for name in new_subdomain_names:
                     sources_set = current_subdomains_map[name]
-                    Subdomain.objects.create(
-                        which_seed=seed,
+                    sub_obj = Subdomain.objects.create(
                         name=name,
                         is_active=True,
                         sources_text=",".join(sorted(list(sources_set))),
                         last_scan_type="SubfinderScan",
                         last_scan_id=scan.id,
                     )
+                    sub_obj.which_seed.add(seed)
 
                 # [逻辑保留] 保持你原来的详细更新逻辑
                 for name in reactivated_names:
@@ -165,11 +165,11 @@ def resolve_dns_for_seed(self, seed_id: int, subfinder_scan_id: int):
 
         if seed.value not in subdomain_map:
             # 獲取或創建一個代表 Seed 自身的 Subdomain 條目
-            seed_sub, _ = Subdomain.objects.get_or_create(
-                which_seed=seed,
+            seed_sub, created = Subdomain.objects.get_or_create(
                 name=seed.value,
                 defaults={"is_active": True, "sources_text": "seed_self"},
             )
+            seed_sub.which_seed.add(seed)
             subdomain_map[seed.value] = seed_sub
 
         dnsx_input_data = "\n".join(subdomain_map.keys())

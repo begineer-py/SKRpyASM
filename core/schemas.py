@@ -90,7 +90,6 @@ class URLResultSchema(ModelSchema):
             "status_code",
             "title",
             "content_length",
-            "tech_stack",
             "is_important",
             "created_at",
             "final_url",
@@ -145,6 +144,23 @@ class SuccessSendSubdomainSchema(Schema):  # 定義 TargetSchema 類別
 
 class SuccessSendURLSchema(Schema):  # 定義 TargetSchema 類別
     urls: List[str] = Field(..., description="URL 列表", min_length=1, max_length=5)
+
+
+class nucleiSuccessSendIPSchema(Schema):
+    ips: List[str] = Field(..., description="IP 列表", min_length=1, max_length=10)
+    tags: List[str] = Field(default=[], description="Nuclei 掃描標籤，決定掃描範圍")
+
+
+class nucleiSuccessSendHostSchema(Schema):
+    hosts: List[str] = Field(..., description="主機列表", min_length=1, max_length=10)
+    tags: List[str] = Field(default=[], description="Nuclei 掃描標籤，決定掃描範圍")
+
+
+class nucleiSuccessSendURLSchema(Schema):
+    urls: List[str] = Field(
+        ..., description="Nuclei 扫描结果 URL 列表", min_length=1, max_length=5
+    )
+    tags: List[str] = Field(default=[], description="Nuclei 掃描標籤，決定掃描範圍")
 
 
 class SuccessSendToAISchema(Schema):  # 定義 TargetSchema 類別
