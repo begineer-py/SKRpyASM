@@ -54,11 +54,17 @@ query GetSeedUltimateIntel($seed_id: bigint!) {
     value
     is_active
     created_at
-    core_nmapscans(order_by: {completed_at: desc}) {
-      completed_at
-      status
-      id
+
+    # 1. NmapScans (透過 M2M 中間表)
+    core_nmapscan_which_seeds(order_by: {core_nmapscan: {completed_at: desc}}) {
+      core_nmapscan {
+        completed_at
+        status
+        id
+      }
     }
+
+    # 2. SubfinderScans (這應該還是外鍵，直接拿)
     core_subfinderscans(order_by: {created_at: desc}) {
       completed_at
       added_count
@@ -67,25 +73,8 @@ query GetSeedUltimateIntel($seed_id: bigint!) {
       status
       started_at
     }
-    core_subdomains(order_by: {name: asc}) {
-      created_at
-      name
-      id
-      core_urlscans {
-        status
-        id
-        created_at
-        completed_at
-      }
-      core_urlresult_related_subdomains {
-        core_urlresult {
-          content_fetch_status
-          content_length
-          url
-          id
-        }
-      }
-    }
+
+    # 3. IP 資產 (透過 M2M 中間表)
     core_ip_which_seeds {
       core_ip {
         id
@@ -93,7 +82,26 @@ query GetSeedUltimateIntel($seed_id: bigint!) {
         ipv6
       }
     }
+
+    # 4. 子域名 & URL (重點！透過 SubdomainSeed 中間表)
+    core_subdomainseeds {
+      core_subdomain {  # 注意：Hasura 這裡通常是單數，代表中間表連到該子域名的一條線
+        id
+        name
+        created_at
+        # URL 又是另一層 M2M... 繼續鑽
+        core_urlresult_related_subdomains {
+          core_urlresult {
+            id
+            url
+            status_code
+            content_fetch_status
+          }
+        }
+      }
+    }
   }
 }
+
 
 `;

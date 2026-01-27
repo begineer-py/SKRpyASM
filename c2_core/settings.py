@@ -45,19 +45,18 @@ INSTALLED_APPS = [  # 註冊 Django 項目中使用的應用程序列表
     # 操！就是這裡！把你自己的核心 App 加進來！
     "c2_core",  # <--- 加上這行！ # 核心應用程序
     # 你的 Apps
-    "targets",  # 自定義應用：目標管理
-    "nmap_scanner",  # 自定義應用：Nmap 掃描器
-    "flaresolverr",  # 自定義應用：FlareSolverr 代理集成
-    "core",  # 自定義應用：核心應用
-    "result_assets",  # 自定義應用：結果資產
+    "apps.targets",  # 自定義應用：目標管理
+    "apps.nmap_scanner",  # 自定義應用：Nmap 掃描器
+    "apps.flaresolverr",  # 自定義應用：FlareSolverr 代理集成
+    "apps.core",  # 自定義應用：核心應用
     # 你未來還要加 celery, redis 相關的 app 等等
     "corsheaders",  # 處理跨域請求的第三方應用
-    "subfinder",
+    "apps.subfinder",
     "django_extensions",
-    "scheduler",
+    "apps.scheduler",
     "django_celery_beat",
-    "analyze_ai",  # 操！把指揮中心加在其他 app 前面，或者就加在列表裡
-    "nuclei_scanner",
+    "apps.analyze_ai",  # 操！把指揮中心加在其他 app 前面，或者就加在列表裡
+    "apps.nuclei_scanner",
 ]
 MIDDLEWARE = [  # 中間件列表，處理請求和響應的層次
     "corsheaders.middleware.CorsMiddleware",  # CORS 中間件，處理跨域請求

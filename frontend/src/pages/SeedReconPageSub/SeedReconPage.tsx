@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom"; // 雖然 navigate 少用了，但 hook 仍可能需要保留以防擴展
+import { useParams, useNavigate } from "react-router-dom";
 import { gqlFetcher } from "../../services/api";
 import {
   ReconService,
@@ -7,14 +7,13 @@ import {
 } from "../../services/api_recon";
 import type {
   SeedIntelligenceResponse,
-  SeedIntelligenceData,
   Subdomain,
   IP,
   UrlResult,
 } from "../../type";
 import "./SeedReconPage.css";
 
-// 可折疊卡片組件 (保持不變)
+// 可折疊卡片組件
 const AssetCard: React.FC<{
   title: string;
   count: number;
@@ -63,9 +62,7 @@ function SeedReconPage() {
     if (!nSeedId) return;
     setTriggering(true);
     try {
-      // 呼叫後端 API 觸發掃描
       await ReconService.startDomainRecon(nSeedId);
-      // 延遲一秒後刷新，給後端時間創建 PENDING 記錄
       setTimeout(fetchIntel, 1000);
     } catch (err: any) {
       alert(`指令被拒絕: ${err.message}`);
@@ -82,31 +79,46 @@ function SeedReconPage() {
 
   if (loading) return <div>LOADING INTEL...</div>;
 
-  // [修正] 从新的数据结构中提取 seedData
+  // 1. 取得 Seed 本體 (安全取值)
   const seedData = intel?.core_seed?.[0];
-
   if (!seedData) return <div>SEED NOT FOUND</div>;
 
-  const isRunning = seedData.core_subfinderscans.some(
-    (s) => s.status === "PENDING" || s.status === "RUNNING"
-  );
+  // =========================================================================
+  // 資料清洗區 (這裡全是地雷，但我幫你掃乾淨了)
+  // =========================================================================
 
-  // === [核心重写] 数据提取逻辑，以匹配新的嵌套结构 ===
+  // [防禦性編碼] 所有的 Array 在使用前都先 || []，確保不是 undefined
+
+  // 2. 檢查掃描狀態
+  const subfinderScans = seedData.core_subfinderscans || [];
+  const isSubfinderRunning = subfinderScans.some(
+    (s: any) => s.status === "PENDING" || s.status === "RUNNING"
+  );
+  const isRunning = isSubfinderRunning;
+
+  // 3. 洗出 IP
+  // 根據 Type: core_ip_which_seeds 是一個包裝物件的陣列，這裡你的邏輯是對的
   const allIPs = (seedData.core_ip_which_seeds || []).map(
-    (relation) => relation.core_ip
+    (item: any) => item.core_ip
   );
 
-  const allURLs = (seedData.core_subdomains || []).flatMap((sub) =>
+  // 4. 洗出 Subdomains
+  // [修正重點] 根據 Type: core_subdomains 本身就是 Subdomain[]，不需要再去 map item.core_subdomain
+  const allSubdomains = seedData.core_subdomains || [];
+
+  // 5. 洗出 URLs
+  // 這裡要用 optional chaining (?.) 防止 Subdomain 裡面的關聯也是空的
+  const allURLs = allSubdomains.flatMap((sub: Subdomain) =>
     (sub.core_urlresult_related_subdomains || []).map(
-      (relation) => relation.core_urlresult
+      (rel: any) => rel.core_urlresult
     )
   );
 
-  // ... (在 SeedReconPage.tsx 中，接在数据提取逻辑之后)
+  // =========================================================================
 
   return (
     <div className="recon-container">
-      {/* Header - 使用 seedData */}
+      {/* Header */}
       <div className="recon-header-card">
         <div>
           <div className="seed-info-large">{seedData.value}</div>
@@ -125,14 +137,14 @@ function SeedReconPage() {
         </button>
       </div>
 
-      {/* 掃描記錄 - 使用 seedData */}
+      {/* 掃描記錄 */}
       <AssetCard
         title="Subdomain Scans"
-        count={seedData.core_subfinderscans.length}
+        count={subfinderScans.length} // 這裡已經在上面定義時確保是陣列了，安全
       >
-        {seedData.core_subfinderscans.length > 0 ? (
+        {subfinderScans.length > 0 ? (
           <div className="scan-history-list">
-            {seedData.core_subfinderscans.map((scan) => (
+            {subfinderScans.map((scan) => (
               <div key={scan.id} className="scan-item">
                 <span style={{ fontFamily: "monospace", color: "#666" }}>
                   #{scan.id}
@@ -154,9 +166,9 @@ function SeedReconPage() {
 
       <h3 style={{ marginTop: 30 }}>DISCOVERED ASSETS</h3>
 
-      {/* 子域名資產 - 使用 seedData */}
-      <AssetCard title="Subdomains" count={seedData.core_subdomains.length}>
-        {seedData.core_subdomains.length > 0 ? (
+      {/* 子域名資產 */}
+      <AssetCard title="Subdomains" count={allSubdomains.length}>
+        {allSubdomains.length > 0 ? (
           <table className="assets-table">
             <thead>
               <tr>
@@ -167,7 +179,7 @@ function SeedReconPage() {
               </tr>
             </thead>
             <tbody>
-              {seedData.core_subdomains.map((sub: Subdomain) => (
+              {allSubdomains.map((sub: Subdomain) => (
                 <tr key={sub.id}>
                   <td>{sub.name}</td>
                   <td>{new Date(sub.created_at).toLocaleString()}</td>
@@ -190,7 +202,7 @@ function SeedReconPage() {
         )}
       </AssetCard>
 
-      {/* IP 資產 - [修正] 使用提取出的 allIPs */}
+      {/* IP 資產 */}
       <AssetCard title="IP Addresses" count={allIPs.length}>
         {allIPs.length > 0 ? (
           <table className="assets-table">
@@ -221,7 +233,7 @@ function SeedReconPage() {
         )}
       </AssetCard>
 
-      {/* URL 資產 - [修正] 使用提取出的 allURLs */}
+      {/* URL 資產 */}
       <AssetCard title="URLs Found" count={allURLs.length}>
         {allURLs.length > 0 ? (
           <table className="assets-table">

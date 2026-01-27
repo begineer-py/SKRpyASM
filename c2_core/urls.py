@@ -9,26 +9,25 @@ from django.urls import path  # 導入 Django 用於 URL 路由的 path 函數
 from ninja import NinjaAPI  # 導入 NinjaAPI 類，用於創建 API 實例
 
 # 從你的 app 裡導入 router
-from targets.api import (
+from apps.targets.api import (
     router as targets_router,
 )  # 從 targets 應用導入 API 路由器，並重命名為 targets_router
-from nmap_scanner.api import (
+from apps.nmap_scanner.api import (
     router as nmap_router,
 )  # 從 nmap_scanner 應用導入 API 路由器，並重命名為 nmap_router
-from flaresolverr.api import (
+from apps.flaresolverr.api import (
     router as flaresolverr_router,
 )  # 從 flaresolverr 應用導入 API 路由器，並重命名為 flaresolverr_router
-from core.api import (
+from apps.core.api import (
     router as core_router,
 )  # 從 core 應用導入 API 路由器，並重命名為 core_router
-from result_assets.api import (
-    router as result_assets_router,
-)  # 從 result_assets 應用導入 API 路由器，並重命名為 result_assets_router
-from subfinder.api import router as subdoamain
-from get_all_url.api import router as get_all_url_router
-from scheduler.api import router as scheduler_router
-from analyze_ai.api import router as analyze_ai_router
-from nuclei_scanner.api import router as nuclei_scanner_router
+
+# 從 result_assets 應用導入 API 路由器，並重命名為 result_assets_router
+from apps.subfinder.api import router as subdoamain
+from apps.get_all_url.api import router as get_all_url_router
+from apps.scheduler.api import router as scheduler_router
+from apps.analyze_ai.api import router as analyze_ai_router
+from apps.nuclei_scanner.api import router as nuclei_scanner_router
 
 # 建立 NinjaAPI 實例
 api = NinjaAPI(  # 創建一個 NinjaAPI 實例
@@ -47,9 +46,6 @@ api.add_router(
     "/flaresolverr/", flaresolverr_router
 )  # 將 flaresolverr 應用的路由添加到 /flaresolverr/ 路徑下
 api.add_router("/core/", core_router)  # 將 core 應用的路由添加到 /core/ 路徑下
-api.add_router(
-    "/result_assets/", result_assets_router
-)  # 將 result_assets 應用的路由添加到 /result_assets/ 路徑下
 api.add_router("/subfinder", subdoamain)
 api.add_router("/get_all_url", get_all_url_router)
 # 之後有別的 app，就繼續加

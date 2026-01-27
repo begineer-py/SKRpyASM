@@ -7,6 +7,8 @@ django-cors-headers
 django-extensions
 django-timezone-field
 djangorestframework
+django-allauth
+django-ratelimit
 # === Database & Task Queue ===
 psycopg2-binary
 celery
@@ -38,3 +40,10 @@ PyYAML
 loguru
 setuptools
 asgiref
+
+# === Security & Monitoring ===
+cryptography
+bcrypt
+prometheus-client
+psutil
+semgrep
