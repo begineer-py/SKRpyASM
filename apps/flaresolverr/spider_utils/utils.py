@@ -84,7 +84,7 @@ def translate_response_to_json(data, url, used_flaresolverr, status, source_type
             result["title"] = data.get("title")
             result["tech"] = data.get("tech", [])
             result["response_url"] = data.get("url", url)
-            result["response_headers"] = data.get("headers", {})
+            result["response_headers"] = data.get("header", {})
             # 使用 ContentTypeDetector 來檢測 content type
 
             (
@@ -108,6 +108,7 @@ def translate_response_to_json(data, url, used_flaresolverr, status, source_type
                 data.get("response_text") or data.get("text") or ""
             )
             result["response_url"] = data.get("response_url") or data.get("url", url)
+            result["tech"] = data.get("tech", [])
 
             # 補丁：如果上一次轉換把 headers 放在 'headers' 裡而不是 'response_headers'
             if not result["response_headers"] and "headers" in data:
@@ -121,3 +122,45 @@ def translate_response_to_json(data, url, used_flaresolverr, status, source_type
                 result["response_text"].encode("utf-8", errors="ignore")
             ).hexdigest()
     return result
+
+
+@log_function_call()
+def if_spa(data: dict) -> bool:
+    """
+    判斷解析後的 httpx 數據中是否包含 SPA 框架指紋。
+    """
+    if not data or not isinstance(data, dict):
+        return False
+
+    # httpx 返回的 tech 通常是一個 list of strings，例如 ["React", "Nginx", "jQuery"]
+    tech_list = data.get("tech", [])
+    if not tech_list:
+        return False
+
+    # 定義 SPA 關鍵字 (轉小寫比對)
+    spa_keywords = {
+        "vue",
+        "react",
+        "angular",
+        "svelte",
+        "next.js",
+        "nuxt.js",
+        "backbone",
+        "ember",
+        "cloudflare",
+    }
+
+    # 檢查每一個技術組件
+    for tech_item in tech_list:
+        # tech_item 可能是 "React:16.8" 這種格式，我們只取名稱部分並轉小寫
+        t_name = (
+            tech_item.split(":")[0].lower() if ":" in tech_item else tech_item.lower()
+        )
+
+        # 檢查是否包含關鍵字
+        # 這裡用包含檢查 (in) 是為了抓到像 "vue.js" 這種
+        for keyword in spa_keywords:
+            if keyword in t_name:
+                return True
+
+    return False

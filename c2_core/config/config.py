@@ -4,6 +4,7 @@ import os
 import yaml
 from pathlib import Path
 import sys
+import random
 
 
 class Config:
@@ -122,8 +123,19 @@ class Config:
 
     NYAPROXY_SPIDER_URL = _CONFIGS.get("nyaproxy_spider", {}).get("URL")
     FLARESOLVERR_URL = _CONFIGS.get("flaresolverr", {}).get("URL")  # 示例：添加新服務
+    MODEL_PATH = os.path.join(
+        os.path.dirname(__file__),
+        "..",
+        "..",
+        "apps",
+        "flaresolverr",
+        "gf",
+        "hacker_gf",
+        "json_decoder",
+        "hacker_model_final_v2",
+    )
 
-    # ... 其他服務 URL 可以按需添加 ...
+    # ... 其他服務 URL 可以按需添加 ...apps/flaresolverr/gf/hacker_gf/json_decoder/hacker_model_final_v2
 
 
 # 你可以在這裡直接打印來快速驗證

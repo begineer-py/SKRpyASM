@@ -56,10 +56,10 @@ Response Structure:
       "extracted_entities": { // Structured data found
           "emails": ["..."],
           "api_keys": ["..."],
-          "technologies": ["Squarespace", "React"]
+          "technologies": ["Squarespace", "React"]//don't repeat the raw data tech_stack
       },
       "recommended_actions": [ "<string>", "<string>" ], // Strategic advice
-      "command_actions": [ "<string>", "<string>" ] // Specific CLI commands
+      "command_actions": [ "<string>", "<string>" ] // Specific CLI commands,step by step
     }
   ]
 }

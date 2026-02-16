@@ -151,7 +151,7 @@ async def scan_ips(request, payload: nucleiSuccessSendIPSchema):
     description="核心流程：驗證子域名存在 -> 提取 ID -> 丟給 Celery 異步處理 (調用 Hasura 獲取詳細 DNS/URL 數據 -> nuclei 掃描)",
 )
 async def scan_subdomains(request, payload: nucleiSuccessSendHostSchema):
-    subdomains_to_check = payload.urls
+    subdomains_to_check = payload.hosts
     logger.info(
         f"接收到 nuclei 掃描請求 for {len(subdomains_to_check)} 個子域名: {subdomains_to_check}"
     )

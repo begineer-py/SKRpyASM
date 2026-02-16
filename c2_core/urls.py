@@ -39,13 +39,13 @@ api = NinjaAPI(  # 創建一個 NinjaAPI 實例
 # 媽的，在 API 裡面，把 targets 的地盤劃在 /targets/
 # 這樣才對！
 api.add_router(
-    "/targets/", targets_router
+    "/targets", targets_router
 )  # 將 targets 應用的路由添加到 /targets/ 路徑下
-api.add_router("/nmap/", nmap_router)  # 將 nmap_scanner 應用的路由添加到 /nmap/ 路徑下
+api.add_router("/nmap", nmap_router)  # 將 nmap_scanner 應用的路由添加到 /nmap/ 路徑下
 api.add_router(
-    "/flaresolverr/", flaresolverr_router
+    "/flaresolverr", flaresolverr_router
 )  # 將 flaresolverr 應用的路由添加到 /flaresolverr/ 路徑下
-api.add_router("/core/", core_router)  # 將 core 應用的路由添加到 /core/ 路徑下
+api.add_router("/core", core_router)  # 將 core 應用的路由添加到 /core/ 路徑下
 api.add_router("/subfinder", subdoamain)
 api.add_router("/get_all_url", get_all_url_router)
 # 之後有別的 app，就繼續加

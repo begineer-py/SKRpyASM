@@ -13,7 +13,6 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 import os  # 導入 os 模塊，用於操作系統相關功能
 from pathlib import Path  # 導入 Path 模塊，用於處理文件路徑
 
-LOGGING_CONFIG = None  # 禁用 Django 預設的日誌配置，通常用於自定義日誌處理
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent  # 定義項目根目錄的路徑
@@ -214,83 +213,112 @@ REST_FRAMEWORK = {  # Django REST framework 配置
     ],
 }
 CELERY_IMPORTS = (
-    "nmap_scanner.tasks",
+    "apps.nmap_scanner.tasks",
+    "apps.flaresolverr.tasks.spider",
+    "apps.get_all_url.tasks",
+    "apps.subfinder.tasks",
+    "apps.analyze_ai.tasks",
+    "apps.nuclei_scanner.tasks",
+    "apps.scheduler.tasks",
 )  # <--- 加上這行！用元組，即使只有一個也加逗號 # 指定 Celery 啟動時需要導入的模塊，包含 Celery 任務
 API_BASE_URL = "http://127.0.0.1:8000"
+LOG_DIR = BASE_DIR / "c2_core" / "logs"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
 LOGGING = {
     "version": 1,
-    "disable_existing_loggers": False,  # 關鍵！設為 False 才能讓 Uvicorn/Celery 的日誌活著
+    "disable_existing_loggers": False,
     "formatters": {
-        "rich": {"datefmt": "[%X]"},  # 只顯示時間，不顯示日期，節省空間
+        "rich": {"datefmt": "[%X]"},
+        "verbose": {
+            "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
+            "style": "{",
+        },
+        "simple": {
+            "format": "{levelname} {asctime} {message}",
+            "style": "{",
+        },
     },
     "handlers": {
+        # 1. 螢幕顯示 (Rich)
         "console": {
-            "class": "django_rich.logging.RichHandler",  # <--- 這是核心，換成 RichHandler
+            "class": "rich.logging.RichHandler",
             "formatter": "rich",
             "level": "INFO",
-            "show_time": True,
-            "show_path": False,  # 設為 False 可以讓畫面更清爽，只顯示 logger name
-            "rich_tracebacks": True,  # <--- 開啟漂亮的報錯堆疊
-            "tracebacks_show_locals": True,  # <--- 這是神器！報錯時會顯示局部變數的值！
+            "rich_tracebacks": True,
+            "tracebacks_show_locals": True,
+        },
+        # 2. 一般日誌 (app.txt)
+        "app_file": {
+            "level": "INFO",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": LOG_DIR / "app.log",
+            "maxBytes": 1024 * 1024 * 10,
+            "backupCount": 5,
+            "formatter": "verbose",
+            "encoding": "utf-8",
+        },
+        # 3. 錯誤日誌 (error.txt)
+        "error_file": {
+            "level": "ERROR",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": LOG_DIR / "error.log",
+            "maxBytes": 1024 * 1024 * 10,
+            "backupCount": 10,
+            "formatter": "verbose",
+            "encoding": "utf-8",
         },
     },
     "loggers": {
-        # 根日誌記錄器
+        # 根日誌記錄器：所有沒被接管的日誌都會走這路
         "": {
-            "handlers": ["console"],
+            "handlers": ["console", "app_file", "error_file"],  # <--- 把這三個都接上！
             "level": "INFO",
         },
         # 你的核心業務代碼
         "c2_core": {
-            "handlers": ["console"],
+            "handlers": ["console", "app_file", "error_file"],
             "level": "INFO",
             "propagate": False,
         },
         "flaresolverr": {
-            "handlers": ["console"],
+            "handlers": ["console", "app_file", "error_file"],
             "level": "INFO",
             "propagate": False,
         },
-        # 你的其他 App (根據你的專案結構添加)
         "targets": {
-            "handlers": ["console"],
-            "level": "INFO",
-            "propagate": False,
-        },
-        "subdomain_finder": {
-            "handlers": ["console"],
+            "handlers": ["console", "app_file", "error_file"],
             "level": "INFO",
             "propagate": False,
         },
         "scheduler": {
-            "handlers": ["console"],
+            "handlers": ["console", "app_file", "error_file"],
             "level": "INFO",
             "propagate": False,
         },
         "nmap_scanner": {
-            "handlers": ["console"],
+            "handlers": ["console", "app_file", "error_file"],
             "level": "INFO",
             "propagate": False,
         },
         "analyze_ai": {
-            "handlers": ["console"],
+            "handlers": ["console", "app_file", "error_file"],
             "level": "DEBUG",
             "propagate": False,
         },
         "nuclei_scanner": {
-            "handlers": ["console"],
+            "handlers": ["console", "app_file", "error_file"],
             "level": "DEBUG",
             "propagate": False,
         },
-        # 屏蔽煩人的 SQL 日誌，除非出錯 (想看 SQL 時改成 DEBUG)
+        # 資料庫日誌
         "django.db.backends": {
-            "handlers": ["console"],
+            "handlers": ["console", "app_file", "error_file"],
             "level": "WARNING",
             "propagate": False,
         },
-        # 讓 Uvicorn 的 Access Log 也能用 Rich 格式
+        # Uvicorn 訪問日誌
         "uvicorn": {
-            "handlers": ["console"],
+            "handlers": ["console", "app_file", "error_file"],
             "level": "INFO",
             "propagate": False,
         },

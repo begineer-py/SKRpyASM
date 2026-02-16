@@ -1,5 +1,4 @@
 # ./core/models/analyze_ai_models.py
-from apps.core.models import IP, URLResult, Subdomain
 from django.db import models
 from django.utils import timezone
 
@@ -17,7 +16,7 @@ class IPAIAnalysis(models.Model):
     ]
 
     ip = models.OneToOneField(
-        IP,
+        "core.IP",
         on_delete=models.CASCADE,
         related_name="ai_analysis",
         primary_key=True,
@@ -82,7 +81,7 @@ class SubdomainAIAnalysis(models.Model):
     ]
 
     subdomain = models.OneToOneField(
-        Subdomain,
+        "core.Subdomain",
         on_delete=models.CASCADE,
         related_name="ai_analysis",
         primary_key=True,
@@ -154,7 +153,7 @@ class URLAIAnalysis(models.Model):
     ]
 
     url_result = models.OneToOneField(
-        URLResult,
+        "core.URLResult",
         on_delete=models.CASCADE,
         related_name="ai_analysis",
         primary_key=True,

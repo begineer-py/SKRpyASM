@@ -1,123 +1,122 @@
-# c2_core/config/logging.py
 import logging
 import time
 import functools
 import asyncio
-from typing import Callable, Optional, TypeVar, ParamSpec
+from typing import Callable, Optional, TypeVar, ParamSpec, Any
 from asgiref.sync import sync_to_async
-
-# 我們不再需要手動搞顏色了，Rich 會接管一切。
-# 我們只需要提供那個強大的裝飾器。
 
 P = ParamSpec("P")
 R = TypeVar("R")
 
 
+def _smart_truncate(obj: Any, max_len: int = 200) -> Any:
+    """
+    智慧截斷：
+    1. 如果是 Dict/List，遞迴進去剁掉太長的 Value。
+    2. 如果是原生字串，直接剁了。
+    3. 保留所有 Key，不刪除結構。
+    """
+    if isinstance(obj, dict):
+        return {k: _smart_truncate(v, max_len) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_smart_truncate(i, max_len) for i in obj]
+    elif isinstance(obj, str):
+        if len(obj) > max_len:
+            return obj[:max_len] + "... [TRUNCATED]"
+        return obj
+    return obj
+
+
 def log_function_call(
     logger: Optional[logging.Logger] = None,
+    max_val_len: int = 200,
 ) -> Callable[[Callable[P, R]], Callable[P, R]]:
     """
-    裝飾器：自動記錄函數調用、詳細參數、回傳值和執行時間。
-    無縫支援同步與非同步 (async) 函數。
+    裝飾器：無縫支援同步/非同步。
+    回傳值截斷邏輯：字串直接剁，JSON 剁 Value 留 Key。
     """
 
     def decorator(func: Callable[P, R]) -> Callable[P, R]:
-        # 如果沒傳 logger，就用函數所在的模組名自動獲取
-        # 因為我们在 settings.py 配置了 root logger 和 app logger，這會自動繼承那些配置
         _logger = logger or logging.getLogger(func.__module__)
 
         async def async_log_info(msg):
-            # 在 async 環境下記錄 log，為了不阻塞 event loop，最好包一下
             await sync_to_async(lambda: _logger.info(msg), thread_sensitive=True)()
 
         async def async_log_exception(msg):
             await sync_to_async(lambda: _logger.exception(msg), thread_sensitive=True)()
 
+        def format_output(result: Any) -> str:
+            # 這是你要的精髓：
+            # 如果是字串，_smart_truncate 會直接剁了它
+            # 如果是 Dict/List，它會鑽進去剁裡面的內容
+            processed = _smart_truncate(result, max_val_len)
+
+            res_repr = repr(processed)
+            # 最後防線：如果整串 Repr 還是長到靠北（例如 List 裡有一萬個元素）
+            if len(res_repr) > 1500:
+                return res_repr[:1500] + "... [OVERALL TOO LONG]"
+            return res_repr
+
         @functools.wraps(func)
         async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
             func_name = func.__qualname__
-            # 簡化參數顯示，避免某些大對象把 Log 撐爆
-            # 如果你有超大的參數，這裡可以做截斷
-            arg_list = [
-                repr(arg)[:200] + "..." if len(repr(arg)) > 200 else repr(arg)
-                for arg in args
-            ]
-            kwarg_list = [
-                f"{k}={repr(v)[:200] + '...' if len(repr(v)) > 200 else repr(v)}"
-                for k, v in kwargs.items()
-            ]
+            # 參數也做一樣的處理，免得傳入大字串撐爆 Log
+            clean_args = [_smart_truncate(arg, 100) for arg in args]
+            clean_kwargs = {k: _smart_truncate(v, 100) for k, v in kwargs.items()}
 
-            call_args_str = ", ".join(arg_list + kwarg_list)
-
-            await async_log_info(f"📞 [ASYNC CALL] {func_name}({call_args_str})")
+            arg_str = ", ".join(
+                [repr(a) for a in clean_args]
+                + [f"{k}={repr(v)}" for k, v in clean_kwargs.items()]
+            )
+            await async_log_info(f"📞 [ASYNC CALL] {func_name}({arg_str})")
 
             start_time = time.perf_counter()
             try:
                 result = await func(*args, **kwargs)
-                execution_time = time.perf_counter() - start_time
-
-                # 這裡也可以截斷回傳值
-                result_repr = repr(result)
-                if len(result_repr) > 500:
-                    result_repr = result_repr[:500] + "... (truncated)"
-
+                exec_time = time.perf_counter() - start_time
                 await async_log_info(
-                    f"✅ [SUCCESS] {func_name} (Time: {execution_time:.4f}s) -> Return: {result_repr}"
+                    f"✅ [SUCCESS] {func_name} ({exec_time:.4f}s) -> {format_output(result)}"
                 )
                 return result
             except Exception as e:
-                execution_time = time.perf_counter() - start_time
+                exec_time = time.perf_counter() - start_time
                 await async_log_exception(
-                    f"❌ [FAILED] {func_name} (Time: {execution_time:.4f}s) -> Error: {e}"
+                    f"❌ [FAILED] {func_name} ({exec_time:.4f}s) -> Error: {e}"
                 )
                 raise
 
         @functools.wraps(func)
         def sync_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
             func_name = func.__qualname__
-            arg_list = [
-                repr(arg)[:200] + "..." if len(repr(arg)) > 200 else repr(arg)
-                for arg in args
-            ]
-            kwarg_list = [
-                f"{k}={repr(v)[:200] + '...' if len(repr(v)) > 200 else repr(v)}"
-                for k, v in kwargs.items()
-            ]
-            call_args_str = ", ".join(arg_list + kwarg_list)
+            clean_args = [_smart_truncate(arg, 100) for arg in args]
+            clean_kwargs = {k: _smart_truncate(v, 100) for k, v in kwargs.items()}
 
-            _logger.info(f"📞 [CALL] {func_name}({call_args_str})")
+            arg_str = ", ".join(
+                [repr(a) for a in clean_args]
+                + [f"{k}={repr(v)}" for k, v in clean_kwargs.items()]
+            )
+            _logger.info(f"📞 [CALL] {func_name}({arg_str})")
 
             start_time = time.perf_counter()
             try:
                 result = func(*args, **kwargs)
-                execution_time = time.perf_counter() - start_time
-
-                result_repr = repr(result)
-                if len(result_repr) > 500:
-                    result_repr = result_repr[:500] + "... (truncated)"
-
+                exec_time = time.perf_counter() - start_time
                 _logger.info(
-                    f"✅ [SUCCESS] {func_name} (Time: {execution_time:.4f}s) -> Return: {result_repr}"
+                    f"✅ [SUCCESS] {func_name} ({exec_time:.4f}s) -> {format_output(result)}"
                 )
                 return result
             except Exception as e:
-                execution_time = time.perf_counter() - start_time
+                exec_time = time.perf_counter() - start_time
                 _logger.exception(
-                    f"❌ [FAILED] {func_name} (Time: {execution_time:.4f}s) -> Error: {e}"
+                    f"❌ [FAILED] {func_name} ({exec_time:.4f}s) -> Error: {e}"
                 )
                 raise
 
-        if asyncio.iscoroutinefunction(func):
-            return async_wrapper
-        else:
-            return sync_wrapper
+        return async_wrapper if asyncio.iscoroutinefunction(func) else sync_wrapper
 
     return decorator
 
 
-# 為了兼容性，你可以保留一個空的 LogConfig，或者直接告訴我你想把 LogConfig 刪了
-# 我建議刪了 LogConfig，因為 settings.py 已經接管了配置。
-# 但如果你有其他地方 import LogConfig，可以留一個殼子。
 class LogConfig:
     @classmethod
     def setup_enhanced_logging(cls):

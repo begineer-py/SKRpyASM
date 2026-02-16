@@ -55,14 +55,13 @@ create_task \
     "minutes"
 
 # 3. URL 內容抓取 (curl-cffi 加速！)
-# 說明: 既然用 curl-cffi，資源消耗極低，直接拉高批次和頻率。
 # 設置: 批次 20, 每 2 分鐘一次。
 create_task \
-    "Scan URLs missing response (Batch 20, every 2m)" \
+    "Scan URLs missing response (Batch 1, every 5sec)" \
     "scheduler.tasks.scan_urls_missing_response" \
-    20 \
-    2 \
-    "minutes"
+    1 \
+    5 \
+    "secs"
 
 # 4. AI 分析 IP (維持慢速，等待積累)
 create_task \
@@ -116,4 +115,6 @@ create_task \
     5 \
     5 \
     "minutes"
+
+
 echo "=== 所有任務註冊請求已發送 ==="
