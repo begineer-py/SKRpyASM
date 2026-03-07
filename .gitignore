@@ -339,3 +339,4 @@ sessions/
 # Scraping results
 scraped_data/
 results/
+*tests/
