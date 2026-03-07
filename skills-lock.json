@@ -21,6 +21,11 @@
       "sourceType": "github",
       "computedHash": "a2fe47d24b3fd8e52faef731fff099c557e698083cd644b2e5695cc4dd8c7715"
     },
+    "code-review": {
+      "source": "agno-agi/agno",
+      "sourceType": "github",
+      "computedHash": "3b49cf0174c97d3a30c5457c1c4649c0b5ce9cf0b987df8347e2af302ca1a89b"
+    },
     "code-reviewer": {
       "source": "Shubhamsaboo/awesome-llm-apps",
       "sourceType": "github",
@@ -66,6 +71,11 @@
       "sourceType": "github",
       "computedHash": "063a0e6448123cd359ad0044cc46b0e490cc7964d45ef4bb9fd842bd2ffbca67"
     },
+    "git-workflow": {
+      "source": "agno-agi/agno",
+      "sourceType": "github",
+      "computedHash": "4c3171cbac296fead33c1bc5789f9dfdb15aa0c403c65fde75b4ab6303dd6dfd"
+    },
     "internal-comms": {
       "source": "anthropics/skills",
       "sourceType": "github",
@@ -105,6 +115,11 @@
       "source": "anthropics/skills",
       "sourceType": "github",
       "computedHash": "146d0f407e3f04aac0378b74bb238833b24bbd5e6387b932e82cfbf228f219b4"
+    },
+    "system-info": {
+      "source": "agno-agi/agno",
+      "sourceType": "github",
+      "computedHash": "51bcbbe617436b6a81b1e899eff0a153cd201666d44312e7f2d64e9ba600ea23"
     },
     "technical-writer": {
       "source": "Shubhamsaboo/awesome-llm-apps",

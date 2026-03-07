@@ -9,7 +9,7 @@ class SubdomainSeed(models.Model):
     """Through model for Subdomain-Seed many-to-many relationship."""
     
     subdomain = models.ForeignKey(
-        "Subdomain", 
+        "core.Subdomain", 
         on_delete=models.CASCADE, 
         related_name="seed_links"
     )
@@ -50,7 +50,7 @@ class Subdomain(models.Model):
         related_name="updated_subdomains"
     )
     ips = models.ManyToManyField(
-        "network.IP", 
+        "core.IP", 
         related_name="subdomains", 
         blank=True
     )
