@@ -24,8 +24,10 @@ def trigger_ai_analysis_for_ips(self, ip_ids: List[int]):
     """【總司令部】"""
     logger.info(f"Task {self.request.id}: 收到 {len(ip_ids)} 個 IP 的 AI 分析請求。")
     with transaction.atomic():
+        # 這裡改為直接 create，因為我們現在允許歷史記錄 (ForeignKey)
+        # 不再使用 ignore_conflicts=True，因為主鍵現在是自動生成的 ID
         IPAIAnalysis.objects.bulk_create(
-            [IPAIAnalysis(ip_id=ip_id) for ip_id in ip_ids], ignore_conflicts=True
+            [IPAIAnalysis(ip_id=ip_id, status="PENDING") for ip_id in ip_ids]
         )
     perform_ai_analysis_for_ip_batch.delay(ip_ids)
     return f"已成功為 {len(ip_ids)} 個 IP 派發單個分析任務。"
@@ -38,15 +40,31 @@ def perform_ai_analysis_for_ip_batch(self, ip_ids: List[int]):
     【作戰單元】使用重構後的火力系統處理批次。
     """
     logger.info(f"Task {self.request.id}: 開始處理批次，包含 {len(ip_ids)} 個 IP。")
-    analysis_qs = IPAIAnalysis.objects.filter(ip_id__in=ip_ids)
-    analysis_qs.update(status="RUNNING")
+    
+    # 這裡我們只抓取狀態為 PENDING 的最新記錄來執行分析
+    # 注意：如果同一個 IP 在短時間內被觸發多次，這裡可能會抓到多個 PENDING 記錄
+    # 為了簡化，我們只更新最新的 PENDING 記錄為 RUNNING
+    with transaction.atomic():
+        analysis_qs = IPAIAnalysis.objects.filter(ip_id__in=ip_ids, status="PENDING")
+        # 標記為 RUNNING，這代表這些特定記錄正在被此任務處理
+        analysis_qs.update(status="RUNNING")
+        
+        # 重新獲取這些正在運行的記錄，以便後續更新
+        analysis_records = list(analysis_qs.filter(status="RUNNING"))
+
+    if not analysis_records:
+        logger.warning("沒有找到處於 PENDING 狀態的分析記錄，任務結束。")
+        return
 
     try:
+        # ... (中間的 AI 呼叫邏輯保持不變)
         # 1. 動態火力選擇
         available_targets = list(Config.AI_SERVICE_URLS.items())
         if not available_targets:
             logger.error("沒有配置任何動態 AI 服務 URL，任務無法執行。")
-            analysis_qs.update(status="FAILED", error_message="No AI services configured.")
+            IPAIAnalysis.objects.filter(id__in=[r.id for r in analysis_records]).update(
+                status="FAILED", error_message="No AI services configured."
+            )
             return
 
         random.shuffle(available_targets)
@@ -58,7 +76,9 @@ def perform_ai_analysis_for_ip_batch(self, ip_ids: List[int]):
         data_payload = fetch_ip_data_for_batch(ip_ids)
         if not data_payload["list_of_assets"]:
             logger.warning("未能為此批次提取到任何情報，任務終止。")
-            analysis_qs.update(status="FAILED", error_message="Failed to fetch asset data.")
+            IPAIAnalysis.objects.filter(id__in=[r.id for r in analysis_records]).update(
+                status="FAILED", error_message="Failed to fetch asset data."
+            )
             return
 
         template = load_prompt_template()
@@ -83,7 +103,9 @@ def perform_ai_analysis_for_ip_batch(self, ip_ids: List[int]):
         if ai_response is None:
             error_msg = f"所有 AI 服務節點均無響應。最後錯誤: {last_exception}"
             logger.error(error_msg)
-            analysis_qs.update(status="FAILED", error_message=str(last_exception))
+            IPAIAnalysis.objects.filter(id__in=[r.id for r in analysis_records]).update(
+                status="FAILED", error_message=str(last_exception)
+            )
             self.retry(exc=last_exception)
             return
 
@@ -93,10 +115,13 @@ def perform_ai_analysis_for_ip_batch(self, ip_ids: List[int]):
 
         if len(analysis_results) == 0:
             logger.warning("未能收到任何 AI 分析結果，任務終止。")
-            analysis_qs.update(status="FAILED", error_message="No AI analysis results received.")
+            IPAIAnalysis.objects.filter(id__in=[r.id for r in analysis_records]).update(
+                status="FAILED", error_message="No AI analysis results received."
+            )
             logger.warning(f"{ai_response}")
 
-        analysis_map = {record.ip_id: record for record in analysis_qs}
+        # 建立一個 map，方便通過 ip_id 找到我們剛剛標記為 RUNNING 的特定 record
+        analysis_map = {record.ip_id: record for record in analysis_records}
         records_to_update = []
 
         for result in analysis_results:

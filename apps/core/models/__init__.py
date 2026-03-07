@@ -2,7 +2,7 @@ from .base import Target, Seed
 from .network import IP, Port
 from .domain import Subdomain, SubdomainSeed
 from . import signals
-from .analyze_ai_models import (
+from .analyze.analyze_ai_models import (
     IPAIAnalysis,
     SubdomainAIAnalysis,
     URLAIAnalysis,

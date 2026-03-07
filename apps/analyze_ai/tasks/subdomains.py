@@ -27,9 +27,9 @@ def trigger_ai_analysis_for_subdomains(self, subdomain_ids: List[int]):
     )
 
     with transaction.atomic():
+        # 改為直接 create，因為允許歷史記錄
         SubdomainAIAnalysis.objects.bulk_create(
-            [SubdomainAIAnalysis(subdomain_id=sid) for sid in subdomain_ids],
-            ignore_conflicts=True,
+            [SubdomainAIAnalysis(subdomain_id=sid, status="PENDING") for sid in subdomain_ids]
         )
 
     perform_ai_analysis_for_subdomain_batch.delay(subdomain_ids)
@@ -46,15 +46,23 @@ def perform_ai_analysis_for_subdomain_batch(self, subdomain_ids: List[int]):
         f"Task {self.request.id}: 開始處理子域名批次，數量: {len(subdomain_ids)}。"
     )
 
-    analysis_qs = SubdomainAIAnalysis.objects.filter(subdomain_id__in=subdomain_ids)
-    analysis_qs.update(status="RUNNING")
+    with transaction.atomic():
+        analysis_qs = SubdomainAIAnalysis.objects.filter(
+            subdomain_id__in=subdomain_ids, status="PENDING"
+        )
+        analysis_qs.update(status="RUNNING")
+        analysis_records = list(analysis_qs.filter(status="RUNNING"))
+
+    if not analysis_records:
+        logger.warning("沒有找到處於 PENDING 狀態的子域名分析記錄，任務結束。")
+        return
 
     try:
         # 1. 獲取數據
         data_payload = fetch_subdomain_data_for_batch(subdomain_ids)
         if not data_payload["list_of_assets"]:
             logger.warning("未能提取到任何子域名數據，任務終止。")
-            analysis_qs.update(
+            SubdomainAIAnalysis.objects.filter(id__in=[r.id for r in analysis_records]).update(
                 status="FAILED",
                 error_message="Failed to fetch asset data via GraphQL.",
             )
@@ -85,7 +93,9 @@ def perform_ai_analysis_for_subdomain_batch(self, subdomain_ids: List[int]):
         if ai_response is None:
             error_msg = f"所有 AI 節點均失敗。最後錯誤: {last_exception}"
             logger.error(error_msg)
-            analysis_qs.update(status="FAILED", error_message=str(last_exception))
+            SubdomainAIAnalysis.objects.filter(id__in=[r.id for r in analysis_records]).update(
+                status="FAILED", error_message=str(last_exception)
+            )
             self.retry(exc=last_exception)
             return
 
@@ -93,7 +103,7 @@ def perform_ai_analysis_for_subdomain_batch(self, subdomain_ids: List[int]):
         analysis_results = ai_response.get("analysis_results", [])
         logger.info(f"收到 {len(analysis_results)} 條 AI 分析結果。")
 
-        analysis_map = {record.subdomain_id: record for record in analysis_qs}
+        analysis_map = {record.subdomain_id: record for record in analysis_records}
         records_to_update = []
 
         for result in analysis_results:
