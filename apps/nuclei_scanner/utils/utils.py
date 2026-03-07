@@ -3,73 +3,114 @@ from typing import List
 
 def map_tech_to_nuclei_tags(tech_name: str) -> List[str]:
     """
-    將 Wappalyzer/Httpx 的技術名稱翻譯成 Nuclei 認得的 Tags。
+    史詩級加強版：將技術名稱轉換為 Nuclei Tags
     """
     name_lower = tech_name.lower()
     tags = set()
 
-    # --- 1. 精確/關鍵字對照表 (左邊是特徵，右邊是 Nuclei Tag) ---
-    # 這是最核心的部分，根據經驗持續擴充
+    # --- 1. 大規模技術對照表 ---
     keyword_map = {
-        # 語言 & 框架
-        "php": "php",
-        "java": "java",
-        "python": "python",
-        "django": "django",
-        "flask": "flask",
-        "spring": "springboot",  # Spring Boot 通常對應 springboot tag
-        "laravel": "laravel",
-        "ruby": "ruby",
-        "rails": "rails",
-        "asp.net": "aspnet",
-        "node.js": "nodejs",
-        "express": "express",
-        "go": "go",
-        # CMS (重災區)
+        # --- CMS 重災區 ---
         "wordpress": "wordpress",
+        "adobe experience manager": "aem,aem-cms,adobe",
+        "aem": "aem,aem-cms",
         "drupal": "drupal",
         "joomla": "joomla",
         "magento": "magento",
-        "jira": "jira",
-        "confluence": "confluence",
-        "gitlab": "gitlab",
-        "jenkins": "jenkins",
-        "grafana": "grafana",
-        "kibana": "kibana",
-        # Web Servers / Proxies
-        "apache": "apache",
-        "nginx": "nginx",
-        "iis": "iis",  # 關鍵！Wappalyzer 叫 Microsoft IIS
-        "tomcat": "tomcat",
-        "weblogic": "weblogic",
-        "jboss": "jboss",
+        "ghost": "ghost",
+        "strapi": "strapi",
+        "bitrix": "bitrix",
+        "sitecore": "sitecore",
+        "liferay": "liferay",
+        # --- Java & Middleware (針對 Bluehost 的 AEM 架構) ---
+        "java": "java,jsp",
+        "apache sling": "sling,aem",
+        "sling": "sling",
         "jetty": "jetty",
-        # 資料庫 / 其他
+        "tomcat": "tomcat",
+        "jboss": "jboss",
+        "wildfly": "wildfly",
+        "weblogic": "weblogic",
+        "websphere": "websphere",
+        "spring": "spring,springboot",
+        "struts": "struts",
+        "hibernate": "hibernate",
+        "quartz": "quartz",
+        # --- 語言 & 框架 ---
+        "php": "php",
+        "laravel": "laravel",
+        "symfony": "symfony",
+        "codeigniter": "codeigniter",
+        "yii": "yii",
+        "python": "python",
+        "django": "django",
+        "flask": "flask",
+        "fastapi": "fastapi",
+        "ruby": "ruby",
+        "rails": "rails",
+        "node.js": "nodejs",
+        "express": "express",
+        "asp.net": "aspnet",
+        "dotnet": "dotnet",
+        "golang": "go",
+        # --- Web Servers ---
+        "nginx": "nginx",
+        "apache http server": "apache",
+        "apache": "apache",
+        "microsoft iis": "iis",
+        "iis": "iis",
+        "caddy": "caddy",
+        "lighttpd": "lighttpd",
+        "openresty": "openresty",
+        # --- 資料庫 & 緩存 ---
         "mysql": "mysql",
         "postgresql": "postgres",
         "redis": "redis",
         "mongodb": "mongodb",
         "elasticsearch": "elasticsearch",
+        "kibana": "kibana",
+        "solr": "solr",
+        "memcached": "memcached",
+        "rabbitmq": "rabbitmq",
+        # --- DevOps & 基礎設施 ---
         "docker": "docker",
-        "kubernetes": "kubernetes",
-        "swagger": "swagger",  # 這個掃 API 很有用
+        "kubernetes": "k8s,kubernetes",
+        "jenkins": "jenkins",
+        "gitlab": "gitlab",
+        "github": "github",
+        "grafana": "grafana",
+        "prometheus": "prometheus",
+        "portainer": "portainer",
+        "consul": "consul",
+        "terraform": "terraform",
+        # --- 安全 & API ---
+        "cloudflare": "cloudflare",
+        "modsecurity": "modsecurity",
+        "recharge": "recharge",
+        "swagger": "swagger,openapi",
         "graphql": "graphql",
+        "auth0": "auth0",
+        "keycloak": "keycloak",
+        "okta": "okta",
+        # --- 其他特定組件 ---
+        "jquery": "jquery",
+        "bootstrap": "bootstrap",
+        "font awesome": "fontawesome",
+        "google tag manager": "gtm",
+        "onetrust": "onetrust",
     }
 
     # --- 2. 匹配邏輯 ---
-
-    # 策略 A: 直接看對照表裡的 key 有沒有出現在技術名稱裡
-    # 例如: "Apache Tomcat" 包含 "apache" 和 "tomcat" -> tags: apache, tomcat
-    for keyword, tag in keyword_map.items():
+    for keyword, tag_str in keyword_map.items():
         if keyword in name_lower:
-            tags.add(tag)
+            # 支援一個 Key 對應多個 Tags (用逗號隔開)
+            for t in tag_str.split(","):
+                tags.add(t)
 
-    # 策略 B: 如果什麼都沒對到，嘗試使用原名 (去空白轉小寫) 當作 Tag
-    # 這是賭一把，有些冷門技術 Nuclei 剛好也有
+    # --- 3. 備用邏輯：嘗試提取技術名稱的第一個單詞作為 Tag ---
     if not tags:
-        cleaned_name = name_lower.replace(" ", "")
-        # 過濾掉太短或沒意義的
-        if len(cleaned_name) > 3:
-            tags.add(cleaned_name)
+        parts = name_lower.split()
+        if parts and len(parts[0]) > 2:
+            tags.add(parts[0])
 
     return list(tags)

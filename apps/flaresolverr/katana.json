@@ -1,0 +1,27 @@
+{
+  "timestamp": "2026-02-06T05:13:35.135791173Z",
+  "request": {
+    "method": "GET",
+    "endpoint": "https://www.example.com",
+    "raw": "GET / HTTP/1.1\r\nHost: www.example.com\r\nUser-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36\r\nAccept-Encoding: gzip\r\n\r\n"
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "Age": "4621",
+      "Allow": "GET, HEAD",
+      "Cf-Cache-Status": "HIT",
+      "Cf-Ray": "9c9828ba5913a9b3-TPE",
+      "Connection": "keep-alive",
+      "Content-Type": "text/html",
+      "Date": "Fri, 06 Feb 2026 05:13:35 GMT",
+      "Last-Modified": "Wed, 04 Feb 2026 05:21:17 GMT",
+      "Server": "cloudflare",
+      "Vary": "Accept-Encoding"
+    },
+    "body": "\u003c!doctype html\u003e\u003chtml lang=\"en\"\u003e\u003chead\u003e\u003ctitle\u003eExample Domain\u003c/title\u003e\u003cmeta name=\"viewport\" content=\"width=device-width, initial-scale=1\"\u003e\u003cstyle\u003ebody{background:#eee;width:60vw;margin:15vh auto;font-family:system-ui,sans-serif}h1{font-size:1.5em}div{opacity:0.8}a:link,a:visited{color:#348}\u003c/style\u003e\u003cbody\u003e\u003cdiv\u003e\u003ch1\u003eExample Domain\u003c/h1\u003e\u003cp\u003eThis domain is for use in documentation examples without needing permission. Avoid use in operations.\u003cp\u003e\u003ca href=\"https://iana.org/domains/example\"\u003eLearn more\u003c/a\u003e\u003c/div\u003e\u003c/body\u003e\u003c/html\u003e\n",
+    "content_length": 513,
+    "technologies": ["Cloudflare"],
+    "raw": "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nAge: 4621\r\nAllow: GET, HEAD\r\nCf-Cache-Status: HIT\r\nCf-Ray: 9c9828ba5913a9b3-TPE\r\nConnection: keep-alive\r\nContent-Type: text/html\r\nDate: Fri, 06 Feb 2026 05:13:35 GMT\r\nLast-Modified: Wed, 04 Feb 2026 05:21:17 GMT\r\nServer: cloudflare\r\nVary: Accept-Encoding\r\n\r\n201\r\n\u003c!doctype html\u003e\u003chtml lang=\"en\"\u003e\u003chead\u003e\u003ctitle\u003eExample Domain\u003c/title\u003e\u003cmeta name=\"viewport\" content=\"width=device-width, initial-scale=1\"\u003e\u003cstyle\u003ebody{background:#eee;width:60vw;margin:15vh auto;font-family:system-ui,sans-serif}h1{font-size:1.5em}div{opacity:0.8}a:link,a:visited{color:#348}\u003c/style\u003e\u003cbody\u003e\u003cdiv\u003e\u003ch1\u003eExample Domain\u003c/h1\u003e\u003cp\u003eThis domain is for use in documentation examples without needing permission. Avoid use in operations.\u003cp\u003e\u003ca href=\"https://iana.org/domains/example\"\u003eLearn more\u003c/a\u003e\u003c/div\u003e\u003c/body\u003e\u003c/html\u003e\n\r\n0\r\n\r\n"
+  }
+}

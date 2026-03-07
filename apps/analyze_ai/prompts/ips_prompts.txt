@@ -4,8 +4,7 @@ Your output MUST be a single JSON object with one key: analysis_results. This ke
 --- START OF EXAMPLE ---
 Here is an example of the expected input and the perfect output you must generate.
 EXAMPLE INPUT:
-code
-JSON
+
 {
   "list_of_assets": [
     {

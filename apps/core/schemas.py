@@ -132,36 +132,53 @@ class get_ip_by_subdomains(Schema):
     ip: IPSchema
 
 
-class SuccessSendIPSchema(Schema):  # 定義 TargetSchema 類別
-    ips: List[str] = Field(..., description="IP 列表", min_length=1, max_length=10)
-
-
-class SuccessSendSubdomainSchema(Schema):  # 定義 TargetSchema 類別
-    subdomains: List[str] = Field(
-        ..., description="子域名列表", min_length=1, max_length=10
-    )
-
-
-class SuccessSendURLSchema(Schema):  # 定義 TargetSchema 類別
-    urls: List[str] = Field(..., description="URL 列表", min_length=1, max_length=5)
-
-
-class nucleiSuccessSendIPSchema(Schema):
-    ips: List[str] = Field(..., description="IP 列表", min_length=1, max_length=10)
-    tags: List[str] = Field(default=[], description="Nuclei 掃描標籤，決定掃描範圍")
-
-
-class nucleiSuccessSendHostSchema(Schema):
-    hosts: List[str] = Field(..., description="主機列表", min_length=1, max_length=10)
-    tags: List[str] = Field(default=[], description="Nuclei 掃描標籤，決定掃描範圍")
-
-
-class nucleiSuccessSendURLSchema(Schema):
-    urls: List[str] = Field(
-        ..., description="Nuclei 扫描结果 URL 列表", min_length=1, max_length=5
-    )
-    tags: List[str] = Field(default=[], description="Nuclei 掃描標籤，決定掃描範圍")
-
-
-class SuccessSendToAISchema(Schema):  # 定義 TargetSchema 類別
+class SuccessSendToAISchema(Schema):
     detail: str
+
+
+# --- Nuclei 掃描請求 (全 ID 化) ---
+
+
+class NucleiScanIPByIdsSchema(Schema):
+    ids: List[int] = Field(..., description="IP ID 列表", min_length=1, max_length=10)
+    tags: List[str] = Field(default=[], description="Nuclei 標籤")
+
+
+class NucleiScanSubdomainByIdsSchema(Schema):
+    ids: List[int] = Field(
+        ..., description="子域名 ID 列表", min_length=1, max_length=100
+    )
+    tags: List[str] = Field(default=[], description="Nuclei 標籤")
+
+
+class NucleiScanURLByIdsSchema(Schema):
+    ids: List[int] = Field(..., description="URL ID 列表", min_length=1, max_length=10)
+    tags: Optional[List[str]] = Field(default=None, description="Nuclei 標籤")
+
+
+class ScanIdsSchema(Schema):
+    ids: List[int] = Field(..., description="ID 列表", min_length=1, max_length=10)
+
+
+class URLScanIdsSchema(Schema):
+    ids: List[int] = Field(..., description="URL ID 列表", min_length=1, max_length=5)
+
+
+class SubBruteResultSchema(Schema):
+    sub_id: int
+    detail: str
+    if_run: bool
+    status_code: int
+
+
+class FlaresolverrTriggerSchema(Schema):  # <--- 繼承 Schema
+    url: str
+    method: str
+    seed_id: int | None = None
+    auto_create: bool = False
+
+
+class FlaresolverrResponse(Schema):  # <--- 繼承 Schema
+    detail: str
+    status_code: int
+    if_run: bool

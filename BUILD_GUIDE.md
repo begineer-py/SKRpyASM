@@ -684,7 +684,7 @@ EOF
 ```bash
 # Test subdomain discovery
 python manage.py shell << 'EOF'
-from subfinder.tasks import run_subfinder_scan
+from apps.subfinder.tasks import run_subfinder_scan
 from apps.core.models import Seed
 seed = Seed.objects.first()
 result = run_subfinder_scan.delay(seed.id)
@@ -693,7 +693,7 @@ EOF
 
 # Test port scanning
 python manage.py shell << 'EOF'
-from nmap_scanner.tasks import run_nmap_scan
+from apps.nmap_scanner.tasks import run_nmap_scan
 from apps.core.models import Seed
 seed = Seed.objects.first()
 result = run_nmap_scan.delay(seed.id)

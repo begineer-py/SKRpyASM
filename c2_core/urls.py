@@ -28,6 +28,7 @@ from apps.get_all_url.api import router as get_all_url_router
 from apps.scheduler.api import router as scheduler_router
 from apps.analyze_ai.api import router as analyze_ai_router
 from apps.nuclei_scanner.api import router as nuclei_scanner_router
+from apps.http_sender.api import router as http_sender_router
 
 # 建立 NinjaAPI 實例
 api = NinjaAPI(  # 創建一個 NinjaAPI 實例
@@ -39,13 +40,13 @@ api = NinjaAPI(  # 創建一個 NinjaAPI 實例
 # 媽的，在 API 裡面，把 targets 的地盤劃在 /targets/
 # 這樣才對！
 api.add_router(
-    "/targets/", targets_router
+    "/targets", targets_router
 )  # 將 targets 應用的路由添加到 /targets/ 路徑下
-api.add_router("/nmap/", nmap_router)  # 將 nmap_scanner 應用的路由添加到 /nmap/ 路徑下
+api.add_router("/nmap", nmap_router)  # 將 nmap_scanner 應用的路由添加到 /nmap/ 路徑下
 api.add_router(
-    "/flaresolverr/", flaresolverr_router
+    "/flaresolverr", flaresolverr_router
 )  # 將 flaresolverr 應用的路由添加到 /flaresolverr/ 路徑下
-api.add_router("/core/", core_router)  # 將 core 應用的路由添加到 /core/ 路徑下
+api.add_router("/core", core_router)  # 將 core 應用的路由添加到 /core/ 路徑下
 api.add_router("/subfinder", subdoamain)
 api.add_router("/get_all_url", get_all_url_router)
 # 之後有別的 app，就繼續加
@@ -53,6 +54,7 @@ api.add_router("/get_all_url", get_all_url_router)
 api.add_router("/analyze_ai", analyze_ai_router)
 api.add_router("/scheduler", scheduler_router, tags=["Scheduler"])
 api.add_router("/nuclei", nuclei_scanner_router, tags=["Nuclei"])
+api.add_router("/http_sender", http_sender_router, tags=["HTTP Sender"])
 urlpatterns = [  # 定義 URL 模式列表
     path("admin/", admin.site.urls),  # 將 /admin/ 路徑映射到 Django 管理後台的 URL
     # 操！把所有 API 的總入口都設在 /api/
