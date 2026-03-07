@@ -2,6 +2,34 @@
 from django.db import models
 
 
+class AmassScan(models.Model):
+    STATUS_CHOICES = [
+        ("PENDING", "待處理"),
+        ("RUNNING", "運行中"),
+        ("COMPLETED", "已完成"),
+        ("FAILED", "失敗"),
+    ]
+
+    which_seed = models.ForeignKey(
+        "core.Seed", on_delete=models.CASCADE, related_name="amass_scans"
+    )
+    which_target = models.ForeignKey(
+        "core.target", on_delete=models.CASCADE, related_name="amass_scans"
+    )
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="PENDING")
+
+    # 統計數據
+    added_count = models.IntegerField(default=0, help_text="新發現數量")
+
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        app_label = "core"
+        ordering = ["-created_at"]
+
+
 class SubfinderScan(models.Model):
     """
     記錄一次子域名枚舉任務。
@@ -160,3 +188,33 @@ class NucleiScan(models.Model):
 
     class Meta:
         app_label = "core"
+
+
+# 新增
+class SubBrute(models.Model):
+    """
+    記錄一次子域名枚舉任務。
+    """
+
+    STATUS_CHOICES = [
+        ("PENDING", "待處理"),
+        ("RUNNING", "運行中"),
+        ("COMPLETED", "已完成"),
+        ("FAILED", "失敗"),
+    ]
+
+    which_sub = models.ForeignKey(
+        "core.Subdomain", on_delete=models.CASCADE, related_name="SubBrute"
+    )
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="PENDING")
+
+    # 統計數據
+    added_count = models.IntegerField(default=0, help_text="新發現數量")
+
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        app_label = "core"
+        ordering = ["-created_at"]

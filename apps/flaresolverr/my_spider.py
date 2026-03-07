@@ -9,6 +9,26 @@ from .spider_utils.send_flaresolverr import call_flaresolverr_api
 from .spider_utils.utils import check_if_blocked, translate_response_to_json, if_spa
 from c2_core.config.logging import log_function_call
 
+
+def _binary_url_detector(url: str) -> bool:
+    return any(
+        url.lower().endswith(ext)
+        for ext in [
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".gif",
+            ".ico",
+            ".woff",
+            ".ttf",
+            ".pdf",
+            ".zip",
+            ".svg",
+            ".webp",
+        ]
+    )
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -99,6 +119,7 @@ class MySpider:
             return any(t in c_type for t in NON_BROWSER_TYPES)
 
         def create_fake_response(resp, body_text):
+            self.final_url = str(resp.url)
             return {
                 "status_code": resp.status_code,
                 "body": body_text,
@@ -111,6 +132,7 @@ class MySpider:
             logger.info(f"[Pre-flight] 嘗試 HEAD 請求: {self.url}")
             # --- 策略 A: 嘗試 HEAD ---
             head_resp = self.client.head(self.url)
+            self.final_url = str(head_resp.url)
 
             # 如果 HEAD 成功且正常
             if head_resp.status_code == 200:
@@ -128,6 +150,22 @@ class MySpider:
                 logger.warning(
                     f"[Pre-flight] HEAD 返回 {head_resp.status_code} (可能由 WAF 攔截)，轉交 FlareSolverr。"
                 )
+                if _binary_url_detector(self.url):
+                    logger.info(
+                        f"[Pre-flight] 偵測到二進位資源被封 ({head_resp.status_code})，放棄請求，禁止使用 FlareSolverr: {self.url}"
+                    )
+
+                    # 這裡就是你要的「假回傳」
+                    # 讓後端以為抓完了，但內容是空的/標記為被封鎖
+                    fake_resp = {
+                        "status_code": head_resp.status_code,
+                        "body": f"Binary content blocked by WAF (Status: {head_resp.status_code})",
+                        "header": dict(head_resp.headers),
+                        "url": self.url,
+                        "tech": [],
+                    }
+                    # 回傳 False 代表「不需要 FlareSolverr」，後面的 fake_resp 會被當作結果
+                    return False, fake_resp
                 return True, None
 
             # 如果是 405 (Method Not Allowed) 或其他錯誤，進入策略 B
@@ -201,6 +239,7 @@ class MySpider:
 
         if is_parsed_success:
             if not if_spa(self.final_raw_data):
+
                 # 情況 A: 標準 HTML 且 Httpx 抓取成功 -> 結束
                 return (
                     translate_response_to_json(

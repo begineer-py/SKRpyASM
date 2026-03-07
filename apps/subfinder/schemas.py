@@ -101,3 +101,7 @@ class SubdomainResultSetSchemaNoIP(Schema):
     target_domain: str
     count: int
     results: List[SubdomainSchema]
+
+
+class SubBruteSchema(Schema):
+    sub_id: int

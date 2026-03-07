@@ -10,11 +10,10 @@ from pydantic import Extra
 
 from apps.core.models import Seed, Subdomain, ExtractedJS, JavaScriptFile
 from .schemas import (
-    FlaresolverrTriggerSchema,
-    FlaresolverrResponse,
     ErrorSchema,
     JSAnalyzeRequest,
 )
+from apps.core.schemas import FlaresolverrTriggerSchema, FlaresolverrResponse
 from .tasks import perform_scan_for_url, perform_js_scan, download_external_js
 from c2_core.config.logging import log_function_call
 

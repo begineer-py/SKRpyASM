@@ -66,6 +66,7 @@ def translate_response_to_json(data, url, used_flaresolverr, status, source_type
         "is_text_content": False,
         "is_binary_url": False,
         "md5": "",
+        "content_length": 0,
     }
 
     if not data:
@@ -86,7 +87,7 @@ def translate_response_to_json(data, url, used_flaresolverr, status, source_type
             result["response_url"] = data.get("url", url)
             result["response_headers"] = data.get("header", {})
             # 使用 ContentTypeDetector 來檢測 content type
-
+            result["content_length"] = len(data.get("body", ""))
             (
                 result["content_type"],
                 result["is_text_content"],
@@ -121,6 +122,7 @@ def translate_response_to_json(data, url, used_flaresolverr, status, source_type
             result["md5"] = hashlib.md5(
                 result["response_text"].encode("utf-8", errors="ignore")
             ).hexdigest()
+            result["content_length"] = len(result["response_text"])
     return result
 
 

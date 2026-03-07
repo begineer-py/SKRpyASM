@@ -1,6 +1,8 @@
 import os
 import logging
 from typing import List, Dict, Any, Optional
+
+from c2_core.config.logging import log_function_call
 from .bs4_handler import BS4Handler
 import hashlib
 
@@ -71,6 +73,7 @@ class ReconOrchestrator:
             "text": "",
         }
 
+    @log_function_call()
     def run(self) -> dict:
         logger.info(f"作戰開始: {self.url}")
 
@@ -84,7 +87,7 @@ class ReconOrchestrator:
         result["used_flaresolverr"] = used_flaresolverr
         result["content_fetch_status"] = self.content_fetch_status
         result["spider_result"] = response_data or {}
-
+        logger.info(response_data["content_length"])
         # 獲取重要參數
         final_url = (
             response_data.get("response_url", self.url) if response_data else self.url

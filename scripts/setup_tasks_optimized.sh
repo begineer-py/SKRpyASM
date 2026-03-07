@@ -36,85 +36,111 @@ EOF
     echo "---------------------------------------------------"
 }
 
-echo "=== 開始批量註冊定時任務 (curl-cffi 加速版) ==="
+echo "=== 開始註冊定時任務 (已調慢速度以優化性能) ==="
 
-# 1. Nmap IP 掃描 (維持慢速，這是為了網絡安全與隱蔽)
+# --- 1. 基礎掃描與發現 (Discovery) ---
+
+# Nmap IP 掃描 (放慢至 15 分鐘一次)
 create_task \
-    "Scan IPs without Nmap (Batch 3, every 10m)" \
+    "Scan IPs without Nmap (Batch 1, every 3m)" \
     "scheduler.tasks.scan_ips_without_nmap_results" \
+    1 \
     3 \
-    10 \
     "minutes"
 
-# 2. Subdomain URL 發現 (維持中速)
+# Subdomain 轉 URL (放慢至 10 分鐘一次)
 create_task \
-    "Scan Subdomains without URL (Batch 5, every 5m)" \
+    "Scan Subdomains to URL (Batch 1, every 2m)" \
     "scheduler.tasks.scan_subdomains_without_url_results" \
-    5 \
-    5 \
+    1 \
+    2 \
     "minutes"
 
-# 3. URL 內容抓取 (curl-cffi 加速！)
-# 設置: 批次 20, 每 2 分鐘一次。
+# URL 內容抓取 (原本 5 秒太快，改為 2 分鐘一次，批次稍微加大)
 create_task \
-    "Scan URLs missing response (Batch 1, every 5sec)" \
+    "Scan URLs missing response (Batch 1, every 12)" \
     "scheduler.tasks.scan_urls_missing_response" \
     1 \
-    5 \
-    "secs"
+    12 \
+    "seconds"
 
-# 4. AI 分析 IP (維持慢速，等待積累)
-create_task \
-    "AI Analyze IPs (Batch 10, every 15m)" \
-    "scheduler.tasks.trigger_scan_ips_without_ai_results" \
-    10 \
-    15 \
-    "minutes"
 
-# 5. AI 分析 Subdomains (維持慢速)
-create_task \
-    "AI Analyze Subdomains (Batch 10, every 15m)" \
-    "scheduler.tasks.trigger_scan_subdomains_without_ai_results" \
-    10 \
-    15 \
-    "minutes"
+# --- 2. Nuclei 漏洞與技術棧掃描 (Vulnerability Scanning) ---
 
-# 6. AI 分析 URLs (維持慢速)
+# Nuclei URL 技術掃描
 create_task \
-    "AI Analyze URLs (Batch 5, every 15m)" \
-    "scheduler.tasks.trigger_scan_urls_without_ai_results" \
-    5 \
-    15 \
-    "minutes"
-# 7. Nuclei IP 漏洞掃描 (網絡層協議探測)
-# 策略: 針對 Nmap 發現的 IP 進行網絡服務漏洞掃描。
-# 設置: 批次 10, 每 10 分鐘一次。
+    "Nuclei Tech Scan URL (Batch 1, every 20s)" \
+    "scheduler.tasks.trigger_nuclei_tech_scan_url" \
+    1 \
+    20 \
+    "seconds"
 create_task \
-    "Nuclei Scan IPs (Batch 10, every 10m)" \
+    "Nuclei Tech Scan Subdomain (Batch 1, every 20s)" \
+    "scheduler.tasks.trigger_nuclei_tech_scan_subdomain" \
+    1 \
+    20 \
+    "seconds"
+
+# Nuclei IP 漏洞掃描
+create_task \
+    "Nuclei Scan IPs (Batch 1, every 1m)" \
     "scheduler.tasks.trigger_scan_ips_without_nuclei_results" \
-    10 \
-    10 \
+    1 \
+    1 \
     "minutes"
 
-# 8. Nuclei Subdomain 漏洞掃描 (子域名接管與 DNS 探測)
-# 策略: 針對新發現的子域名進行自動化技術棧探測與 DNS 安全檢查。
-# 設置: 批次 5, 每 10 分鐘一次。
+# Nuclei Subdomain 漏洞掃描
 create_task \
-    "Nuclei Scan Subdomains (Batch 5, every 10m)" \
+    "Nuclei Scan Subdomains (Batch 1, every 1m)" \
     "scheduler.tasks.trigger_scan_subdomains_without_nuclei_results" \
-    5 \
-    10 \
+    1 \
+    1 \
     "minutes"
 
-# 9. Nuclei URL 深度漏洞掃描 (Web 漏洞挖掘)
-# 策略: 針對抓取成功的 URL 進行 CVE 和高危漏洞挖掘。
-# 設置: 批次 5, 每 5 分鐘一次 (URL 掃描較耗時，維持低批次高頻率)。
+# Nuclei URL 深度掃描
 create_task \
-    "Nuclei Scan URLs (Batch 5, every 5m)" \
+    "Nuclei Scan URLs (Batch 1, every 1m)" \
     "scheduler.tasks.trigger_scan_urls_without_nuclei_results" \
-    5 \
-    5 \
+    1 \
+    1 \
     "minutes"
 
 
-echo "=== 所有任務註冊請求已發送 ==="
+# --- 3. JS 掃描與分析 ---
+
+# JavaScript 文件掃描
+create_task \
+    "Scan JS Files (Batch 1, every 6secs)" \
+    "scheduler.tasks.trigger_scan_js" \
+    1 \
+    6 \
+    "seconds"
+
+
+# --- 4. AI 智慧分析 (AI Analysis) ---
+
+# AI 分析 IP
+create_task \
+    "AI Analyze IPs (Batch 1, every 1m)" \
+    "scheduler.tasks.trigger_scan_ips_without_ai_results" \
+    1 \
+    1 \
+    "minutes"
+
+# AI 分析 Subdomains
+create_task \
+    "AI Analyze Subdomains (Batch 1, every 1m)" \
+    "scheduler.tasks.trigger_scan_subdomains_without_ai_results" \
+    1 \
+    1 \
+    "minutes"
+
+# AI 分析 URLs
+create_task \
+    "AI Analyze URLs (Batch 1, every 1m)" \
+    "scheduler.tasks.trigger_scan_urls_without_ai_results" \
+    1 \
+    1 \
+    "minutes"
+
+echo "=== 所有任務註冊完成 ==="

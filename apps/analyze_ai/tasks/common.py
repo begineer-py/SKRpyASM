@@ -66,76 +66,131 @@ GET_SUBDOMAINS_DETAILS_QUERY = gql(
     """
 query GetSubdomainsDetails($ids: [bigint!]) {
   core_subdomain(where: {id: {_in: $ids}}) {
-    id
-    name
-    cname
     cdn_name
-    waf_name
-    core_urlscans(limit: 1, order_by: {created_at: desc}) {
-      created_at
-      status
-      core_urlresult_discovered_by_scans {
-        core_urlresult {
-          content_fetch_status
-          headers
-          final_url
-          core_techstacks {
-            categories
-            name
-            version
-          }
-          used_flaresolverr
-        }
-      }
-    }
+    cname
     dns_records
-      }
+    created_at
+    first_seen
+    is_cdn
+    is_active
+    is_resolvable
+    is_waf
+    sources_text
+    name
+    waf_name
+    id
+    core_techstacks {
+      name
+      version
+      categories
     }
-
-
+    core_vulnerabilities {
+      fingerprint
+      name
+      severity
+      status
+      subdomain_asset_id
+      template_id
+      tool_source
+      matched_at
+      description
+    }
+  }
+}
 
 """
 )
 
 GET_URLS_DETAILS_QUERY = gql(
     """
-query GetURLsDetails($ids: [bigint!]) {
+query GetUrlDetailsForAI($ids: [bigint!]) {
   core_urlresult(where: {id: {_in: $ids}}) {
     id
     url
-    title
+    method
     status_code
+    title
     content_length
-    used_flaresolverr
-    core_analysisfindings {
-      pattern_name
-      match_content
-      line_number
+    content_fetch_status
+    text
+    core_techstacks {
+      name
+      version
+      categories
     }
     core_forms {
       action
       method
       parameters
     }
-    headers
-    core_endpoints(limit: 30) {
-      path
-      source
-    }
-    core_javascriptfiles(limit: 40) {
-      src
-    }
-    core_comments(limit: 20) {
+    core_comments {
       content
     }
-    core_metatags(limit: 20) {
+    core_vulnerabilities {
+      template_id
+      name
+      severity
+      matched_at
+    }
+    core_analysisfindings {
+      pattern_name
+      match_content
+    }
+    core_endpoint_discovered_by_urls {
+      core_endpoint {
+        id
+        path
+        method
+        core_urlparameters {
+          key
+          value
+          param_location
+          data_type
+        }
+      }
+    }
+    core_extractedj {
+      id
+      content
+      core_jsonobjects(where: {score: {_gt: 0.8}}) {
+        key
+        path
+        score
+        struct
+        val
+        core_javascriptfile {
+          id
+          src
+          core_jsonobjects(where: {score: {_gt: 0.9}}) {
+            depth
+            key
+            path
+            score
+          }
+        }
+      }
+    }
+    core_iframes {
+      src
+    }
+    core_links {
+      href
+      text
+    }
+    core_metatags {
       attributes
     }
-    core_techstacks {
-      name
-      version
-      categories
+    core_urlscans {
+      tool
     }
+    used_flaresolverr
+    cleaned_html
+    content_length
+    status_code
+    headers
+    is_tech_analyzed
+    final_url
+    discovery_source
   }
 }
 
@@ -230,65 +285,33 @@ def fetch_subdomain_data_for_batch(subdomain_ids: List[int]) -> Dict[str, Any]:
     client = get_graphql_client()
     variables = {"ids": subdomain_ids}
     try:
-        # 使用你新的 GraphQL 查询语句
         result = client.execute(GET_SUBDOMAINS_DETAILS_QUERY, variable_values=variables)
         sub_data_from_gql = result.get("core_subdomain", [])
 
         asset_list = []
         for sub in sub_data_from_gql:
-            # === 1. 提取 IP 和端口信息 ===
-            ip_address = None
-            open_ports = []
-            ips_relation = sub.get("core_subdomain_ips", [])
-            if ips_relation:
-                # 通常只有一个 IP，我们取第一个
-                ip_data = ips_relation[0].get("core_ip")
-                if ip_data:
-                    ip_address = ip_data.get("ipv4") or ip_data.get("ipv6")
-                    # 提取开放端口
-                    open_ports = ip_data.get("core_ports", [])
+            # 提取技術棧 summary
+            techs = [
+                f"{t['name']} {t['version'] or ''}".strip()
+                for t in sub.get("core_techstacks", [])
+            ]
+            # 提取已發現漏洞摘要
+            vulns = [
+                f"{v['name']} ({v['severity']})"
+                for v in sub.get("core_vulnerabilities", [])
+            ]
 
-            # === 2. 提取 HTTP 扫描结果 ===
-            http_info = None
-            url_scans = sub.get("core_urlscans", [])
-            if url_scans:
-                # 通常只有一个 URLScan 记录
-                scan_data = url_scans[0]
-                # URLScan 下可能有一个或多个 URLResult
-                url_results_relation = scan_data.get(
-                    "core_urlresult_discovered_by_scans", []
-                )
-                if url_results_relation:
-                    # 取第一个 URLResult 作为代表
-                    url_result = url_results_relation[0].get("core_urlresult")
-                    if url_result:
-                        http_info = {
-                            "status": scan_data.get("status"),
-                            "scan_date": scan_data.get("created_at"),
-                            "fetch_status": url_result.get("content_fetch_status"),
-                            "final_url": url_result.get("final_url"),
-                            "tech_stack": url_result.get("tech_stack"),
-                        }
-
-            # === 3. 组装最终的数据结构 ===
             asset_entry = {
                 "correlation_id": sub["id"],
                 "asset_data": {
                     "name": sub["name"],
                     "cname": sub.get("cname"),
-                    "cdn_name": sub.get("cdn_name"),
-                    "waf_name": sub.get("waf_name"),
-                    "ip_address": ip_address,
-                    "open_ports": open_ports,  # 新增
-                    "http_info": http_info,  # 新增
-                    "dns_records_summary": (
-                        sub.get(
-                            "dns_records",
-                        )
-                        or {}
-                    ).get(
-                        "a", []
-                    ),  # 只取 A 记录作为摘要
+                    "cdn_waf": {"cdn": sub.get("cdn_name"), "waf": sub.get("waf_name")},
+                    "is_resolvable": sub.get("is_resolvable"),
+                    "dns_records": (sub.get("dns_records") or {}).get("a", []),
+                    "tech_stack": techs,
+                    "existing_vulnerabilities": vulns,
+                    "source": sub.get("sources_text"),
                 },
             }
             asset_list.append(asset_entry)
@@ -301,81 +324,67 @@ def fetch_subdomain_data_for_batch(subdomain_ids: List[int]) -> Dict[str, Any]:
 
 def clean_url_data(raw_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
-    對 URL 原始數據進行強力清洗，去除噪音，節省 Token。
+    針對 URL 數據進行深度截斷與去噪。
     """
     cleaned_list = []
 
-    # 定義過濾黑名單/白名單關鍵字
-    js_ignore_keywords = [
-        "jquery",
-        "bootstrap",
-        "google",
-        "facebook",
-        "twitter",
-        "gtm",
-        "analytics",
-        "wp-includes",
-        "node_modules",
-        "cdn.",
-        "assets.squarespace",
-    ]
-    meta_keep_keywords = ["generator", "csrf", "api", "token", "version"]
-    comment_ignore_keywords = [
-        "squarespace",
-        "wordpress",
-        "end of",
-        "start of",
-        "wrapper",
-        "nav",
-        "footer",
+    # 安全相關的 Header 白名單
+    header_whitelist = [
+        "server",
+        "x-powered-by",
+        "via",
+        "x-cache",
+        "content-security-policy",
+        "strict-transport-security",
     ]
 
     for item in raw_data:
-        # 1. JS 過濾
-        cleaned_js = []
-        for js in item.get("core_javascriptfiles", []):
-            src = js.get("src")
-            if not src:
-                continue
-            src_lower = src.lower()
-            if any(k in src_lower for k in js_ignore_keywords):
-                continue
-            cleaned_js.append(js)
+        # 1. 截斷正文 (只取前 1500 字，通常包含核心邏輯與標題)
+        body_text = (item.get("text") or item.get("cleaned_html") or "")[:1500]
 
-        # 2. Meta 過濾
-        cleaned_meta = []
-        for meta in item.get("core_metatags", []):
-            attrs = meta.get("attributes", {})
-            attrs_str = str(attrs).lower()
-            if any(k in attrs_str for k in meta_keep_keywords):
-                cleaned_meta.append(meta)
+        # 2. 清理 Headers
+        raw_headers = item.get("headers") or {}
+        cleaned_headers = {
+            k: v for k, v in raw_headers.items() if k.lower() in header_whitelist
+        }
 
-        # 3. Comment 過濾
-        cleaned_comments = []
-        for comm in item.get("core_comments", []):
-            content = comm.get("content", "").strip()
-            if len(content) < 10:
-                continue
-            if any(k in content.lower() for k in comment_ignore_keywords):
-                continue
-            cleaned_comments.append({"content": content[:200]})
+        # 3. 技術棧與漏洞整合
+        techs = [
+            f"{t['name']} {t['version'] or ''}".strip()
+            for t in item.get("core_techstacks", [])
+        ]
+        vulns = [
+            f"{v['name']} ({v['severity']})"
+            for v in item.get("core_vulnerabilities", [])
+        ]
 
-        # 構建清洗後的對象
+        # 4. JS 文件截斷 (只保留路徑，不保留內容以免爆掉 Token)
+        js_files = [
+            js.get("src") for js in item.get("core_extractedjs", []) if js.get("src")
+        ]
+
+        # 5. 提取 Endpoint 摘要
+        endpoints = []
+        for ep_rel in item.get("core_endpoint_discovered_by_urls", []):
+            ep = ep_rel.get("core_endpoint", {})
+            endpoints.append(f"{ep.get('method')} {ep.get('path')}")
+
         cleaned_entry = {
             "correlation_id": item["id"],
             "asset_data": {
                 "url": item["url"],
+                "final_url": item.get("final_url"),
                 "title": item["title"],
-                "status_code": item["status_code"],
-                "tech_stack": item.get("tech_stack"),
-                "headers": item.get("headers"),
-                "used_flaresolverr": item.get("used_flaresolverr"),
-                "core_analysisfindings": item.get("core_analysisfindings", []),
-                "core_forms": item.get("core_forms", []),
-                "core_endpoints": item.get("core_endpoints", []),
-                "core_javascriptfiles": cleaned_js,
-                "core_metatags": cleaned_meta,
-                "core_comments": cleaned_comments,
+                "status": item["status_code"],
+                "tech_stack": techs,
+                "known_vulnerabilities": vulns,
+                "headers": cleaned_headers,
+                "endpoints_found": endpoints[:10],  # 限制 10 個
+                "js_files": js_files[:10],
+                "forms": item.get("core_forms", [])[:5],
+                "analysis_findings": item.get("core_analysisfindings", [])[:10],
+                "content_preview": body_text,
+                "anti_bot": item.get("used_flaresolverr"),
             },
         }
         cleaned_list.append(cleaned_entry)

@@ -139,9 +139,7 @@ def perform_scan_for_url(
             url_result_to_update.content_fetch_status = fetch_status
             url_result_to_update.status_code = spider_data.get("status_code")
             url_result_to_update.headers = spider_data.get("response_headers")
-            url_result_to_update.content_length = spider_data.get(
-                "response_body_length"
-            )
+            url_result_to_update.content_length = spider_data.get("content_length")
             url_result_to_update.is_external_redirect = spider_data.get(
                 "is_external_redirect", False
             )

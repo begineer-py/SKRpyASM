@@ -28,6 +28,7 @@ from apps.get_all_url.api import router as get_all_url_router
 from apps.scheduler.api import router as scheduler_router
 from apps.analyze_ai.api import router as analyze_ai_router
 from apps.nuclei_scanner.api import router as nuclei_scanner_router
+from apps.http_sender.api import router as http_sender_router
 
 # 建立 NinjaAPI 實例
 api = NinjaAPI(  # 創建一個 NinjaAPI 實例
@@ -53,6 +54,7 @@ api.add_router("/get_all_url", get_all_url_router)
 api.add_router("/analyze_ai", analyze_ai_router)
 api.add_router("/scheduler", scheduler_router, tags=["Scheduler"])
 api.add_router("/nuclei", nuclei_scanner_router, tags=["Nuclei"])
+api.add_router("/http_sender", http_sender_router, tags=["HTTP Sender"])
 urlpatterns = [  # 定義 URL 模式列表
     path("admin/", admin.site.urls),  # 將 /admin/ 路徑映射到 Django 管理後台的 URL
     # 操！把所有 API 的總入口都設在 /api/

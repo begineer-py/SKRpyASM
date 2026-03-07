@@ -6,6 +6,9 @@ from django.conf import settings
 from apps.core.models import JavaScriptFile, ExtractedJS
 
 logger = logging.getLogger(__name__)
+from c2_core.settings import API_BASE_URL
+
+JS_AI_SCAN_URL = f"{API_BASE_URL}/api/flaresolverr/json_analyze"
 
 
 @shared_task(name="scheduler.tasks.trigger_scan_js")
@@ -34,7 +37,7 @@ def trigger_scan_js(batch_size: int = 10):
     for target_id in external_targets:
         try:
             payload = {"id": target_id, "type": "external"}
-            resp = session.post(f"{settings.JS_AI_SCAN_URL}", json=payload, timeout=5)
+            resp = session.post(f"{JS_AI_SCAN_URL}", json=payload, timeout=5)
             if resp.status_code != 200:
                 logger.warning(f"API 拒絕外部 JS (ID: {target_id}): {resp.text}")
         except Exception as e:
@@ -44,7 +47,7 @@ def trigger_scan_js(batch_size: int = 10):
     for target_id in inline_targets:
         try:
             payload = {"id": target_id, "type": "inline"}
-            resp = session.post(f"{settings.JS_AI_SCAN_URL}", json=payload, timeout=5)
+            resp = session.post(f"{JS_AI_SCAN_URL}", json=payload, timeout=5)
             if resp.status_code != 200:
                 logger.warning(f"API 拒絕內嵌 JS (ID: {target_id}): {resp.text}")
         except Exception as e:

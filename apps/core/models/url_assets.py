@@ -1,5 +1,4 @@
-from email.policy import default
-from random import choices
+# apps/core/models/url_assets.py
 from django.db import models
 from django.db.models import Q
 from simple_history.models import HistoricalRecords
@@ -174,7 +173,11 @@ class URLResult(models.Model):
         related_name="results",
         help_text="哪些 URLScan 產生或關聯了此 URLResult（可多次、多來源）。",
     )
-
+    is_tech_analyzed = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="此 URL 是否已經進行過技術棧分析。",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     history = HistoricalRecords()
 
