@@ -1,0 +1,19 @@
+{
+  "name": "security_parser",
+  "version": "1.0.0",
+  "description": "A comprehensive tool for extracting and analyzing security parameters from JavaScript code and HTML forms.",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "isolated-vm": "^6.0.2",
+    "vm2": "^3.10.4"
+  }
+}

@@ -4,8 +4,9 @@ import logging
 from ninja import Router
 from ninja.errors import HttpError
 
-from apps.core.models.assets import Seed
+from apps.core.models.assets import Seed, Subdomain
 from apps.core.models.scans_record_modles import SubfinderScan
+from c2_core.config.logging import log_function_call
 from .schemas import (
     SubfinderScanSchema,
     DomainReconTriggerSchema,
@@ -17,6 +18,7 @@ router = Router()
 logger = logging.getLogger(__name__)
 
 
+@log_function_call()
 @router.post(
     "/start_subfinder",
     response={
