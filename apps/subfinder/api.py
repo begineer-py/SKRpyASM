@@ -1,5 +1,4 @@
 # subdomain_finder/api.py
-
 import logging
 from ninja import Router
 from ninja.errors import HttpError

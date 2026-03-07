@@ -5,7 +5,6 @@ from typing import List
 from celery import shared_task
 from django.db import transaction
 from django.utils import timezone
-
 from c2_core.config.config import Config
 from c2_core.config.logging import log_function_call
 from apps.core.models import IPAIAnalysis
