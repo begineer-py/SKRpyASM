@@ -16,9 +16,9 @@ def is_content_already_analyzed(url_obj, analysis_type="AI"):
 
         # 根據類型構造查詢：查找【是否有任何】具有相同 Hash 的 URL 已經完成了分析
         if analysis_type == "AI":
-            # 查找是否存在 ai_analysis__status='COMPLETED' 的記錄
+            # 查找是否存在 ai_analyses__status='COMPLETED' 的記錄
             if (
-                URLResult.objects.filter(query, ai_analysis__status="COMPLETED")
+                URLResult.objects.filter(query, ai_analyses__status="COMPLETED")
                 .exclude(id=url_obj.id)
                 .exists()
             ):
@@ -40,7 +40,7 @@ def is_content_already_analyzed(url_obj, analysis_type="AI"):
 
             if analysis_type == "AI":
                 if (
-                    URLResult.objects.filter(query, ai_analysis__status="COMPLETED")
+                    URLResult.objects.filter(query, ai_analyses__status="COMPLETED")
                     .exclude(id=url_obj.id)
                     .exists()
                 ):

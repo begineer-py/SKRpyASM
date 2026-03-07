@@ -15,11 +15,10 @@ class IPAIAnalysis(models.Model):
         ("FAILED", "Failed"),
     ]
 
-    ip = models.OneToOneField(
+    ip = models.ForeignKey(
         "core.IP",
         on_delete=models.CASCADE,
-        related_name="ai_analysis",
-        primary_key=True,
+        related_name="ai_analyses",
     )
     status = models.CharField(
         max_length=10, choices=ANALYSIS_STATUS_CHOICES, default="PENDING", db_index=True
@@ -80,11 +79,10 @@ class SubdomainAIAnalysis(models.Model):
         ("FAILED", "Failed"),
     ]
 
-    subdomain = models.OneToOneField(
+    subdomain = models.ForeignKey(
         "core.Subdomain",
         on_delete=models.CASCADE,
-        related_name="ai_analysis",
-        primary_key=True,
+        related_name="ai_analyses",
     )
     status = models.CharField(
         max_length=10, choices=ANALYSIS_STATUS_CHOICES, default="PENDING", db_index=True
@@ -152,11 +150,10 @@ class URLAIAnalysis(models.Model):
         ("FAILED", "Failed"),
     ]
 
-    url_result = models.OneToOneField(
+    url_result = models.ForeignKey(
         "core.URLResult",
         on_delete=models.CASCADE,
-        related_name="ai_analysis",
-        primary_key=True,
+        related_name="ai_analyses",
     )
     status = models.CharField(
         max_length=10, choices=ANALYSIS_STATUS_CHOICES, default="PENDING", db_index=True

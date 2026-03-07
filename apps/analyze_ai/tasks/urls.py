@@ -25,8 +25,9 @@ def trigger_ai_analysis_for_urls(self, url_ids: List[int]):
     logger.info(f"Task {self.request.id}: 收到 {len(url_ids)} 個 URL 的 AI 分析請求。")
 
     with transaction.atomic():
+        # 改為直接 create，因為允許歷史記錄
         URLAIAnalysis.objects.bulk_create(
-            [URLAIAnalysis(url_result_id=uid) for uid in url_ids], ignore_conflicts=True
+            [URLAIAnalysis(url_result_id=uid, status="PENDING") for uid in url_ids]
         )
 
     perform_ai_analysis_for_url_batch.delay(url_ids)
@@ -41,15 +42,23 @@ def perform_ai_analysis_for_url_batch(self, url_ids: List[int]):
     """
     logger.info(f"Task {self.request.id}: 開始處理 URL 批次，數量: {len(url_ids)}。")
 
-    analysis_qs = URLAIAnalysis.objects.filter(url_result_id__in=url_ids)
-    analysis_qs.update(status="RUNNING")
+    with transaction.atomic():
+        analysis_qs = URLAIAnalysis.objects.filter(
+            url_result_id__in=url_ids, status="PENDING"
+        )
+        analysis_qs.update(status="RUNNING")
+        analysis_records = list(analysis_qs.filter(status="RUNNING"))
+
+    if not analysis_records:
+        logger.warning("沒有找到處於 PENDING 狀態的 URL 分析記錄，任務結束。")
+        return
 
     try:
         # 1. 獲取並清洗數據
         data_payload = fetch_url_data_for_batch(url_ids)
         if not data_payload["list_of_assets"]:
             logger.warning("未能提取到任何 URL 數據，任務終止。")
-            analysis_qs.update(
+            URLAIAnalysis.objects.filter(id__in=[r.id for r in analysis_records]).update(
                 status="FAILED", error_message="Failed to fetch/clean asset data."
             )
             return
@@ -79,7 +88,9 @@ def perform_ai_analysis_for_url_batch(self, url_ids: List[int]):
         if ai_response is None:
             error_msg = f"所有 AI 節點均失敗。最後錯誤: {last_exception}"
             logger.error(error_msg)
-            analysis_qs.update(status="FAILED", error_message=str(last_exception))
+            URLAIAnalysis.objects.filter(id__in=[r.id for r in analysis_records]).update(
+                status="FAILED", error_message=str(last_exception)
+            )
             self.retry(exc=last_exception)
             return
 
@@ -87,7 +98,8 @@ def perform_ai_analysis_for_url_batch(self, url_ids: List[int]):
         analysis_results = ai_response.get("analysis_results", [])
         logger.info(f"收到 {len(analysis_results)} 條 URL 分析結果。")
 
-        analysis_map = {record.url_result_id: record for record in analysis_qs}
+        # 建立一個 map，方便通過 url_result_id 找到我們剛剛標記為 RUNNING 的特定 record
+        analysis_map = {record.url_result_id: record for record in analysis_records}
         records_to_update = []
 
         for result in analysis_results:

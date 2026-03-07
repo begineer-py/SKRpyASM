@@ -38,7 +38,7 @@ def trigger_scan_ips_without_ai_results(batch_size: int = 10):
     # 1. 找出潛在候選人 (Nmap 已完成且沒有 AI 分析記錄或分析失敗的)
     base_query = (
         IP.objects.filter(discovered_by_scans__status="COMPLETED")
-        .exclude(ai_analysis__status__in=["COMPLETED", "RUNNING"])
+        .exclude(ai_analyses__status__in=["COMPLETED", "RUNNING"])
         .distinct()
     )
 
@@ -67,9 +67,10 @@ def trigger_scan_ips_without_ai_results(batch_size: int = 10):
     if not target_ids:
         return "No suitable IP IDs for AI analysis."
 
-    # 4. 標記為 RUNNING
+    # 4. 標記為 RUNNING (或是建立新的 PENDING 記錄)
+    # 這裡直接呼叫 API 之前先確保記錄存在
     for tid in target_ids:
-        IPAIAnalysis.objects.update_or_create(ip_id=tid, defaults={"status": "RUNNING"})
+        IPAIAnalysis.objects.get_or_create(ip_id=tid, status="PENDING")
 
     try:
         requests.post(AI_ANALYZES_IP, json={"ids": target_ids}, timeout=5)
@@ -92,7 +93,7 @@ def trigger_scan_subdomains_without_ai_results(batch_size: int = 10):
     自動排除無法解析 (is_resolvable=False) 的子域名。
     """
     base_query = Subdomain.objects.filter(is_active=True).exclude(
-        ai_analysis__status__in=["COMPLETED", "RUNNING"]
+        ai_analyses__status__in=["COMPLETED", "RUNNING"]
     )
 
     # 1. 自動排除：不可解析的子域名
@@ -114,11 +115,9 @@ def trigger_scan_subdomains_without_ai_results(batch_size: int = 10):
     if not to_trigger_ids:
         return "No Subdomains pending."
 
-    # 3. 標記為 RUNNING
+    # 3. 確保 PENDING 記錄存在
     for tid in to_trigger_ids:
-        SubdomainAIAnalysis.objects.update_or_create(
-            subdomain_id=tid, defaults={"status": "RUNNING"}
-        )
+        SubdomainAIAnalysis.objects.get_or_create(subdomain_id=tid, status="PENDING")
 
     try:
         requests.post(AI_ANALYZES_SUBDOMAINS, json={"ids": to_trigger_ids}, timeout=5)
@@ -144,7 +143,7 @@ def trigger_scan_urls_without_ai_results(batch_size: int = 5):
     """
     # 1. 建立基礎 QuerySet (只取成功抓取且沒分析過的)
     query = URLResult.objects.filter(content_fetch_status="SUCCESS_FETCHED").exclude(
-        ai_analysis__status__in=["COMPLETED", "RUNNING"]
+        ai_analyses__status__in=["COMPLETED", "RUNNING"]
     )
 
     # 2. 自動排除：狀態碼 404 的 URL
@@ -182,11 +181,9 @@ def trigger_scan_urls_without_ai_results(batch_size: int = 5):
     if not valid_ids:
         return "No unique URL IDs."
 
-    # 4. 標記為 RUNNING
+    # 4. 確保 PENDING 記錄存在
     for tid in valid_ids:
-        URLAIAnalysis.objects.update_or_create(
-            url_result_id=tid, defaults={"status": "RUNNING"}
-        )
+        URLAIAnalysis.objects.get_or_create(url_result_id=tid, status="PENDING")
 
     try:
         requests.post(AI_ANALYZES_URL, json={"ids": valid_ids}, timeout=10)
