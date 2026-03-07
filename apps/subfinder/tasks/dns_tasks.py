@@ -4,7 +4,7 @@ import json
 from celery import shared_task
 from django.db import transaction
 
-from apps.core.models.assets import Subdomain, Seed
+from apps.core.models import Subdomain, Seed
 from c2_core.config.logging import log_function_call
 from .utils import ensure_seed_subdomain_exists, create_or_update_ip_objects
 

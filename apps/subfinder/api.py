@@ -3,8 +3,8 @@ import logging
 from ninja import Router
 from ninja.errors import HttpError
 
-from apps.core.models.assets import Seed, Subdomain
-from apps.core.models.scans_record_modles import SubfinderScan
+from apps.core.models import Seed, Subdomain
+from apps.core.models import SubfinderScan
 from c2_core.config.logging import log_function_call
 from .schemas import (
     SubfinderScanSchema,

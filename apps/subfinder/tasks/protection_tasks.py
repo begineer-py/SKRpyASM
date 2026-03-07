@@ -5,7 +5,7 @@ from celery import shared_task
 from django.db import transaction
 from eventlet.greenpool import GreenPool
 
-from apps.core.models.assets import Subdomain, Seed
+from apps.core.models import Subdomain, Seed
 from c2_core.config.logging import log_function_call
 
 logger = logging.getLogger(__name__)
