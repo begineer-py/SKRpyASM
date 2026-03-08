@@ -1,4 +1,5 @@
-# targets/api.py
+# apps/targets/api.py
+# 目標（Target）與種子（Seed）管理 API
 
 import logging
 from typing import List
@@ -16,9 +17,7 @@ from .schemas import (
     AddSeedSchema,
 )
 
-# 如果你有這個 logger 配置就用，沒有就用標準 logging
-# from c2_core.config.logging import log_function_call
-
+# 導入日誌與路由配置
 logger = logging.getLogger(__name__)
 router = Router(tags=["Targets & Seeds (Configuration)"])
 

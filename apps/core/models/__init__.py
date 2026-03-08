@@ -10,7 +10,14 @@ from .analyze.analyze_ai_models import (
 from .analyze.analyze_data import AnalyzeData
 from .analyze.overview import Overview
 from .analyze.Step import Step, Method, Payload, Verification
-from .scans_record_modles import NmapScan, SubfinderScan, URLScan, NucleiScan, SubBrute
+from .scans_record_models import (
+    NmapScan,
+    SubfinderScan,
+    URLScan,
+    NucleiScan,
+    SubBrute,
+    AmassScan,
+)
 from .Vulnerability import Vulnerability
 from .url_assets import (
     URLResult,

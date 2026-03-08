@@ -21,17 +21,22 @@ from .common import (
 @shared_task(bind=True)
 @log_function_call()
 def trigger_ai_analysis_for_subdomains(self, subdomain_ids: List[int]):
-    """【總司令部 - 子域名分部】"""
+    """
+    【AI 指揮調度 - 子域名分析啟動】
+    
+    為一組子域名批量初始化 AI 分析請求，並將其投遞至異步批次處理隊列。
+    """
     logger.info(
         f"Task {self.request.id}: 收到 {len(subdomain_ids)} 個子域名的 AI 分析請求。"
     )
 
     with transaction.atomic():
-        # 改為直接 create，因為允許歷史記錄
+        # 為每個子域名建立一個進度紀錄，初始狀態為 PENDING
         SubdomainAIAnalysis.objects.bulk_create(
             [SubdomainAIAnalysis(subdomain_id=sid, status="PENDING") for sid in subdomain_ids]
         )
 
+    # 調用批次執行任務
     perform_ai_analysis_for_subdomain_batch.delay(subdomain_ids)
     return f"已成功為 {len(subdomain_ids)} 個子域名派發分析任務。"
 
@@ -40,7 +45,16 @@ def trigger_ai_analysis_for_subdomains(self, subdomain_ids: List[int]):
 @log_function_call()
 def perform_ai_analysis_for_subdomain_batch(self, subdomain_ids: List[int]):
     """
-    【作戰單元 - 子域名分析】
+    【AI 作戰單位 - 批次數據分析】
+    
+    實際執行與 AI 模型（如 Gemini, Mistral）交互的邏輯。
+    
+    流程：
+    1. 將相關記錄狀態標記為 RUNNING。
+    2. 通過 GraphQL 或資產庫獲取子域名的詳細屬性數據（payload）。
+    3. 載入提示詞模板，並注入數據。
+    4. 循環嘗試可用的 AI API 火力點，直到成功或全部失敗。
+    5. 解析 AI 返回的 JSON 結果並回填至資料庫。
     """
     logger.info(
         f"Task {self.request.id}: 開始處理子域名批次，數量: {len(subdomain_ids)}。"

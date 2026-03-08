@@ -1,3 +1,6 @@
+# apps/nmap_scanner/api.py
+# Nmap 掃描啟動與管理 API
+
 import logging
 from ninja import Router, Schema
 from ninja.errors import HttpError
@@ -7,7 +10,7 @@ from datetime import datetime
 from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Count
 
-# 操！導入正確的模型
+# 導入資產與掃描核心模型
 from apps.core.models import IP, Seed
 from apps.core.models import NmapScan
 from .schemas import (
@@ -18,20 +21,26 @@ from .schemas import (
 from .tasks import perform_nmap_scan
 from c2_core.config.logging import log_function_call
 from django.db.models import Q
+from asgiref.sync import sync_to_async
 
 router = Router()
 logger = logging.getLogger(__name__)
 
-# ... (其他 import 保持不變) ...
-
-
-# nucleus_scanner/api.py
-from asgiref.sync import sync_to_async
-
-
 @router.post("/start_scan", response={202: NmapScanSchema})
 @log_function_call()
 async def start_nmap_scan(request, trigger_data: NmapScanTriggerSchema):
+    """
+    對指定 IP 啟動 Nmap 異步掃描。
+    
+    流程：
+    1. 驗證傳入的所有 Seed ID 是否存在。
+    2. 驗證目標 IP 是否已存在於資產庫（IP 模型）。
+    3. 將 IP 與傳入的 Seeds 建立關聯（歸屬權確認）。
+    4. 檢查該 IP 是否已有正在執行的掃描任務，避免重疊。
+    5. 根據請求參數組裝 Nmap 命令字串。
+    6. 創建 NmapScan 數據庫記錄並關聯 Seeds/IP。
+    7. 投遞 Celery 任務執行實際掃描。
+    """
     ip_str = trigger_data.ip
     seed_ids = trigger_data.seed_ids  # 這是 List[int]
 
