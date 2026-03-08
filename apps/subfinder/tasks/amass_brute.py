@@ -7,7 +7,7 @@ from django.utils import timezone
 from django.core.exceptions import ObjectDoesNotExist
 
 # 這裡假設你有一個 AmassScan 的模型，邏輯跟 SubfinderScan 一樣
-from apps.core.models.scans_record_modles import AmassScan
+from apps.core.models import AmassScan
 from c2_core.config.logging import log_function_call
 
 # 你可能需要一個專門解析 Amass JSON 的工具
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 @shared_task(bind=True, ignore_result=True)
 @log_function_call()
-def start_amass_scan(self, scan_id: int, target_id: int = None):
+def start_amass_scan(self, scan_id: int = None,seed_id: int = None):
     """啟動 Amass 掃描任務，這傢伙是重裝坦克。"""
     scan = None
     # 定義暫存檔案路徑，避免多個任務互相打架
@@ -82,7 +82,7 @@ def start_amass_scan(self, scan_id: int, target_id: int = None):
             # 7. 觸發下一個任務 (DNS 解析)
             from .dns_tasks import resolve_dns_for_seed
 
-            resolve_dns_for_seed.delay(seed_id=seed.id, scan_id=scan.id, source="amass")
+            resolve_dns_for_seed.delay(seed_id=seed.id, source="amass")
 
         else:
             stderr = process.stderr[:1000]
@@ -111,4 +111,4 @@ def start_amass_scan(self, scan_id: int, target_id: int = None):
         if scan:
             scan.completed_at = timezone.now()
             scan.save()
-            logger.info(f"Amass 任務 ID: {scan.id} 最終狀態: {scan.status}")
+            logger.info(f"Amass 任務 ID: {scan_id} 最終狀態: {scan.status}")

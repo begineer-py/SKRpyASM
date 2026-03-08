@@ -11,8 +11,9 @@ from .utils import ensure_seed_subdomain_exists, create_or_update_ip_objects
 logger = logging.getLogger(__name__)
 
 
-@log_function_call()
 @shared_task(bind=True, ignore_result=True)
+@log_function_call()
+
 def resolve_dns_for_seed(self, seed_id: int, subfinder_scan_id: int):
     """Resolve DNS for all subdomains associated with a seed."""
     try:
