@@ -17,7 +17,7 @@ class AnalyzeData(models.Model):
     is_from_ai = models.BooleanField(default=False, help_text="此條資訊是否由 AI 產生（例如 AI 助手注入的手工條目）。")
     author = models.CharField(max_length=255, null=True, blank=True, help_text="記錄輸入者名稱（或是 AI Agent 名稱）。")
     
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

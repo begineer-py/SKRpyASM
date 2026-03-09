@@ -29,10 +29,29 @@ Your objective is to analyze a batch of subdomains. You must determine the busin
       "risk_score": <int>,
       "potential_vulnerabilities": [ "escalation paths or new vectors" ],
       "recommended_actions": [ "next reconnaissance steps" ],
-      "command_actions": [ "specific nuclei or curl commands" ]
+      "command_actions": [
+        {
+          "command": "<exact CLI command to execute, e.g. nuclei -u https://target.com -t cves/>",
+          "method": "<tool name: nmap|nuclei|curl|sqlmap|hydra|ffuf|gobuster|dig|subfinder|amass|whatweb|nikto|wfuzz|custom>",
+          "description": "<what this command does and why>",
+          "verification": {
+            "pattern": "<regex or substring to match in command output that confirms the finding>",
+            "match_type": "regex|contains",
+            "verify_strategy": "regex|contains|ai_judge|manual",
+            "ai_prompt": "<if verify_strategy is ai_judge, provide the prompt template here>",
+            "auto_create_vulnerability": true,
+            "vulnerability_severity": "critical|high|medium|low|info",
+            "vulnerability_name": "<the name of the vulnerability if found>"
+          }
+        }
+      ]
     }
   ]
 }
+
+### STRICT CONSTRAINTS:
+- Each object in `command_actions` MUST have all 4 fields: `command`, `method`, `description`, `verification`.
+- The `verification.pattern` should be a specific output pattern that, when matched, confirms a vulnerability or finding exists.
 - Don't assign a high risk_score unless you are certain with that the vulnerability exists.
 
 ### BEGIN DATA
