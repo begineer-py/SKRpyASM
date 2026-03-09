@@ -9,6 +9,8 @@ from django.db import transaction
 
 from c2_core.config.logging import log_function_call
 from apps.core.models import Subdomain, URLScan, URLResult
+from apps.api_keys.utils import get_active_api_keys, generate_gau_config
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -31,10 +33,15 @@ def scan_all_url(self, subdomain_id: int, threads: int = 50):
             target_subdomain=subdomain, tool="gau", status="RUNNING"
         )
 
+        # 獲取 API 金鑰並生成臨時配置文件
+        api_keys = get_active_api_keys()
+        config_file = generate_gau_config(api_keys)
+
         command = [
             "docker",
             "run",
             "--rm",
+            "-v", f"{config_file}:/root/.gau.toml",
             "sxcurity/gau:latest",
             subdomain.name,
             "--threads",
@@ -117,3 +124,8 @@ def scan_all_url(self, subdomain_id: int, threads: int = 50):
             URLScan.objects.filter(id=scan_batch.id).update(
                 status="FAILED", completed_at=timezone.now(), error_message=str(e)
             )
+    finally:
+        # 清理臨時配置文件
+        if 'config_file' in locals() and os.path.exists(config_file):
+            os.remove(config_file)
+            logger.debug(f"已清理 gau 臨時配置文件: {config_file}")
