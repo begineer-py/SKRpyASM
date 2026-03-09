@@ -33,7 +33,6 @@ EXAMPLE INPUT:
   ]
 }
 EXAMPLE OUTPUT:
-code
 JSON
 {
   "analysis_results": [
@@ -62,7 +61,16 @@ JSON
       "command_actions": [
         {
           "command": "nmap -sV -p 21,80,443 --script=ftp-anon 198.51.100.10",
-          "description": "Perform a service version scan on the open ports and specifically check for anonymous FTP access."
+          "method": "nmap",
+          "description": "Perform a service version scan on the open ports and specifically check for anonymous FTP access.",
+          "verification": {
+            "pattern": "Anonymous FTP login allowed|230 Login successful",
+            "match_type": "regex",
+            "verify_strategy": "regex",
+            "auto_create_vulnerability": true,
+            "vulnerability_severity": "high",
+            "vulnerability_name": "Anonymous FTP Access"
+          }
         }
       ]
     },
@@ -91,7 +99,14 @@ JSON
       "command_actions": [
         {
           "command": "nuclei -u https://modern-app.io",
-          "description": "Run web vulnerability scans against the domain name, as scanning the Cloudflare IP directly is not effective."
+          "method": "nuclei",
+          "description": "Run web vulnerability scans against the domain name, as scanning the Cloudflare IP directly is not effective.",
+          "verification": {
+            "pattern": "\\[.*\\].*\\[.*\\]",
+            "match_type": "regex",
+            "verify_strategy": "regex",
+            "auto_create_vulnerability": false
+          }
         }
       ]
     }

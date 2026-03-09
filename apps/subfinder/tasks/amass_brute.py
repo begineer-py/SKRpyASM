@@ -12,6 +12,7 @@ from c2_core.config.logging import log_function_call
 
 # 你可能需要一個專門解析 Amass JSON 的工具
 from .utils import parse_amass_output, update_subdomain_assets
+from apps.api_keys.utils import get_active_api_keys, generate_amass_config
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,11 @@ def start_amass_scan(self, scan_id: int = None,seed_id: int = None):
         scan.started_at = timezone.now()
         scan.save(update_fields=["status", "started_at"])
 
-        # 3. 構建 Amass 命令
+        # 3. 獲取 API 金鑰並生成臨時配置文件
+        api_keys = get_active_api_keys()
+        config_file = generate_amass_config(api_keys)
+
+        # 4. 構建 Amass 命令
         # -passive: 先用被動模式，速度快且安全
         # -json: 剛才測試過，它會寫到檔案
         command = [
@@ -45,6 +50,7 @@ def start_amass_scan(self, scan_id: int = None,seed_id: int = None):
             seed.value,
             "-json",
             output_file,
+            "-config", config_file,
             "-passive",  # 如果你想大殺特殺，可以把這行拿掉或換成 -brute
             "-silent",
         ]
@@ -107,6 +113,8 @@ def start_amass_scan(self, scan_id: int = None,seed_id: int = None):
         # 清理暫存檔，不要留一堆垃圾在 /tmp
         if os.path.exists(output_file):
             os.remove(output_file)
+        if 'config_file' in locals() and os.path.exists(config_file):
+            os.remove(config_file)
 
         if scan:
             scan.completed_at = timezone.now()

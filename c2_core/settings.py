@@ -56,6 +56,7 @@ INSTALLED_APPS = [  # 註冊 Django 項目中使用的應用程序列表
     "django_celery_beat",
     "apps.analyze_ai",  # 操！把指揮中心加在其他 app 前面，或者就加在列表裡
     "apps.nuclei_scanner",
+    "apps.api_keys",
 ]
 MIDDLEWARE = [  # 中間件列表，處理請求和響應的層次
     "corsheaders.middleware.CorsMiddleware",  # CORS 中間件，處理跨域請求

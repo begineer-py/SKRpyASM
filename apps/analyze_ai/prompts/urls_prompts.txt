@@ -28,12 +28,29 @@ You are an expert Web Application Security Analyst. Analyze the following URL sc
           "endpoints_to_test": ["..."]
       },
       "recommended_actions": [ "How to confirm the findings" ],
-      "command_actions": [ "Step-by-step CLI commands (sqlmap, nuclei, hydra)" ]
+      "command_actions": [
+        {
+          "command": "<exact CLI command to execute, e.g. sqlmap -u 'https://target.com/api?id=1' --dbs>",
+          "method": "<tool name: nmap|nuclei|curl|sqlmap|hydra|ffuf|gobuster|nikto|wfuzz|custom>",
+          "description": "<what this command does and why>",
+          "verification": {
+            "pattern": "<regex or substring to match in command output that confirms the finding>",
+            "match_type": "regex|contains",
+            "verify_strategy": "regex|contains|ai_judge|manual",
+            "ai_prompt": "<if verify_strategy is ai_judge, provide the prompt template here>",
+            "auto_create_vulnerability": true,
+            "vulnerability_severity": "critical|high|medium|low|info",
+            "vulnerability_name": "<the name of the vulnerability if found>"
+          }
+        }
+      ]
     }
   ]
 }
 
 ### STRICT CONSTRAINTS:
+- Each object in `command_actions` MUST have all 4 fields: `command`, `method`, `description`, `verification`.
+- The `verification.pattern` should be a specific output pattern that, when matched, confirms a vulnerability or finding exists.
 - Do NOT repeat the raw `tech_stack` in your summary.
 - Focus on Layer 7 (Application) attacks.
 - If anti-bot is active, include `--proxy` or header-based bypass suggestions in `command_actions`.

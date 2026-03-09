@@ -11,6 +11,9 @@
 ## API 接口
 
 通常作為內部調度使用，部分調度策略可通過 `api.py` 查詢或臨時觸發。
+關於自動化任務的詳細邏輯，請參閱 [自動化任務系統 (Auto Tasks)](file:///home/hacker/Desktop/share/C2_Django_AI_git/docs/auto_tasks.md)。
+關於 API Key 的管理，請參閱 [API Keys 管理系統](file:///home/hacker/Desktop/share/C2_Django_AI_git/docs/api_keys.md)。
+
 詳見 `apps/scheduler/api.py`：
 
 - **`POST /scheduler/tasks`**: 創建一個新的週期性任務（自動處理 Interval/Crontab 創建）。

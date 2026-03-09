@@ -7,6 +7,8 @@ from django.core.exceptions import ObjectDoesNotExist
 from apps.core.models import SubfinderScan
 from c2_core.config.logging import log_function_call
 from .utils import parse_subfinder_output, update_subdomain_assets
+from apps.api_keys.utils import get_active_api_keys, generate_subfinder_config
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -25,8 +27,19 @@ def start_subfinder(self, scan_id: int):
         scan.started_at = timezone.now()
         scan.save(update_fields=["status", "started_at"])
 
+        # 3. 獲取 API 金鑰並生成臨時配置文件
+        api_keys = get_active_api_keys()
+        config_file = generate_subfinder_config(api_keys)
+
         # Construct subfinder command
-        command = ["subfinder", "-d", seed.value, "-json", "-silent", "-all"]
+        command = [
+            "subfinder", 
+            "-d", seed.value, 
+            "-json", 
+            "-silent", 
+            "-all",
+            "-pc", config_file
+        ]
 
         logger.info(
             f"準備執行 Subfinder 命令 for Scan ID {scan.id}: {' '.join(command)}"
@@ -76,6 +89,11 @@ def start_subfinder(self, scan_id: int):
         if scan:
             scan.status = "FAILED"
     finally:
+        # 清理臨時配置文件
+        if 'config_file' in locals() and os.path.exists(config_file):
+            os.remove(config_file)
+            logger.debug(f"已清理 subfinder 臨時配置文件: {config_file}")
+
         if scan:
             scan.completed_at = timezone.now()
             scan.save()
