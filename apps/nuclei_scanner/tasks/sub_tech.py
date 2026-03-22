@@ -22,7 +22,8 @@ def scan_subdomain_tech(subdomain_ids: list[int]):
         # 構建 Nuclei 指令 (輸出格式為 JSONL)
         target_url = f"https://{subdomain.name}"
         command = [
-            "nice" "nuclei",
+            "nice",
+            "nuclei",
             "-u",
             target_url,
             "-tags",

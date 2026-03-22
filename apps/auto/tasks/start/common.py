@@ -7,8 +7,7 @@ auto/tasks/start/common.py
     Step         → 第幾步 (order) + 真實執行指令 (command_template)
     Method       → 什麼方法發送 (e.g., nmap, nuclei, curl, sqlmap)
     Payload      → 完整 action JSON 內容
-    Verification → 驗證條件（pattern + match_type），
-                   符合驗證 → 未來自動加入漏洞模組
+    Verification → AI 成功標準（observation_prompt）— 由 AI 判斷輸出是否達成
 """
 
 import json
@@ -18,7 +17,7 @@ from typing import Any, Dict, List, Optional
 
 from django.db import transaction
 
-from apps.core.models import Step, Method, Payload, Verification
+from apps.core.models import Step, Payload, Verification
 
 logger = logging.getLogger(__name__)
 
@@ -117,9 +116,10 @@ def create_steps_from_analysis(
     asset_fk_value: Any,
     analysis_id: int,
     analysis_summary: Optional[str],
-    analysis_risk_score: Optional[int],
+    analysis_risk_score: Optional[int] = None,
     potential_vulnerabilities: Optional[list],
     asset_context_json: str,
+    overview: Optional[Any] = None,
 ) -> int:
     """
     通用 Step 建立引擎：
@@ -134,6 +134,7 @@ def create_steps_from_analysis(
         analysis_risk_score:      AI 風險評分
         potential_vulnerabilities: AI 推斷的漏洞列表
         asset_context_json:       GraphQL 資產快照 JSON
+        overview:                 隸屬的戰略 Overview
 
     Returns:
         成功建立的 Step 數量
@@ -141,17 +142,53 @@ def create_steps_from_analysis(
     created = 0
 
     with transaction.atomic():
+        # 1. 如果有 overview，自動將當前資產與戰略關聯
+        if overview:
+            if asset_fk_field == "ip":
+                overview.ips.add(asset_fk_value)
+            elif asset_fk_field == "subdomain":
+                overview.subdomains.add(asset_fk_value)
+            elif asset_fk_field == "url_result":
+                overview.url_results.add(asset_fk_value)
+
+        # 2. 如果有 overview 和潛在漏洞，自動建立/更新 AttackVector 紀錄
+        if overview and potential_vulnerabilities:
+            from apps.core.models.analyze.AttackVector import AttackVector
+            for pv in potential_vulnerabilities:
+                if isinstance(pv, dict):
+                    name = pv.get("vulnerability_name") or pv.get("name") or str(pv.get("affected_component") or "Unknown Vector")
+                    desc = pv.get("description", "")
+                    # 如果字典內有 risk_score，則取用；否則若 severity="High" 則給高分
+                    risk = pv.get("risk_score") or (80 if pv.get("severity", "").lower() in ["high", "critical"] else 50)
+                else:
+                    name = str(pv)
+                    desc = ""
+                    risk = 50
+                
+                # 避免重複建立：根據名稱和 overview 搜尋
+                AttackVector.objects.get_or_create(
+                    overview=overview,
+                    name=name[:500],
+                    defaults={
+                        "description": desc,
+                        "risk_score": risk,
+                        "status": "IDENTIFIED"
+                    }
+                )
+
+        # 2. 建立 Step
         for idx, raw_action in enumerate(command_actions, start=1):
             action = _normalize_action(raw_action)
 
             # ── Step: 第幾步 + 真實執行指令 ──────────────
             step = Step.objects.create(
+                overview=overview,
                 order=idx,
                 command_template=action["command"],
                 expectation=action.get("description", ""),
                 note=(
                     f"來源: Analysis#{analysis_id}\n"
-                    f"風險評分: {analysis_risk_score or 'N/A'}\n"
+                    f"風險評分: {analysis_risk_score or (overview.risk_score if overview else 'N/A')}\n"
                     f"摘要: {analysis_summary or 'N/A'}\n"
                     f"---\n"
                     f"GraphQL 資產快照:\n{asset_context_json}"
@@ -176,21 +213,39 @@ def create_steps_from_analysis(
                 platform=action.get("method", "cli"),
             )
 
-            # ── Verification: 驗證條件 ────────────────
+            # ── Verification: AI 成功標準 ────────────────
             verification_data = action.get("verification")
-            if verification_data and isinstance(verification_data, dict):
-                Verification.objects.create(
-                    step=step,
-                    pattern=verification_data.get("pattern", ""),
-                    match_type=verification_data.get("match_type", "contains"),
-                    verify_strategy=verification_data.get("verify_strategy", "regex"),
-                    ai_prompt=verification_data.get("ai_prompt", ""),
-                    confidence_threshold=verification_data.get("confidence_threshold", 80),
-                    auto_create_vulnerability=verification_data.get("auto_create_vulnerability", False),
-                    vulnerability_severity=verification_data.get("vulnerability_severity", "medium"),
-                    vulnerability_name=verification_data.get("vulnerability_name", ""),
-                )
+            observation = (
+                action.get("observation_prompt")
+                or (verification_data.get("observation_prompt") if isinstance(verification_data, dict) else None)
+                or action.get("description")
+                or "請判斷此步驟是否成功執行。"
+            )
+            Verification.objects.create(
+                step=step,
+                observation_prompt=observation,
+                confidence_threshold=(
+                    verification_data.get("confidence_threshold", 75)
+                    if isinstance(verification_data, dict) else 75
+                ),
+                auto_create_vulnerability=(
+                    verification_data.get("auto_create_vulnerability", False)
+                    if isinstance(verification_data, dict) else False
+                ),
+                vulnerability_severity=(
+                    verification_data.get("vulnerability_severity", "medium")
+                    if isinstance(verification_data, dict) else "medium"
+                ),
+                vulnerability_name=(
+                    verification_data.get("vulnerability_name", "")
+                    if isinstance(verification_data, dict) else ""
+                ),
+            )
 
             created += 1
 
     return created
+
+
+
+

@@ -8,6 +8,7 @@ class ScanAllUrlSchema(Schema):
     # 但邏輯上我們會優先使用 URL path 中的 target_identifier 來確保權限隔離
     name: str
     scan_type: Optional[Literal["passive", "initiative"]] = None
+    callback_step_id: Optional[int] = None
 
 
 class SuccessScanAllUrlSchema(Schema):

@@ -17,10 +17,8 @@ from apps.core.models import (
     SubdomainAIAnalysis,
     URLAIAnalysis,
     SubfinderScan,
-    AnalyzeData,
     Overview,
     Step,
-    Method,
     Payload,
     Verification,
 )
@@ -44,14 +42,8 @@ admin.site.register(SubdomainAIAnalysis)
 admin.site.register(URLAIAnalysis)
 admin.site.register(SubfinderScan)
 
-@admin.register(AnalyzeData)
-class AnalyzeDataAdmin(admin.ModelAdmin):
-    list_display = ("author", "is_from_ai", "created_at", "ip", "subdomain", "url_result")
-    list_filter = ("is_from_ai", "author")
-    search_fields = ("content", "author")
-
+# Register your models here.
 admin.site.register(Overview)
 admin.site.register(Step)
-admin.site.register(Method)
 admin.site.register(Payload)
 admin.site.register(Verification)

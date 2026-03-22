@@ -8,22 +8,24 @@ from celery import shared_task
 from django.utils import timezone
 from django.db import transaction
 from django.db.models import Q
-
+from typing import Optional
 # 操！把模型都叫過來
 from apps.core.models import NmapScan, Port, IP
+from apps.core.utils import with_auto_callback
 
 logger = logging.getLogger(__name__)
 
 
 # 操！這就是我們的 nmap 突擊隊
 @shared_task(bind=True, name="nmap_scanner.tasks.perform_nmap_scan")
-def perform_nmap_scan(self, scan_id: int, ip_address: str, nmap_args: str):
+@with_auto_callback
+def perform_nmap_scan(self, scan_id: int, ip_address: str, nmap_args: str, callback_step_id: Optional[int] = None):
     """
     執行 Nmap 掃描，解析結果，並將情報存入資料庫。
     這是一個獨立的、可以失敗和重試的作戰單元。
     """
     logger.info(
-        f"任務 [{self.request.id}] 領取命令：開始處理 NmapScan ID: {scan_id} for IP: {ip_address}"
+        f"任務 [{self.request.id}] 領取命令：開始處理 NmapScan ID: {scan_id} for IP: {ip_address} (Step: {callback_step_id})"
     )
 
     scan_record = None
@@ -106,6 +108,8 @@ def perform_nmap_scan(self, scan_id: int, ip_address: str, nmap_args: str):
 
         if scan_record:
             logger.info(f"NmapScan ID {scan_id} 最終狀態: {scan_record.status}")
+            
+        return f"Nmap 掃描完成。IP: {ip_address}"
 
 
 def parse_and_save_nmap_results(

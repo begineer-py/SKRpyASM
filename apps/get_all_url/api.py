@@ -62,8 +62,8 @@ async def get_all_url(
 
     try:
         # 使用 .delay() 或 .apply_async() 觸發
-        task = scan_all_url.delay(subdomain.id)
-        logger.info(f"GAU 任務已派發: Task ID {task.id} -> Subdomain {subdomain.id}")
+        task = scan_all_url.delay(subdomain.id, callback_step_id=payloads.callback_step_id)
+        logger.info(f"GAU 任務已派發: Task ID {task.id} -> Subdomain {subdomain.id} (Step: {payloads.callback_step_id})")
     except Exception as e:
         logger.error(f"Celery 任務派發失敗: {e}")
         raise HttpError(500, "Failed to schedule scanning task.")

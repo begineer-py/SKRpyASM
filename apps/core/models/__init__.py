@@ -6,10 +6,11 @@ from .analyze.analyze_ai_models import (
     IPAIAnalysis,
     SubdomainAIAnalysis,
     URLAIAnalysis,
+    InitialAIAnalysis,
 )
-from .analyze.analyze_data import AnalyzeData
 from .analyze.overview import Overview
-from .analyze.Step import Step, Method, Payload, Verification
+from .analyze.AttackVector import AttackVector,Payload
+from .analyze.Step import Step, Verification
 from .scans_record_models import (
     NmapScan,
     SubfinderScan,

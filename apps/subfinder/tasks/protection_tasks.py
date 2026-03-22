@@ -1,6 +1,7 @@
 import logging
 import subprocess
 import json
+from typing import Optional
 from celery import shared_task
 from django.db import transaction
 from eventlet.greenpool import GreenPool
@@ -11,18 +12,23 @@ from c2_core.config.logging import log_function_call
 logger = logging.getLogger(__name__)
 
 
+from apps.core.utils import with_auto_callback
+
 @shared_task(bind=True, ignore_result=True)
+@with_auto_callback
 def check_protection_for_seed(
     self,
     seed_id: int,
     subfinder_scan_id: int,
     chunk_size: int = 100,
     greenpool_size: int = 20,
+    callback_step_id: Optional[int] = None,
 ):
     """Check CDN/WAF protection for all resolvable subdomains of a seed."""
+    seed = None
     try:
         seed = Seed.objects.get(id=seed_id)
-        logger.info(f"開始 CDN/WAF 檢測 for Seed: '{seed.value}'")
+        logger.info(f"開始 CDN/WAF 檢測 for Seed: '{seed.value}' (Step: {callback_step_id})")
 
         subdomains_to_check = Subdomain.objects.filter(
             which_seed=seed, is_active=True, is_resolvable=True
@@ -45,18 +51,14 @@ def check_protection_for_seed(
             "-silent",
         ]
         
-        logger.info(f"将 {len(all_names)} 个子域名分成 {len(chunks)} 批进行并发检测。")
+        logger.info(f"将 {len(all_names)} 個子域名分成 {len(chunks)} 批進行連發檢測。")
 
         def run_cdncheck_on_chunk(chunk):
             """Run cdncheck on a chunk of subdomains."""
             input_data = "\n".join(chunk)
             try:
                 process = subprocess.run(
-                    command,
-                    input=input_data,
-                    capture_output=True,
-                    text=True,
-                    timeout=300,
+                    command, input=input_data, capture_output=True, text=True, timeout=300
                 )
                 if process.returncode == 0:
                     return [line for line in process.stdout.strip().split("\n") if line]
@@ -100,16 +102,7 @@ def check_protection_for_seed(
                             sub_obj.last_scan_type = "CdnCheckScan"
                             sub_obj.last_scan_id = subfinder_scan_id
 
-                            sub_obj.save(
-                                update_fields=[
-                                    "is_cdn",
-                                    "is_waf",
-                                    "cdn_name",
-                                    "waf_name",
-                                    "last_scan_type",
-                                    "last_scan_id",
-                                ]
-                            )
+                            sub_obj.save()
                             updates_count += 1
                 except (json.JSONDecodeError, KeyError):
                     pass
@@ -118,3 +111,5 @@ def check_protection_for_seed(
         
     except Exception as e:
         logger.exception(f"CDN/WAF 檢測任務 for Seed ID {seed_id} 失敗: {e}")
+    finally:
+        return f"Subfinder 偵察鏈完成。種子: {seed.value if seed else 'Unknown'}"

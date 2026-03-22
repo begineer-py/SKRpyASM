@@ -8,7 +8,7 @@ from ninja.errors import HttpError
 from django.core.exceptions import ObjectDoesNotExist
 from django.shortcuts import get_object_or_404
 
-from apps.core.models import Target, Seed
+from apps.core.models import Target, Seed, URLResult, Subdomain, IP
 from .schemas import (
     TargetSchema,
     CreateTargetSchema,
@@ -93,6 +93,34 @@ async def add_seed_to_target(request, target_id: int, payload: AddSeedSchema):
 
         # 2. 創建種子 (注意：Seed 有 unique_together 約束，需處理重複)
         seed = await Seed.objects.acreate(target=target, **payload.dict())
+
+        # 3. 同步建立對應的核心資產 (URLResult, Subdomain, IP)
+        if seed.type == "URL":
+            await URLResult.objects.aget_or_create(
+                target=target,
+                url=seed.value,
+                defaults={
+                    "discovery_source": "SCAN",
+                    "content_fetch_status": "PENDING"
+                }
+            )
+            # URLResult 目前沒有 which_seed M2M，我們只依靠 target 和 url
+        
+        elif seed.type == "DOMAIN":
+            sub, _ = await Subdomain.objects.aget_or_create(
+                target=target,
+                name=seed.value
+            )
+            await sub.which_seed.aadd(seed)
+            
+        elif seed.type == "IP_RANGE" and "/" not in seed.value:
+            # 只針對單一 IP 自動建檔，網段保留給其它展開工具處理
+            ip_obj, _ = await IP.objects.aget_or_create(
+                target=target,
+                ipv4=seed.value
+            )
+            await ip_obj.which_seed.aadd(seed)
+
         return seed
 
     except ObjectDoesNotExist:

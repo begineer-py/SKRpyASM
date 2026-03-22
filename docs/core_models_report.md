@@ -21,7 +21,7 @@
    將網頁探測拆解為極致細微的實體。從宏觀的 `URLResult` 剝離出 `Form`, `Link`, `ExtractedJS`, `JSONObject` 等微觀結構。這使得我們後續進行風險評分、參數爆破與 JavaScript 靜態分析時，不需要反覆重新請求網路，而是直接對關聯式資料庫進行查詢操作。在同一個 `Target` 範圍下，`Endpoint` 加上 `HTTP Method` 成為唯一的識別單元，並將推斷出的 `URLParameter` 掛載其下，構築了動態應用程式安全測試 (DAST) 的完美基石。
 
 5. **AI 分析與人工智慧/專家協作 (AI & Human Collaboration Synergy)**
-   在 `analyze/` 目錄中，我們明確區分了「程式自動化事實」與「分析見解」。`IPAIAnalysis`, `SubdomainAIAnalysis`, `URLAIAnalysis` 這類模型專門用來儲存大模型的推理結果（包含風險評分、總結與漏洞推斷）；而 `AnalyzeData` 則是用於容納安全人員（或 AI 助手）輸入的協作備忘錄。這層設計能夠在不污染基礎網路事實的情況下，支援進階的情境堆疊與滲透攻擊步驟（`Step`, `Payload`, `Method`, `Verification`）規劃。
+   在 `analyze/` 目錄中，我們明確區分了「程式自動化事實」與「分析見解」。`IPAIAnalysis`, `SubdomainAIAnalysis`, `URLAIAnalysis` 這類模型專門用來儲存大模型的推理結果（包含風險評分、總結與漏洞推斷）。這層設計能夠在不污染基礎網路事實的情況下，支援進階的情境堆疊與滲透攻擊步驟（`Step`, `Payload`, `Method`, `Verification`）規劃。
 
 ---
 
@@ -130,10 +130,6 @@ classDiagram
     class IPAIAnalysis { +summary, +risk_score }
     class SubdomainAIAnalysis { +summary, +risk_score }
     class URLAIAnalysis { +summary, +risk_score }
-    class AnalyzeData {
-        <<人工/AI筆記>>
-        +content: TextField
-    }
     class Overview { +techs, +knowledge }
     class Step {
         <<滲透步驟>>
@@ -144,7 +140,6 @@ classDiagram
     Subdomain "1" <-- "*" SubdomainAIAnalysis : 深度分析 (subdomain)
     URLResult "1" <-- "*" URLAIAnalysis : 深度分析 (url_result)
 
-    IP "1" <-- "*" AnalyzeData : 附加備註 (ip)
     Target "1" <-- "*" Overview : 專案概覽 (target)
     IP "1" <-- "*" Step : 攻擊步驟 (ip)
 ```

@@ -11,6 +11,7 @@ class DomainReconTriggerSchema(Schema):
     """觸發 DOMAIN 偵察鏈的請求體"""
 
     seed_id: int
+    callback_step_id: Optional[int] = None
     # timeout: Optional[int] = 900 # 如果需要，可以保留 timeout
 
 
@@ -49,7 +50,7 @@ class SubfinderScanSchema(ModelSchema):
 class IPSchema(ModelSchema):
     class Meta:
         model = IP
-        fields = ["id", "ipv4", "ipv6"]
+        fields = ["id", "address", "version"]
 
 
 # 2. 定義單個子域名的詳細情報 Schema
@@ -58,12 +59,6 @@ class SubdomainSchema(ModelSchema):
     ip: Optional[IPSchema] = None
 
     # 映射 sources_text
-    sources: str = Field(..., alias="sources_text")
-
-    # 映射 cname (雖然名字一樣，但顯式聲明更清晰)
-    # 如果 cname 為空字符串，這裡會原樣返回
-    cname: Optional[str] = None
-
     class Meta:
         model = Subdomain
         fields = [
@@ -71,8 +66,6 @@ class SubdomainSchema(ModelSchema):
             "name",
             "is_active",
             "sources_text",
-            "cname",  # <-- 確保這裡有加
-            "dns_records",
             "first_seen",
             "last_seen",
             "created_at",

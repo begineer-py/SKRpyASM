@@ -17,9 +17,14 @@ logger = logging.getLogger(__name__)
 BLACKLIST_EXTS = "png,jpg,jpeg,gif,webp,svg,ico,css,js,woff,woff2,ttf,eot,mp4,mp3,pdf"
 
 
+from typing import Optional
+
+from apps.core.utils import with_auto_callback
+
 @shared_task(bind=True)
 @log_function_call()
-def scan_all_url(self, subdomain_id: int, threads: int = 50):
+@with_auto_callback
+def scan_all_url(self, subdomain_id: int, threads: int = 50, callback_step_id: Optional[int] = None):
     try:
         subdomain = Subdomain.objects.prefetch_related("which_seed").get(
             id=subdomain_id
@@ -45,7 +50,7 @@ def scan_all_url(self, subdomain_id: int, threads: int = 50):
             "sxcurity/gau:latest",
             subdomain.name,
             "--threads",
-            str(threads),
+            "50",
             "--blacklist",
             BLACKLIST_EXTS,
         ]
@@ -85,6 +90,7 @@ def scan_all_url(self, subdomain_id: int, threads: int = 50):
             new_objects.append(
                 URLResult(
                     url=url,
+                    target=subdomain.target,
                     last_scan_type="passive_gau",
                     last_scan_id=scan_batch.id,
                 )
@@ -129,3 +135,5 @@ def scan_all_url(self, subdomain_id: int, threads: int = 50):
         if 'config_file' in locals() and os.path.exists(config_file):
             os.remove(config_file)
             logger.debug(f"已清理 gau 臨時配置文件: {config_file}")
+            
+        return f"GAU URL 掃描完成。子域名: {subdomain.name if 'subdomain' in locals() else 'Unknown'}"

@@ -57,8 +57,13 @@ def update_subdomain_assets(seed, current_subdomains_map, scan):
         seed: 當前的種子對象 (Seed model instance)。
         current_subdomains_map: 此次掃描發現的子域名映射。
         scan: 當前的掃描紀錄物件。
+        scan_type (str): 掃描工具類型 (如 'SubfinderScan', 'AmassScan')
+        scan_id (int): 掃描紀錄的 ID
     """
     current_subdomains_set = set(current_subdomains_map.keys())
+    
+    scan_type = scan_type or scan.__class__.__name__
+    scan_id = scan_id or scan.id
 
     # 在函數內導入以避免循環導入 (Circular Import)
     from apps.core.models import Subdomain, SubdomainSeed
@@ -81,10 +86,11 @@ def update_subdomain_assets(seed, current_subdomains_map, scan):
             sources_set = current_subdomains_map[name]
             sub_obj = Subdomain(
                 name=name,
+                target=seed.target,
                 is_active=True,
                 sources_text=",".join(sorted(list(sources_set))),
-                last_scan_type="SubfinderScan",
-                last_scan_id=scan.id,
+                last_scan_type=scan_type,
+                last_scan_id=scan_id,
             )
             new_subdomains.append(sub_obj)
 
@@ -120,8 +126,8 @@ def update_subdomain_assets(seed, current_subdomains_map, scan):
 
             # 更新掃描紀錄資訊
             sub_obj.last_seen = timezone.now()
-            sub_obj.last_scan_type = "SubfinderScan"
-            sub_obj.last_scan_id = scan.id
+            sub_obj.last_scan_type = scan_type
+            sub_obj.last_scan_id = scan_id
             update_fields_list.extend(["last_seen", "last_scan_type", "last_scan_id"])
 
             if update_fields_list:
@@ -197,47 +203,44 @@ def ensure_seed_subdomain_exists(seed):
 
 def create_or_update_ip_objects(ipv4_list, ipv6_list, seed):
     """
-    建立或更新 IP 物件，並將其與種子關聯。
+    根據提供的 IPv4 和 IPv6 列表，創建或更新 IP 物件，並將這些物件與指定的 Seed 關聯。
 
-    參數:
+    Args:
         ipv4_list (list): IPv4 地址列表。
         ipv6_list (list): IPv6 地址列表。
-        seed: 種子物件。
+        seed (Seed): 關聯的 Seed 物件。
 
-    回傳:
-        all_ips (list): 處理後的 IP 物件列表。
+    Returns:
+        list: 所有已創建或已存在的 IP 物件（包括 IPv4 和 IPv6）。
     """
+    if not (ipv4_list or ipv6_list):
+        return []
+
     from apps.core.models import IP
 
-    # --- 處理 IPv4 ---
-    # 先一次性查找現有的 IP，避免在循環中進行資料庫查詢
-    existing_ipv4 = {ip.ipv4: ip for ip in IP.objects.filter(ipv4__in=ipv4_list)}
-    new_ipv4_objs = []
-    for ip_val in ipv4_list:
-        if ip_val not in existing_ipv4:
-            new_ipv4_objs.append(IP(ipv4=ip_val))
+    all_ips = []
+    
+    # 合併處理
+    total_ips = [(ip, 4) for ip in (ipv4_list or [])] + [(ip, 6) for ip in (ipv6_list or [])]
+    
+    if not total_ips:
+        return []
 
-    # 批次建立新的 IPv4 撥錄
-    if new_ipv4_objs:
-        created_ipv4 = IP.objects.bulk_create(new_ipv4_objs)
-        for ip in created_ipv4:
-            existing_ipv4[ip.ipv4] = ip
+    # 查詢現有 IP
+    ip_addresses = [ip_val for ip_val, _ in total_ips]
+    existing_ips = {ip.address: ip for ip in IP.objects.filter(address__in=ip_addresses)}
+    
+    new_ip_objs = []
+    for ip_val, version in total_ips:
+        if ip_val not in existing_ips:
+            new_ip_objs.append(IP(address=ip_val, version=version))
 
-    # --- 處理 IPv6 ---
-    existing_ipv6 = {ip.ipv6: ip for ip in IP.objects.filter(ipv6__in=ipv6_list)}
-    new_ipv6_objs = []
-    for ip_val in ipv6_list:
-        if ip_val not in existing_ipv6:
-            new_ipv6_objs.append(IP(ipv6=ip_val))
+    if new_ip_objs:
+        created_ips = IP.objects.bulk_create(new_ip_objs)
+        for ip in created_ips:
+            existing_ips[ip.address] = ip
 
-    # 批次建立新的 IPv6 紀錄
-    if new_ipv6_objs:
-        created_ipv6 = IP.objects.bulk_create(new_ipv6_objs)
-        for ip in created_ipv6:
-            existing_ipv6[ip.ipv6] = ip
-
-    all_ips = list(existing_ipv4.values()) + list(existing_ipv6.values())
-    ThroughModel = IP.which_seed.through
+    all_ips = list(existing_ips.values())
     existing_relations = set(
         ThroughModel.objects.filter(
             seed_id=seed.id, ip_id__in=[ip.id for ip in all_ips]

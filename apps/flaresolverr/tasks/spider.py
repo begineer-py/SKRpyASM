@@ -54,7 +54,7 @@ def perform_scan_for_url(
             defaults["target_id"] = target_id
 
         # 獲取或創建 Subdomain
-        if auto_create:
+        if auto_create or target_id:
             subdomain, created = Subdomain.objects.get_or_create(
                 name=hostname,
                 defaults=defaults,
