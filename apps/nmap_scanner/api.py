@@ -57,7 +57,7 @@ async def start_nmap_scan(request, trigger_data: NmapScanTriggerSchema):
 
     # 2. 獲取或確認 IP
     try:
-        ip_obj = await IP.objects.filter(Q(ipv4=ip_str) | Q(ipv6=ip_str)).afirst()
+        ip_obj = await IP.objects.filter(address=ip_str).afirst()
         if not ip_obj:
             raise HttpError(404, f"找不到 IP 資產: {ip_str}")
 
@@ -109,13 +109,14 @@ async def start_nmap_scan(request, trigger_data: NmapScanTriggerSchema):
         scan_id=scan_record.id,
         ip_address=ip_str,
         nmap_args=final_nmap_args,
+        callback_step_id=trigger_data.callback_step_id,
     )
 
     # 8. 回傳
     return NmapScanSchema(
         id=scan_record.id,
         ip_id=ip_obj.id,
-        ip_address=[ip_obj.ipv4] if ip_obj.ipv4 else [ip_obj.ipv6],
+        ip_address=[ip_obj.address],
         scan_type="custom_scan",
         nmap_args=scan_record.nmap_args,
         status=scan_record.status,

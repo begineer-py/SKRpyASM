@@ -23,7 +23,7 @@ def scan_subdomains_without_url_results(batch_size: int = 5):
 
     # 2. 排除掉這些 ID
     subdomains_to_scan = (
-        Subdomain.objects.filter(is_active=True, is_resolvable=True)
+        Subdomain.objects.filter(is_active=True, is_resolvable=True, target__isnull=False)
         .exclude(id__in=gau_subdomain_ids)
         .order_by("-id")[:batch_size]
     )
@@ -51,9 +51,10 @@ def scan_subdomains_without_url_results(batch_size: int = 5):
 def scan_urls_missing_response(batch_size: int = 5):
     logger.info(f"定時任務啟動：查找未抓取內容的 URL (Limit {batch_size})")
 
-    urls_to_scan = URLResult.objects.filter(content_fetch_status="PENDING").order_by(
-        "-id"
-    )[:batch_size]
+    urls_to_scan = URLResult.objects.filter(
+        content_fetch_status="PENDING",
+        target__isnull=False
+    ).order_by("-id")[:batch_size]
 
     actual_count = len(urls_to_scan)
     if actual_count == 0:
@@ -64,7 +65,11 @@ def scan_urls_missing_response(batch_size: int = 5):
         try:
             resp = requests.post(
                 FLARESOLVERR_START_SCANNER_URL,
-                json={"url": url_obj.url, "method": "GET"},
+                json={
+                    "url": url_obj.url,
+                    "method": "GET",
+                    "target_id": url_obj.target_id,
+                },
                 timeout=5,
             )
             if 200 <= resp.status_code < 300:

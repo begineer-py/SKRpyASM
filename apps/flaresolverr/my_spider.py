@@ -359,7 +359,8 @@ class MySpider:
     @log_function_call()
     def _process_httpx_output(self, raw_output: Optional[str], mode_name: str) -> bool:
         if not raw_output:
-            self.content_fetch_status = "FAILED_DNS_ERROR"
+            # 如果 httpx 回傳空字串，通常是超時或工具執行異常，不一定是 DNS 錯誤
+            self.content_fetch_status = "FAILED_TOOL_EMPTY"
             return False
         try:
             lines = raw_output.split("\n")

@@ -25,6 +25,9 @@
         - `args`, `kwargs` (JSON, 選填): 傳遞給任務的參數。
 - **`PUT /scheduler/tasks/{task_id}`**: 更新定時任務設定。
 - **`GET /scheduler/tasks`**: 列出所有當前任務與最後執行狀態。
+    - **回應欄位亮點**:
+        - `task_doc`: 自動提取 Celery Task 的 Python Docstring，顯示任務設計者的說明。
+        - `description`: 存儲於數據庫的任務備註/註解，方便動態標記任務用途。
 
 ## 內部 Tasks (Triggers)
 

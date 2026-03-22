@@ -26,6 +26,7 @@ class PeriodicTaskSchema(Schema):
     id: int
     name: str
     task: str
+    task_doc: Optional[str] = None
     enabled: bool
     description: str
     interval: Optional[IntervalScheduleSchema] = None

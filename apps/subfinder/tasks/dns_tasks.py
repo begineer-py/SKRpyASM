@@ -3,6 +3,7 @@ import subprocess
 import json
 from celery import shared_task
 from django.db import transaction
+from typing import Optional
 
 from apps.core.models import Subdomain, Seed
 from c2_core.config.logging import log_function_call
@@ -13,8 +14,7 @@ logger = logging.getLogger(__name__)
 
 @shared_task(bind=True, ignore_result=True)
 @log_function_call()
-
-def resolve_dns_for_seed(self, seed_id: int, subfinder_scan_id: int):
+def resolve_dns_for_seed(self, seed_id: int, subfinder_scan_id: int, callback_step_id: Optional[int] = None):
     """Resolve DNS for all subdomains associated with a seed."""
     try:
         seed = Seed.objects.get(id=seed_id)
@@ -37,16 +37,12 @@ def resolve_dns_for_seed(self, seed_id: int, subfinder_scan_id: int):
 
         if process.returncode != 0:
             logger.error(f"dnsx 失敗: {process.stderr}")
-            # Continue to next task even if DNS resolution fails
             from .protection_tasks import check_protection_for_seed
-            check_protection_for_seed.delay(seed_id, subfinder_scan_id)
+            check_protection_for_seed.delay(seed_id, subfinder_scan_id, callback_step_id=callback_step_id)
             return
 
         raw_output = process.stdout.strip()
         lines = raw_output.split("\n") if raw_output else []
-
-        updates_count = 0
-        resolved_hosts = set()
 
         with transaction.atomic():
             for line in lines:
@@ -59,50 +55,38 @@ def resolve_dns_for_seed(self, seed_id: int, subfinder_scan_id: int):
                     ipv6_list = data.get("aaaa", [])
                     cname_list = data.get("cname", [])
 
-                    # Only consider resolution successful if there are A, AAAA, or CNAME records
                     if not (ipv4_list or ipv6_list or cname_list):
                         continue
 
                     sub_obj = subdomain_map.get(host)
                     if sub_obj:
-                        resolved_hosts.add(host)
-
-                        # Handle IP addresses
                         all_ips = create_or_update_ip_objects(ipv4_list, ipv6_list, seed)
-
-                        # Associate IPs with subdomain
                         if hasattr(sub_obj, "ips"):
                             sub_obj.ips.add(*all_ips)
 
-                        # Update subdomain status
                         sub_obj.is_resolvable = True
-                        sub_obj.cname = ",".join(cname_list)
-                        sub_obj.dns_records = data
-                        sub_obj.save(
-                            update_fields=["is_resolvable", "cname", "dns_records"]
-                        )
-                        updates_count += 1
-
+                        sub_obj.save(update_fields=["is_resolvable"])
+                        
+                        # 解析並儲存至 DNSRecord 模型
+                        from apps.core.models.domain import DNSRecord
+                        dns_records_to_create = []
+                        
+                        for ipv4 in ipv4_list:
+                             dns_records_to_create.append(DNSRecord(subdomain=sub_obj, record_type='A', value=ipv4))
+                        for ipv6 in ipv6_list:
+                             dns_records_to_create.append(DNSRecord(subdomain=sub_obj, record_type='AAAA', value=ipv6))
+                        for cname in cname_list:
+                             dns_records_to_create.append(DNSRecord(subdomain=sub_obj, record_type='CNAME', value=cname))
+                             
+                        if dns_records_to_create:
+                            DNSRecord.objects.bulk_create(dns_records_to_create, ignore_conflicts=True)
                 except Exception as e:
                     logger.error(f"解析 dnsx 行失敗: {e}")
-
-        # Mark unresolved domains
-        unresolved_hosts = set(subdomain_map.keys()) - resolved_hosts
-        if unresolved_hosts:
-            logger.info(f"標記 {len(unresolved_hosts)} 個子域名為不可解析。")
-            Subdomain.objects.filter(
-                which_seed=seed, name__in=unresolved_hosts, is_resolvable=True
-            ).update(is_resolvable=False)
-
-        logger.info(
-            f"DNS 解析完成。成功解析: {updates_count}, 失敗: {len(unresolved_hosts)}。"
-        )
 
     except Exception as e:
         logger.exception(f"DNS 解析出錯: {e}")
     finally:
-        # Continue to next task regardless of success/failure
         from .protection_tasks import check_protection_for_seed
         check_protection_for_seed.delay(
-            seed_id=seed_id, subfinder_scan_id=subfinder_scan_id
+            seed_id=seed_id, subfinder_scan_id=subfinder_scan_id, callback_step_id=callback_step_id
         )

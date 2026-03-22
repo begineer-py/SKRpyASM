@@ -20,6 +20,14 @@ class TechStack(models.Model):
         null=True,
         blank=True,
     )
+    target = models.ForeignKey(
+        "Target",
+        on_delete=models.CASCADE,
+        related_name="technologies",
+        null=True,
+        blank=True,
+        help_text="最高層級的聚合目標（用於繪製專案整體技術棧圖譜）"
+    )
 
     name = models.CharField(
         max_length=100, db_index=True, help_text="技術名稱，如 PHP, Nginx"
@@ -34,7 +42,8 @@ class TechStack(models.Model):
 
     class Meta:
         app_label = "core"
-        unique_together = ("which_url_result", "name", "version")
+        # 移除這個嚴格的 unique_together，因為我們現在允許在 target/subdomain/url 不同層級儲存相同的技術
+        # unique_together = ("which_url_result", "name", "version")
 
     def __str__(self):
         return f"{self.name} {self.version or ''}"

@@ -83,10 +83,6 @@ class Subdomain(models.Model):
     last_seen = models.DateTimeField(auto_now=True, help_text="最後一次發現時間")
     created_at = models.DateTimeField(auto_now_add=True)
     
-    # DNS 詳細資訊
-    dns_records = models.JSONField(null=True, blank=True, help_text="詳細的 DNS 解析記錄（A, AAAA, MX, TXT 等）")
-    cname = models.TextField(blank=True, null=True, help_text="CNAME 解析路徑")
-    
     # 防護與基礎設施資訊
     is_cdn = models.BooleanField(default=False, help_text="是否使用了 CDN")
     is_waf = models.BooleanField(default=False, help_text="是否受 WAF 保護")
@@ -116,3 +112,41 @@ class Subdomain(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class DNSRecord(models.Model):
+    """
+    DNS 解析記錄。將原本存放於 Subdomain JSONField 中的 DNS 記錄結構化，
+    便於全局查詢（例如：找出特定 IP 被哪些子域名的 A 紀錄指向，或搜出特定的 TXT 特徵）。
+    """
+    subdomain = models.ForeignKey(
+        Subdomain,
+        on_delete=models.CASCADE,
+        related_name="dns_records",
+        help_text="關聯的子域名",
+        db_index=True
+    )
+    record_type = models.CharField(
+        max_length=15,
+        db_index=True,
+        help_text="DNS 紀錄類型，如 A, AAAA, CNAME, MX, TXT, NS 等"
+    )
+    value = models.TextField(
+        help_text="DNS 紀錄的內容，例如 IP 位址或 CNAME 目標域名"
+    )
+    ttl = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Time to Live"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        app_label = "core"
+        verbose_name = "DNS 解析記錄"
+        verbose_name_plural = "DNS 解析記錄"
+        # 同一個子域名、同一種紀錄類型、同一個值不該重複建立
+        unique_together = ("subdomain", "record_type", "value")
+
+    def __str__(self):
+        return f"{self.subdomain.name} IN {self.record_type} {self.value}"

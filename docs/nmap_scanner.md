@@ -23,10 +23,9 @@
         - `scan_os` (boolean): 是否啟用 OS 偵查 `-O`（預設 `false`）。
 需要提供關聯的 Seed IDs 以便資產追蹤。
 
-## 內部 Tasks
+## 內部架構與 Tasks
 
-- **`perform_nmap_scan(scan_id, ip_address, nmap_args)`**: 核心掃描任務單元。
+- **`perform_nmap_scan(scan_id, ip_address, nmap_args)`**: 核心掃描任務。
     1. **命令執行**: 使用 `shlex` 確保參數安全並執行 `nmap`。
-    2. **結果解析**: 利用 `ElementTree` 解析 Nmap XML 輸出，提取端口、通訊協定、服務名稱與版本。
-    3. **智能入庫**: 調用 `parse_and_save_nmap_results` 實現資產的 `update_or_create` 與 M2M 關聯建立。
-    4. **持久化**: 完整存儲原始 XML 輸出於 `NmapScan` 模型中。
+    2. **資產同步**: 調用 `parse_and_save_nmap_results` 實現資產的 `update_or_create` 與 M2M 關聯。
+    3. **數據保存**: 完整存儲原始 XML 檔案於 `NmapScan` 模型中，以供後續精確審查。

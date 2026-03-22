@@ -115,7 +115,7 @@ class ErrorSchema(Schema):
 class IPSchema(ModelSchema):
     class Meta:
         model = IP
-        fields = ["id", "ipv4", "ipv6"]
+        fields = ["id", "address", "version"]
 
 
 # 2. IP 列表的包裝盒
@@ -142,6 +142,7 @@ class SuccessSendToAISchema(Schema):
 class NucleiScanIPByIdsSchema(Schema):
     ids: List[int] = Field(..., description="IP ID 列表", min_length=1, max_length=10)
     tags: List[str] = Field(default=[], description="Nuclei 標籤")
+    callback_step_id: Optional[int] = Field(None, description="回調用的 Step ID")
 
 
 class NucleiScanSubdomainByIdsSchema(Schema):
@@ -149,11 +150,13 @@ class NucleiScanSubdomainByIdsSchema(Schema):
         ..., description="子域名 ID 列表", min_length=1, max_length=100
     )
     tags: List[str] = Field(default=[], description="Nuclei 標籤")
+    callback_step_id: Optional[int] = Field(None, description="回調用的 Step ID")
 
 
 class NucleiScanURLByIdsSchema(Schema):
     ids: List[int] = Field(..., description="URL ID 列表", min_length=1, max_length=10)
     tags: Optional[List[str]] = Field(default=None, description="Nuclei 標籤")
+    callback_step_id: Optional[int] = Field(None, description="回調用的 Step ID")
 
 
 class ScanIdsSchema(Schema):
@@ -175,6 +178,7 @@ class FlaresolverrTriggerSchema(Schema):  # <--- 繼承 Schema
     url: str
     method: str
     seed_id: int | None = None
+    target_id: int | None = None
     auto_create: bool = False
 
 

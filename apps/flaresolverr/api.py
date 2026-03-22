@@ -32,18 +32,17 @@ async def start_crawl(request, trigger_data: FlaresolverrTriggerSchema):
     url = trigger_data.url
     seed_id = trigger_data.seed_id
     hostname = urlparse(url).hostname
+    target_id = trigger_data.target_id
     auto_create = trigger_data.auto_create
 
-    target_id = None
-
-    # 1. 驗證 Seed
-    if seed_id:
+    # 1. 驗證 Seed (如果沒傳 target_id)
+    if not target_id and seed_id:
         target_id = (
             await Seed.objects.filter(id=seed_id)
             .values_list("target_id", flat=True)
             .afirst()
         )
-        logger.info(f"目標 ID: {target_id}")
+        logger.info(f"從 Seed ID 獲取目標 ID: {target_id}")
 
     # 2. 驗證 Subdomain
     if not target_id and hostname:

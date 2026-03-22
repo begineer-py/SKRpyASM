@@ -5,6 +5,7 @@ from ninja.errors import HttpError
 from c2_core.config.logging import log_function_call
 import logging
 from django.core.exceptions import ValidationError  # <--- 記得導入這個！
+from celery import current_app
 
 from .schemas import (
     PeriodicTaskSchema,
@@ -33,10 +34,17 @@ async def list_periodic_tasks(request):  # 操！異步化！
     results = []
     # 操！異步化！
     async for task in tasks_queryset:
+        task_doc = None
+        if task.task in current_app.tasks:
+            celery_task = current_app.tasks[task.task]
+            if celery_task.__doc__:
+                task_doc = celery_task.__doc__.strip()
+
         task_dict = {
             "id": task.id,
             "name": task.name,
             "task": task.task,
+            "task_doc": task_doc,
             "enabled": task.enabled,
             "description": task.description,
             "interval": (
@@ -127,6 +135,13 @@ async def get_periodic_task(request, task_id: int):  # 操！異步化！
         task = await PeriodicTask.objects.select_related("interval", "crontab").aget(
             id=task_id
         )
+        task_doc = None
+        if task.task in current_app.tasks:
+            celery_task = current_app.tasks[task.task]
+            if celery_task.__doc__:
+                task_doc = celery_task.__doc__.strip()
+        task.task_doc = task_doc
+        
         # 注意：單個對象返回時，Ninja 的異步處理通常沒問題，
         # 但為了絕對安全和一致性，我們也應該手動序列化。
         # 暫時保持這樣，如果 get 單個對象也報錯，再改成像 list 一樣的手動模式。

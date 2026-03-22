@@ -22,8 +22,12 @@
 
 ## 內部 Tasks
 
-- **`trigger_ai_analysis_for_subdomains`**: 任務調度器，負責批量初始化。
-- **`perform_ai_analysis_for_subdomain_batch`**: 核心分析邏輯。
-    1. 聚合資產詳細數據。
-    2. 調用 AI 代理獲取分析結果。
-    3. 解析 JSON 回應並寫入 `SubdomainAIAnalysis` 模型。
+- **`trigger_ai_analysis_for_*`**: 任務調度器，負責批量初始化。
+- **`perform_ai_analysis_for_*_batch`**: 
+    - 採用 **工廠模式 (Factory Pattern)** 實作。
+    - 核心邏輯封裝於 `_execute_ai_batch`。
+    1. 根據 **Asset Registry** 取得特定的資產配置（如 model, prompt, GraphQL fetcher）。
+    2. 自動處理狀態標記 (PENDING -> RUNNING)。
+    3. 聚合資產詳細數據。
+    4. 調用 AI 代理獲取分析結果。
+    5. 解析 JSON 回應並寫入對應的分析模型。

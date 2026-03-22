@@ -21,16 +21,19 @@ class IP(models.Model):
         "core.Seed", 
         related_name="ips"
     )
-    ipv4 = models.GenericIPAddressField(
-        protocol="ipv4", 
-        null=True, 
-        blank=True, 
-        db_index=True
+    # Unified address field supporting both IPv4 and IPv6
+    address = models.GenericIPAddressField(
+        protocol="both",
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="IP 位址 (IPv4 或是 IPv6)"
     )
-    ipv6 = models.GenericIPAddressField(
-        protocol="ipv6", 
-        null=True, 
-        blank=True
+    version = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        choices=[(4, "IPv4"), (6, "IPv6")],
+        help_text="IP 版本"
     )
 
     # Source tracking
@@ -55,7 +58,7 @@ class IP(models.Model):
     )
 
     def __str__(self):
-        return f"{self.ipv4 or self.ipv6 or 'Unknown IP'}"
+        return f"{self.address or 'Unknown IP'}"
 
 
 class Port(models.Model):
@@ -106,5 +109,5 @@ class Port(models.Model):
     def __str__(self):
         return (
             f"Port {self.port_number}/{self.protocol} on "
-            f"{self.ip.ipv4 or self.ip.ipv6}"
+            f"{self.ip.address}"
         )
