@@ -1,11 +1,7 @@
 import json
 import logging
-import os
-import random
-from typing import List, Dict, Any, Tuple
-from urllib.parse import urljoin
+from typing import List, Dict, Any
 
-import requests
 from django.conf import settings
 from gql import gql, Client
 from gql.transport.requests import RequestsHTTPTransport
@@ -21,7 +17,6 @@ logger = logging.getLogger(__name__)
 
 HASURA_GRAPHQL_URL = f"{Config.HASURA_URL}/v1/graphql" if Config.HASURA_URL else None
 HASURA_ADMIN_SECRET = Config.HASURA_ADMIN_SECRET
-FALLBACK_AI_PROXY_URL = Config.NYAPROXY_SPIDER_URL
 
 # Prompt 文件路徑
 PROMPT_TEMPLATE_PATH = (
@@ -505,7 +500,7 @@ def _build_strategic_context(record) -> Dict[str, Any]:
             out = v.execution_output or ""
             verifications.append({
                 "verdict": v.verdict,
-                "strategy": v.verify_strategy,
+                "strategy": v.observation_prompt,
                 "output_preview": out[:1000]  # 截斷保留前1000字元避免Token爆炸
             })
         step_data["verifications"] = verifications
@@ -522,86 +517,7 @@ def _build_strategic_context(record) -> Dict[str, Any]:
 # =============================================================================
 
 
-@log_function_call()
-def _build_payload(target_api_name: str, final_prompt: str) -> dict:
-    """
-    【彈藥工廠】根據目標 API 名稱構建正確的 payload。
-    """
-    if "gemini" in target_api_name.lower():
-        logger.info(
-            f"檢測到 Gemini 目標 '{target_api_name}'，正在構建 Gemini 專用彈藥..."
-        )
-        return {
-            "contents": [{"parts": [{"text": final_prompt}]}],
-            "generationConfig": {"responseMimeType": "application/json"},
-        }
-
-    logger.info(f"使用默認彈藥 (Mistral/OpenAI 格式) 攻擊目標 '{target_api_name}'...")
-    return {
-        "messages": [{"role": "user", "content": final_prompt}],
-        "model": "mistral-large-latest",
-        "response_format": {"type": "json_object"},
-    }
-
-
-@log_function_call()
-def _fire_at_target(
-    api_name: str, api_url: str, final_prompt: str
-) -> Tuple[Dict[str, Any] | None, Exception | None]:
-    """
-    【砲手】使用正確的彈藥對單個目標開火。
-    返回 (響應JSON, 異常) 元組。
-    """
-    try:
-        # 1. 製造彈藥
-        payload = _build_payload(api_name, final_prompt)
-        logger.info(
-            f"準備向 {api_url} 開火，Payload 結構:\n{json.dumps(payload, indent=2)}"
-        )
-
-        target_url = api_url
-        logger.info(f"目標 URL: {target_url}")
-
-        if "mistral_ai" in api_name:
-            target_url = urljoin(api_url, "mistral_ai/chat/completions")
-            logger.info(f"mistral_ai URL: {target_url}")
-
-        # 2. 開火
-        response = requests.post(
-            target_url,
-            json=payload,
-            headers={"Content-Type": "application/json"},
-            timeout=300,
-        )
-        response.raise_for_status()
-
-        # 3. 處理戰果
-        raw_json = response.json()
-        if "gemini" in api_name.lower():
-            try:
-                content_text = raw_json["candidates"][0]["content"]["parts"][0]["text"]
-                return json.loads(content_text), None
-            except (KeyError, IndexError, json.JSONDecodeError) as e:
-                err_msg = f"解析 Gemini 響應時結構出錯: {e}. 原始響應: {raw_json}"
-                logger.error(err_msg)
-                return None, ValueError(err_msg)
-        else:
-            try:
-                content_text = raw_json["choices"][0]["message"]["content"]
-                return json.loads(content_text), None
-            except (KeyError, IndexError, json.JSONDecodeError) as e:
-                err_msg = (
-                    f"解析 Mistral/OpenAI 格式響應時結構出錯: {e}. 原始響應: {raw_json}"
-                )
-                logger.error(err_msg)
-                return None, ValueError(err_msg)
-
-    except requests.RequestException as e:
-        logger.warning(f"火力點 {api_url} 連接失敗: {e}。")
-        return None, e
-    except (KeyError, json.JSONDecodeError) as e:
-        logger.error(f"解析 AI 響應失敗: {e}. 原始文本: {response.text}")
-        return None, e
+# The `_build_payload` and `_fire_at_target` have been removed. We now use django_ai_assistant Agents natively.
 
 
 # =============================================================================
@@ -614,13 +530,12 @@ def _execute_ai_batch(asset_type: str, asset_ids: List[int], task_self) -> None:
     【通用 AI 批次分析執行器】
 
     這是整個 analyze_ai 的核心工廠函式。
-    使用 ASSET_REGISTRY 查找特定資產型別的設定，
-    然後執行以下統一流程：
+    使用了 `django_ai_assistant` 內建立的 Agent，執行以下統一流程：
 
     1. 將相關 analysis 記錄狀態更新為 RUNNING
     2. 通過 GraphQL 提取資產情報
-    3. 載入對應的 Prompt 模板並注入資料
-    4. 輪詢可用的 AI 服務火力點
+    3. 利用 Agent 和 `create_thread` 啟動一個帶回放歷史的資料庫 Thread
+    4. 把數據發給 Agent 並獲取 JSON 回應
     5. 解析 AI 回應並 bulk_update 回資料庫
 
     Args:
@@ -670,21 +585,6 @@ def _execute_ai_batch(asset_type: str, asset_ids: List[int], task_self) -> None:
     analysis_ids = [r.id for r in analysis_records]
 
     try:
-        # ── 2. 動態火力選擇 ───────────────────────────────────────────────
-        available_targets = list(Config.AI_SERVICE_URLS.items())
-        if not available_targets:
-            logger.error("沒有配置任何動態 AI 服務 URL，任務無法執行。")
-            Model.objects.filter(id__in=analysis_ids).update(
-                status="FAILED", error_message="No AI services configured."
-            )
-            return
-
-        random.shuffle(available_targets)
-        logger.info(
-            f"[{asset_type}] 火力陣地就緒，可用目標: "
-            f"{[name for name, _ in available_targets]}"
-        )
-
         # ── 3. 提取情報 ──────────────────────────────────────────────────
         data_payload = config.data_fetcher(asset_ids)
         if not data_payload.get("list_of_assets"):
@@ -702,38 +602,48 @@ def _execute_ai_batch(asset_type: str, asset_ids: List[int], task_self) -> None:
             if record:
                 asset["strategic_context"] = _build_strategic_context(record)
 
-        # ── 4. 準備彈藥（注入 Prompt 模板）──────────────────────────────
-        template = config.prompt_loader()
-        final_prompt = template.replace(
-            "{$data}", json.dumps(data_payload, indent=2)
+        # ── 4. 準備發給 Agent 的資料 ──────────────────────────────
+        from django.contrib.auth import get_user_model
+        from django_ai_assistant.use_cases import create_thread
+        from apps.analyze_ai.assistants import get_agent_for_asset_type
+
+        User = get_user_model()
+        system_user = User.objects.first()
+        if not system_user:
+            system_user = User.objects.create(username="system_auto_ai")
+
+        assistant = get_agent_for_asset_type(asset_type)
+        input_message = json.dumps(data_payload, indent=2)
+
+        thread = create_thread(
+            name=f"{asset_type.upper()} Analysis Batch - {len(asset_ids)} assets",
+            user=system_user,
+            assistant_id=assistant.id
         )
 
-        # ── 5. 輪番開火 ──────────────────────────────────────────────────
-        ai_response = None
-        last_exception = None
+        # ── 5. 利用 Agent 分析並取得結果 ─────────────────────────────────
+        logger.info(f"[{asset_type}] 已建立 Thread #{thread.id}，呼叫 Agent: {assistant.name}")
+        output = assistant.run(input_message, thread_id=thread.id)
 
-        for api_name, api_url in available_targets:
-            logger.info(f"[{asset_type}] 嘗試火力點: {api_name} ({api_url})")
-            response_json, exception = _fire_at_target(api_name, api_url, final_prompt)
-
-            if response_json:
-                ai_response = response_json
-                logger.info(f"[{asset_type}] 火力點 {api_name} 命中目標！")
-                break
+        try:
+            # 嘗試轉換為 JSON dict
+            if isinstance(output, dict):
+                ai_response = output
             else:
-                last_exception = exception
-                logger.warning(f"[{asset_type}] 火力點 {api_name} 未命中，切換中...")
+                ai_response = json.loads(output)
+        except json.JSONDecodeError as e:
+            logger.error(f"[{asset_type}] Agent 返回非預期的 JSON 解析錯誤: {e}. Output was:\n{output}")
+            ai_response = None
+            last_exception = e
 
-        if ai_response is None:
-            error_msg = (
-                f"[{asset_type}] 所有 AI 服務節點均無響應。"
-                f"最後錯誤: {last_exception}"
-            )
+        if not ai_response:
+            error_msg = f"[{asset_type}] Agent 執行異常或返回空數據。"
             logger.error(error_msg)
             Model.objects.filter(id__in=analysis_ids).update(
-                status="FAILED", error_message=str(last_exception)
+                status="FAILED", error_message=error_msg
             )
-            task_self.retry(exc=last_exception)
+            if hasattr(locals(), 'last_exception') and last_exception:
+                task_self.retry(exc=last_exception)
             return
 
         # ── 6. 戰果驗收與存檔 ────────────────────────────────────────────

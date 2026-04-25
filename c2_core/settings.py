@@ -17,6 +17,8 @@ from pathlib import Path  # 導入 Path 模塊，用於處理文件路徑
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent  # 定義項目根目錄的路徑
 
+# 啟動時檢查 API 工具轉換狀態（開發調試使用）
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
@@ -41,38 +43,48 @@ INSTALLED_APPS = [  # 註冊 Django 項目中使用的應用程序列表
     "django.contrib.staticfiles",  # 靜態文件管理
     "rest_framework",  # Django REST framework 應用
     "rest_framework.authtoken",  # DRF 的 Token 認證應用
+    "django_ai_assistant",  # Django AI Assistant 應用
     # 操！就是這裡！把你自己的核心 App 加進來！
     "c2_core",  # <--- 加上這行！ # 核心應用程序
     # 你的 Apps
     "apps.targets",  # 自定義應用：目標管理
-    "apps.nmap_scanner",  # 自定義應用：Nmap 掃描器
+    "apps.scanners.nmap_scanner",  # 自定義應用：Nmap 掃描器
     "apps.flaresolverr",  # 自定義應用：FlareSolverr 代理集成
     "apps.core",  # 自定義應用：核心應用
     # 你未來還要加 celery, redis 相關的 app 等等
     "corsheaders",  # 處理跨域請求的第三方應用
-    "apps.subfinder",
+    "apps.scanners.subfinder",
     "django_extensions",
     "apps.scheduler",
     "django_celery_beat",
     "apps.analyze_ai",  # 操！把指揮中心加在其他 app 前面，或者就加在列表裡
-    "apps.nuclei_scanner",
+    "apps.scanners.nuclei_scanner",
     "apps.api_keys",
+    "apps.ai_assistant",
 ]
 MIDDLEWARE = [  # 中間件列表，處理請求和響應的層次
     "corsheaders.middleware.CorsMiddleware",  # CORS 中間件，處理跨域請求
     "django.middleware.security.SecurityMiddleware",  # 安全相關中間件，提供各種安全保護
     "django.contrib.sessions.middleware.SessionMiddleware",  # 會話中間件，處理用戶會話
-    "django.middleware.common.CommonMiddleware",  # 通用中間件，處理一些常見請求行為
-    "django.middleware.csrf.CsrfViewMiddleware",  # CSRF 保護中間件
-    "django.contrib.auth.middleware.AuthenticationMiddleware",  # 認證中間件，將用戶綁定到請求
+    "django.middleware.common.CommonMiddleware",  # 通用中間件，處理一些基礎功能
+    # "django.middleware.csrf.CsrfViewMiddleware",  # 跨站請求偽造保護中間件 (開發階段關閉，便於前後端分離除錯)
+    "django.contrib.auth.middleware.AuthenticationMiddleware",  # 認證中間件，將用戶對象附加到請求上
     "django.contrib.messages.middleware.MessageMiddleware",  # 消息中間件，處理消息框架
     "django.middleware.clickjacking.XFrameOptionsMiddleware",  # 點擊劫持保護中間件
 ]
-CORS_ALLOWED_ORIGINS = [  # 允許進行跨域請求的來源列表
-    "http://localhost:5173",  # 你的前端應用程式跑的地址！ # 允許本地開發前端應用訪問
-    "http://127.0.0.1:5173",  # 有時候瀏覽器會用 127.0.0.1，都加進來！ # 允許本地開發前端應用訪問
-    # 如果你未來部署到其他域名，也要加在這裡
-    # "https://your.frontend.domain.com",
+CORS_ALLOWED_ORIGINS = [
+    "http://127.0.0.1:5173",  # frontend (React/Vite)
+    "http://localhost:5173",
+    "http://127.0.0.1:8000",
+    "http://localhost:8000",
+]
+
+# CSRF 信任來源 (特別是對於跨域 API POST/PUT/DELETE)
+CSRF_TRUSTED_ORIGINS = [
+    "http://127.0.0.1:5173",
+    "http://localhost:5173",
+    "http://127.0.0.1:8000",
+    "http://localhost:8000",
 ]
 CORS_ALLOW_METHODS = [  # 允許進行跨域請求的 HTTP 方法列表
     "DELETE",  # 允許 DELETE 方法
@@ -214,12 +226,12 @@ REST_FRAMEWORK = {  # Django REST framework 配置
     ],
 }
 CELERY_IMPORTS = (
-    "apps.nmap_scanner.tasks",
+    "apps.scanners.nmap_scanner.tasks",
     "apps.flaresolverr.tasks.spider",
-    "apps.get_all_url.tasks",
-    "apps.subfinder.tasks",
+    "apps.scanners.get_all_url.tasks",
+    "apps.scanners.subfinder.tasks",
     "apps.analyze_ai.tasks",
-    "apps.nuclei_scanner.tasks",
+    "apps.scanners.nuclei_scanner.tasks",
     "apps.scheduler.tasks",
 )  # <--- 加上這行！用元組，即使只有一個也加逗號 # 指定 Celery 啟動時需要導入的模塊，包含 Celery 任務
 API_BASE_URL = "http://127.0.0.1:8000"
@@ -311,6 +323,11 @@ LOGGING = {
             "level": "DEBUG",
             "propagate": False,
         },
+        "auto": {
+            "handlers": ["console", "app_file", "error_file"],
+            "level": "DEBUG",
+            "propagate": False,
+        },
         # 資料庫日誌
         "django.db.backends": {
             "handlers": ["console", "app_file", "error_file"],
@@ -325,3 +342,12 @@ LOGGING = {
         },
     },
 }
+AI_ASSISTANT_INIT_API_FN = "django_ai_assistant.api.views.init_api"
+AI_ASSISTANT_CAN_CREATE_THREAD_FN = "django_ai_assistant.permissions.allow_all"
+AI_ASSISTANT_CAN_VIEW_THREAD_FN = "django_ai_assistant.permissions.allow_all"
+AI_ASSISTANT_CAN_UPDATE_THREAD_FN = "django_ai_assistant.permissions.allow_all"
+AI_ASSISTANT_CAN_DELETE_THREAD_FN = "django_ai_assistant.permissions.allow_all"
+AI_ASSISTANT_CAN_CREATE_MESSAGE_FN = "django_ai_assistant.permissions.allow_all"
+AI_ASSISTANT_CAN_UPDATE_MESSAGE_FN = "django_ai_assistant.permissions.allow_all"
+AI_ASSISTANT_CAN_DELETE_MESSAGE_FN = "django_ai_assistant.permissions.allow_all"
+AI_ASSISTANT_CAN_RUN_ASSISTANT = "django_ai_assistant.permissions.allow_all"

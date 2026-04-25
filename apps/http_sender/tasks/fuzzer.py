@@ -27,7 +27,6 @@ logger = logging.getLogger(__name__)
 # Hasura & FlareSolverr Configurations
 HASURA_GRAPHQL_URL = f"{Config.HASURA_URL}/v1/graphql" if Config.HASURA_URL else None
 HASURA_ADMIN_SECRET = Config.HASURA_ADMIN_SECRET
-FALLBACK_AI_PROXY_URL = Config.NYAPROXY_SPIDER_URL
 FLARESOLVERR_URL = Config.FLARESOLVERR_URL
 
 # ==========================================

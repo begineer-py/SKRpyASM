@@ -83,6 +83,7 @@ python scripts/celery_worker_eventlet.py -A c2_core.celery:app worker -P eventle
 ```
 
 📖 **詳細安裝與配置指南請參閱 [BUILD_GUIDE.md](BUILD_GUIDE.md)**
+🧠 **深入了解項目工作流請參閱 [internal_workflow.md](docs/internal_workflow.md)**
 
 ## ⚠️ 免責聲明
 

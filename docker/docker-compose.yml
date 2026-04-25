@@ -105,17 +105,6 @@ services:
     networks:
       - c2_network
 
-  # --- 你現有的代理池 (保留) ---
-  nyaproxy_spider:
-    image: k3scat/nya-proxy:0.4.6
-    container_name: nyaproxy_spider
-    ports:
-      - "8502:8080"
-    volumes:
-      - ./config.yaml:/app/config.yaml
-    restart: unless-stopped
-    networks:
-      - c2_network
 
 volumes:
   postgres_data:

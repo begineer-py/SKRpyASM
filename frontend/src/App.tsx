@@ -5,7 +5,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 // 操！導入你的 Navbar 零件！
 import Navbar from "./components/Navbar";
 import UrlReconPage from "./pages/UrlReconPage/UrlReconPage";
-
+import AICenterPage from "./pages/AICenterPage/AICenterPage";
 // 導入你的所有「頁面」
 // 操！注意！你現在的檔案名是 TargetListPage.tsx，所以這裡也要改！
 import TargetListPage from "./pages/index_page/index.tsx";
@@ -25,6 +25,7 @@ function App() {
         <Routes>
           <Route path="/" element={<TargetListPage />} />
           <Route path="/target/:targetId" element={<TargetDashboard />} />
+          <Route path="/aicenter" element={<AICenterPage />} />
           <Route path="/target/nmap/:targetId" element={<ScanResultPage />} />
           <Route
             path="/target/:targetId/seed/:seedId/url/:urlId"

@@ -101,7 +101,7 @@ def propose_next_steps(overview_id: int) -> dict:
 
 
 def _build_global_context(overview: Overview) -> dict:
-    ips = list(overview.ips.values("id", "ipv4", "ipv6"))
+    ips = list(overview.ips.values("id", "address", "version"))
     subdomains = list(
         overview.subdomains.values("id", "name", "is_resolvable", "is_active")
     )
@@ -225,7 +225,8 @@ def _build_strategy_prompt(overview: Overview, context: dict) -> str:
     {{
       "command": "nmap -sV -p 80 1.2.3.4",
       "description": "為什麼要做這一步",
-      "observation_prompt": "成功的判斷標準",
+      "requires_verification": false, 
+      "observation_prompt": "成功的判斷標準 (若是情報收集如nmap/subfinder，requires_verification設為false，本欄可留空)",
       "asset_type": "ip",
       "asset_id": 1
     }}

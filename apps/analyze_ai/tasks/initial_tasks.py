@@ -140,17 +140,37 @@ def process_initial_analysis_conversions(analysis_ids: List[int]):
             
         target = asset.target if hasattr(asset, 'target') else None
         
-        # 建立 Overview
-        ov = Overview.objects.create(
-            target=target,
-            status="PLANNING",
-            summary=f"AI-Detected High Value Asset: {a.summary}",
-            knowledge={
+        # 尋找是否已有活躍的 Overview
+        ov = None
+        if target:
+            ov = Overview.objects.filter(target=target, status__in=["PLANNING", "EXECUTING"]).first()
+        
+        if not ov and hasattr(asset, 'subdomain') and asset.subdomain:
+            ov = asset.subdomain.overviews.filter(status__in=["PLANNING", "EXECUTING"]).first()
+            
+        if not ov:
+            # 建立新 Overview
+            ov = Overview.objects.create(
+                target=target,
+                status="PLANNING",
+                summary=f"AI-Detected High Value Asset: {a.summary}",
+                knowledge={
+                    "source": "ai_initial_triage",
+                    "initial_analysis_id": a.id,
+                    "inferred_purpose": a.inferred_purpose
+                }
+            )
+        else:
+            # 更新現有 Overview
+            ov.summary = f"{(ov.summary or '')}\n[新增高價值資產] {a.summary}"
+            if not ov.knowledge:
+                ov.knowledge = {}
+            ov.knowledge[f"added_asset_from_initial_{a.id}"] = {
                 "source": "ai_initial_triage",
-                "initial_analysis_id": a.id,
                 "inferred_purpose": a.inferred_purpose
             }
-        )
+            ov.save(update_fields=["summary", "knowledge"])
+            logger.info(f"   [+] 將高價值資產 {asset} 附加到現有 Overview#{ov.id}")
         
         # 關聯資產並啟動深度分析
         if a.ip:
