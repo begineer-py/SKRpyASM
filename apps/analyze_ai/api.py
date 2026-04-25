@@ -6,6 +6,9 @@ from ninja.errors import HttpError
 from asgiref.sync import sync_to_async
 from c2_core.config.logging import log_function_call
 
+from apps.scanners.validators import validate_ids_in_db
+
+
 from apps.core.models import IP, Subdomain, URLResult,InitialAIAnalysis
 from apps.core.schemas import (
     SuccessSendToAISchema,
@@ -23,26 +26,6 @@ from .tasks import (
 router = Router()
 logger = logging.getLogger(__name__)
 
-
-# =============================================================================
-# 通用 ID 驗證器（Shared Validator）
-# =============================================================================
-
-async def validate_ids_in_db(model, requested_ids: List[int], asset_name: str):
-    """
-    通用驗證器：確認傳入的 ID 是否全部存在於資料庫中。
-    """
-    found_ids_qs = model.objects.filter(id__in=requested_ids)
-    found_ids = await sync_to_async(list)(found_ids_qs.values_list("id", flat=True))
-
-    missing_ids = set(requested_ids) - set(found_ids)
-    if missing_ids:
-        logger.warning(f"請求分析的 {asset_name} 中，ID {missing_ids} 不存在")
-        raise HttpError(
-            404, f"操，這些 {asset_name} ID 不在資料庫裡: {list(missing_ids)}"
-        )
-
-    return list(found_ids)
 
 
 # =============================================================================

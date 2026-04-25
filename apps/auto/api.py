@@ -11,7 +11,7 @@ from apps.analyze_ai.tasks.common import (
     fetch_url_data_for_batch,
 )
 from .schemas import AutoConvertSchema, AutoConvertResponseSchema
-from .tasks.start.common import create_steps_from_analysis
+# The schema for creating step from analysis is WIP or to be handled by Agent
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -108,22 +108,56 @@ async def _convert_analysis(asset_type: str, analysis_id: int) -> AutoConvertRes
         )
         asset_context = "{}"
 
-    # ── 5. 建立 Step 鏈 ──────────────────────────────────────────────────────
-    asset_obj = getattr(analysis, related)
-    count = await sync_to_async(create_steps_from_analysis)(
-        command_actions=command_actions,
-        asset_fk_field=cfg["asset_fk_field"],
-        asset_fk_value=asset_obj,
-        analysis_id=analysis_id,
-        analysis_summary=analysis.summary,
-        analysis_risk_score=analysis.risk_score,
-        potential_vulnerabilities=analysis.potential_vulnerabilities,
-        asset_context_json=asset_context,
-    )
+    # ── 5. 呼叫自動化代理規劃後續 Step ──────────────────────────────────────────
+    from django.contrib.auth import get_user_model
+    from django_ai_assistant.use_cases import create_thread
+    from apps.auto.assistants.planning_agent import AutomationAgent
+
+    User = get_user_model()
+    system_user = await sync_to_async(User.objects.first)()
+    if not system_user:
+        system_user = await sync_to_async(User.objects.create)(username="system_auto_ai")
+
+    overview = await sync_to_async(getattr)(analysis, "overview", None)
+    if not overview:
+        raise HttpError(400, f"分析記錄 {analysis_id} 尚未關聯到任何 Overview 戰略點。")
+
+    # 這個工具跑在非同步 thread pool，我們先包成 sync 函數
+    def _run_agent():
+        assistant = AutomationAgent()
+        thread = create_thread(
+            name=f"Planning for Overview#{overview.id} ({asset_type})",
+            user=system_user,
+            assistant_id=assistant.id
+        )
+        # 準備組合給 AI 的上下文 (融合舊概覽 + 新情報 + 命令)
+        prompt = f"""
+請依據以下的新發現情報，更新目標的 Overview，並且針對發現建立後續的攻擊 Steps。
+--- 當前戰略上下文 ---
+Overview_ID: {overview.id}
+Knowledge: {overview.knowledge}
+Current Plan: {overview.plan}
+
+--- 最新情報 (New Intelligence) ---
+Risk Score: {analysis.risk_score}
+Summary: {analysis.summary}
+Vulnerabilities: {analysis.potential_vulnerabilities}
+Raw Content: {asset_context}
+
+[系統指令]
+請呼叫你的工具來：
+1. `update_overview_status` 把這個最新得到的情報整合進 Knowledge 和 Plan 裡面。
+2. `create_step` 為了挖掘上方的 Vulnerabilities 或是探索更深層次，產生 1 到 5 個具體的攻擊執行動作。
+注意傳遞參數時，asset_fk_field 為 '{cfg["asset_fk_field"]}'， asset_fk_value_id 為 {asset_id}。
+"""
+        return assistant.run(prompt, thread_id=thread.id)
+
+    agent_output = await sync_to_async(_run_agent)()
+    count = 1 # 這邊未來可透過抓資料庫新增資料判斷實際建立多少筆
 
     return AutoConvertResponseSchema(
         success=True,
-        detail=f"成功從分析記錄 {analysis_id} 建立了 {count} 個步驟。",
+        detail=f"成功從分析記錄 {analysis_id} 發起規劃任務。\nAI Agent Response:\n{agent_output}",
         steps_created=count,
     )
 

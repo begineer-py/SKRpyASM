@@ -13,7 +13,6 @@ class Config:
     在模塊加載時，自動解析 docker-compose.yml 並設置所有服務 URL 和關鍵配置。
     """
 
-    AI_SERVICE_URLS: dict = {}
 
     @staticmethod
     def _parse_all_configs() -> dict:
@@ -99,7 +98,6 @@ class Config:
             "nocodb": "nocodb",
             "flaresolverr": "flaresolverr",
             "flareproxygo": "flareproxygo",
-            "nyaproxy_spider": "nyaproxy_spider",
         }
 
         for key, service_name in service_map.items():
@@ -121,8 +119,7 @@ class Config:
         _CONFIGS.get("hasura", {}).get("ENV", {}).get("HASURA_GRAPHQL_ADMIN_SECRET")
     )
 
-    NYAPROXY_SPIDER_URL = _CONFIGS.get("nyaproxy_spider", {}).get("URL")
-    FLARESOLVERR_URL = _CONFIGS.get("flaresolverr", {}).get("URL")  # 示例：添加新服務
+    FLARESOLVERR_URL = _CONFIGS.get("flaresolverr", {}).get("URL")
     MODEL_PATH = os.path.join(
         os.path.dirname(__file__),
         "..",
@@ -136,9 +133,29 @@ class Config:
     )
 
     # ... 其他服務 URL 可以按需添加 ...apps/flaresolverr/gf/hacker_gf/json_decoder/hacker_model_final_v2
+    PLATFORM_API_PREFIXES = [
+        "/api/targets",
+        "/api/subfinder",
+        "/api/nmap",
+        "/api/nuclei",
+        "/api/get_all_url",
+        "/api/flaresolverr",
+        "/api/analyze_ai",
+        "/api/scheduler",
+        "/api/http_sender",
+    ]
+
+    # 不應暴露給 AI 的路徑
+    EXCLUDED_API_PREFIXES = [
+        "/api/auto/resume",  # 異步回調入口，不由 AI 直接調用
+        "/api/api_keys",  # 金鑰管理，安全敏感
+    ]
 
 
 # 你可以在這裡直接打印來快速驗證
 # print("Hasura URL:", Config.HASURA_URL)
 # print("Hasura Secret:", Config.HASURA_ADMIN_SECRET)
 # print("FlareSolverr URL:", Config.FLARESOLVERR_URL)
+class Dedug_config:
+    def __init__(self):
+        self.CHECK_API_TOOLS_ON_STARTUP = True

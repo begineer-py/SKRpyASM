@@ -123,7 +123,7 @@ def trigger_subfinder_recon(seed_id: int, callback_step_id: Optional[int] = None
     返回:
         API 響應信息。
     """
-    url = f"{API_BASE_URL}/subfinder/start_subfinder"
+    url = f"{API_BASE_URL}/scanners/subdomain/start_subfinder"
     payload = {"seed_id": seed_id, "callback_step_id": callback_step_id}
     try:
         response = requests.post(url, json=payload)
@@ -147,11 +147,11 @@ def trigger_nuclei_vulnerability_scan(asset_type: str, asset_ids: List[int], tag
         API 響應信息。
     """
     endpoint_map = {
-        "subdomains": "/nuclei_scanner/subdomains",
-        "ips": "/nuclei_scanner/ips",
-        "urls": "/nuclei_scanner/urls",
-        "subs_tech": "/nuclei_scanner/subs_tech",
-        "urls_tech": "/nuclei_scanner/urls_tech",
+        "subdomains": "/scanners/vuln/subdomains",
+        "ips": "/scanners/vuln/ips",
+        "urls": "/scanners/vuln/urls",
+        "subs_tech": "/scanners/vuln/subs_tech",
+        "urls_tech": "/scanners/vuln/urls_tech",
     }
     
     if asset_type not in endpoint_map:
@@ -180,7 +180,7 @@ def trigger_nmap_scan(ip: str, seed_ids: List[int], scan_ports: str = "top-1000"
     返回:
         掃描任務詳情。
     """
-    url = f"{API_BASE_URL}/nmap/start_scan"
+    url = f"{API_BASE_URL}/scanners/nmap/start_scan"
     payload = {
         "ip": ip,
         "seed_ids": seed_ids,
@@ -250,7 +250,7 @@ def trigger_gau_url_discovery(domain_name: str, callback_step_id: Optional[int] 
         domain_name: 子域名名稱 (e.g., 'www.example.com')。
         callback_step_id: 回調用的 Step ID (可選)。
     """
-    url = f"{API_BASE_URL}/get_all_url/get_all_url"
+    url = f"{API_BASE_URL}/scanners/crawler/get_all_url"
     payload = {"name": domain_name, "callback_step_id": callback_step_id}
     try:
         response = requests.post(url, json=payload)

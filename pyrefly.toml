@@ -1,0 +1,11 @@
+project-includes = [
+    "apps/**/*.py",
+    "c2_core/**/*.py",
+    "manage.py",
+    "scripts/**/*.py",
+]
+
+project-excludes = [
+    "apps/**/migrations/**/*.py",
+    "c2_core/**/migrations/**/*.py",
+]
