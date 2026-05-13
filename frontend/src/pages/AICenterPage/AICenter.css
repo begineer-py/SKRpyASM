@@ -147,15 +147,36 @@
 .btn-primary {
   font-family: inherit;
   background: transparent;
-  border: 1px solid #22c55e;
+  border: 1.5px solid #22c55e;
   color: #22c55e;
   text-transform: uppercase;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 6px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  padding: 10px 24px;
 }
+
 .btn-primary:hover:not(:disabled) {
-  background: rgba(34, 197, 94, 0.1);
-  box-shadow: 0 0 8px rgba(34, 197, 94, 0.3);
+  background: rgba(34, 197, 94, 0.12);
+  border-color: #4ade80;
+  box-shadow: 
+    0 0 0 1px rgba(34, 197, 94, 0.3),
+    0 0 16px rgba(34, 197, 94, 0.4);
+  transform: translateY(-2px);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0px);
+  box-shadow: 
+    0 0 0 1px rgba(34, 197, 94, 0.3),
+    0 0 8px rgba(34, 197, 94, 0.3);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 .btn-secondary {
   font-family: inherit;
@@ -274,31 +295,122 @@
   box-shadow: 0 0 8px rgba(0, 240, 255, 0.2);
 }
 
+/* ===== 輸入區域 - 極簡科技風優化 ===== */
 .chat-input-area {
-  padding: 16px;
-  border-top: 1px solid #1e293b;
-  background: #0f172a;
+  padding: 24px 20px;
+  border-top: 2px solid rgba(34, 197, 94, 0.2);
+  background: linear-gradient(
+    180deg, 
+    rgba(15, 23, 42, 0.5) 0%, 
+    rgba(2, 6, 23, 0.8) 100%
+  );
   display: flex;
-  gap: 12px;
+  flex-direction: column;
+  gap: 14px;
+  align-items: stretch;
+  justify-content: center;
+  min-height: 140px;
+  position: relative;
 }
 
+/* 裝飾線條 */
+.chat-input-area::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 20px;
+  right: 20px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(34, 197, 94, 0.4),
+    transparent
+  );
+}
+
+/* 輸入框容器 - 響應式 */
+.chat-input-area > * {
+  flex: 0 1 auto;
+}
+
+/* 輸入框 - 清晰的焦點設計 */
 .chat-input-area textarea {
-  flex: 1;
+  width: 100%;
   resize: none;
   background: #020617;
   border: 1px solid #1e293b;
   color: #f8fafc;
   font-family: inherit;
-  padding: 10px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  padding: 14px 16px;
   outline: none;
-}
-.chat-input-area textarea:focus {
-  border-color: #22c55e;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
+/* 輸入框 - 懸停效果 */
+.chat-input-area textarea:hover:not(:focus) {
+  border-color: #334155;
+  background: #0f172a;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* 輸入框 - 聚焦效果（強化） */
+.chat-input-area textarea:focus {
+  border-color: #22c55e;
+  background: #0a0f1f;
+  box-shadow: 
+    0 0 0 2px rgba(34, 197, 94, 0.15),
+    0 0 20px rgba(34, 197, 94, 0.3),
+    inset 0 0 8px rgba(34, 197, 94, 0.05);
+}
+
+/* Placeholder 樣式 */
+.chat-input-area textarea::placeholder {
+  color: #64748b;
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+
+/* 按鈕容器 - 置中對齐 */
+.chat-input-area > button {
+  align-self: center;
+}
+
+/* 發送按鈕 - 優化 */
 .send-btn {
-  padding: 0 20px;
+  padding: 12px 32px;
   white-space: nowrap;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.7px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 6px;
+  min-width: 160px;
+  text-transform: uppercase;
+}
+
+.send-btn:hover:not(:disabled) {
+  box-shadow: 
+    0 0 0 1px rgba(34, 197, 94, 0.3),
+    0 0 24px rgba(34, 197, 94, 0.5);
+  transform: translateY(-2px);
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.send-btn:active:not(:disabled) {
+  transform: translateY(0px);
+  box-shadow: 
+    0 0 0 1px rgba(34, 197, 94, 0.3),
+    0 0 12px rgba(34, 197, 94, 0.3);
+}
+
+.send-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 /* Right Panel - Live Hook */
