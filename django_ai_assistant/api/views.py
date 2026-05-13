@@ -4,7 +4,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404
 
 from langchain_core.messages import message_to_dict
-from ninja import NinjaAPI
+from ninja import NinjaAPI, Schema
 from ninja.operation import Operation
 from ninja.security import django_auth
 
@@ -173,3 +173,37 @@ def delete_thread_message(request, thread_id: Any, message_id: Any):
         request=request,
     )
     return 204, None
+
+
+# ── Target Binding Endpoints ───────────────────────────────────────────────
+
+class BindTargetIn(Schema):
+    target_id: int
+
+
+@api.patch(
+    "threads/{thread_id}/bind_target/",
+    response=Thread,
+    url_name="thread_bind_target",
+)
+@with_cast_id
+def bind_target(request, thread_id: Any, payload: BindTargetIn):
+    """Bind a target to a thread. The AI agent will use this target by default."""
+    thread = get_object_or_404(ThreadModel, id=thread_id)
+    thread.bound_target_id = payload.target_id
+    thread.save(update_fields=["bound_target_id", "updated_at"])
+    return thread
+
+
+@api.delete(
+    "threads/{thread_id}/bind_target/",
+    response={200: Thread},
+    url_name="thread_unbind_target",
+)
+@with_cast_id
+def unbind_target(request, thread_id: Any):
+    """Remove the target binding from a thread."""
+    thread = get_object_or_404(ThreadModel, id=thread_id)
+    thread.bound_target_id = None
+    thread.save(update_fields=["bound_target_id", "updated_at"])
+    return 200, thread

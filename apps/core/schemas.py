@@ -140,22 +140,22 @@ class SuccessSendToAISchema(Schema):
 
 
 class NucleiScanIPByIdsSchema(Schema):
-    ids: List[int] = Field(..., description="IP ID 列表", min_length=1, max_length=10)
-    tags: List[str] = Field(default=[], description="Nuclei 標籤")
+    ids: List[int] = Field(..., description="IP ID 陣列 (必須是 List[int], 例如 [123])", min_length=1, max_length=10)
+    tags: List[str] = Field(default=[], description="Nuclei 標籤陣列 (字串陣列)")
     callback_step_id: Optional[int] = Field(None, description="回調用的 Step ID")
 
 
 class NucleiScanSubdomainByIdsSchema(Schema):
     ids: List[int] = Field(
-        ..., description="子域名 ID 列表", min_length=1, max_length=100
+        ..., description="子域名 ID 陣列 (必須是 List[int], 例如 [123])", min_length=1, max_length=100
     )
-    tags: List[str] = Field(default=[], description="Nuclei 標籤")
+    tags: List[str] = Field(default=[], description="Nuclei 標籤陣列 (字串陣列)")
     callback_step_id: Optional[int] = Field(None, description="回調用的 Step ID")
 
 
 class NucleiScanURLByIdsSchema(Schema):
-    ids: List[int] = Field(..., description="URL ID 列表", min_length=1, max_length=10)
-    tags: Optional[List[str]] = Field(default=None, description="Nuclei 標籤")
+    ids: List[int] = Field(..., description="URL ID 陣列 (必須是 List[int], 例如 [123])", min_length=1, max_length=10)
+    tags: Optional[List[str]] = Field(default=None, description="Nuclei 標籤陣列 (字串陣列)")
     callback_step_id: Optional[int] = Field(None, description="回調用的 Step ID")
 
 
@@ -180,6 +180,7 @@ class FlaresolverrTriggerSchema(Schema):  # <--- 繼承 Schema
     seed_id: int | None = None
     target_id: int | None = None
     auto_create: bool = False
+    callback_step_id: int | None = Field(None, description="回調用的 Step ID (必填，來自 create_step)")
 
 
 class FlaresolverrResponse(Schema):  # <--- 繼承 Schema

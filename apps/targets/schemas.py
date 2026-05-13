@@ -1,6 +1,7 @@
 # targets/schemas.py
 
 from ninja import Schema, ModelSchema
+from pydantic import Field
 from datetime import datetime
 from typing import List, Optional
 from apps.core.models import Target, Seed
@@ -38,5 +39,5 @@ class SeedSchema(ModelSchema):
 
 
 class AddSeedSchema(Schema):
-    value: str
-    type: str = "DOMAIN"  # 默認為 DOMAIN，對應 models.py 的 choices
+    value: str = Field(..., description="種子的實際值，例如 'example.com' 或是 '192.168.1.1'")
+    type: str = Field("DOMAIN", description="種子類型，可選值為: DOMAIN (預設), IP_RANGE, URL, GITHUB_REPO")

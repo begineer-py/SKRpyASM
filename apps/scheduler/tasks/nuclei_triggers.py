@@ -9,8 +9,8 @@ from .utils import is_content_already_analyzed
 
 logger = logging.getLogger(__name__)
 
-# API Endpoints (對應你剛改好的 ID 版 API)
-NUCLEI_SCAN_URL = f"{API_BASE_URL}/api/nuclei"
+# API Endpoints (對應新版 unified scanners API)
+NUCLEI_SCAN_URL = f"{API_BASE_URL}/api/scanners/vuln"
 
 
 @shared_task(name="scheduler.tasks.trigger_scan_urls_without_nuclei_results")

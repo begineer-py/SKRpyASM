@@ -48,8 +48,8 @@ export interface Seed {
 
 export interface IP {
   id: number;
-  ipv4?: string | null;
-  ipv6?: string | null;
+  address?: string | null;  // GenericIPAddressField (IPv4 or IPv6)
+  version?: number | null;
 }
 
 export interface UrlResult {
@@ -133,7 +133,9 @@ export interface SeedIntelligenceData {
   created_at: string;
   core_nmapscans: NmapScan[];
   core_subfinderscans: SubfinderScan[];
-  core_subdomains: Subdomain[];
+  core_subdomainseeds: {
+    core_subdomain: Subdomain;
+  }[];
   core_ip_which_seeds: {
     core_ip: IP;
   }[];
@@ -158,13 +160,13 @@ export interface SubdomainIntelResponse {
     is_resolvable: boolean;
     is_cdn: boolean;
     is_waf: boolean;
-    cname?: string | null;
     cdn_name?: string | null;
+
     waf_name?: string | null;
     core_subdomain_ips: {
       core_ip: IP;
     }[];
-    core_subdomainaianalysis: SubdomainAIAnalysis | null;
+    core_subdomainaianalyses: SubdomainAIAnalysis[];
   };
   core_urlresult: UrlResult[];
 }

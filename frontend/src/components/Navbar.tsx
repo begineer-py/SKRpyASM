@@ -1,17 +1,54 @@
-// 檔案路徑: frontend/src/components/Navbar.tsx
-import React from 'react';
-import { NavLink } from 'react-router-dom'; // 導入 NavLink
-import './Navbar.css'; // 導入專屬的 CSS
+import { NavLink, useNavigate } from 'react-router-dom';
 
 function Navbar() {
+  const navigate = useNavigate();
+
   return (
-    <nav className="main-nav">
-      <div className="nav-logo">
-        <NavLink to="/">C2 Platform</NavLink>
+    <nav className="c2-navbar">
+      {/* Logo */}
+      <button
+        className="c2-navbar__logo"
+        onClick={() => navigate('/')}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+      >
+        &gt;_ C2 PLATFORM
+      </button>
+
+      {/* Nav Links */}
+      <div className="c2-navbar__links">
+        <NavLink
+          to="/"
+          end
+          className={({ isActive }) => `c2-navbar__link${isActive ? ' active' : ''}`}
+        >
+          Targets
+        </NavLink>
+        <NavLink
+          to="/execution-monitor"
+          className={({ isActive }) => `c2-navbar__link${isActive ? ' active' : ''}`}
+        >
+          Execution Monitor
+        </NavLink>
+        <NavLink
+          to="/aicenter"
+          className={({ isActive }) => `c2-navbar__link${isActive ? ' active' : ''}`}
+        >
+          AI Center
+        </NavLink>
+        <NavLink
+          to="/skills"
+          className={({ isActive }) => `c2-navbar__link${isActive ? ' active' : ''}`}
+        >
+          Skill Library
+        </NavLink>
       </div>
-      <div className="nav-links">
-        <NavLink to="/" end>目標列表</NavLink>
-        {/* 之後你可以加上 <NavLink to="/scans">掃描歷史</NavLink> 等等 */}
+
+      {/* Status indicator */}
+      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span className="c2-pulse" />
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+          Online
+        </span>
       </div>
     </nav>
   );

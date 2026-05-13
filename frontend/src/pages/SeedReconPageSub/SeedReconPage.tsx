@@ -103,8 +103,10 @@ function SeedReconPage() {
   );
 
   // 4. 洗出 Subdomains
-  // [修正重點] 根據 Type: core_subdomains 本身就是 Subdomain[]，不需要再去 map item.core_subdomain
-  const allSubdomains = seedData.core_subdomains || [];
+  // 透過 SubdomainSeed 中間表提取 `core_subdomain` 物件
+  const allSubdomains = (seedData.core_subdomainseeds || []).map(
+    (item: any) => item.core_subdomain
+  );
 
   // 5. 洗出 URLs
   // 這裡要用 optional chaining (?.) 防止 Subdomain 裡面的關聯也是空的
@@ -221,7 +223,8 @@ function SeedReconPage() {
                       href={`/target/${targetId}/ip/${ip.id}`}
                       className="asset-link ip-link"
                     >
-                      {ip.ipv4 || ip.ipv6}
+                      {ip.address || 'Unknown'}
+
                     </a>
                   </td>
                 </tr>
@@ -239,6 +242,7 @@ function SeedReconPage() {
           <table className="assets-table">
             <thead>
               <tr>
+                <th>STATUS</th>
                 <th>URL</th>
                 <th>DETAILS</th>
               </tr>
@@ -246,6 +250,11 @@ function SeedReconPage() {
             <tbody>
               {allURLs.map((url: UrlResult) => (
                 <tr key={url.id}>
+                  <td>
+                    <span style={{ fontFamily: "monospace", fontSize: "0.78rem", opacity: 0.8 }}>
+                      {(url as any).status_code || "—"}
+                    </span>
+                  </td>
                   <td>
                     <a
                       href={url.url}
@@ -258,7 +267,7 @@ function SeedReconPage() {
                   </td>
                   <td>
                     <a
-                      href={`/target/${targetId}/seed/${seedData.id}/url/${url.id}`}
+                      href={`/target/${targetId}/url/${url.id}`}
                       className="btn btn-ghost btn-sm"
                       style={{ textDecoration: "none" }}
                     >

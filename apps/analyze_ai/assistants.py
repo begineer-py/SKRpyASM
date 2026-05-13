@@ -2,7 +2,7 @@ import logging
 import os
 from django.conf import settings
 from django_ai_assistant import AIAssistant
-from langchain_mistralai import ChatMistralAI
+from apps.core.llms import get_llm_instance
 
 logger = logging.getLogger(__name__)
 
@@ -33,14 +33,11 @@ def _load_prompt(path) -> str:
 
 
 class AnalyzerMixin:
-    # Use mistral-small-2603 as default since the previous pipeline uses it
-    model = "mistral-small-2603"
     has_rag = False
 
     def get_llm(self):
         # We explicitly request JSON structured output for our agents
-        return ChatMistralAI(
-            model=self.model,
+        return get_llm_instance(
             temperature=0,
             model_kwargs={"response_format": {"type": "json_object"}},
         )

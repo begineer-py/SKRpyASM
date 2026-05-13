@@ -1,418 +1,144 @@
-# AGENTS.md - C2 Django AI Development Guide
+C2 Django AI - 系統架構與領域知識 (Project Knowledge)
+這份文件總結了 C2 Django AI 專案的核心架構知識，特別聚焦於 AI 智能體架構 (3-Tier Agent Architecture) 以及 前端設計 (Cyberpunk UI & GraphQL Integration)。
 
-## Project Overview
+1. 核心 AI 架構 (3-Tier Agent Architecture)
+   系統採用三層式智能體分層設計，透過顯式呼叫 (Tool Invocation) 與隱式數據庫共享 (Database Context) 達到高度自動化的滲透測試循環。
 
-**C2 Django AI** is a comprehensive cybersecurity scanning and penetration testing platform with AI-driven analysis capabilities. The system uses Django 5.2.4 backend with Django Ninja REST API framework, Celery task queue with Redis, PostgreSQL database, and integrates multiple security tools (Nmap, Subfinder, Nuclei, FlareSolverr).
+Layer 1: 使用者溝通層 (User-Facing)
+核心代理:
 
-**Tech Stack**: Django 5.2.4, Django Ninja, Django REST Framework, Celery 5.5.3, Redis, PostgreSQL, React (frontend), Docker, Uvicorn, pytest
+PersonalManagerAgent
+職責: 直接與使用者互動的自然語言入口。負責理解高階需求（例如：「幫我掃描 Google 的子域名」），並將任務下達給 Layer 2。
+實作方式: 透過 django_ai_assistant 定義，擁有呼叫 Layer 2 (HackerAssistantAgent) 作為工具 (Tool) 的能力。
+Layer 2: 總指揮層 (Orchestrator)
+核心代理:
 
-**Key Features**: Asset discovery, subdomain enumeration, port scanning, vulnerability scanning, AI-powered attack planning, continuous monitoring
+HackerAssistantAgent
+職責: 負責戰略規劃與任務分發。它不負責具體的「打點」工作，而是讀取資料庫中的
 
----
+Overview
+(目標專案概覽)，決定策略後調派 Layer 3。
+具備 Tool/權限:
 
-## Build, Test & Run Commands
+get_target_overview
+: 讀取目標當前的知識庫與計畫。
 
-### Environment Setup
+create_or_update_target_overview
+: 更新計畫與風險分數。
 
-```bash
-# Create conda environment
-conda create -n mtc_env python=3.10 -y
-conda activate mtc_env
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Start infrastructure services (PostgreSQL, Redis, Hasura, etc.)
-cd docker && docker compose up -d && cd ..
-```
-
-### Database Operations
-
-```bash
-# Run all migrations
-python manage.py migrate
-
-# Create superuser
-python manage.py createsuperuser
-
-# Generate new migration after model changes
-python manage.py makemigrations
-
-# Check migration status
-python manage.py showmigrations
-
-# Access Django shell
-python manage.py shell
-```
-
-### Running Services
-
-```bash
-# Run Django development server (Uvicorn)
-uvicorn c2_core.asgi:application --host 0.0.0.0 --port 8000 --reload
-
-# Production-grade Uvicorn with optimizations
-uvicorn c2_core.asgi:application --host 0.0.0.0 --port 8000 --workers 9 --loop uvloop --http httptools --backlog 2048 --limit-concurrency 1000
-
-# Run Celery worker with eventlet (for async tasks)
-python scripts/celery_worker_eventlet.py -A c2_core.celery:app worker -P eventlet -c 100 -l info
-
-# Run Celery beat scheduler (for periodic tasks)
-celery -A c2_core beat -l info
-
-# Monitor Celery tasks
-celery -A c2_core inspect active
-celery -A c2_core inspect stats
-```
-
-### Testing
-
-```bash
-# Run all tests
-python manage.py test
-
-# Run tests for specific app
-python manage.py test apps.core
-
-# Run with pytest (if configured)
-pytest
-
-# Run specific test file
-pytest apps/subfinder/tests/test_performance.py
-
-# Run specific test class
-pytest apps/subfinder/tests/test_performance.py::SubfinderUtilsTest
-
-# Run specific test method
-pytest apps/subfinder/tests/test_performance.py::SubfinderUtilsTest::test_performance_10000_subdomains
-
-# Run tests with verbose output
-pytest -v
-
-# Run tests with coverage
-pytest --cov=apps --cov-report=html
-```
-
-### Linting & Code Quality
-
-```bash
-# Check Python code style (if configured)
-# Note: This project doesn't have explicit linters configured yet
-# Consider adding: black, flake8, ruff, isort
-
-# Manual code checks
-python manage.py check
-python manage.py check --deploy  # Production readiness checks
-```
-
----
-
-## Code Style Guidelines
-
-### Import Organization
-
-**Order**: Standard library → Django → Third-party → Local apps
-
-```python
-# Standard library
-import os
-import sys
-import json
-import logging
-from typing import Optional, List, Dict
-from datetime import datetime
-
-# Django imports
-from django.db import models, transaction
-from django.utils import timezone
-from django.core.exceptions import ObjectDoesNotExist
-
-# Third-party
-from celery import shared_task
-import requests
-from pydantic import BaseModel
-
-# Local imports
-from c2_core.config.logging import log_function_call
-from apps.core.models import Target, Seed, Subdomain
-```
-
-**Special Import Pattern**: Use `from __future__ import annotations` for modern type hints when needed.
-
-### Formatting Standards
-
-- **Indentation**: 4 spaces (no tabs)
-- **Line Length**: ~120 characters (flexible, but keep readable)
-- **Comments**: Bilingual - Chinese comments are standard and should be preserved
-- **Strings**: Double quotes preferred for consistency
-- **Docstrings**: Triple double-quotes with descriptive Chinese/English
-
-```python
-class Target(models.Model):
-    """
-    目標（Target）項目，代表一個正在監控或掃描的專案、組織或客戶。
-    Target project representing a monitored organization or customer.
-    """
-    
-    name = models.CharField(
-        max_length=255, 
-        unique=True, 
-        help_text="專案或組織的顯示名稱，如 'Google'"
-    )
-```
-
-### Type Hints & Annotations
-
-Use type hints consistently, especially for function signatures:
-
-```python
-from typing import Optional, List, Dict, Any
-
-def update_subdomain_assets(
-    seed: Seed, 
-    subdomain_map: Dict[str, set], 
-    scan: SubfinderScan
-) -> Dict[str, int]:
-    """Process subdomain discovery results."""
-    pass
-
-async def fetch_data(url: str, timeout: int = 30) -> Optional[Dict[str, Any]]:
-    """Async data fetching with timeout."""
-    pass
-```
-
-Use Pydantic for schema validation:
-
-```python
-from pydantic import BaseModel
-
-class TargetSchema(BaseModel):
-    name: str
-    description: Optional[str] = None
-```
-
-### Naming Conventions
-
-- **Models**: PascalCase - `Target`, `Seed`, `Subdomain`, `SubfinderScan`
-- **Functions/Methods**: snake_case - `update_subdomain_assets`, `run_nmap_scan`, `create_or_update_ip_objects`
-- **Variables**: snake_case - `target_name`, `scan_results`, `subdomain_map`
-- **Constants**: UPPERCASE - `SEED_TYPE_CHOICES`, `CELERY_BROKER_URL`, `MAX_RETRIES`
-- **Private methods**: Leading underscore - `_internal_helper`, `_parse_results`
-- **Django related_name**: snake_case plural - `related_name="seeds"`, `related_name="scan_results"`
-
-### Django Model Patterns
-
-**Always include** in Model Meta:
-- `app_label` - explicitly set for all models
-- `verbose_name` and `verbose_name_plural` - bilingual preferred
-- `unique_together` or `constraints` - for composite uniqueness
-
-```python
-class Seed(models.Model):
-    target = models.ForeignKey(
-        Target, 
-        on_delete=models.CASCADE, 
-        related_name="seeds",  # Always provide related_name
-        help_text="所屬的目標專案"  # Always provide help_text
-    )
-    value = models.CharField(max_length=512)
-    type = models.CharField(max_length=20, choices=SEED_TYPE_CHOICES)
-    
-    class Meta:
-        app_label = "core"  # Required for apps/core/models/* structure
-        unique_together = ("target", "value")
-        verbose_name = "掃描種子"
-        verbose_name_plural = "掃描種子"
-```
-
-### API Development with Django Ninja
-
-```python
-from ninja import Router
-from ninja.errors import HttpError
-from typing import List
-
-router = Router()
-
-@router.get("/targets", response=List[TargetSchema])
-def list_targets(request):
-    """List all targets."""
-    return Target.objects.all()
-
-@router.post("/targets")
-def create_target(request, payload: TargetSchema):
-    """Create new target."""
-    target = Target.objects.create(**payload.dict())
-    return {"id": target.id, "name": target.name}
-```
-
-### Celery Task Patterns
-
-```python
-from celery import shared_task
-from django.db import transaction
-
-@shared_task(bind=True, max_retries=3)
-def run_subfinder_scan(self, seed_id: int):
-    """
-    執行 Subfinder 子域名掃描任務
-    Execute Subfinder subdomain enumeration task.
-    """
-    try:
-        seed = Seed.objects.get(id=seed_id)
-        # Task logic here
-    except Exception as exc:
-        # Retry with exponential backoff
-        raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))
-```
-
-### Error Handling
-
-```python
-from django.core.exceptions import ObjectDoesNotExist, ValidationError
-from ninja.errors import HttpError
-import logging
-
-logger = logging.getLogger(__name__)
-
-def get_target_by_name(name: str) -> Target:
-    """Get target with proper error handling."""
-    try:
-        return Target.objects.get(name=name)
-    except ObjectDoesNotExist:
-        logger.error(f"Target not found: {name}")
-        raise HttpError(404, f"Target '{name}' not found")
-    except Exception as e:
-        logger.exception(f"Unexpected error: {e}")
-        raise HttpError(500, "Internal server error")
-```
-
-### Database Transactions
-
-For bulk operations, always use transactions:
-
-```python
-from django.db import transaction
-
-@transaction.atomic
-def bulk_create_subdomains(subdomain_list: List[str], seed: Seed):
-    """Bulk create subdomains with transaction protection."""
-    subdomains = [
-        Subdomain(name=name, seed=seed)
-        for name in subdomain_list
-    ]
-    Subdomain.objects.bulk_create(subdomains, ignore_conflicts=True)
-```
-
-### Logging
-
-Use the project's custom logging decorator and standard Python logging:
-
-```python
-from c2_core.config.logging import log_function_call
-import logging
-
-logger = logging.getLogger(__name__)
-
-@log_function_call
-def important_function(param: str) -> dict:
-    """Function with automatic logging."""
-    logger.info(f"Processing: {param}")
-    return {"status": "success"}
-```
-
----
-
-## Project Structure & Organization
-
-```
+AutomationAgent
 /
-├── apps/                      # Django applications
-│   ├── core/                 # Core models (Target, Seed, Subdomain, etc.)
-│   ├── targets/              # Target management
-│   ├── nmap_scanner/         # Nmap integration
-│   ├── subfinder/            # Subdomain enumeration
-│   ├── nuclei_scanner/       # Vulnerability scanning
-│   ├── analyze_ai/           # AI analysis engine
-│   ├── flaresolverr/         # Anti-bot bypass
-│   └── scheduler/            # Task scheduling
-├── c2_core/                  # Django project core
-│   ├── settings.py           # Django settings
-│   ├── urls.py               # URL routing
-│   ├── celery.py             # Celery configuration
-│   └── logs/                 # Application logs
-├── scripts/                  # Utility scripts
-│   ├── celery_worker_eventlet.py
-│   └── init_auto_pentest.py
-├── docker/                   # Docker compose & configs
-├── docs/                     # Documentation
-├── requirements.txt          # Python dependencies
-└── manage.py                 # Django management
-```
 
-**Model Organization**: Models in subdirectories with `__init__.py` for imports:
-```
-apps/core/models/
-├── __init__.py              # Exports all models
-├── base.py                  # Target, Seed
-├── domain.py                # Subdomain, SubdomainSeed
-├── network.py               # IP, Port
-└── scans_record_models.py   # Scan records
-```
+IPAnalyzerAgent
+/
 
----
+SubdomainAnalyzerAgent
+: 呼叫第三層的工具。
+Layer 3: 具體執行與分析層 (Executing & Analyzing Agents)
+核心代理:
 
-## Key Development Practices
+AutomationAgent
+(整體 4-Phase 排程) 與各類專職 Analyzer。
+職責: 執行實質命令與建立攻擊向量 (AttackVector)。
+具備 Tool/權限:
+動態生成的 OpenAPI Tools: (例如調用 Nmap, Subfinder, Nuclei API)。
+資料庫更新 Tools:
 
-1. **Always set `app_label`** in Model Meta class when models are in subdirectories
-2. **Always provide `related_name`** for ForeignKey and ManyToMany relationships
-3. **Always add `help_text`** to model fields for better documentation
-4. **Use transactions** for bulk database operations
-5. **Preserve Chinese comments** - they are part of the codebase standard
-6. **Use Celery for long-running tasks** - scanning, enumeration, AI analysis
-7. **Log important operations** with the custom decorator and logger
-8. **Handle exceptions gracefully** - use Django exceptions and proper HTTP errors
-9. **Use Pydantic schemas** for API request/response validation
-10. **Test performance-critical operations** - see `apps/subfinder/tests/test_performance.py`
+create_step
+(建立執行步驟與攻擊向量)、
 
----
+create_verification
+(設定驗證標準)。
 
-## Environment Variables
+get_exhausted_attack_vectors
+: 獲取歷史失敗的攻擊向量，避免重複執行無效攻擊。
+AI 智能體之間的協作與溝通機制 (Layer 2 & Layer 3)
+Layer 2 (指揮官) 與 Layer 3 (執行者) 的協作機制分為兩條獨立且互補的通道：
 
-Key environment variables (see `.env.example`):
+顯式溝通 (Tool Invocation & Thread I/O)：
+Layer 2 將 Layer 3 封裝為「Tool (工具)」。當 Layer 2 決定要發起攻擊時，會將戰略參數打包成文字 (Input) 呼叫該工具。
+Layer 3 收到 Input 後，開啟內部的思考迴圈 (Thread) 並實際調用 OpenAPI 或資料庫 Tools。完成後，Layer 3 將執行摘要與總結作為返回值 (Output) 交還給 Layer 2 的工具對話層。
+隱式溝通 (Shared Database Context)：
+資料庫負責承載雙方的長短期記憶，避免 LLM 的 Token 上下文視窗被塞爆。
+共用黑板：Layer 2 會以
 
-```bash
-# Database
-POSTGRES_DB=mydb
-POSTGRES_USER=myuser
-POSTGRES_PASSWORD=secret
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
+create_or_update_target_overview
+更新
 
-# Django
-DJANGO_SECRET_KEY=your-secret-key
-DJANGO_DEBUG=true
-DJANGO_SETTINGS_MODULE=c2_core.settings
+Overview
+的計畫與風險分數；Layer 3 啟動時首先會去閱讀
 
-# Redis/Celery
-REDIS_URL=redis://localhost:6379/0
-CELERY_BROKER_URL=redis://localhost:6379/0
+Overview
+的狀態了解即將執行的策略方向。
+進度追蹤：Layer 3 透過不斷建立
 
-# AI Services
-GEMINI_API_KEY=your_key
-MISTRAL_API_KEY=your_key
-```
+Step
+與
 
----
+AttackVector
+把動作寫入資料庫，Layer 2 則能隨時呼叫
 
-## Additional Resources
+get_target_overview
+檢查 Layer 3 的作戰進度是否順利，並決定是否要變更戰略。
+第零層: 資料預處理與觸發 (Data Pre-processing Layer)
+核心機制:
 
-- **Detailed Build Guide**: See `BUILD_GUIDE.md` for comprehensive setup instructions
-- **Internal Workflow**: See `docs/internal_workflow.md` for system architecture
-- **Django Documentation**: https://docs.djangoproject.com/en/5.2/
-- **Django Ninja**: https://django-ninja.rest-framework.com/
-- **Celery Documentation**: https://docs.celeryproject.org/
+periodic_initial_analysis_bootstrapper
+(Celery Beat 定時任務)。
+運作邏輯:
+定期掃描尚未被歸入 Overview 的新資產 (IP / Subdomain / URLResult)。
+交由
 
----
+InitialAnalyzerAgent
+評估並產生
 
-**Legal Notice**: This tool is for educational and authorized security testing only. Unauthorized scanning is illegal.
+InitialAIAnalysis
+記錄，打上 risk_score (0-100)。
+自動叢集化 (Clustering): 若 risk_score >= 70，後端邏輯 (
+
+process_initial_analysis_conversions
+) 會自動為這批高風險資產建立一個新的
+
+Overview
+，從而喚醒 Layer 2 接手後續的自動化攻擊。
+Watchdog 機制: 廢棄了舊版盲目重啟的 watchdog，改為單純將超時無回應的 Overview 標記為 STALLED 或 FAILED。2. 前端架構與設計 (Frontend Architecture & Design)
+前端負責資料的即時呈現與系統控制，採用 Cyberpunk (駭客風) 的極致美學，並透過 Hasura GraphQL 即時聯動後端。
+
+視覺設計準則 (Cyberpunk UI Aesthetics)
+色彩系統:
+主背景：深邃黑/深藍 (#09090b / #0a0a0a)。
+點綴色 (Neon)：螢光綠 (#00ff00, #10B981) 作為成功/運行狀態、螢光黃 (#eab308) 警告、螢光紅 (#ef4444) 代表漏洞與失敗風險、螢光粉紅與電光藍作為標籤。
+字型與排版:
+大量使用等寬字體 (Monospace, e.g., Fira Code)，確保讀取數據、終端機輸出、程式碼時擁有對齊的冷峻科技感。
+微動畫特效 (Micro-animations):
+呼吸燈發光 (Glow effects)、Scanline (CRT 掃描線) 覆蓋、毛玻璃 (Glassmorphism)，使冰冷的數據呈現生命力，讓 Dashboard 變成指揮官儀表板。
+核心介面 (Key Pages)
+AI Center (
+
+AICenterPage.tsx
+):
+包含可拖曳調整寬度的分割畫面 (Split Pane)。左側為與 Layer 1 AI 對話的 Chat Window（支持 Markdown 渲染），右側為即時分析執行結果。
+目標總覽 (
+
+TargetDashboard.tsx
+):
+展示掃描專案進度、風險評分趨勢與 Overview 執行狀態。
+域名/URL 威脅情資頁 (
+
+UrlDetailPage.tsx
+&
+
+SeedReconPage.tsx
+):
+透過可折疊面板 (Collapsible Sections) 排列龐雜的滲透資料（如 HTTP Status 徽章、Headers、Forms(parameters)、Links、MetaTags(attributes)、Vulnerabilities）。
+避免畫面擁擠，針對不同的技術棧 (TechStack) 與弱點 (Vulnerability) 給予專屬顏色的標籤。
+數據綁定 (GraphQL / Hasura)
+使用 Apollo Client 結合 Vite。對應 Django ORM 中的多對多關聯，前端需注意 Hasura 自動生成的欄位名稱。
+常見 Mapping 雷區歸納:
+core_techstack → 使用 name, categories。(非 technology, category)
+core_metatag → 使用 attributes (JSONField)。
+core_form → 使用 parameters (而非 inputs_json)。
+Query 需使用正確的外鍵查詢，例如從 Target
+
+id
+查所有關聯的 URL (core_urlresult(where: {subdomain: {seed: {target_id: {\_eq: $targetId}}}}) 等關聯路徑)。

@@ -1,6 +1,7 @@
 import abc
 import importlib
 import inspect
+import logging
 import re
 from typing import (
     Annotated,
@@ -111,6 +112,8 @@ class AIAssistant(abc.ABC):  # noqa: F821
     """
     tool_max_concurrency: int = 1
     """Maximum number of tools to run concurrently / in parallel.\nDefaults to `1` (no concurrency)."""
+    recursion_limit: int = 150
+    """LangGraph recursion limit. Defaults to `150` to allow for longer workflows."""
     has_rag: bool = False
     """Whether the assistant uses RAG (Retrieval-Augmented Generation) or not.\n
     Defaults to `False`.
@@ -529,6 +532,8 @@ class AIAssistant(abc.ABC):  # noqa: F821
 
         def setup(state: AgentState):
             system_prompt = self.get_instructions()
+            if thread:
+                system_prompt += f"\n\n[SYSTEM INFO]\nYour current Thread ID is: {thread.id}\nIf you delegate long tasks asynchronously to another agent, explicitly pass your Thread ID via their `caller_thread_id` tool parameter so they can wake you up when done."
             return {"messages": [SystemMessage(content=system_prompt)]}
 
         def history(state: AgentState):
@@ -564,8 +569,13 @@ class AIAssistant(abc.ABC):  # noqa: F821
             )
 
         def agent(state: AgentState):
+            _logger = logging.getLogger("django_ai_assistant.agent")
+            if _logger.isEnabledFor(logging.DEBUG):
+                for i, msg in enumerate(state["messages"]):
+                    _logger.debug(f"[AGENT INVOKE] msg[{i}] type={type(msg).__name__}: {str(msg.content)[:500]}")
             response = llm_with_tools.invoke(state["messages"])
-
+            if _logger.isEnabledFor(logging.DEBUG):
+                _logger.debug(f"[AGENT RESPONSE] tool_calls={getattr(response, 'tool_calls', [])}")
             return {"messages": [response]}
 
         def tool_selector(state: AgentState):
@@ -682,6 +692,10 @@ class AIAssistant(abc.ABC):  # noqa: F821
         graph = self.as_graph(thread_id=thread_id, thread=thread)
         config = kwargs.pop("config", {})
         config["max_concurrency"] = config.pop("max_concurrency", self.tool_max_concurrency)
+        config["recursion_limit"] = config.pop("recursion_limit", getattr(self, "recursion_limit", 150))
+        # Inject thread_id into configurable so nested agent tools can read caller_thread_id
+        if thread_id is not None:
+            config.setdefault("configurable", {})["thread_id"] = thread_id
         if mode not in ("invoke", "astream"):
             raise NotImplementedError(f"mode={mode!r}")
         return getattr(graph, mode)(*args, config=config, **kwargs)
@@ -736,8 +750,43 @@ class AIAssistant(abc.ABC):  # noqa: F821
             if metadata.get("langgraph_node") == "agent" and (content := output.content):
                 yield content
 
-    def _run_as_tool(self, message: str, **kwargs: Any) -> Any:
-        return self.run(message, thread_id=None, **kwargs)
+    def _run_as_tool(self, message: str, caller_thread_id: int | None = None, **kwargs: Any) -> Any:
+        _logger = logging.getLogger("django_ai_assistant.agent")
+        _logger.info(f"[AS_TOOL CALLED] assistant_id={self.id!r} | message={message[:500]!r} | caller_thread_id={caller_thread_id}")
+        
+        target_thread_id = None
+        if caller_thread_id:
+            # 讓子 Agent (Layer 3) 擁有自己的記憶串，而不是每次都被清空
+            try:
+                from django_ai_assistant.models import Thread
+                sub_thread_name = f"subagent_{self.id}_for_thread_{caller_thread_id}"
+                
+                # Inherit user from parent thread so frontend's get_threads() can see it
+                parent_user = None
+                try:
+                    parent_thread = Thread.objects.filter(id=caller_thread_id).first()
+                    if parent_thread:
+                        parent_user = parent_thread.created_by
+                except Exception:
+                    pass
+
+                sub_thread, created = Thread.objects.get_or_create(
+                    name=sub_thread_name,
+                    defaults={'assistant_id': self.id, 'created_by': parent_user}
+                )
+                # If sub-thread already existed but had no user, update it
+                if not created and not sub_thread.created_by and parent_user:
+                    sub_thread.created_by = parent_user
+                    sub_thread.save(update_fields=['created_by'])
+
+                target_thread_id = sub_thread.id
+                _logger.info(f"[{self.id}] Binding to sub-thread {sub_thread.id} instead of ephemeral memory.")
+            except Exception as e:
+                _logger.error(f"Failed to create sub-thread: {e}")
+
+            message = f"[System Context: Your own assigned Thread ID is {target_thread_id}. You were invoked by an upper-layer agent from parent Thread ID {caller_thread_id}. When calling `create_overview`, YOU MUST explicitly set `thread_id={target_thread_id}` and `parent_thread_id={caller_thread_id}` so that async background tasks (like Flaresolverr, Nmap) will callback to YOUR thread ({target_thread_id}) and wake YOU up. Once you decide the entire 4-phase operation is complete, use `notify_caller_agent` to wake up your parent ({caller_thread_id}).]\n\n" + message
+            
+        return self.run(message, thread_id=target_thread_id, **kwargs)
 
     def as_tool(self, description: str) -> BaseTool:
         """Create a tool from the assistant.\n
@@ -749,8 +798,19 @@ class AIAssistant(abc.ABC):  # noqa: F821
         Returns:
             BaseTool: A tool that runs the assistant. The tool name is this assistant's id.
         """
+        _logger = logging.getLogger("django_ai_assistant.agent")
+        _logger.info(f"[AS_TOOL REGISTERED] assistant_id={self.id!r} | description={description!r}")
+        
+        from langchain_core.runnables import RunnableConfig
+        
+        def _tool_func(message: str, config: RunnableConfig) -> Any:
+            thread_id = None
+            if config and "configurable" in config:
+                thread_id = config["configurable"].get("thread_id")
+            return self._run_as_tool(message, caller_thread_id=thread_id)
+
         return StructuredTool.from_function(
-            func=self._run_as_tool,
+            func=_tool_func,
             name=self.id,
             description=description,
         )

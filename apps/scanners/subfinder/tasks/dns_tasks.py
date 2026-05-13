@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 @shared_task(bind=True, ignore_result=True)
 @log_function_call()
-def resolve_dns_for_seed(self, seed_id: int, subfinder_scan_id: int, callback_step_id: Optional[int] = None):
+def resolve_dns_for_seed(self, seed_id: int, subfinder_scan_id: Optional[int] = None, source: Optional[str] = None, callback_step_id: Optional[int] = None):
     """Resolve DNS for all subdomains associated with a seed."""
     try:
         seed = Seed.objects.get(id=seed_id)

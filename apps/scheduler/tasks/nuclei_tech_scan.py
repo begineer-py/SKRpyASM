@@ -9,8 +9,8 @@ from apps.core.models import IP, Subdomain, URLResult, TechStack
 
 logger = logging.getLogger(__name__)
 
-# API Endpoints (對應你剛改好的 ID 版 API)
-NUCLEI_SCAN_URL = f"{API_BASE_URL}/api/nuclei"
+# API Endpoints (對應新版 unified scanners API)
+NUCLEI_SCAN_URL = f"{API_BASE_URL}/api/scanners/vuln"
 
 
 @log_function_call()

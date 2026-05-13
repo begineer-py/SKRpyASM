@@ -105,6 +105,19 @@ services:
     networks:
       - c2_network
 
+  # --- 新增：Kali Linux Sandbox (AI Skill 執行沙盒) ---
+  c2_kali_sandbox:
+    build: ./kali_sandbox
+    container_name: c2_kali_sandbox
+    restart: always
+    network_mode: host # Allows sandbox to scan localhost easily
+    volumes:
+      - /tmp/c2_sandbox_scripts:/scripthub
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 4096M
 
 volumes:
   postgres_data:

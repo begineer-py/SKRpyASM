@@ -25,6 +25,7 @@ class InitialAIAnalysis(models.Model):
     summary = models.TextField(null=True, blank=True, help_text="AI 生成的關於此資產的一句話總結")
     inferred_purpose = models.TextField(null=True, blank=True, help_text="推斷的用途 (e.g., Web Server, API Endpoint)")
     worth_deep_analysis = models.BooleanField(default=False, help_text="AI 判斷是否值得進一步深度分析建立攻擊計畫")
+    risk_score = models.PositiveSmallIntegerField(default=0, help_text="AI 根據初始資料判斷的風險分數 (0-100)")
     is_converted = models.BooleanField(default=False, help_text="是否已轉換為 Overview")
     overview = models.ForeignKey("core.Overview", on_delete=models.SET_NULL, null=True, blank=True, related_name="initial_analyses")
 

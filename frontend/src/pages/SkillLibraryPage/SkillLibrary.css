@@ -1,0 +1,405 @@
+/* ================================================
+   SkillLibrary.css — Cyberpunk Skill Library UI
+   ================================================ */
+
+.skill-library-container {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 56px);
+  background: #09090b;
+  color: #e2e8f0;
+  font-family: 'Fira Code', 'Courier New', monospace;
+  padding: 0 0 40px 0;
+}
+
+/* ---- Header ---- */
+.skill-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 28px 32px 20px;
+  border-bottom: 1px solid rgba(0, 255, 0, 0.15);
+  background: linear-gradient(180deg, rgba(0, 255, 0, 0.03) 0%, transparent 100%);
+}
+
+.skill-title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #00ff00;
+  text-shadow: 0 0 20px rgba(0, 255, 0, 0.4);
+  letter-spacing: 0.12em;
+  margin: 0 0 4px 0;
+}
+
+.skill-title-bracket {
+  color: rgba(0, 255, 0, 0.4);
+}
+
+.skill-subtitle {
+  font-size: 0.72rem;
+  color: #64748b;
+  letter-spacing: 0.08em;
+}
+
+.skill-stats-bar {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.skill-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 52px;
+}
+
+.skill-stat-val {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #00ff00;
+  text-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+  line-height: 1;
+}
+
+.skill-stat-label {
+  font-size: 0.6rem;
+  color: #475569;
+  letter-spacing: 0.1em;
+  margin-top: 2px;
+}
+
+/* ---- Search Bar ---- */
+.skill-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 32px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.skill-search-icon {
+  color: #00ff00;
+  font-size: 1rem;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+.skill-search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #e2e8f0;
+  font-family: inherit;
+  font-size: 0.9rem;
+  caret-color: #00ff00;
+}
+
+.skill-search-input::placeholder {
+  color: #334155;
+}
+
+.skill-search-clear {
+  background: none;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 2px 6px;
+  border-radius: 3px;
+  transition: color 0.15s;
+}
+.skill-search-clear:hover {
+  color: #ef4444;
+}
+
+/* ---- Main Split Layout ---- */
+.skill-layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  height: calc(100vh - 200px);
+}
+
+/* ---- Skill List (Left) ---- */
+.skill-list {
+  width: 380px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 12px 0;
+}
+
+.skill-list::-webkit-scrollbar { width: 4px; }
+.skill-list::-webkit-scrollbar-track { background: transparent; }
+.skill-list::-webkit-scrollbar-thumb { background: rgba(0, 255, 0, 0.2); border-radius: 2px; }
+
+.skill-card {
+  padding: 12px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  transition: background 0.15s;
+  border-left: 3px solid transparent;
+}
+
+.skill-card:hover {
+  background: rgba(0, 255, 0, 0.04);
+  border-left-color: rgba(0, 255, 0, 0.3);
+}
+
+.skill-card.selected {
+  background: rgba(0, 255, 0, 0.07);
+  border-left-color: #00ff00;
+}
+
+.skill-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.skill-lang-badge {
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: #000;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+
+.skill-card-name {
+  font-size: 0.85rem;
+  color: #e2e8f0;
+  font-weight: 600;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skill-usage-badge {
+  font-size: 0.65rem;
+  color: #475569;
+  flex-shrink: 0;
+}
+
+.skill-card-desc {
+  font-size: 0.72rem;
+  color: #64748b;
+  line-height: 1.4;
+  overflow: hidden;
+  display: -webkit-box;
+  line-clamp: 2;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  margin-bottom: 6px;
+}
+
+/* ---- Tags ---- */
+.skill-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.skill-tag {
+  font-size: 0.62rem;
+  padding: 2px 6px;
+  border-radius: 10px;
+  background: rgba(59, 130, 246, 0.12);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.skill-tag:hover {
+  background: rgba(59, 130, 246, 0.25);
+}
+
+/* ---- Empty / Error States ---- */
+.skill-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: #334155;
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+}
+
+.skill-error {
+  padding: 20px;
+  color: #ef4444;
+  font-size: 0.8rem;
+}
+
+/* ---- Detail Panel (Right) ---- */
+.skill-detail-panel {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.skill-detail-panel::-webkit-scrollbar { width: 4px; }
+.skill-detail-panel::-webkit-scrollbar-track { background: transparent; }
+.skill-detail-panel::-webkit-scrollbar-thumb { background: rgba(0, 255, 0, 0.15); border-radius: 2px; }
+
+.skill-detail-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #334155;
+  font-size: 0.8rem;
+  letter-spacing: 0.1em;
+  gap: 8px;
+}
+
+.skill-detail-empty-icon {
+  font-size: 2.5rem;
+  opacity: 0.3;
+}
+
+.skill-detail-header {
+  padding: 24px 28px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.skill-detail-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.skill-detail-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #f1f5f9;
+  margin: 0;
+  letter-spacing: 0.04em;
+}
+
+.skill-detail-meta {
+  display: flex;
+  gap: 20px;
+  font-size: 0.72rem;
+  color: #64748b;
+  margin-bottom: 10px;
+}
+
+.skill-detail-meta strong {
+  color: #94a3b8;
+}
+
+.skill-detail-desc {
+  font-size: 0.82rem;
+  color: #94a3b8;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* ---- Tabs ---- */
+.skill-tabs {
+  display: flex;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.skill-tab-btn {
+  padding: 10px 24px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #475569;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.skill-tab-btn.active {
+  color: #00ff00;
+  border-bottom-color: #00ff00;
+}
+
+.skill-tab-btn:hover:not(.active):not(:disabled) {
+  color: #94a3b8;
+}
+
+.skill-tab-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ---- Code Block ---- */
+.skill-tab-content {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.skill-code-block {
+  position: relative;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.skill-code-block::-webkit-scrollbar { width: 4px; }
+.skill-code-block::-webkit-scrollbar-thumb { background: rgba(0, 255, 0, 0.15); border-radius: 2px; }
+
+.skill-code-block pre {
+  margin: 0;
+  padding: 20px 28px;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.78rem;
+  line-height: 1.7;
+  color: #94a3b8;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.skill-code-block code {
+  color: #a5f3a5;
+}
+
+.skill-copy-btn {
+  position: sticky;
+  top: 12px;
+  float: right;
+  margin: 12px 20px 0 0;
+  padding: 4px 12px;
+  background: rgba(0, 255, 0, 0.1);
+  border: 1px solid rgba(0, 255, 0, 0.25);
+  border-radius: 4px;
+  color: #00ff00;
+  font-family: inherit;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: all 0.15s;
+  z-index: 2;
+}
+
+.skill-copy-btn:hover {
+  background: rgba(0, 255, 0, 0.2);
+}
+
+/* ---- Pulse animation (reuse from global) ---- */
+.pulse {
+  animation: blink 1s step-end infinite;
+}
+@keyframes blink {
+  50% { opacity: 0; }
+}

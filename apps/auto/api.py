@@ -110,7 +110,7 @@ async def _convert_analysis(asset_type: str, analysis_id: int) -> AutoConvertRes
 
     # ── 5. 呼叫自動化代理規劃後續 Step ──────────────────────────────────────────
     from django.contrib.auth import get_user_model
-    from django_ai_assistant.use_cases import create_thread
+    from django_ai_assistant.helpers.use_cases import create_thread
     from apps.auto.assistants.planning_agent import AutomationAgent
 
     User = get_user_model()
@@ -184,68 +184,4 @@ async def convert_url_analysis(request, payload: AutoConvertSchema):
     return await _convert_analysis("url", payload.analysis_id)
 
 
-# =============================================================================
-# Step 執行端點 (Step Execution Runner)
-# =============================================================================
-
-from pydantic import BaseModel
-from typing import Optional
-
-class RunStepSchema(BaseModel):
-    step_id: int
-
-class RunStepResponseSchema(BaseModel):
-    success: bool
-    detail: str
-    task_id: Optional[str] = None
-
-
-@router.post("/run-step", response=RunStepResponseSchema)
-async def run_step(request, payload: RunStepSchema):
-    """
-    【觸發步驟自動執行】
-
-    接收 step_id，將對應的 Step 派發給 AutomationAgent 執行。
-    - 若 Step 為 CLI 任務，Agent 直接執行並觸發驗證。
-    - 若 Step 為大規模 API 任務，Agent 掛起並等待異步回調。
-    """
-    from apps.auto.tasks.execution.runner import run_step_execution
-
-    step_id = payload.step_id
-    # 驗證 Step 存在
-    from apps.core.models import Step
-    exists = await sync_to_async(Step.objects.filter(id=step_id).exists)()
-    if not exists:
-        raise HttpError(404, f"Step#{step_id} 不存在。")
-
-    task = await sync_to_async(run_step_execution.delay)(step_id)
-    return RunStepResponseSchema(
-        success=True,
-        detail=f"Step#{step_id} 已提交執行，task_id: {task.id}",
-        task_id=str(task.id),
-    )
-
-
-class ResumeStepSchema(BaseModel):
-    step_id: int
-    task_output: str
-
-
-@router.post("/resume-step", response=RunStepResponseSchema)
-async def resume_step(request, payload: ResumeStepSchema):
-    """
-    【異步回調入口】
-
-    由外部系統（或手動測試）呼叫，將結果帶回給已掛起的 Step。
-    正常情況下由 Celery Task 的 finally 回調自動觸發，不需要手動調用。
-    """
-    from apps.auto.tasks.execution.runner import resume_step_execution
-
-    task = await sync_to_async(resume_step_execution.delay)(
-        payload.step_id, payload.task_output
-    )
-    return RunStepResponseSchema(
-        success=True,
-        detail=f"Step#{payload.step_id} 已接收回調輸出，驗證引擎正在啟動。",
-        task_id=str(task.id),
-    )
+# End of file

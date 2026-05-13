@@ -7,6 +7,7 @@ from django.db import transaction
 
 # c2_core imports
 from c2_core.config.logging import log_function_call
+from apps.core.utils import with_auto_callback
 from apps.flaresolverr.orchestrators.recon_orchestrator import ReconOrchestrator
 from c2_core.config.utils import sanitize_for_db
 from c2_core.config.config import Config
@@ -24,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 @shared_task(bind=True)
+@with_auto_callback
 @log_function_call()
 def perform_scan_for_url(
     self,
@@ -32,6 +34,7 @@ def perform_scan_for_url(
     seed_id: int = None,
     auto_create: bool = False,
     target_id: int = None,  # 新增：直接接收已驗證的 target_id
+    callback_step_id: int = None,
 ):
     """
     對指定 URL 執行深度偵察。

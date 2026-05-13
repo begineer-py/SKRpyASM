@@ -68,6 +68,7 @@ async def start_crawl(request, trigger_data: FlaresolverrTriggerSchema):
         seed_id=seed_id,
         auto_create=auto_create,
         target_id=target_id,
+        callback_step_id=trigger_data.callback_step_id,
     )
 
     return 200, FlaresolverrResponse(
