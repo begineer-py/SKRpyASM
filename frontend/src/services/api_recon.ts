@@ -3,11 +3,13 @@ import { GLOBAL_CONFIG } from '../config';
 import type { SubfinderScan, DomainReconTriggerPayload } from '../type';
 
 // 專門用於偵察的 Axios 實例
+// 路由已統一化: /api/scanners/subdomain/...  (見 apps/scanners/api.py)
 const reconApi = axios.create({
-  baseURL: `${GLOBAL_CONFIG.DJANGO_API_BASE}/subfinder`, // 假設掛載路徑
+  baseURL: `${GLOBAL_CONFIG.DJANGO_API_BASE}/scanners/subdomain`,
   headers: { 'Content-Type': 'application/json' },
   timeout: 10000, 
 });
+
 
 export const ReconService = {
   /**
@@ -78,8 +80,7 @@ query GetSeedUltimateIntel($seed_id: bigint!) {
     core_ip_which_seeds {
       core_ip {
         id
-        ipv4
-        ipv6
+        address
       }
     }
 

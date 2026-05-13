@@ -61,6 +61,7 @@ INSTALLED_APPS = [  # 註冊 Django 項目中使用的應用程序列表
     "apps.scanners.nuclei_scanner",
     "apps.api_keys",
     "apps.ai_assistant",
+    "apps.auto",  # Auto App - 3-Tier Agent Orchestration
 ]
 MIDDLEWARE = [  # 中間件列表，處理請求和響應的層次
     "corsheaders.middleware.CorsMiddleware",  # CORS 中間件，處理跨域請求
@@ -233,7 +234,8 @@ CELERY_IMPORTS = (
     "apps.analyze_ai.tasks",
     "apps.scanners.nuclei_scanner.tasks",
     "apps.scheduler.tasks",
-)  # <--- 加上這行！用元組，即使只有一個也加逗號 # 指定 Celery 啟動時需要導入的模塊，包含 Celery 任務
+    "apps.auto.tasks",  # Auto App - AI Orchestration Tasks
+)
 API_BASE_URL = "http://127.0.0.1:8000"
 LOG_DIR = BASE_DIR / "c2_core" / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -284,7 +286,7 @@ LOGGING = {
     "loggers": {
         # 根日誌記錄器：所有沒被接管的日誌都會走這路
         "": {
-            "handlers": ["console", "app_file", "error_file"],  # <--- 把這三個都接上！
+            "handlers": ["console", "app_file", "error_file"],  # <--- 把這三個都接上！~
             "level": "INFO",
         },
         # 你的核心業務代碼
@@ -328,6 +330,18 @@ LOGGING = {
             "level": "DEBUG",
             "propagate": False,
         },
+        # LangChain 鏈路日誌 (scoped，不會把 Rich 炸掉)
+        "langchain": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        # Django AI Assistant 場景 debug (看 as_tool 輸入 與 agent 訊息)
+        "django_ai_assistant.agent": {
+            "handlers": ["console", "app_file"],
+            "level": "DEBUG",  # 改 DEBUG 可看到每条 message 內容
+            "propagate": False,
+        },
         # 資料庫日誌
         "django.db.backends": {
             "handlers": ["console", "app_file", "error_file"],
@@ -351,3 +365,7 @@ AI_ASSISTANT_CAN_CREATE_MESSAGE_FN = "django_ai_assistant.permissions.allow_all"
 AI_ASSISTANT_CAN_UPDATE_MESSAGE_FN = "django_ai_assistant.permissions.allow_all"
 AI_ASSISTANT_CAN_DELETE_MESSAGE_FN = "django_ai_assistant.permissions.allow_all"
 AI_ASSISTANT_CAN_RUN_ASSISTANT = "django_ai_assistant.permissions.allow_all"
+
+# LangChain Verbose Logging (scoped, avoids crashing Rich with debug mode)
+# langchain.debug = True  # 千萬別開！會讓 Rich log handler 遞迴爛掉
+LANGCHAIN_VERBOSE = False  # 如果要看 chain 的輸入/輸出，在各 Agent 文件中設定 verbose=True

@@ -8,8 +8,8 @@ export const GET_SUBDOMAIN_DETAIL_QUERY = `
       # 基础信息
       id
       name
-      cname
       created_at
+
       is_active
       is_resolvable
       
@@ -22,16 +22,16 @@ export const GET_SUBDOMAIN_DETAIL_QUERY = `
       # 关联的 IP 地址 (通过中间表)
       core_subdomain_ips {
         core_ip {
-          ipv4
-          ipv6
           id
+          address
+          version
         }
       }
+
       
       # 关联的 AI 分析结果 (取最新的)
-      core_subdomainaianalysis {
+      core_subdomainaianalyses(limit: 1, order_by: {created_at: desc}) {
         # 核心分析字段
-        risk_score
         summary
         business_impact
         inferred_purpose

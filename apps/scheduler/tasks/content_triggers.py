@@ -9,7 +9,7 @@ from apps.core.models import Subdomain, URLResult, URLScan
 logger = logging.getLogger(__name__)
 
 # API Endpoints
-GET_ALL_URL_ENDPOINT_TEMPLATE = f"{API_BASE_URL}/api/get_all_url/get_all_url"
+GET_ALL_URL_ENDPOINT_TEMPLATE = f"{API_BASE_URL}/api/scanners/crawler/get_all_url"
 FLARESOLVERR_START_SCANNER_URL = f"{API_BASE_URL}/api/flaresolverr/start_scanner"
 
 

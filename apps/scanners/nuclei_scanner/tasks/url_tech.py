@@ -4,12 +4,14 @@ from celery import shared_task
 from django.conf import settings
 from apps.core.models import URLResult
 from .utils import process_nuclei_tech_line  # 假設解析代碼放在 parsers.py
+from apps.core.utils import with_auto_callback
 
 logger = logging.getLogger(__name__)
 
 
 @shared_task(name="nuclei_scanner.tasks.url_tech.scan_url_tech_stack")
-def scan_url_tech_stack(url_result_ids: list[int]):
+@with_auto_callback
+def scan_url_tech_stack(url_result_ids: list[int], callback_step_id: int = None):
     """
     針對指定的 URLResult 執行技術堆疊掃描
     """

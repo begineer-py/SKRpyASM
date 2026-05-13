@@ -86,3 +86,94 @@ export const GET_TARGET_DETAIL_QUERY = `
     }
   }
 `;
+
+// 查詢目標的子域名 (含IP關聯和狀態)
+// NOTE: Subdomain has direct target FK, so filter by target_id directly
+export const GET_TARGET_SUBDOMAINS_QUERY = `
+  query GetTargetSubdomains($targetId: bigint!) {
+    core_subdomain(
+      where: { target_id: { _eq: $targetId } }
+      order_by: { created_at: desc }
+      limit: 200
+    ) {
+      id
+      name
+      is_active
+      is_resolvable
+      created_at
+      core_subdomain_ips(limit: 3) {
+        core_ip {
+          id
+          address
+        }
+      }
+    }
+  }
+`;
+
+
+// 查詢目標的 IP 資產 (含埠號詳情)
+// NOTE: IP model has no `created_at`, sort by id. Ports related_name is 'ports'
+export const GET_TARGET_IPS_QUERY = `
+  query GetTargetIPs($targetId: bigint!) {
+    core_ip(
+      where: { target_id: { _eq: $targetId } }
+      order_by: { id: desc }
+      limit: 200
+    ) {
+      id
+      address
+      version
+      ports {
+        id
+        port_number
+        protocol
+        service_name
+        service_version
+        state
+        first_seen
+      }
+    }
+  }
+`;
+
+// 查詢目標 AI Overview (戰略概覽)
+export const GET_TARGET_OVERVIEWS_QUERY = `
+  query GetTargetOverviews($targetId: bigint!) {
+    core_overview(
+      where: { target_id: { _eq: $targetId } }
+      order_by: { updated_at: desc }
+    ) {
+      id
+      status
+      summary
+      plan
+      knowledge
+      risk_score
+      business_impact
+      created_at
+      updated_at
+    }
+  }
+`;
+
+// 查詢目標的 URL 資產
+// NOTE: URLResult has no `content_type` field. Use title, status_code, created_at
+export const GET_TARGET_URLS_QUERY = `
+  query GetTargetURLs($targetId: bigint!) {
+    core_urlresult(
+      where: { target_id: { _eq: $targetId } }
+      order_by: { created_at: desc }
+      limit: 200
+    ) {
+      id
+      url
+      status_code
+      title
+      content_length
+      discovery_source
+      content_fetch_status
+      created_at
+    }
+  }
+`;

@@ -6,11 +6,13 @@ import logging
 logger = logging.getLogger(__name__)
 from apps.core.models import Subdomain
 from .utils import process_nuclei_tech_line
+from apps.core.utils import with_auto_callback
 
 
 @shared_task(name="nuclei_scanner.tasks.sub_tech.scan_subdomain_tech")
 @log_function_call()
-def scan_subdomain_tech(subdomain_ids: list[int]):
+@with_auto_callback
+def scan_subdomain_tech(subdomain_ids: list[int], callback_step_id: int = None):
     """
     掃描子域名的技術堆疊並解析結果
     """

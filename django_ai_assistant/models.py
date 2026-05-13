@@ -31,6 +31,11 @@ class Thread(models.Model):
     """User who created the thread. Can be null. Set to null/None when user is deleted."""
     assistant_id = models.CharField(max_length=255, blank=True)
     """Associated assistant ID. Can be empty."""
+    bound_target_id = models.IntegerField(
+        null=True, blank=True,
+        help_text="The Target ID this thread is currently focused on. Set by the AI agent via bind_to_target tool."
+    )
+    """Bound target ID for this thread. When set, the AI agent will use this target by default."""
     created_at = models.DateTimeField(auto_now_add=True)
     """Date and time when the thread was created.
     Automatically set when the thread is created."""

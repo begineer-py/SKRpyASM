@@ -6,9 +6,24 @@ import json
 from collections import defaultdict
 from django.utils import timezone
 from django.db import transaction
+from urllib.parse import urlparse
 
 # 初始化日誌記錄器
 logger = logging.getLogger(__name__)
+
+def _get_domain_from_seed(seed):
+    """根據種子類型提取適合作為子域名的名稱"""
+    if seed.type == "URL":
+        try:
+            # 只取 hostname，過濾掉 scheme 和 path
+            parsed = urlparse(seed.value)
+            return parsed.hostname or seed.value
+        except Exception:
+            return seed.value
+    elif seed.type == "IP_RANGE":
+        # IP 範圍不適合作為子域名資產
+        return None
+    return seed.value
 
 
 def parse_subfinder_output(raw_output):
@@ -44,7 +59,7 @@ def parse_subfinder_output(raw_output):
     return current_subdomains_map
 
 
-def update_subdomain_assets(seed, current_subdomains_map, scan):
+def update_subdomain_assets(seed, current_subdomains_map, scan, scan_type=None, scan_id=None):
     """
     根據當前掃描結果更新子域名資產。
 
@@ -61,9 +76,11 @@ def update_subdomain_assets(seed, current_subdomains_map, scan):
         scan_id (int): 掃描紀錄的 ID
     """
     current_subdomains_set = set(current_subdomains_map.keys())
-    
+
+    # 若呼叫者未傳入，從 scan 物件自動推斷
     scan_type = scan_type or scan.__class__.__name__
     scan_id = scan_id or scan.id
+
 
     # 在函數內導入以避免循環導入 (Circular Import)
     from apps.core.models import Subdomain, SubdomainSeed
@@ -153,18 +170,21 @@ def update_subdomain_assets(seed, current_subdomains_map, scan):
             ).update(is_active=False)
 
         # 4. 確保種子本身也作為一個子域名記錄存在 (Self-referencing)
-        seed_sub, created = Subdomain.objects.get_or_create(
-            name=seed.value,
-            defaults={"is_active": True, "sources_text": "seed_self"},
-        )
-        if not seed_sub.is_active:
-            seed_sub.is_active = True
-            seed_sub.save(update_fields=["is_active"])
-        if (
-            created
-            or not SubdomainSeed.objects.filter(subdomain=seed_sub, seed=seed).exists()
-        ):
-            SubdomainSeed.objects.get_or_create(subdomain=seed_sub, seed=seed)
+        seed_sub_name = _get_domain_from_seed(seed)
+        if seed_sub_name:
+            seed_sub, created = Subdomain.objects.get_or_create(
+                name=seed_sub_name,
+                target=seed.target,
+                defaults={"is_active": True, "sources_text": "seed_self"},
+            )
+            if not seed_sub.is_active:
+                seed_sub.is_active = True
+                seed_sub.save(update_fields=["is_active"])
+            if (
+                created
+                or not SubdomainSeed.objects.filter(subdomain=seed_sub, seed=seed).exists()
+            ):
+                SubdomainSeed.objects.get_or_create(subdomain=seed_sub, seed=seed)
 
     return {
         "new_count": len(new_subdomain_names),
@@ -185,9 +205,14 @@ def ensure_seed_subdomain_exists(seed):
     """
     from apps.core.models import Subdomain, SubdomainSeed
 
-    # 檢查或建立
+    seed_sub_name = _get_domain_from_seed(seed)
+    if not seed_sub_name:
+        return None
+
+    # 檢查或建立 (補上 target)
     seed_sub, created = Subdomain.objects.get_or_create(
-        name=seed.value,
+        name=seed_sub_name,
+        target=seed.target,
         defaults={"is_active": True, "sources_text": "seed_self"},
     )
     # 如果已存在但被標記為不活動，重新啟用
@@ -241,26 +266,12 @@ def create_or_update_ip_objects(ipv4_list, ipv6_list, seed):
             existing_ips[ip.address] = ip
 
     all_ips = list(existing_ips.values())
-    existing_relations = set(
-        ThroughModel.objects.filter(
-            seed_id=seed.id, ip_id__in=[ip.id for ip in all_ips]
-        ).values_list("ip_id", flat=True)
-    )
-    new_relations = [
-        ThroughModel(seed_id=seed.id, ip_id=ip_id)
-        for ip_id in [ip.id for ip in all_ips]
-        if ip_id not in existing_relations
-    ]  # 將所有 IP 與種子建立關聯
-    if new_relations:
-        with transaction.atomic():
-            ThroughModel.objects.bulk_create(new_relations, ignore_conflicts=True)
-
-            # 2. 【核心替代方案】手動批次同步 Target
-            # 既然訊號沒觸發，我們就自己來。
-            # 找出這批 IP 裡還沒有 target 的，直接一次性更新為 seed 的 target
-            IP.objects.filter(
-                id__in=[ip.id for ip in all_ips], target__isnull=True
-            ).update(target=seed.target)
+    
+    # 將所有 IP 的 target 設定為 seed 的 target (如果尚未設定)
+    with transaction.atomic():
+        IP.objects.filter(
+            id__in=[ip.id for ip in all_ips], target__isnull=True
+        ).update(target=seed.target)
 
     return all_ips
 

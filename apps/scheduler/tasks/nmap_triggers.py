@@ -10,7 +10,7 @@ from apps.core.models import IP
 logger = logging.getLogger(__name__)
 
 # API Endpoints
-NMAP_API_ENDPOINT = f"{API_BASE_URL}/api/nmap/start_scan"
+NMAP_API_ENDPOINT = f"{API_BASE_URL}/api/scanners/nmap/start_scan"
 
 
 @shared_task(name="scheduler.tasks.scan_ips_without_nmap_results")

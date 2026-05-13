@@ -79,7 +79,7 @@ def parse_and_save_nmap_results(
     """
     try:
         # 1. 獲取 IP 對象
-        ip_obj = IP.objects.filter(Q(ipv4=ip_address) | Q(ipv6=ip_address)).first()
+        ip_obj = IP.objects.filter(address=ip_address).first()
 
         if not ip_obj:
             logger.error(f"解析失敗：資料庫找不到 IP {ip_address}")

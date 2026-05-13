@@ -45,7 +45,18 @@ async def get_all_url(
     payloads: ScanAllUrlSchema,
 ):
     "獲取一個子域名下所有的url"
-    subdomain = await Subdomain.objects.aget(name=payloads.name)
+    from urllib.parse import urlparse
+    from django.core.exceptions import ObjectDoesNotExist
+    
+    clean_name = payloads.name
+    if clean_name.startswith("http"):
+        clean_name = urlparse(clean_name).hostname or clean_name
+        
+    try:
+        subdomain = await Subdomain.objects.aget(name=clean_name)
+    except ObjectDoesNotExist:
+        logger.warning(f"Subdomain不存在: {clean_name}")
+        raise HttpError(404, f"Subdomain '{clean_name}' does not exist.")
 
     if subdomain.is_active == False:
         logger.warning(f"子域名: {payloads.name} is not active")

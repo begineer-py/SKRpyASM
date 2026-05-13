@@ -28,19 +28,100 @@ def with_auto_callback(func: Callable) -> Callable:
             except Exception:
                 pass
         
+        # 掃描開始前，將 Step 標為 RUNNING
+        if callback_step_id:
+            try:
+                from .models import Step
+                Step.objects.filter(id=callback_step_id).update(status="RUNNING")
+                logger.info(f"Step#{callback_step_id} 狀態已更新為 RUNNING。")
+            except Exception as e:
+                logger.warning(f"無法更新 Step#{callback_step_id} 狀態為 RUNNING: {e}")
+        
         # 執行原本的掃描任務
         result = func(*args, **kwargs)
+        
+        # 掃描完成後，將 Step 標為 COMPLETED
+        if callback_step_id:
+            try:
+                from .models import Step
+                Step.objects.filter(id=callback_step_id).update(status="COMPLETED")
+                logger.info(f"Step#{callback_step_id} 狀態已更新為 COMPLETED。")
+            except Exception as e:
+                logger.warning(f"無法更新 Step#{callback_step_id} 狀態為 COMPLETED: {e}")
         
         # 統一處理喚醒邏輯
         if callback_step_id:
             try:
-                # 延遲導入避免循環依賴
-                from apps.auto.tasks.execution.runner import resume_step_execution
-                logger.info(f"偵測到 callback_step_id={callback_step_id}，觸發 Step 喚醒。")
+                logger.info(f"偵測到 callback_step_id={callback_step_id}，掃描完成。準備發送 Callback...")
                 
                 # 簡單取字串表示結果或摘要
-                summary = str(result) if result is not None else f"{func.__name__} 完成"
-                resume_step_execution.delay(callback_step_id, summary)
+                summary = str(result) if result is not None else f"✅ 掃描任務 {func.__name__} 完成 (回報 ID: {callback_step_id})"
+                
+                # 透過 Django AI Assistant create_message 喚醒 AI (Django ORM, 不需要 HTTP)
+                try:
+                    from .models import Step
+                    from django_ai_assistant.models import Thread
+                    from django_ai_assistant.helpers.use_cases import create_message
+                    from django.contrib.auth import get_user_model
+
+                    step_obj = Step.objects.select_related('overview').filter(id=callback_step_id).first()
+                    thread_id = None
+                    
+                    if step_obj and step_obj.overview:
+                        # 優先用 overview.thread_id（AI 自己的 Thread）
+                        thread_id = step_obj.overview.thread_id
+                        
+                        # Fallback 1：用 parent_thread_id（呼叫此子 Agent 的上層）
+                        if not thread_id:
+                            thread_id = step_obj.overview.parent_thread_id
+                            if thread_id:
+                                logger.info(f"overview.thread_id 為 None，改用 parent_thread_id={thread_id} 作回調目標。")
+                        
+                        # Fallback 2：找最近一個 automation_agent 的 Thread
+                        if not thread_id:
+                            from django_ai_assistant.models import Thread
+                            latest = Thread.objects.filter(assistant_id="automation_agent").order_by('-updated_at').first()
+                            if latest:
+                                thread_id = latest.id
+                                logger.warning(f"overview.thread_id 與 parent_thread_id 皆為空，使用最近的 automation_agent Thread ID={thread_id} 作應急回調。")
+                    
+                    if thread_id:
+                        thread_obj = Thread.objects.get(id=thread_id)
+                        User = get_user_model()
+                        system_user = thread_obj.created_by or User.objects.filter(is_superuser=True).first()
+
+                        # Step 221 → we need to know which URLs are newly available
+                        new_url_ids = []
+                        try:
+                            from apps.core.models.url_assets import URLResult
+                            if step_obj and step_obj.overview and step_obj.overview.target_id:
+                                new_url_ids = list(
+                                    URLResult.objects.filter(target_id=step_obj.overview.target_id)
+                                    .values_list('id', flat=True)[:20]
+                                )
+                        except Exception:
+                            pass
+
+                        url_hint = (
+                            f"\n\n[ACTION REQUIRED] Call `get_url_intelligence(url_id=<id>)` for each of these URL IDs to read the newly fetched content: {new_url_ids}. "
+                            f"Then proceed with form submission and injection testing using `run_command`."
+                            if new_url_ids else ""
+                        )
+                        callback_msg = (
+                            f"[系統回調] 任務已非同步完成：\n{summary}"
+                            f"{url_hint}"
+                        )
+                        create_message(
+                            assistant_id="automation_agent",
+                            thread=thread_obj,
+                            user=system_user,
+                            content=callback_msg,
+                        )
+                        logger.info(f"成功向 Thread {thread_id} 發送完成回調。")
+                    else:
+                        logger.error(f"Step {callback_step_id} 無任何可用的 thread_id（包含 fallback），無法發送回調。")
+                except Exception as inner_e:
+                    logger.error(f"Callback 通知 AI 失敗: {inner_e}")
             except Exception as e:
                 logger.error(f"觸發 callback_step_id={callback_step_id} 失敗: {e}")
                 

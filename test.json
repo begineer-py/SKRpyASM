@@ -1,0 +1,630 @@
+{
+    "id": "c997c3b668dc414b8a081f9c4ac21cfe",
+    "object": "chat.completion.chunk",
+    "created": 1778676712,
+    "model": "deepseek-ai/deepseek-v4-pro",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": "assistant",
+                "content": "",
+                "reasoning_content": null,
+                "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": null,
+            "matched_stop": null
+        }
+    ],
+    "usage": null
+}
+{
+    "id": "c997c3b668dc414b8a081f9c4ac21cfe",
+    "object": "chat.completion.chunk",
+    "created": 1778676712,
+    "model": "deepseek-ai/deepseek-v4-pro",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": null,
+                "content": null,
+                "reasoning_content": "We",
+                "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": null,
+            "matched_stop": null
+        }
+    ],
+    "usage": null
+}
+{
+    "id": "c997c3b668dc414b8a081f9c4ac21cfe",
+    "object": "chat.completion.chunk",
+    "created": 1778676713,
+    "model": "deepseek-ai/deepseek-v4-pro",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": null,
+                "content": null,
+                "reasoning_content": " need to interpret the user's question. The user",
+                "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": null,
+            "matched_stop": null
+        }
+    ],
+    "usage": null
+}
+{
+    "id": "c997c3b668dc414b8a081f9c4ac21cfe",
+    "object": "chat.completion.chunk",
+    "created": 1778676713,
+    "model": "deepseek-ai/deepseek-v4-pro",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": null,
+                "content": null,
+                "reasoning_content": " asked \"does deepseek work?\" It's ambiguous",
+                "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": null,
+            "matched_stop": null
+        }
+    ],
+    "usage": null
+}
+{
+    "id": "c997c3b668dc414b8a081f9c4ac21cfe",
+    "object": "chat.completion.chunk",
+    "created": 1778676713,
+    "model": "deepseek-ai/deepseek-v4-pro",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": null,
+                "content": null,
+                "reasoning_content": ": Could be asking if the DeepSeek service",
+                "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": null,
+            "matched_stop": null
+        }
+    ],
+    "usage": null
+}
+{
+    "id": "c997c3b668dc414b8a081f9c4ac21cfe",
+    "object": "chat.completion.chunk",
+    "created": 1778676713,
+    "model": "deepseek-ai/deepseek-v4-pro",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": null,
+                "content": null,
+                "reasoning_content": " is currently functioning, or if DeepSeek the",
+                "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": null,
+            "matched_stop": null
+        }
+    ],
+    "usage": null
+}
+{
+    "id": "c997c3b668dc414b8a081f9c4ac21cfe",
+    "object": "chat.completion.chunk",
+    "created": 1778676713,
+    "model": "deepseek-ai/deepseek-v4-pro",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": null,
+                "content": null,
+                "reasoning_content": " AI model works properly. As an AI assistant from",
+                "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": null,
+            "matched_stop": null
+        }
+    ],
+    "usage": null
+}
+{
+    "id": "c997c3b668dc414b8a081f9c4ac21cfe",
+    "object": "chat.completion.chunk",
+    "created": 1778676714,
+    "model": "deepseek-ai/deepseek-v4-pro",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": null,
+                "content": null,
+                "reasoning_content": " DeepSeek, I need to answer in a",
+                "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": null,
+            "matched_stop": null
+        }
+    ],
+    "usage": null
+}
+{
+    "id": "c997c3b668dc414b8a081f9c4ac21cfe",
+    "object": "chat.completion.chunk",
+    "created": 1778676714,
+    "model": "deepseek-ai/deepseek-v4-pro",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": null,
+                "content": null,
+                "reasoning_content": " helpful manner. Since I'm running as the assistant",
+                "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": null,
+            "matched_stop": null
+        }
+    ],
+    "usage": null
+}
+{
+    "id": "c997c3b668dc414b8a081f9c4ac21cfe",
+    "object": "chat.completion.chunk",
+    "created": 1778676714,
+    "model": "deepseek-ai/deepseek-v4-pro",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": null,
+                "content": null,
+                "reasoning_content": ", I could confirm that I am working. But",
+                "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": null,
+            "matched_stop": null
+        }
+    ],
+    "usage": null
+}
+{
+    "id": "c997c3b668dc414b8a081f9c4ac21cfe",
+    "object": "chat.completion.chunk",
+    "created": 1778676714,
+    "model": "deepseek-ai/deepseek-v4-pro",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": null,
+                "content": null,
+                "reasoning_content": " maybe they're asking about service status. I'll",
+                "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": null,
+            "matched_stop": null
+        }
+    ],
+    "usage": null
+}
+{
+    "id": "c997c3b668dc414b8a081f9c4ac21cfe",
+    "object": "chat.completion.chunk",
+    "created": 1778676715,
+    "model": "deepseek-ai/deepseek-v4-pro",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": null,
+                "content": null,
+                "reasoning_content": " provide a friendly response: Yes, DeepSeek",
+                "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": null,
+            "matched_stop": null
+        }
+    ],
+    "usage": null
+}
+{
+    "id": "c997c3b668dc414b8a081f9c4ac21cfe",
+    "object": "chat.completion.chunk",
+    "created": 1778676715,
+    "model": "deepseek-ai/deepseek-v4-pro",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": null,
+                "content": null,
+                "reasoning_content": " is working, and I'm here to help.",
+                "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": null,
+            "matched_stop": null
+        }
+    ],
+    "usage": null
+}
+{
+    "id": "c997c3b668dc414b8a081f9c4ac21cfe",
+    "object": "chat.completion.chunk",
+    "created": 1778676715,
+    "model": "deepseek-ai/deepseek-v4-pro",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": null,
+                "content": null,
+                "reasoning_content": " I can also note that if they're experiencing issues",
+                "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": null,
+            "matched_stop": null
+        }
+    ],
+    "usage": null
+}
+{
+    "id": "c997c3b668dc414b8a081f9c4ac21cfe",
+    "object": "chat.completion.chunk",
+    "created": 1778676715,
+    "model": "deepseek-ai/deepseek-v4-pro",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": null,
+                "content": null,
+                "reasoning_content": ", they can check the official status. But the",
+                "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": null,
+            "matched_stop": null
+        }
+    ],
+    "usage": null
+}
+{
+    "id": "c997c3b668dc414b8a081f9c4ac21cfe",
+    "object": "chat.completion.chunk",
+    "created": 1778676716,
+    "model": "deepseek-ai/deepseek-v4-pro",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": null,
+                "content": null,
+                "reasoning_content": " question is short; I'll answer positively, and",
+                "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": null,
+            "matched_stop": null
+        }
+    ],
+    "usage": null
+}
+{
+    "id": "c997c3b668dc414b8a081f9c4ac21cfe",
+    "object": "chat.completion.chunk",
+    "created": 1778676716,
+    "model": "deepseek-ai/deepseek-v4-pro",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": null,
+                "content": null,
+                "reasoning_content": " invite further questions. The user might be testing if",
+                "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": null,
+            "matched_stop": null
+        }
+    ],
+    "usage": null
+}
+{
+    "id": "c997c3b668dc414b8a081f9c4ac21cfe",
+    "object": "chat.completion.chunk",
+    "created": 1778676716,
+    "model": "deepseek-ai/deepseek-v4-pro",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": null,
+                "content": null,
+                "reasoning_content": " the AI responds. So I'll respond with a",
+                "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": null,
+            "matched_stop": null
+        }
+    ],
+    "usage": null
+}
+{
+    "id": "c997c3b668dc414b8a081f9c4ac21cfe",
+    "object": "chat.completion.chunk",
+    "created": 1778676716,
+    "model": "deepseek-ai/deepseek-v4-pro",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": null,
+                "content": null,
+                "reasoning_content": " cheerful tone, confirming I'm operational.",
+                "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": null,
+            "matched_stop": null
+        }
+    ],
+    "usage": null
+}
+{
+    "id": "c997c3b668dc414b8a081f9c4ac21cfe",
+    "object": "chat.completion.chunk",
+    "created": 1778676716,
+    "model": "deepseek-ai/deepseek-v4-pro",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": null,
+                "content": "Absolutely",
+                "reasoning_content": null,
+                "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": null,
+            "matched_stop": null
+        }
+    ],
+    "usage": null
+}
+{
+    "id": "c997c3b668dc414b8a081f9c4ac21cfe",
+    "object": "chat.completion.chunk",
+    "created": 1778676716,
+    "model": "deepseek-ai/deepseek-v4-pro",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": null,
+                "content": " — DeepSeek is up and running! ",
+                "reasoning_content": null,
+                "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": null,
+            "matched_stop": null
+        }
+    ],
+    "usage": null
+}
+{
+    "id": "c997c3b668dc414b8a081f9c4ac21cfe",
+    "object": "chat.completion.chunk",
+    "created": 1778676717,
+    "model": "deepseek-ai/deepseek-v4-pro",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": null,
+                "content": "🎉\n\nI'm here, ready to chat,",
+                "reasoning_content": null,
+                "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": null,
+            "matched_stop": null
+        }
+    ],
+    "usage": null
+}
+{
+    "id": "c997c3b668dc414b8a081f9c4ac21cfe",
+    "object": "chat.completion.chunk",
+    "created": 1778676717,
+    "model": "deepseek-ai/deepseek-v4-pro",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": null,
+                "content": " answer your questions, and help with whatever you need",
+                "reasoning_content": null,
+                "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": null,
+            "matched_stop": null
+        }
+    ],
+    "usage": null
+}
+{
+    "id": "c997c3b668dc414b8a081f9c4ac21cfe",
+    "object": "chat.completion.chunk",
+    "created": 1778676717,
+    "model": "deepseek-ai/deepseek-v4-pro",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": null,
+                "content": ". If you're experiencing any issues (like a",
+                "reasoning_content": null,
+                "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": null,
+            "matched_stop": null
+        }
+    ],
+    "usage": null
+}
+{
+    "id": "c997c3b668dc414b8a081f9c4ac21cfe",
+    "object": "chat.completion.chunk",
+    "created": 1778676717,
+    "model": "deepseek-ai/deepseek-v4-pro",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": null,
+                "content": " slow connection or trouble accessing the service), it might",
+                "reasoning_content": null,
+                "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": null,
+            "matched_stop": null
+        }
+    ],
+    "usage": null
+}
+{
+    "id": "c997c3b668dc414b8a081f9c4ac21cfe",
+    "object": "chat.completion.chunk",
+    "created": 1778676718,
+    "model": "deepseek-ai/deepseek-v4-pro",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": null,
+                "content": " be a temporary glitch on your end or during",
+                "reasoning_content": null,
+                "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": null,
+            "matched_stop": null
+        }
+    ],
+    "usage": null
+}
+{
+    "id": "c997c3b668dc414b8a081f9c4ac21cfe",
+    "object": "chat.completion.chunk",
+    "created": 1778676718,
+    "model": "deepseek-ai/deepseek-v4-pro",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": null,
+                "content": " peak times. But right now, I'm working",
+                "reasoning_content": null,
+                "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": null,
+            "matched_stop": null
+        }
+    ],
+    "usage": null
+}
+{
+    "id": "c997c3b668dc414b8a081f9c4ac21cfe",
+    "object": "chat.completion.chunk",
+    "created": 1778676718,
+    "model": "deepseek-ai/deepseek-v4-pro",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": null,
+                "content": " just fine on this side.\n\nFeel free to test",
+                "reasoning_content": null,
+                "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": null,
+            "matched_stop": null
+        }
+    ],
+    "usage": null
+}
+{
+    "id": "c997c3b668dc414b8a081f9c4ac21cfe",
+    "object": "chat.completion.chunk",
+    "created": 1778676718,
+    "model": "deepseek-ai/deepseek-v4-pro",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": null,
+                "content": " me out — ask me anything! 😊",
+                "reasoning_content": null,
+                "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": null,
+            "matched_stop": null
+        }
+    ],
+    "usage": null
+}
+{
+    "id": "c997c3b668dc414b8a081f9c4ac21cfe",
+    "object": "chat.completion.chunk",
+    "created": 1778676718,
+    "model": "deepseek-ai/deepseek-v4-pro",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": null,
+                "content": null,
+                "reasoning_content": null,
+                "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "matched_stop": 1
+        }
+    ],
+    "usage": null
+}

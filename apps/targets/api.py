@@ -117,7 +117,7 @@ async def add_seed_to_target(request, target_id: int, payload: AddSeedSchema):
             # 只針對單一 IP 自動建檔，網段保留給其它展開工具處理
             ip_obj, _ = await IP.objects.aget_or_create(
                 target=target,
-                ipv4=seed.value
+                address=seed.value
             )
             await ip_obj.which_seed.aadd(seed)
 

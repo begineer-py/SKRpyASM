@@ -1,262 +1,228 @@
 import React, { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { gqlFetcher } from "../../services/api";
-import {
-  ReconService,
-  GET_SEED_ULTIMATE_INTEL_QUERY,
-} from "../../services/api_recon";
-import type {
-  SeedIntelligenceResponse,
-  Subdomain,
-  IP,
-  UrlResult,
-} from "../../type";
-import "../SeedReconPageSub/SeedReconPage.css";
+import "../SeedReconPageSub/SeedReconPage.css"; // Reuse styling variables
 
-// 可折叠卡片组件 (保持不变)
-const AssetCard: React.FC<{
-  title: string;
-  count: number;
-  children: React.ReactNode;
-}> = ({ title, count, children }) => {
-  const [isOpen, setIsOpen] = useState(true);
-  return (
-    <div className="assets-card">
-      <div className="assets-header" onClick={() => setIsOpen(!isOpen)}>
-        <div className="assets-title">{title}</div>
-        <div>
-          <span className="assets-count">{count}</span>
-          <span className={`assets-toggle ${isOpen ? "expanded" : ""}`}>▼</span>
-        </div>
-      </div>
-      {isOpen && <div className="assets-content">{children}</div>}
-    </div>
-  );
-};
+const GET_URL_SEED_DATA = `
+  query GetUrlSeedData($seed_id: bigint!) {
+    core_seed_by_pk(id: $seed_id) {
+      id
+      value
+      type
+    }
+  }
+`;
+
+const GET_URL_RESULT_BY_URL = `
+  query GetUrlResultByUrl($url: String!) {
+    core_urlresult(where: {url: {_eq: $url}}, limit: 1) {
+      id
+      status_code
+      title
+      core_nucleiscans(order_by: {created_at: desc}) {
+        id
+        status
+        created_at
+        completed_at
+      }
+    }
+  }
+`;
 
 function UrlReconPage() {
   const { targetId, seedId } = useParams();
-  const navigate = useNavigate();
   const nSeedId = Number(seedId);
 
-  const [intel, setIntel] = useState<SeedIntelligenceResponse | null>(null);
+  const [seedVal, setSeedVal] = useState<string | null>(null);
+  const [urlId, setUrlId] = useState<number | null>(null);
+  const [urlResult, setUrlResult] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [triggering, setTriggering] = useState(false);
 
-  const fetchIntel = async () => {
+  // Scanner UI States
+  const [triggering, setTriggering] = useState(false);
+  const [selectedTags, setSelectedTags] = useState<string[]>(["cves"]);
+  const availableTags = ["cves", "sqli", "xss", "lfi", "rce", "misconfiguration", "auth-bypass", "exposure"];
+
+  const fetchData = async () => {
     if (!nSeedId) return;
     try {
-      const data = await gqlFetcher<SeedIntelligenceResponse>(
-        GET_SEED_ULTIMATE_INTEL_QUERY,
-        { seed_id: nSeedId }
-      );
-      setIntel(data);
-    } catch (err) {
+      setLoading(true);
+      // 1. Get Seed
+      const seedRes = await gqlFetcher<any>(GET_URL_SEED_DATA, { seed_id: nSeedId });
+      const seed = seedRes.core_seed_by_pk;
+      if (!seed) throw new Error("Seed not found");
+      setSeedVal(seed.value);
+
+      // 2. Map to URLResult
+      const resultRes = await gqlFetcher<any>(GET_URL_RESULT_BY_URL, { url: seed.value });
+      if (resultRes.core_urlresult && resultRes.core_urlresult.length > 0) {
+        const ur = resultRes.core_urlresult[0];
+        setUrlId(ur.id);
+        setUrlResult(ur);
+      }
+    } catch (err: any) {
       console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleStartScan = async () => {
-    if (!nSeedId) return;
+  useEffect(() => {
+    fetchData();
+  }, [nSeedId]);
+
+  const handleRunNuclei = async () => {
+    if (!urlId) {
+      alert("Error: Missing internal URL ID. Wait for the background worker to parse the seed first!");
+      return;
+    }
     setTriggering(true);
     try {
-      await ReconService.startDomainRecon(nSeedId);
-      setTimeout(fetchIntel, 1000);
+      const { GLOBAL_CONFIG } = await import("../../config");
+      const res = await fetch(`${GLOBAL_CONFIG.DJANGO_API_BASE}/scanners/vuln/urls`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          ids: [urlId], 
+          tags: selectedTags.length > 0 ? selectedTags : undefined 
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Failed to trigger scan");
+      }
+      alert("Nuclei scan dispatched successfully!");
+      fetchData(); // Refresh history
     } catch (err: any) {
-      alert(`指令被拒絕: ${err.message}`);
+      alert("Error: " + err.message);
     } finally {
       setTriggering(false);
     }
   };
 
-  useEffect(() => {
-    fetchIntel();
-    const interval = setInterval(fetchIntel, 10000);
-    return () => clearInterval(interval);
-  }, [nSeedId]);
+  const toggleTag = (tag: string) => {
+    if (selectedTags.includes(tag)) {
+      setSelectedTags(selectedTags.filter(t => t !== tag));
+    } else {
+      setSelectedTags([...selectedTags, tag]);
+    }
+  };
 
-  if (loading) return <div>LOADING INTEL...</div>;
-
-  const seedData = intel?.core_seed?.[0];
-
-  if (!seedData) return <div>SEED NOT FOUND</div>;
-
-  const isRunning = (seedData.core_subfinderscans || []).some(
-    (s) => s.status === "PENDING" || s.status === "RUNNING"
-  );
-
-  const allIPs = (seedData.core_ip_which_seeds || []).map(
-    (relation) => relation.core_ip
-  );
-
-  const allURLs = (seedData.core_subdomains || []).flatMap((sub) =>
-    (sub.core_urlresult_related_subdomains || []).map(
-      (relation) => relation.core_urlresult
-    )
-  );
+  if (loading) return <div className="recon-container">INITIALIZING URL RECON ENVIRONMENT...</div>;
+  if (!seedVal) return <div className="recon-container">ERROR: SEED DATA NOT FOUND.</div>;
 
   return (
     <div className="recon-container">
-      {/* Header */}
-      <div className="recon-header-card">
+      {/* Target Module */}
+      <div className="recon-header-card" style={{ borderLeft: "4px solid #f85149" }}>
         <div>
-          <div className="seed-info-large">{seedData.value}</div>
-          <div style={{ color: "#666" }}>ID: {seedData.id}</div>
+          <div style={{ color: "#f85149", fontWeight: "bold", letterSpacing: 2, marginBottom: 8, fontSize: "0.8rem", textTransform: "uppercase" }}>TARGET URL</div>
+          <div className="seed-info-large">{seedVal}</div>
+          <div style={{ color: "#666", marginTop: 6, display: "flex", gap: 16 }}>
+            <span>SEED ID: {nSeedId}</span>
+            <span>INTERNAL URL ID: {urlId || "INITIALIZING..."}</span>
+          </div>
         </div>
-        <button
-          className="btn-fire"
-          onClick={handleStartScan}
-          disabled={triggering || isRunning}
-        >
-          {triggering
-            ? "INITIATING..."
-            : isRunning
-            ? "SCAN RUNNING"
-            : "START RECON"}
-        </button>
       </div>
 
-      {/* 掃描記錄 */}
-      <AssetCard
-        title="Subdomain Scans"
-        count={(seedData.core_subfinderscans || []).length}
-      >
-        {(seedData.core_subfinderscans || []).length > 0 ? (
-          <div className="scan-history-list">
-            {seedData.core_subfinderscans.map((scan) => (
-              <div key={scan.id} className="scan-item">
-                <span style={{ fontFamily: "monospace", color: "#666" }}>
-                  #{scan.id}
-                </span>
-                <span className={`status-badge status-${scan.status}`}>
-                  {scan.status}
-                </span>
-                <span>New Found: {scan.added_count}</span>
-                <span style={{ color: "#888", fontSize: "0.9em" }}>
-                  {new Date(scan.created_at).toLocaleString()}
-                </span>
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20, marginTop: 20 }}>
+        {/* Left Column: Command Center */}
+        <div>
+          <div className="assets-card">
+            <div className="assets-header" style={{ cursor: "default" }}>
+              <div className="assets-title" style={{ color: "#58a6ff" }}>🚀 NUCLEI COMMAND CENTER</div>
+            </div>
+            <div className="assets-content">
+              <p style={{ color: "#8b949e", fontSize: "0.9rem", marginBottom: 16 }}>
+                URL templates are unique and highly specialized for web application endpoints. Select payload tags to inject into the Nuclei engine.
+              </p>
+              
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ color: "#c9d1d9", fontSize: "0.8rem", marginBottom: 12, letterSpacing: 1 }}>SELECT PAYLOAD TEMPLATES (TAGS)</div>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  {availableTags.map(tag => (
+                    <div 
+                      key={tag}
+                      onClick={() => toggleTag(tag)}
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: 4,
+                        border: selectedTags.includes(tag) ? "1px solid #f85149" : "1px solid #30363d",
+                        background: selectedTags.includes(tag) ? "rgba(248,81,73,0.15)" : "#21262d",
+                        color: selectedTags.includes(tag) ? "#ff7b72" : "#8b949e",
+                        cursor: "pointer",
+                        fontSize: "0.8rem",
+                        fontFamily: "var(--font-mono)",
+                        transition: "all 0.2s"
+                      }}
+                    >
+                      {tag.toUpperCase()}
+                    </div>
+                  ))}
+                </div>
               </div>
-            ))}
+
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <button 
+                  className="btn-fire"
+                  style={{ background: "#f85149", borderColor: "#f85149" }}
+                  onClick={handleRunNuclei}
+                  disabled={triggering || !urlId}
+                >
+                  {triggering ? "DISPATCHING..." : "DEPLOY NUCLEI SCAN"}
+                </button>
+                {!urlId && <span style={{ color: "#f85149", fontSize: "0.8rem" }}>Awaiting backend database synchronization...</span>}
+              </div>
+            </div>
           </div>
-        ) : (
-          <div className="empty-state-message">No scan records.</div>
-        )}
-      </AssetCard>
 
-      <h3 style={{ marginTop: 30 }}>DISCOVERED ASSETS</h3>
+          <div className="assets-card" style={{ opacity: 0.6, pointerEvents: "none" }}>
+            <div className="assets-header">
+              <div className="assets-title" style={{ color: "#d2a8ff" }}>🔒 SQLMAP INTEGRATION (IN DEVELOPMENT)</div>
+            </div>
+            <div className="assets-content">
+              Module unmounted. Specialized SQL injection automation will be deployed here.
+            </div>
+          </div>
+        </div>
 
-      {/* 子域名資產 */}
-      <AssetCard
-        title="Subdomains"
-        count={(seedData.core_subdomains || []).length}
-      >
-        {(seedData.core_subdomains || []).length > 0 ? (
-          <table className="assets-table">
-            <thead>
-              <tr>
-                <th>NAME</th>
-                <th>DISCOVERED AT</th>
-                <th>TO DETAIL</th>
-                <th>ID</th>
-              </tr>
-            </thead>
-            <tbody>
-              {seedData.core_subdomains.map((sub: Subdomain) => (
-                <tr key={sub.id}>
-                  <td>{sub.name}</td>
-                  <td>{new Date(sub.created_at).toLocaleString()}</td>
-                  <td>
-                    <a
-                      href={`/target/${targetId}/subdomain/${sub.id}`}
-                      className="btn btn-ghost btn-sm"
-                      style={{ textDecoration: "none" }}
-                    >
-                      Detail
-                    </a>
-                  </td>
-                  <td>{sub.id}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <div className="empty-state-message">No subdomains found.</div>
-        )}
-      </AssetCard>
-
-      {/* IP 資產 */}
-      <AssetCard title="IP Addresses" count={allIPs.length}>
-        {allIPs.length > 0 ? (
-          <table className="assets-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>IP ADDRESS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {allIPs.map((ip: IP) => (
-                <tr key={ip.id}>
-                  <td>{ip.id}</td>
-                  <td>
-                    <a
-                      href={`/target/${targetId}/ip/${ip.id}`}
-                      className="asset-link ip-link"
-                    >
-                      {ip.ipv4 || ip.ipv6}
-                    </a>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <div className="empty-state-message">No IP addresses found.</div>
-        )}
-      </AssetCard>
-
-      {/* URL 資產 */}
-      <AssetCard title="URLs Found" count={allURLs.length}>
-        {allURLs.length > 0 ? (
-          <table className="assets-table">
-            <thead>
-              <tr>
-                <th>URL</th>
-                <th>DETAILS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {allURLs.map((url: UrlResult) => (
-                <tr key={url.id}>
-                  <td>
-                    <a
-                      href={url.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="asset-link url-link"
-                    >
-                      {url.url}
-                    </a>
-                  </td>
-                  <td>
-                    <a
-                      href={`/target/${targetId}/url/${url.id}`}
-                      className="btn btn-ghost btn-sm"
-                      style={{ textDecoration: "none" }}
-                    >
-                      Detail
-                    </a>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <div className="empty-state-message">No URLs found.</div>
-        )}
-      </AssetCard>
+        {/* Right Column: Execution History */}
+        <div>
+          <div className="assets-card">
+            <div className="assets-header" style={{ cursor: "default" }}>
+              <div className="assets-title">EXECUTION HISTORY</div>
+              <span className="assets-count">{urlResult?.core_nucleiscans?.length || 0}</span>
+            </div>
+            <div className="assets-content" style={{ padding: 0 }}>
+              {(!urlResult?.core_nucleiscans || urlResult.core_nucleiscans.length === 0) ? (
+                <div className="empty-state-message">No scan deployments recorded.</div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  {urlResult.core_nucleiscans.map((scan: any) => (
+                    <div key={scan.id} style={{ padding: "16px 20px", borderBottom: "1px solid #30363d" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                        <span style={{ color: "#58a6ff", fontFamily: "var(--font-mono)", fontSize: "0.85rem" }}>#SCAN-{scan.id}</span>
+                        <span className={`status-badge status-${scan.status}`}>{scan.status}</span>
+                      </div>
+                      <div style={{ color: "#8b949e", fontSize: "0.75rem" }}>
+                        DISPATCHED: {new Date(scan.created_at).toLocaleString()}
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {urlId && (
+                    <div style={{ padding: 16, textAlign: "center" }}>
+                      <Link to={`/target/${targetId}/url/${urlId}`} className="btn btn-ghost" style={{ fontSize: "0.75rem", width: "100%", textAlign: "center" }}>
+                        VIEW DETAILED FINDINGS →
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

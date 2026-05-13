@@ -84,6 +84,7 @@ def _build_registry() -> dict:
                 "summary",
                 "inferred_purpose",
                 "worth_deep_analysis",
+                "risk_score",
                 "raw_response",
                 "status",
                 "completed_at",

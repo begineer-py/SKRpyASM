@@ -36,13 +36,12 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 async def _check_url_readiness(valid_ids):
-    """URL 的前置掃描任務必須完成"""
-    unready_qs = URLResult.objects.filter(id__in=valid_ids).exclude(
-        discovered_by_scans__status="COMPLETED"
-    )
+    """URL 的前置掃描任務必須完成 (或已被爬取下來)"""
+    # 只要 URL 已被爬取 (final_url 有內容) 即認為準備就緒，不強要求一定要有 scan 記錄
+    unready_qs = URLResult.objects.filter(id__in=valid_ids, final_url__isnull=True, content_length=0)
     unready_ids = await sync_to_async(list)(unready_qs.values_list("id", flat=True))
     if unready_ids:
-        raise HttpError(400, f"操，這些 URL ID 的掃描任務還沒完成: {unready_ids}")
+        raise HttpError(400, f"這些 URL ID 尚未被爬取，無法扫描: {unready_ids}")
     return valid_ids
 
 
@@ -124,7 +123,7 @@ async def post_sub_tech(request, payload: NucleiScanSubdomainByIdsSchema):
     """子域名技術辨識"""
     logger.info(f"接收到子域名技術辨識請求: {payload.ids}")
     valid_ids = await validate_ids_exist(Subdomain, payload.ids, "Subdomain")
-    scan_subdomain_tech.delay(valid_ids)
+    scan_subdomain_tech.delay(valid_ids, callback_step_id=payload.callback_step_id)
     return 202, SuccessSendToAISchema(detail=f"成功派發 {len(valid_ids)} 個子域名的技術辨識任務")
 
 
@@ -140,5 +139,5 @@ async def post_url_tech(request, payload: NucleiScanURLByIdsSchema):
     # 校驗任務狀態
     valid_ids = await _check_url_readiness(valid_ids)
 
-    scan_url_tech_stack.delay(valid_ids)
+    scan_url_tech_stack.delay(valid_ids, callback_step_id=payload.callback_step_id)
     return 202, SuccessSendToAISchema(detail=f"成功派發 {len(valid_ids)} 個 URL 的技術辨識任務")

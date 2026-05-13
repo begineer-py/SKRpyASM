@@ -228,7 +228,7 @@ def _build_strategy_prompt(overview: Overview, context: dict) -> str:
       "requires_verification": false, 
       "observation_prompt": "成功的判斷標準 (若是情報收集如nmap/subfinder，requires_verification設為false，本欄可留空)",
       "asset_type": "ip",
-      "asset_id": 1
+      "asset_id": 123  // 警告：請務必從上方 Context 中的 ips/subdomains/urls 陣列尋找真實存在的 ID，嚴禁憑空捏造！
     }}
   ]
 }}
@@ -280,6 +280,6 @@ def _trigger_first_pending_step(overview: Overview) -> None:
         .first()
     )
     if first_step:
-        from apps.auto.tasks.execution.runner import run_step_execution
-
-        run_step_execution.delay(first_step.id)
+        # from apps.auto.tasks.execution.runner import run_step_execution
+        logger.info(f"[Planning] LangGraph 自動化已接手，跳過 legacy run_step_execution: {first_step.id}")
+        # run_step_execution.delay(first_step.id)
