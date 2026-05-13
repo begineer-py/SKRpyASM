@@ -1,5 +1,5 @@
 from django_ai_assistant import AIAssistant, method_tool
-from langchain_mistralai import ChatMistralAI
+from apps.core.llms import get_llm_instance
 from langchain_community.tools import (
     ShellTool,
     FileSearchTool,
@@ -8,76 +8,132 @@ from langchain_community.tools import (
     ReadFileTool,
     DuckDuckGoSearchResults,
 )
+from apps.auto.assistants.planning_agent import AutomationAgent
+import logging
+
+logger = logging.getLogger(__name__)
 
 
-class PersonalManagerAgent(AIAssistant):
-    id = "personal_manager_agent"
-    name = "Personal Manager Agent"
-    instructions = (
-        "You are a personal manager agent. "
-        "Your core engine is Mistral AI. Never claim to be built by OpenAI, Azure, or 'GPT-4'."
+def _generate_dynamic_instructions() -> str:
+    """
+    動態生成 HackerAssistantAgent 的系統提示詞，包含 AutomationAgent 的完整工具詳情。
+    """
+    base_instructions = (
+        "You are the Orchestrator Hacker Assistant (Layer 2), responsible for managing penetration testing workflows and coordinating specialized agents.\n\n"
+        "Guidelines:\n"
+        "1. Delegate low-level scanning and execution tasks to the AutomationAgent (Layer 3) or specific analyzer agents.\n"
+        "2. When calling the `automation_agent` tool, you must provide a clear `instruction` (e.g., 'Perform Phase B on vuln.com'). You may optionally provide `target_name` ONLY if the instruction is related to a specific penetration testing target.\n"
+        "3. Synthesize findings from sub-agents and report progress concisely to the user.\n"
+        "4. Create seeds only for targets explicitly provided by the user; avoid using placeholders.\n"
+        "5. If a target already has discovered assets (domains, IPs, URLs), prioritize attacking/analyzing them over indefinite enumeration.\n"
+        "6. Always verify the Target ID using `list_active_targets` before performing target-specific actions.\n"
+        "7. Be concise in your communication. Acknowledge commands briefly and let the user monitor detailed progress via the UI.\n\n"
+        "## OVERVIEW STANDARDS (when calling `create_or_update_target_overview`):\n"
+        "**plan_json_string** — Always provide a valid JSON string with this structure:\n"
+        '{"objectives": [{"id": 1, "description": "...", "priority": "HIGH|MEDIUM|LOW", "status": "PENDING|IN_PROGRESS|DONE|FAILED"}], "reasoning": "...", "generated_at": "ISO8601"}\n'
+        "**risk_score** — Use these levels:\n"
+        "0-30: Recon only, no exploitable issues. | 31-60: Low risk / info disclosure. | 61-85: Mid-high severity (SQLi/SSRF/IDOR). | 86-100: Critical (RCE/full auth bypass).\n"
+        "stay calm and don't overdescribe the issue, only provide the facts.\n\n"
     )
-    model = "mistral-small-2603"
-
-    def get_llm(self):
-        return ChatMistralAI(
-            model=self.model,
-            temperature=0,  # 可以調整隨機性
-            # 套件會自動去讀取環境變數 MISTRAL_API_KEY
-        )
-
-    @method_tool
-    def get_current_time_and_date(self) -> str:
-        """Get the current time and date"""
-        from datetime import datetime
-
-        return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    # 動態注入 AutomationAgent 工具詳情
+    try:
+        from apps.auto.cai.tool_reflector import get_tool_reflector
+        
+        reflector = get_tool_reflector()
+        tool_catalog = reflector.generate_tool_markdown()
+        tool_guide = reflector.generate_tool_decision_tree()
+        
+        return base_instructions + tool_catalog + tool_guide
+    except Exception as e:
+        logger.warning(f"Failed to generate dynamic instructions: {e}. Using base instructions only.")
+        return base_instructions
 
 
 class HackerAssistantAgent(AIAssistant):
     id = "hacker_assistant_agent"
     name = "Hacker Assistant"
-    instructions = (
-        "You are a sophisticated Hacker Assistant capable of executing shell commands, retrieving "
-        "hardware metrics, and executing raw database queries. "
-        "CRITICAL RULES: "
-        "1. Always read the previous conversation history BEFORE answering or using a tool. "
-        "2. If the user refers to past citations, messages, or context, rely on the chat history. "
-        "3. Do NOT use search tools or other tools if the answer can be synthesized from the existing conversation history. "
-        "4. Your core engine is Mistral AI. Never claim to be built by OpenAI, Azure, or 'GPT-4'. You are C2 Hacker Assistant built with Mistral."
-    )
-    model = "mistral-small-2603"
+    instructions = _generate_dynamic_instructions()
+
 
     def get_llm(self):
-        return ChatMistralAI(
-            model=self.model,
+        return get_llm_instance(
             temperature=0,
         )
+
+    @method_tool
+    def bind_to_target(self, target_id: int) -> str:
+        """Bind this conversation session to a specific Target ID.
+        After binding, all subsequent operations will default to this target.
+        Use list_active_targets first to find the correct Target ID."""
+        try:
+            from django_ai_assistant.models import Thread
+            from apps.core.models import Target
+            thread = self._init_kwargs.get('thread')
+            if not thread:
+                return "Error: Cannot bind — no active thread found."
+            target = Target.objects.filter(id=target_id).first()
+            if not target:
+                return f"Error: Target ID {target_id} does not exist in the database."
+            Thread.objects.filter(id=thread.id).update(bound_target_id=target_id)
+            return f"[BOUND] This session is now focused on Target '{target.name}' (ID: {target_id}). All subsequent operations will default to this target."
+        except Exception as e:
+            return f"Error binding target: {str(e)}"
+
+    @method_tool
+    def unbind_target(self) -> str:
+        """Remove the current target binding from this conversation session."""
+        try:
+            from django_ai_assistant.models import Thread
+            thread = self._init_kwargs.get('thread')
+            if not thread:
+                return "Error: Cannot unbind — no active thread found."
+            current_id = Thread.objects.filter(id=thread.id).values_list('bound_target_id', flat=True).first()
+            Thread.objects.filter(id=thread.id).update(bound_target_id=None)
+            if current_id:
+                return f"[UNBOUND] Session is no longer focused on Target ID {current_id}."
+            return "[UNBOUND] Session had no target binding."
+        except Exception as e:
+            return f"Error unbinding target: {str(e)}"
 
     def get_tools(self):
         from langchain_community.utilities import SQLDatabase
         from langchain_community.tools.sql_database.tool import QuerySQLDataBaseTool
         from django.conf import settings
+        from apps.auto.assistants.planning_agent import AutomationAgent
+        from apps.analyze_ai.assistants import (
+            InitialAnalyzerAgent,
+            IPAnalyzerAgent,
+            SubdomainAnalyzerAgent,
+            URLAnalyzerAgent,
+        )
 
         db_settings = settings.DATABASES["default"]
-        username = db_settings.get("USER", "postgres")
-        password = db_settings.get("PASSWORD", "")
-        host = db_settings.get("HOST", "localhost")
-        port = db_settings.get("PORT", "5432")
-        db_name = db_settings.get("NAME", "postgres")
-
-        # Use psycopg2 driver for PostgreSQL
-        db_uri = f"postgresql+psycopg2://{username}:{password}@{host}:{port}/{db_name}"
+        db_uri = (
+            f"postgresql+psycopg2://{db_settings.get('USER', 'postgres')}:"
+            f"{db_settings.get('PASSWORD', '')}@{db_settings.get('HOST', 'localhost')}:"
+            f"{db_settings.get('PORT', '5432')}/{db_settings.get('NAME', 'postgres')}"
+        )
         db = SQLDatabase.from_uri(db_uri)
 
         my_custom_tools = [
-            ReadFileTool(),
-            WriteFileTool(),
-            ListDirectoryTool(),
-            ShellTool(),
-            FileSearchTool(),
             DuckDuckGoSearchResults(),
             QuerySQLDataBaseTool(db=db),
+            AutomationAgent().as_tool(
+                description="Delegates logic execution to the Automation Agent (Layer 3). Use this Agent to perform pentest loops or general system maintenance tasks."
+            ),
+            InitialAnalyzerAgent().as_tool(
+                description="Delegates initial analysis of assets to the Initial Analyzer Agent."
+            ),
+            IPAnalyzerAgent().as_tool(
+                description="Delegates specific IP analysis."
+            ),
+            SubdomainAnalyzerAgent().as_tool(
+                description="Delegates specific Subdomain analysis."
+            ),
+            URLAnalyzerAgent().as_tool(
+                description="Delegates specific URL/Link analysis."
+            )
         ]
         tools = super().get_tools()
         for tool in my_custom_tools:
@@ -112,3 +168,129 @@ class HackerAssistantAgent(AIAssistant):
             return "Command executed successfully but no temperature data found. Check if lm-sensors is installed."
         except Exception as e:
             return f"Unable to fetch temperature: {str(e)}"
+
+    @method_tool
+    def list_active_targets(self) -> str:
+        """Fetch a list of all targets currently in the database to get their IDs and basic information before performing actions on them. Always use this to find the correct Target ID."""
+        try:
+            from apps.core.models import Target
+            targets = Target.objects.all().values("id", "name", "created_at")
+            if not targets:
+                return "No targets found in the database. Instruct the user to create a target or provide seed data."
+            
+            result = "Currently known targets in the database:\n"
+            for t in targets:
+                result += f"- Target ID: {t['id']}, Name: {t['name']}, Created: {t['created_at'].strftime('%Y-%m-%d %H:%M:%S') if t['created_at'] else 'Unknown'}\n"
+            return result
+        except Exception as e:
+            return f"Error listing targets: {str(e)}"
+
+    @method_tool
+    def check_asset_liveness(self, target_id: int) -> str:
+        """
+        快速探測指定 Target 底下所有資產 (Subdomains 和 IPs) 的存活狀態。
+        使用 HTTP Request 檢測子域名、使用 ping 命令檢測 IP。
+        在開始滲透測試之前，可使用此工具快速了解哪些資產是「活的」。
+
+        Args:
+            target_id: 要探測的 Target ID。
+        """
+        import subprocess
+        import requests
+        from apps.core.models import Subdomain, IP
+
+        results = []
+
+        # --- 探測子域名 (HTTP) ---
+        subdomains = list(Subdomain.objects.filter(target_id=target_id).values("id", "name")[:20])
+        results.append("=== Subdomain Liveness Check (HTTP) ===")
+        for sub in subdomains:
+            hostname = sub["name"]
+            status = "❌ DEAD"
+            for scheme in ("https", "http"):
+                try:
+                    resp = requests.get(
+                        f"{scheme}://{hostname}",
+                        timeout=5,
+                        allow_redirects=True,
+                        verify=False,
+                    )
+                    status = f"✅ ALIVE ({scheme.upper()}) — HTTP {resp.status_code}"
+                    break
+                except Exception:
+                    continue
+            results.append(f"  [{sub['id']}] {hostname}: {status}")
+
+        # --- 探測 IP (ping) ---
+        ips = list(IP.objects.filter(target_id=target_id).values("id", "address")[:20])
+        results.append("\n=== IP Liveness Check (PING) ===")
+        for ip in ips:
+            addr = ip["address"]
+            try:
+                proc = subprocess.run(
+                    ["ping", "-c", "1", "-W", "2", addr],
+                    capture_output=True, text=True, timeout=5
+                )
+                alive = "✅ ALIVE" if proc.returncode == 0 else "❌ DEAD"
+            except Exception as e:
+                alive = f"❌ ERROR ({e})"
+            results.append(f"  [{ip['id']}] {addr}: {alive}")
+
+        if not subdomains and not ips:
+            return f"Target ID {target_id} has no Subdomains or IPs in the database yet."
+
+        return "\n".join(results)
+
+
+    @method_tool
+    def get_target_overview(self, target_name: str) -> str:
+        """Fetch the latest AI strategic Overview (plan, knowledge, status) for a specific target so you can review Layer 3's progress."""
+        try:
+            from apps.core.models.analyze.overview import Overview
+            from apps.core.models import Target
+            import json
+            
+            target = Target.objects.get(name=target_name)
+            overview = Overview.objects.filter(target=target).order_by('-updated_at').first()
+            if not overview:
+                return f"No Overview found for target: {target_name}. Please wait for Data Pre-processing."
+            
+            return json.dumps({
+                "id": overview.id,
+                "status": overview.status,
+                "summary": overview.summary,
+                "reasoning_or_plan": overview.plan,
+                "current_knowledge": overview.knowledge,
+                "risk_score": overview.risk_score
+            })
+        except Exception as e:
+            return f"Error retrieving overview: {str(e)}"
+
+    @method_tool
+    def create_or_update_target_overview(self, target_name: str, status: str, plan_json_string: str, risk_score: int) -> str:
+        """Create or update the strategic Overview (plan and status) for a specific target. Only use this when you want to update the plan or status."""
+        try:
+            from apps.core.models.analyze.overview import Overview
+            from apps.core.models import Target
+            import json
+            
+            target, _ = Target.objects.get_or_create(name=target_name)
+            overview = Overview.objects.filter(target=target).order_by('-updated_at').first()
+            if not overview:
+                overview = Overview.objects.create(target=target, status="PLANNING")
+            
+            overview.status = status
+            if plan_json_string:
+                try:
+                    plan_data = json.loads(plan_json_string) if isinstance(plan_json_string, str) else plan_json_string
+                    overview.plan = plan_data
+                except:
+                    pass
+            overview.risk_score = risk_score
+            overview.save()
+            return f"Successfully updated Overview {overview.id} for target {target_name} to status {status}."
+        except Exception as e:
+            return f"Error updating overview: {str(e)}"
+
+
+
