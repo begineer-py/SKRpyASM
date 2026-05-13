@@ -7,13 +7,12 @@ interface Step {
   id: number;
   status: string;
   created_at: string;
-  updated_at: string;
+  completed_at?: string | null;
   core_stepnote?: {
     id: number;
     content: string;
     ai_thoughts?: string;
     created_at: string;
-    updated_at: string;
   };
   core_attackvectors?: Array<{
     id: number;
@@ -193,7 +192,18 @@ export default function ExecutionMonitorPage() {
     }
   };
 
-  const formatDuration = (startDate: string, endDate: string): string => {
+  const formatDuration = (startDate: string, endDate: string | null | undefined): string => {
+    if (!endDate) {
+      // If not completed yet, show elapsed time from start
+      const start = new Date(startDate).getTime();
+      const now = new Date().getTime();
+      const durationMs = now - start;
+      
+      if (durationMs < 1000) return `${durationMs}ms`;
+      if (durationMs < 60000) return `${(durationMs / 1000).toFixed(1)}s`;
+      return `${(durationMs / 60000).toFixed(1)}m`;
+    }
+    
     const start = new Date(startDate).getTime();
     const end = new Date(endDate).getTime();
     const durationMs = end - start;
@@ -422,7 +432,7 @@ export default function ExecutionMonitorPage() {
                             step.core_attackvectors?.[0]?.name ||
                             step.core_stepnote?.content ||
                             `Step #${step.id}`;
-                          const stepDuration = formatDuration(step.created_at, step.updated_at);
+                          const stepDuration = formatDuration(step.created_at, step.completed_at);
                           const isLastStep = stepIndex === steps.length - 1;
 
                           return (
