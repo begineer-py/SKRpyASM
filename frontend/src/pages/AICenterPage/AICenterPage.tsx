@@ -28,18 +28,9 @@ const AICenterPage: React.FC = () => {
 
   // Performance monitoring
   const [lastElapsedMs, setLastElapsedMs] = useState<number | null>(null);
-  const [rightPanelTab, setRightPanelTab] = useState<'missions' | 'perf'>('missions');
 
   const [leftWidth, setLeftWidth] = useState(500);
   const [isDragging, setIsDragging] = useState(false);
-  const [expandedOverviews, setExpandedOverviews] = useState<Record<string, boolean>>({});
-
-  const toggleOverview = (id: string) => {
-    setExpandedOverviews(prev => ({
-      ...prev,
-      [id]: prev[id] === undefined ? false : !prev[id]
-    }));
-  };
 
   const handleMouseDown = () => setIsDragging(true);
 
@@ -518,73 +509,9 @@ const AICenterPage: React.FC = () => {
       */}
       <div className="glass-panel live-panel">
         <div className="panel-header">
-          <h2>LIVE.TELEMETRY</h2>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <button
-              onClick={() => setRightPanelTab('missions')}
-              style={{ padding: '4px 10px', fontSize: '0.75rem', cursor: 'pointer', background: rightPanelTab === 'missions' ? 'rgba(34,197,94,0.15)' : 'transparent', border: rightPanelTab === 'missions' ? '1px solid #22c55e' : '1px solid rgba(255,255,255,0.2)', color: rightPanelTab === 'missions' ? '#22c55e' : '#94a3b8', borderRadius: '4px' }}
-            >MISSIONS</button>
-            <button
-              onClick={() => setRightPanelTab('perf')}
-              style={{ padding: '4px 10px', fontSize: '0.75rem', cursor: 'pointer', background: rightPanelTab === 'perf' ? 'rgba(251,191,36,0.15)' : 'transparent', border: rightPanelTab === 'perf' ? '1px solid #fbbf24' : '1px solid rgba(255,255,255,0.2)', color: rightPanelTab === 'perf' ? '#fbbf24' : '#94a3b8', borderRadius: '4px' }}
-            >PERF</button>
-            {rightPanelTab === 'missions' && <span className="status-badge active">STREAMING</span>}
-          </div>
+          <h2>LLM.TELEMETRY</h2>
         </div>
         
-        {rightPanelTab === 'missions' && (
-        <div className="missions-container">
-          {loading && <div style={{textAlign: "center", color: "var(--text-muted)", marginTop: "20px"}}>載入任務情報中...</div>}
-          {error && <div style={{color: "var(--accent-danger)", padding: "10px"}}>GraphQL 錯誤: {error.message}</div>}
-          
-          {data?.core_overview?.map((overview: any) => {
-            const isExpanded = expandedOverviews[overview.id] ?? (overview.status === 'RUNNING' || overview.status === 'EXECUTING' || overview.status === 'PLANNING');
-            return (
-            <div className="mission-card" key={overview.id}>
-              <div className="mission-header" onClick={() => toggleOverview(overview.id)} style={{ cursor: 'pointer' }}>
-                <h3>Target: {overview.core_target?.name || `Target ID: ${overview.target_id || '未知'}`} [Overview #{overview.id}]</h3>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span className={`mission-status ${overview.status.toLowerCase()}`}>
-                    {overview.status}
-                  </span>
-                  <span style={{ opacity: 0.6, fontSize: '0.8rem' }}>{isExpanded ? '▼' : '▶'}</span>
-                </div>
-              </div>
-              
-              {isExpanded && (
-              <ul className="step-list">
-                {(!overview.core_steps || overview.core_steps.length === 0) && (
-                  <span style={{color: "#64748b", fontSize: "0.85rem"}}>AWAITING_AGENT_COMMANDS...</span>
-                )}
-                {overview.core_steps?.map((step: any) => {
-                  const isActive = step.status === "RUNNING";
-                  const isCompleted = step.status === "COMPLETED";
-                  const isFailed = step.status === "FAILED";
-                  const stepName = step.core_attackvectors?.[0]?.name || step.core_stepnote?.content || `自動化探索步驟 #${step.id}`;
-                  
-                  return (
-                    <li className={`step ${isCompleted ? 'completed' : isActive ? 'active' : isFailed ? 'failed' : 'pending'}`} key={step.id}>
-                      <span className={`step-icon ${isActive ? 'pulse' : ''}`}>
-                        {isCompleted ? '[OK]' : isActive ? '[>>]' : isFailed ? '[!!]' : '[..]'}
-                      </span>
-                      <span className="step-name">
-                        <span style={{ display: 'block', maxHeight: '100px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {stepName}
-                        </span>
-                        <span style={{fontSize: "0.75rem", opacity: 0.6}}>Status: {step.status}</span>
-                      </span>
-                    </li>
-                  )
-                })}
-              </ul>
-              )}
-            </div>
-            )
-          })}
-        </div>
-        )}
-
-        {rightPanelTab === 'perf' && (
         <div style={{ padding: '16px', overflowY: 'auto', height: '100%' }}>
           {/* LLM API Response Time */}
           <div style={{ marginBottom: '20px' }}>
@@ -645,11 +572,11 @@ const AICenterPage: React.FC = () => {
                 </div>
               </>
             ) : (
-              <div style={{ color: '#4b5563', fontFamily: 'monospace', fontSize: '0.85rem' }}>-- No steps recorded yet. Start an automation task. --</div>
+              <div style={{ color: '#4b5563', fontFamily: 'monospace', fontSize: '0.85rem' }}>-- No steps recorded yet. Go to <strong>Execution Monitor</strong> to track step progress. --</div>
             )}
           </div>
         </div>
-        )}
+      </div>
       </div>
     </div>
   );
