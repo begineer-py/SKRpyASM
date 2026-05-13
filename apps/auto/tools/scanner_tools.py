@@ -19,6 +19,7 @@ class ScannerToolsMixin:
         try:
             from apps.core.models import Step
             from apps.core.models.analyze.Step import StepNote
+            from django.utils import timezone
             
             # 1. 僅建立 Step (設定為 WAITING_FOR_ASYNC)
             # 偵察階段 (Reconnaissance) 不應強制綁定 AttackVector，因為此時尚無具體的攻擊向量點
@@ -40,7 +41,9 @@ class ScannerToolsMixin:
             
             if resp.status_code >= 400:
                 step.status = "FAILED"
-                step.save(update_fields=['status'])
+                # 📍 P0 FIX: 設置 completed_at 時間戳
+                step.completed_at = timezone.now()
+                step.save(update_fields=['status', 'completed_at'])
                 StepNote.objects.update_or_create(
                     step=step,
                     defaults={"content": f"{description}\n\n[FAILED] API responded with {resp.status_code}: {resp.text}"}

@@ -40,11 +40,16 @@ def with_auto_callback(func: Callable) -> Callable:
         # 執行原本的掃描任務
         result = func(*args, **kwargs)
         
-        # 掃描完成後，將 Step 標為 COMPLETED
+        # 掃描完成後，將 Step 標為 COMPLETED 並設置 completed_at
         if callback_step_id:
             try:
                 from .models import Step
-                Step.objects.filter(id=callback_step_id).update(status="COMPLETED")
+                from django.utils import timezone
+                Step.objects.filter(id=callback_step_id).update(
+                    status="COMPLETED",
+                    # 📍 P0 FIX: 設置 completed_at 時間戳
+                    completed_at=timezone.now()
+                )
                 logger.info(f"Step#{callback_step_id} 狀態已更新為 COMPLETED。")
             except Exception as e:
                 logger.warning(f"無法更新 Step#{callback_step_id} 狀態為 COMPLETED: {e}")

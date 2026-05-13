@@ -1163,6 +1163,7 @@ class DBToolsMixin:
         try:
             from apps.core.models import Step
             from apps.core.models.analyze.Step import StepNote
+            from django.utils import timezone
             
             step = Step.objects.get(id=step_id)
             valid_statuses = ["PENDING", "RUNNING", "COMPLETED", "FAILED", "WAITING_FOR_ASYNC", "ENDED"]
@@ -1170,7 +1171,12 @@ class DBToolsMixin:
                 return f"無效的 status 值: '{status}'。請使用: {valid_statuses}"
             
             step.status = status
-            step.save(update_fields=["status"])
+            
+            # 📍 P0 FIX: 當 Step 完成或失敗時，設置 completed_at 時間戳
+            if status in ["COMPLETED", "FAILED", "ENDED"]:
+                step.completed_at = timezone.now()
+            
+            step.save(update_fields=["status", "completed_at"])
             
             # 附加執行輸出到 StepNote
             if execution_output:
