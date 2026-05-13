@@ -80,6 +80,38 @@ const AICenterPage: React.FC = () => {
     }
   }, [selectedMainThreadId, viewMode, allThreads]);
 
+  // 📍 P1 FIX: 當 Automation Agent 運行時，定期輪詢新消息
+  useEffect(() => {
+    if (viewMode !== "AUTO" || !selectedMainThreadId) return;
+    
+    const subId = getSubThreadId(selectedMainThreadId, allThreads);
+    if (!subId) return;
+
+    // 每 2 秒檢查一次新消息
+    const pollInterval = setInterval(async () => {
+      try {
+        const allMsgsRaw: any[] = await assistantApi.getMessages(subId);
+        // 簡單比對：如果新消息數不同，更新
+        if (allMsgsRaw.length !== messages.length) {
+          const parsed = allMsgsRaw.map((m: any) => {
+            let role = m.type === "human" ? "user" : "assistant";
+            return {
+              id: m.id,
+              role: role,
+              textContent: m.text?.content || "",
+            };
+          });
+          setMessages(parsed);
+        }
+      } catch (err) {
+        // 靜默失敗，不中斷輪詢
+        console.debug("Auto-poll background messages failed (silent):", err);
+      }
+    }, 2000);
+
+    return () => clearInterval(pollInterval);
+  }, [viewMode, selectedMainThreadId, allThreads, messages.length]);
+
   const loadThreads = async () => {
     try {
       const res: any[] = await assistantApi.getThreads() as any[];
