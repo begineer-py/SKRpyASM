@@ -2,12 +2,14 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useHasuraSubscription } from '../../hooks/useHasuraSubscription';
-import { GET_LIVE_MISSIONS } from '../../queries';
+import { GET_LIVE_MISSIONS, GET_RECENT_STEPS_UPDATES } from '../../queries';
 import { assistantApi } from '../../services/assistantApi';
 import './AICenter.css';
 
 const AICenterPage: React.FC = () => {
   const { data } = useHasuraSubscription(GET_LIVE_MISSIONS);
+  // 📍 P1 FIX: 訂閱實時 Step 更新，顯示 Automation 執行進度
+  const { data: stepsData } = useHasuraSubscription(GET_RECENT_STEPS_UPDATES);
 
   // --- Chat State ---
   const [allThreads, setAllThreads] = useState<any[]>([]);
@@ -473,10 +475,43 @@ const AICenterPage: React.FC = () => {
                </div>
             </div>
           )}
-          <div ref={messagesEndRef} />
-        </div>
+           <div ref={messagesEndRef} />
+         </div>
 
-        <div className="chat-input-area">
+         {/* 📍 P1 FIX: 實時 Step 執行進度提示 */}
+         {stepsData?.core_overview && stepsData.core_overview.length > 0 && (
+           <div style={{
+             padding: '10px 16px',
+             background: 'rgba(34, 197, 94, 0.05)',
+             borderTop: '1px dashed #22c55e',
+             fontSize: '0.75rem',
+             fontFamily: 'monospace',
+             maxHeight: '80px',
+             overflowY: 'auto'
+           }}>
+             <div style={{ color: '#22c55e', fontWeight: 700, marginBottom: '4px' }}>📍 REAL-TIME STEP UPDATES:</div>
+             {stepsData.core_overview.slice(0, 2).map((overview: any) => {
+               const recentSteps = (overview.core_steps || []).slice(0, 5);
+               const runningSteps = recentSteps.filter((s: any) => s.status === 'RUNNING').length;
+               const completedSteps = recentSteps.filter((s: any) => s.status === 'COMPLETED').length;
+               const failedSteps = recentSteps.filter((s: any) => s.status === 'FAILED').length;
+               
+               return (
+                 <div key={overview.id} style={{ marginBottom: '6px', color: '#94a3b8' }}>
+                   <span style={{ color: overview.status === 'EXECUTING' ? '#fbbf24' : '#22c55e' }}>
+                     {overview.core_target?.name || `Target#${overview.id}`}:
+                   </span>
+                   {' '}
+                   {runningSteps > 0 && <span style={{ color: '#fbbf24' }}>🔄 {runningSteps} running</span>}
+                   {completedSteps > 0 && <span style={{ color: '#22c55e', marginLeft: '6px' }}>✓ {completedSteps} done</span>}
+                   {failedSteps > 0 && <span style={{ color: '#ef4444', marginLeft: '6px' }}>✗ {failedSteps} failed</span>}
+                 </div>
+               );
+             })}
+           </div>
+         )}
+
+         <div className="chat-input-area">
           <textarea 
             placeholder={viewMode === "MAIN" ? "ENTER COMMAND..." : "⚠️ [唯讀視角] 這邊可以寫下備註給 Automation Agent 注意，但建議切換回 MAIN 視角下達戰略。"} 
             rows={2}

@@ -21,6 +21,33 @@ export const GET_LIVE_MISSIONS = `
 `;
 
 /**
+ * Chat 區域實時 Step 更新 Subscription
+ * 用途：在 Chat 窗口中實時顯示最近的 Step 執行進度
+ * 訂閱最近 5 個 Overview 及其最新 Step，頻繁更新
+ */
+export const GET_RECENT_STEPS_UPDATES = `
+  subscription GetRecentStepsUpdates {
+    core_overview(order_by: {updated_at: desc}, limit: 5) {
+      id
+      status
+      updated_at
+      core_target {
+        name
+      }
+      core_steps(order_by: {created_at: desc}, limit: 20) {
+        id
+        status
+        created_at
+        completed_at
+        core_stepnote {
+          content
+        }
+      }
+    }
+  }
+`;
+
+/**
  * ExecutionMonitor 專用 Subscription
  * 用途：顯示所有 Overview 及其完整 Step 樹狀圖，支援篩選和搜尋
  */
