@@ -7,7 +7,7 @@ import { assistantApi } from '../../services/assistantApi';
 import './AICenter.css';
 
 const AICenterPage: React.FC = () => {
-  const { data, loading, error } = useHasuraSubscription(GET_LIVE_MISSIONS);
+  const { data } = useHasuraSubscription(GET_LIVE_MISSIONS);
 
   // --- Chat State ---
   const [allThreads, setAllThreads] = useState<any[]>([]);
@@ -572,14 +572,13 @@ const AICenterPage: React.FC = () => {
                 </div>
               </>
             ) : (
-              <div style={{ color: '#4b5563', fontFamily: 'monospace', fontSize: '0.85rem' }}>-- No steps recorded yet. Go to <strong>Execution Monitor</strong> to track step progress. --</div>
-            )}
-          </div>
-        </div>
-      </div>
-      </div>
-    </div>
-  );
+               <div style={{ color: '#4b5563', fontFamily: 'monospace', fontSize: '0.85rem' }}>-- No steps recorded yet. Go to <strong>Execution Monitor</strong> to track step progress. --</div>
+             )}
+           </div>
+         </div>
+       </div>
+     </div>
+   );
 };
 
 export default AICenterPage;
