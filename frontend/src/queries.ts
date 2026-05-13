@@ -47,13 +47,12 @@ export const GET_ALL_EXECUTION_STEPS = `
         id
         status
         created_at
-        updated_at
+        completed_at
         core_stepnote {
           id
           content
           ai_thoughts
           created_at
-          updated_at
         }
         core_attackvectors {
           id
