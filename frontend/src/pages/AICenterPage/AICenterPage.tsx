@@ -4,6 +4,8 @@ import remarkGfm from 'remark-gfm';
 import { useHasuraSubscription } from '../../hooks/useHasuraSubscription';
 import { GET_LIVE_MISSIONS, GET_RECENT_STEPS_UPDATES } from '../../queries';
 import { assistantApi } from '../../services/assistantApi';
+import { TelemetryPanel } from '../../components/TelemetryPanel';
+import { StepsMainArea } from '../../components/StepsMainArea';
 import './AICenter.css';
 
 const AICenterPage: React.FC = () => {
@@ -30,6 +32,11 @@ const AICenterPage: React.FC = () => {
 
   // Performance monitoring
   const [lastElapsedMs, setLastElapsedMs] = useState<number | null>(null);
+
+  // P11: Right panel state
+  const [selectedStepId, setSelectedStepId] = useState<number | null>(null);
+  const [rightPanelWidth, setRightPanelWidth] = useState(280); // Sidebar width
+  const [rightPanelDragging, setRightPanelDragging] = useState(false);
 
   const [leftWidth, setLeftWidth] = useState(500);
   const [isDragging, setIsDragging] = useState(false);
@@ -571,81 +578,74 @@ const AICenterPage: React.FC = () => {
 
       {/* 
         ========================================
-        Right Panel: Live Mission Control 
+        Right Panel (P11): Sidebar + Main Layout
         ========================================
       */}
-      <div className="glass-panel live-panel">
-        <div className="panel-header">
-          <h2>LLM.TELEMETRY</h2>
+      <div className="glass-panel live-panel" style={{ display: 'flex' }}>
+        {/* Telemetry Sidebar */}
+        <div style={{ width: `${rightPanelWidth}px`, minWidth: '200px', maxWidth: '400px' }}>
+          <TelemetryPanel
+            lastElapsedMs={lastElapsedMs}
+            steps={data?.core_overview?.flatMap((ov: any) => ov.core_steps || []) || []}
+            boundTargetId={boundTargetId}
+            viewMode={viewMode}
+            hasData={messages.length > 0}
+          />
         </div>
-        
-        <div style={{ padding: '16px', overflowY: 'auto', height: '100%' }}>
-          {/* LLM API Response Time */}
-          <div style={{ marginBottom: '20px' }}>
-            <div style={{ color: '#fbbf24', fontFamily: 'monospace', fontSize: '0.8rem', marginBottom: '8px', letterSpacing: '0.05em' }}>LLM.RESPONSE_TIME</div>
-            {lastElapsedMs !== null ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ fontSize: '2rem', fontWeight: 700, fontFamily: 'monospace', color: lastElapsedMs > 30000 ? '#ef4444' : lastElapsedMs > 15000 ? '#f59e0b' : '#10B981' }}>
-                  {lastElapsedMs >= 1000 ? `${(lastElapsedMs/1000).toFixed(1)}s` : `${lastElapsedMs}ms`}
-                </div>
-                <div style={{ flex: 1, height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${Math.min((lastElapsedMs/60000)*100, 100)}%`, background: lastElapsedMs > 30000 ? '#ef4444' : lastElapsedMs > 15000 ? '#f59e0b' : '#10B981', borderRadius: '3px', transition: 'width 0.5s ease' }} />
-                </div>
-              </div>
-            ) : (
-              <div style={{ color: '#4b5563', fontFamily: 'monospace', fontSize: '0.85rem' }}>-- No data yet. Send a message to measure. --</div>
-            )}
-          </div>
 
-          {/* Step Performance breakdown from GraphQL */}
-          <div>
-            <div style={{ color: '#fbbf24', fontFamily: 'monospace', fontSize: '0.8rem', marginBottom: '12px', letterSpacing: '0.05em' }}>STEP.EXECUTION_ANALYSIS</div>
-            {data?.core_overview?.flatMap((ov: any) => ov.core_steps || []).length > 0 ? (
-              <>
-                {/* Status summary */}
-                {(() => {
-                  const allSteps = data?.core_overview?.flatMap((ov: any) => ov.core_steps || []) || [];
-                  const completed = allSteps.filter((s: any) => s.status === 'COMPLETED').length;
-                  const failed = allSteps.filter((s: any) => s.status === 'FAILED').length;
-                  const running = allSteps.filter((s: any) => s.status === 'RUNNING').length;
-                  const pending = allSteps.filter((s: any) => !['COMPLETED','FAILED','RUNNING'].includes(s.status)).length;
-                  return (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '8px', marginBottom: '16px' }}>
-                      {[['DONE', completed, '#10B981'], ['FAIL', failed, '#ef4444'], ['RUN', running, '#fbbf24'], ['WAIT', pending, '#6b7280']].map(([label, count, color]) => (
-                        <div key={label as string} style={{ textAlign: 'center', padding: '8px', background: 'rgba(0,0,0,0.3)', borderRadius: '6px', border: `1px solid ${color}30` }}>
-                          <div style={{ fontSize: '1.4rem', fontWeight: 700, color: color as string, fontFamily: 'monospace' }}>{count as number}</div>
-                          <div style={{ fontSize: '0.65rem', color: '#6b7280', fontFamily: 'monospace' }}>{label as string}</div>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })()}
+        {/* Resizer for sidebar */}
+        <div
+          style={{
+            width: '4px',
+            cursor: 'col-resize',
+            background: '#1e293b',
+            transition: rightPanelDragging ? 'none' : 'all 0.2s ease',
+            flexShrink: 0,
+            userSelect: 'none',
+          }}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            setRightPanelDragging(true);
+          }}
+          onMouseUp={() => setRightPanelDragging(false)}
+          title="拖曳以調整側邊欄寬度"
+        />
 
-                {/* Step list with status bars */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {data?.core_overview?.flatMap((ov: any) =>
-                    (ov.core_steps || []).slice(-10).map((step: any) => {
-                      const name = step.core_attackvectors?.[0]?.name || step.note?.content || `Step #${step.id}`;
-                      const statusColor = step.status === 'COMPLETED' ? '#10B981' : step.status === 'FAILED' ? '#ef4444' : step.status === 'RUNNING' ? '#fbbf24' : '#6b7280';
-                      return (
-                        <div key={step.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', fontFamily: 'monospace' }}>
-                          <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: statusColor, flexShrink: 0, boxShadow: step.status === 'RUNNING' ? `0 0 6px ${statusColor}` : 'none' }} />
-                          <div style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#94a3b8' }}>{name}</div>
-                          <div style={{ color: statusColor, flexShrink: 0 }}>{step.status}</div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </>
-            ) : (
-               <div style={{ color: '#4b5563', fontFamily: 'monospace', fontSize: '0.85rem' }}>-- No steps recorded yet. Go to <strong>Execution Monitor</strong> to track step progress. --</div>
-             )}
-           </div>
-         </div>
-       </div>
-     </div>
-   );
+        {/* Steps Main Area */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <StepsMainArea
+            selectedStepId={selectedStepId}
+            steps={data?.core_overview?.flatMap((ov: any) => ov.core_steps || []) || []}
+            showLogs={true}
+            onStepSelect={setSelectedStepId}
+          />
+        </div>
+      </div>
+
+      {/* Sidebar resize handler */}
+      {rightPanelDragging && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 999,
+            cursor: 'col-resize',
+          }}
+          onMouseMove={(e) => {
+            const newWidth = e.clientX - (window.innerWidth - window.innerWidth + 20); // Approximate position
+            if (newWidth > 200 && newWidth < 400) {
+              setRightPanelWidth(newWidth);
+            }
+          }}
+          onMouseUp={() => setRightPanelDragging(false)}
+          onMouseLeave={() => setRightPanelDragging(false)}
+        />
+      )}
+    </div>
+  );
 };
 
 export default AICenterPage;
