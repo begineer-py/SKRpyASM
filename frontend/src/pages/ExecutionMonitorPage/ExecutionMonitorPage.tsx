@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useHasuraSubscription } from '../../hooks/useHasuraSubscription';
 import { GET_ALL_EXECUTION_STEPS } from '../../queries';
+import StepLogViewer from '../../components/StepLogViewer';
 import './ExecutionMonitor.css';
 
 interface Step {
@@ -52,6 +53,9 @@ export default function ExecutionMonitorPage() {
   
   // State for expanded overview items
   const [expandedOverviews, setExpandedOverviews] = useState<Set<number>>(new Set());
+
+  // State for selected step to view logs
+  const [selectedStepId, setSelectedStepId] = useState<number | null>(null);
 
   const overviews: Overview[] = data?.core_overview || [];
 
@@ -240,15 +244,17 @@ export default function ExecutionMonitorPage() {
   }
 
   return (
-    <div className="execution-monitor-page">
-      {/* Header */}
-      <div className="exec-header">
-        <h1 className="exec-title">EXECUTION MONITOR</h1>
-        <div className="exec-status">
-          {loading && <span style={{ color: '#fbbf24' }}>▢ LOADING...</span>}
-          {!loading && <span style={{ color: '#10B981' }}>✓ LIVE</span>}
+    <div style={{ display: 'flex', height: '100vh', gap: '0' }}>
+      {/* Left: Execution Monitor */}
+      <div className="execution-monitor-page" style={{ flex: selectedStepId ? '1 1 60%' : '1 1 100%', transition: 'flex 0.3s ease', overflow: 'hidden' }}>
+        {/* Header */}
+        <div className="exec-header">
+          <h1 className="exec-title">EXECUTION MONITOR</h1>
+          <div className="exec-status">
+            {loading && <span style={{ color: '#fbbf24' }}>▢ LOADING...</span>}
+            {!loading && <span style={{ color: '#10B981' }}>✓ LIVE</span>}
+          </div>
         </div>
-      </div>
 
       {/* Controls Section */}
       <div className="exec-controls">
@@ -436,7 +442,16 @@ export default function ExecutionMonitorPage() {
                           const isLastStep = stepIndex === steps.length - 1;
 
                           return (
-                            <div key={step.id} className="tree-node step-node">
+                            <div 
+                              key={step.id} 
+                              className={`tree-node step-node ${selectedStepId === step.id ? 'selected' : ''}`}
+                              onClick={() => setSelectedStepId(step.id)}
+                              style={{
+                                cursor: 'pointer',
+                                backgroundColor: selectedStepId === step.id ? '#ede9fe' : 'transparent',
+                                transition: 'background-color 0.2s'
+                              }}
+                            >
                               {/* Vertical connector line */}
                               {!isLastStep && <div className="tree-connector" />}
 
@@ -495,9 +510,53 @@ export default function ExecutionMonitorPage() {
                 </div>
               );
             })}
-          </div>
-        )}
+           </div>
+         )}
+       </div>
       </div>
+
+      {/* Right: Step Log Viewer */}
+      {selectedStepId && (
+        <div
+          style={{
+            flex: '1 1 40%',
+            borderLeft: '2px solid #e5e7eb',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <div
+            style={{
+              padding: '12px 16px',
+              background: '#f3f4f6',
+              borderBottom: '1px solid #e5e7eb',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <span style={{ fontWeight: 600, fontSize: '13px' }}>
+              Step #{selectedStepId} Logs
+            </span>
+            <button
+              onClick={() => setSelectedStepId(null)}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '18px',
+                color: '#9ca3af',
+              }}
+            >
+              ✕
+            </button>
+          </div>
+          <div style={{ flex: 1, overflow: 'hidden' }}>
+            <StepLogViewer stepId={selectedStepId} autoScroll={true} />
+          </div>
+        </div>
+      )}
     </div>
-  );
-}
+   );
+ }
