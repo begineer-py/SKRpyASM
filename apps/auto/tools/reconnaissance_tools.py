@@ -1,0 +1,227 @@
+import logging
+from django_ai_assistant import method_tool
+from asgiref.sync import sync_to_async
+
+logger = logging.getLogger(__name__)
+
+
+class ReconnaissanceMixin:
+    """
+    Reconnaissance & Context Tools Mixin
+    Provides tools for querying target context, managing overviews, and checking scan status.
+    """
+
+    @method_tool
+    def get_target_context(self, target_name: str) -> str:
+        """
+        【必須第一個呼叫】在進行任何操作前，先用此工具查詢目標的所有有效 ID。
+        返回：active overview_id、target_id、subdomain IDs、IP IDs、seed IDs、URL result IDs。
+        嚴禁在沒有呼叫此工具的情況下自行猜測或假設任何 ID。
+
+        Args:
+            target_name: 目標名稱或域名 (e.g., 'vuln-f9wi.onrender.com')。
+        """
+        try:
+            from apps.core.models import Target, Overview, Subdomain, IP, Seed
+            from apps.core.models.url_assets import URLResult
+            from django.utils import timezone
+            
+            now_str = timezone.now().strftime('%Y-%m-%d %H:%M:%S %Z')
+
+            target = Target.objects.filter(name=target_name).first()
+            if not target:
+                # 嘗試模糊搜尋
+                target = Target.objects.filter(name__icontains=target_name.split(".")[0]).first()
+            if not target:
+                all_targets = list(Target.objects.values("id", "name"))
+                return f"找不到目標 '{target_name}'。現有目標：{all_targets}。請用正確的 target_name 重新呼叫。"
+
+            active_overview = Overview.objects.filter(
+                target=target, status__in=["PLANNING", "EXECUTING"]
+            ).order_by("-id").first()
+
+            subdomains = list(Subdomain.objects.filter(target=target).values("id", "name")[:15])
+            ips = list(IP.objects.filter(target=target).values("id", "address")[:15])
+            seeds = list(Seed.objects.filter(target=target).values("id", "type", "value")[:10])
+            urls = list(URLResult.objects.filter(target=target).values("id", "url")[:15])
+
+            if not active_overview:
+                return (
+                    f"=== TARGET CONTEXT ===\n"
+                    f"Current System Time: {now_str}\n"
+                    f"Target Name: {target.name}\n"
+                    f"Target ID: {target.id}\n"
+                    f"Active Overview: NONE - No PLANNING/EXECUTING overview found.\n"
+                    f"  ⚠ DO NOT call create_step or update_overview_status.\n"
+                    f"  👉 You MUST call `create_overview` with target_id={target.id} to initialize a new overview, then call `get_target_context` again.\n"
+                    f"Real Seeds: {seeds}\n"
+                    f"Real Subdomains: {subdomains}\n"
+                    f"Real IPs: {ips}\n"
+                    f"Real URLs: {urls}\n"
+                    f"=== END OF CONTEXT ==="
+                )
+
+            steps_info = ""
+            steps = active_overview.steps.all().prefetch_related('discovered_vectors', 'note_detail').order_by('id')
+            if steps.exists():
+                lines = []
+                for s in steps:
+                    av = s.discovered_vectors.first()
+                    tool = av.name if av else "Unknown Vector"
+                    desc = av.description if av else "No description"
+                    note = s.note_detail.content if hasattr(s, 'note_detail') and s.note_detail else ""
+                    lines.append(f"- Step[{s.id}] Status:{s.status} | Tool/Vector:{tool} | Desc:{desc} | Note:{note}")
+                steps_info = "\n  " + "\n  ".join(lines)
+            else:
+                steps_info = "\n  No Steps created yet."
+
+            return (
+                f"=== TARGET CONTEXT (USE ONLY THESE IDs) ===\n"
+                f"Current System Time: {now_str}\n"
+                f"Target Name: {target.name}\n"
+                f"Target ID: {target.id}\n"
+                f"Active Overview ID: {active_overview.id}  ← USE THIS as overview_id in ALL tools\n"
+                f"Overview Status: {active_overview.status}\n"
+                f"Overview Knowledge: {active_overview.knowledge}\n"
+                f"Overview Plan: {active_overview.plan}\n"
+                f"Overview Active Steps:{steps_info}\n"
+                f"Real Seeds (use for Subfinder/crawler): {seeds}\n"
+                f"Real Subdomains (use for Nuclei): {subdomains}\n"
+                f"Real IPs (use for Nmap/Nuclei): {ips}\n"
+                f"Real URLs (use for URL Nuclei/tech): {urls}\n"
+                f"=== END OF CONTEXT ===\n"
+                f"IMPORTANT: Use overview_id={active_overview.id} in every subsequent tool call."
+            )
+        except Exception as e:
+            logger.error(f"get_target_context failed: {e}")
+            return f"查詢目標上下文失敗: {e}"
+
+    @method_tool
+    def create_overview(self, target_id: int, thread_id: int = None, parent_thread_id: int = None) -> str:
+        """
+        為沒有 Active Overview 的 Target 建立一個全新的 Overview。
+        建立後，請務必重新呼叫 get_target_context 來獲取新的 overview_id。
+
+        Args:
+            target_id: Target 的 ID。
+            thread_id: 當前 AI 對話 Thread ID，用於接收非同步掃描器的 Callback。若不能取得，可填 0。
+            parent_thread_id: 上層 Calling Agent 的 Thread ID。若上層要求非同步回調，請帶入此 ID。
+        """
+        try:
+            from apps.core.models import Target, Overview
+            target = Target.objects.get(id=target_id)
+            overview = Overview.objects.create(
+                target=target,
+                status="PLANNING",
+                risk_score=50,
+                plan={"steps": []},
+                thread_id=thread_id,
+                parent_thread_id=parent_thread_id,
+            )
+            return f"成功為 Target {target.name} (ID: {target.id}) 建立新的 Overview (ID: {overview.id})。請重新呼叫 get_target_context。"
+        except Exception as e:
+            logger.error(f"Failed to create overview for target {target_id}: {e}")
+            return f"建立 Overview 時發生錯誤: {e}"
+
+    @method_tool
+    def notify_caller_agent(self, overview_id: int, message: str) -> str:
+        """
+        如果在長期的非同步自動化任務結束拉！如果 Overview 中存有 parent_thread_id (調用你的上層 Agent)，
+        利用此工具將最後的分析結果或是達成目標的消息傳回給上層 Agent 吧。
+        """
+        try:
+            from apps.core.models import Overview
+            from django_ai_assistant.models import Thread
+            from django_ai_assistant.helpers.use_cases import create_message
+            from django.contrib.auth import get_user_model
+            
+            overview = Overview.objects.get(id=overview_id)
+            if not overview.parent_thread_id:
+                return "此 Overview 沒有紀錄 parent_thread_id，無法進行回調通知。"
+            
+            thread_obj = Thread.objects.get(id=overview.parent_thread_id)
+            User = get_user_model()
+            system_user = thread_obj.created_by or User.objects.filter(is_superuser=True).first()
+            
+            create_message(
+                assistant_id=thread_obj.assistant_id or "hacker_assistant_agent",
+                thread=thread_obj,
+                user=system_user,
+                content=f"[SYSTEM: Layer 3 Async Completion Report For Overview {overview_id}]\n{message}",
+            )
+            return f"成功回調通知 Parent Thread {overview.parent_thread_id}。"
+        except Exception as e:
+            logger.error(f"Failed to notify caller agent for overview {overview_id}: {e}")
+            return f"通知 Caller Agent 失敗: {e}"
+
+    @method_tool
+    def check_scanned_urls(self, target_id: int) -> str:
+        """
+        檢查某個 Target 底下所有 URL 的抓取紀錄與狀態。
+        在執行任何 Flaresolverr 爬蟲、Katana 掃描或其他 URL 掃描與抽取前，請務必先使用此工具，
+        以確認該 URL 是否已經被抓取過 (例如 content_fetch_status='SUCCESS_FETCHED')，或是否已用過 Flaresolverr (used_flaresolverr=True)。
+        防止重複執行無意義的掃描造成系統負載。
+        """
+        try:
+            from apps.core.models.url_assets import URLResult
+            urls = URLResult.objects.filter(target_id=target_id).values(
+                "id", "url", "used_flaresolverr", "content_fetch_status", "status_code"
+            )
+            if not urls:
+                return f"No URLs found for Target ID {target_id}."
+            
+            summary = "URL Scan Status Summary:\n"
+            for u in urls:
+                used_fs_str = "Yes" if u["used_flaresolverr"] else "No"
+                summary += f"- URL ID [{u['id']}]: {u['url']} | Fetch Status: {u['content_fetch_status']} | Flaresolverr Used: {used_fs_str} | Status Code: {u['status_code']}\n"
+            return summary
+        except Exception as e:
+            return f"Error checking scanned URLs: {str(e)}"
+
+    @method_tool
+    def check_scanned_subdomains(self, target_id: int) -> str:
+        """
+        檢查某個 Target 底下所有子域名 (Subdomain) 的掃描狀態與概況。
+        在重複使用 Amass, Subfinder 等工具挖掘子域名，或是使用 dnsx/Nuclei 前，
+        請務必先使用此工具來「感知」當前資料庫中已經找出的子域名，
+        並察看是否已經有 is_tech_analyzed=True 或是否已經成功解析 IP。
+        避免永無止盡的執行相同的掃描。
+        """
+        try:
+            from apps.core.models.domain import Subdomain
+            subdomains = Subdomain.objects.filter(target_id=target_id).values(
+                "id", "name", "is_resolvable", "is_tech_analyzed", "last_scan_type"
+            )
+            if not subdomains:
+                return f"No Subdomains found for Target ID {target_id}."
+            
+            summary = "Subdomain Scan Status Summary:\n"
+            for s in subdomains:
+                res_str = "Yes" if s["is_resolvable"] else "No"
+                tech_str = "Yes" if s["is_tech_analyzed"] else "No"
+                summary += f"- Subdomain ID [{s['id']}]: {s['name']} | Resolvable: {res_str} | Tech Analyzed: {tech_str} | Last Scan: {s['last_scan_type']}\n"
+            return summary
+        except Exception as e:
+            return f"Error checking scanned subdomains: {str(e)}"
+
+    @method_tool
+    def check_scanned_ips(self, target_id: int) -> str:
+        """
+        檢查某個 Target 底下所有 IP 的掃描狀態與概況。
+        在對 IP 使用 Nmap, Naabu 等掃描前，請務必先使用此工具，
+        確認該 IP 是否已經被掃描過 (例如 last_scan_type 不為空，或是已有掃出的 ports)。
+        避免對同一個 IP 重複執行慢速的端口掃描。
+        """
+        try:
+            from apps.core.models.network import IP
+            ips = IP.objects.filter(target_id=target_id).prefetch_related('ports')
+            if not ips:
+                return f"No IPs found for Target ID {target_id}."
+            
+            summary = "IP Scan Status Summary:\n"
+            for ip in ips:
+                port_count = ip.ports.count()
+                summary += f"- IP ID [{ip.id}]: {ip.address} | Discovered Ports: {port_count} | Last Scan: {ip.last_scan_type}\n"
+            return summary
+        except Exception as e:
+            return f"Error checking scanned IPs: {str(e)}"
