@@ -6,7 +6,8 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { useStepLogStream, StepLog } from '../hooks/useStepLogStream';
+import { useStepLogStream } from '../hooks/useStepLogStream';
+import type { StepLog } from '../hooks/useStepLogStream';
 import './StepLogViewer.css';
 
 interface StepLogViewerProps {

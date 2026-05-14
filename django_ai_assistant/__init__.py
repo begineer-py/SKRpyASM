@@ -15,7 +15,12 @@ from django_ai_assistant.langchain.tools import (
 
 
 PACKAGE_NAME = __package__ or "django-ai-assistant"
-VERSION = __version__ = metadata.version(PACKAGE_NAME)
+
+try:
+    VERSION = __version__ = metadata.version(PACKAGE_NAME)
+except metadata.PackageNotFoundError:
+    # Package is not installed, use a default version
+    VERSION = __version__ = "dev"
 
 
 __all__ = [
