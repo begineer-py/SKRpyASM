@@ -155,15 +155,17 @@ export function useStepLogStream(
     try {
       const eventSource = new EventSource(url.toString());
 
-      eventSource.addEventListener('start', (e) => {
+      eventSource.addEventListener('start', (e: Event) => {
+        const messageEvent = e as MessageEvent;
         console.log('[StepLogStream] Connection established for step', stepId);
         setIsConnected(true);
         setError(null);
         retryCountRef.current = 0;
       });
 
-      eventSource.addEventListener('log', (e) => {
-        const event = parseSSEEvent('log', e.data);
+      eventSource.addEventListener('log', (e: Event) => {
+        const messageEvent = e as MessageEvent;
+        const event = parseSSEEvent('log', messageEvent.data);
         if (event.type === 'log') {
           const log = event.data as StepLog;
           logsRef.current = [...logsRef.current, log];
@@ -173,8 +175,9 @@ export function useStepLogStream(
         }
       });
 
-      eventSource.addEventListener('checkpoint', (e) => {
-        const event = parseSSEEvent('checkpoint', e.data);
+      eventSource.addEventListener('checkpoint', (e: Event) => {
+        const messageEvent = e as MessageEvent;
+        const event = parseSSEEvent('checkpoint', messageEvent.data);
         if (event.type === 'checkpoint') {
           lastSequenceRef.current = event.data.sequence;
           setLastSequence(event.data.sequence);
@@ -182,21 +185,23 @@ export function useStepLogStream(
         }
       });
 
-      eventSource.addEventListener('stats', (e) => {
-        const event = parseSSEEvent('stats', e.data);
+      eventSource.addEventListener('stats', (e: Event) => {
+        const messageEvent = e as MessageEvent;
+        const event = parseSSEEvent('stats', messageEvent.data);
         if (event.type === 'stats') {
           console.log(`[StepLogStream] Stats: elapsed=${event.data.elapsed_ms}ms`);
         }
       });
 
-      eventSource.addEventListener('done', (e) => {
+      eventSource.addEventListener('done', (e: Event) => {
         console.log('[StepLogStream] Stream completed');
         eventSource.close();
         setIsConnected(false);
       });
 
-      eventSource.addEventListener('error', (e) => {
-        const event = parseSSEEvent('error', e.data);
+      eventSource.addEventListener('error', (e: Event) => {
+        const messageEvent = e as MessageEvent;
+        const event = parseSSEEvent('error', messageEvent.data);
         if (event.type === 'error') {
           const errorMsg = event.data.error || 'Unknown error';
           console.error('[StepLogStream] Error:', errorMsg);
