@@ -298,6 +298,3 @@ export function useStepLogStream(
     disconnect,
   };
 }
-
-// Explicit re-exports for better module resolution
-export type { StepLog, UseStepLogStreamReturn };
