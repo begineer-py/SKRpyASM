@@ -1,8 +1,11 @@
 import logging
+from typing import Optional, Sequence
+from langchain_core.callbacks import BaseCallbackHandler
 from django_ai_assistant import AIAssistant
 from apps.core.llms import get_llm_instance
 from apps.auto.tools.db_tools import DBToolsMixin
 from apps.auto.tools.scanner_tools import ScannerToolsMixin
+from apps.auto.callbacks.step_log_handler import StepLogCallbackHandler
 logger = logging.getLogger(__name__)
 
 
@@ -14,18 +17,24 @@ class AutomationAgent(AIAssistant, DBToolsMixin, ScannerToolsMixin):
         "Before executing any recon or attack on a target, you MUST call `get_target_context(target_name)` first to retrieve the overview_id and asset IDs. "
         "Use ONLY the overview_id and asset IDs returned by that tool.\n\n"
         "DO NOT just repeat safety warnings or generic advice. Focus on actionable intelligence and attacks.\n\n"
-        "## HOW TO OPERATE: Iterative Recon-Attack Loop\n"
-        "Do NOT follow a rigid sequential pipeline. Instead, repeat this loop:\n\n"
-        "**LOOP ITERATION:**\n"
-        "1. **THINK**: What do I know? What intelligence does the DB already have? Pick the most promising attack target.\n"
-        "2. **QUERY**: Call `get_url_intelligence(url_id=<id>)` for any URL you want to understand. "
-        "   This returns Forms, Endpoints, TechStack, Findings, Vulnerabilities, and Headers from the DB – all in one call. "
-        "   Use it liberally. Never guess what a page contains.\n"
-        "3. **ACT**: Perform ONE concrete action (curl a form, submit an injection payload, run a scanner tool).\n"
-        "4. **NOTE**: Immediately after each action, call `write_recon_note(overview_id, title, content)` "
-        "   to save what you observed. If it's an important intelligence update (tech found, new attack vector), "
-        "   also call `update_overview_status(overview_id, new_knowledge={...})` to persist it.\n"
-        "5. **REPEAT**: Based on your findings, pick the next target and loop again.\n\n"
+        
+        "## 執行監控（系統自動）\n"
+        "系統會自動記錄你所有的工具調用、執行結果和錯誤。無需手動呼叫任何 log_* 方法。\n"
+        "專注於執行任務本身，系統會為你保持完整的審計日誌。\n\n"
+        
+         "## HOW TO OPERATE: Iterative Recon-Attack Loop\n"
+         "Do NOT follow a rigid sequential pipeline. Instead, repeat this loop:\n\n"
+         "**LOOP ITERATION:**\n"
+         "1. **THINK**: What do I know? What intelligence does the DB already have? Pick the most promising attack target.\n"
+         "2. **QUERY**: Call `get_url_intelligence(url_id=<id>)` for any URL you want to understand. "
+         "   This returns Forms, Endpoints, TechStack, Findings, Vulnerabilities, and Headers from the DB – all in one call. "
+         "   Use it liberally. Never guess what a page contains.\n"
+         "3. **ACT**: Perform ONE concrete action (curl a form, submit an injection payload, run a scanner tool).\n"
+         "   → Execute the action\n"
+         "4. **NOTE**: Immediately after each action, call `write_recon_note(overview_id, title, content)` "
+         "   to save what you observed. If it's an important intelligence update (tech found, new attack vector), "
+         "   also call `update_overview_status(overview_id, new_knowledge={...})` to persist it.\n"
+         "5. **REPEAT**: Based on your findings, pick the next target and loop again.\n\n"
 
         "## CONCRETE RULES:\n\n"
         "**Reading URLs from DB:**\n"
@@ -75,6 +84,27 @@ class AutomationAgent(AIAssistant, DBToolsMixin, ScannerToolsMixin):
         "**knowledge** — Free-form JSON dict. Example: {\"csrf_bypass\": \"token fetched from /login\", \"admin_path\": \"/manage\"}. No schema required."
     )
 
+    def __init__(self, step_id: Optional[int] = None, **kwargs):
+        """Initialize AutomationAgent with optional step_id for logging.
+        
+        Args:
+            step_id: Optional ID of the Step model to log execution to.
+                     If provided, all tool calls will be automatically logged.
+            **kwargs: Additional arguments to pass to parent class
+        """
+        super().__init__(**kwargs)
+        self.step_id = step_id
+
+    def get_callbacks(self) -> Sequence[BaseCallbackHandler]:
+        """Provide StepLog callback handler if step_id is set.
+        
+        Returns:
+            Sequence[BaseCallbackHandler]: List containing StepLogCallbackHandler
+                                          if step_id is set, otherwise empty list
+        """
+        if self.step_id:
+            return [StepLogCallbackHandler(step_id=self.step_id)]
+        return []
 
     def get_llm(self):
         return get_llm_instance(temperature=0)

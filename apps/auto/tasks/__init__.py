@@ -121,12 +121,16 @@ def auto_execute_plan():
                 from django_ai_assistant.models import Thread
                 thread_obj = Thread.objects.get(id=overview.thread_id)
             
-            agent = AutomationAgent()
-            llm = agent.get_llm()
-            tools = agent.get_tools()
+            # Create a Step to track this execution
+            from apps.core.models import Step
+            step = Step.objects.create(
+                overview=overview,
+                operation_type="AI_AUTOMATION_EXECUTION",
+                status="RUNNING"
+            )
             
-            # Bind tools so the LLM can output tool calls
-            llm_with_tools = llm.bind_tools(tools)
+            # Initialize agent with step_id for automatic logging
+            agent = AutomationAgent(step_id=step.id)
             
             # 收集真實的 Asset IDs，避免 AI 幻覺亂猜 ID
             from apps.core.models import Subdomain, IP, Seed
@@ -167,23 +171,23 @@ def auto_execute_plan():
                 {"role": "user", "content": user_prompt}
             ]
             
-            # 觸發 LLM (如果有 Tool Calling 會在 response 中反映)
-            response = llm_with_tools.invoke(messages)
+            # Use agent.invoke() which automatically applies callbacks
+            result = agent.invoke(
+                {"input": user_prompt},
+                thread_id=thread_obj.id
+            )
             
-            if response.tool_calls:
-                logger.info(f"[AutoExecution] LLM is triggering tools for {target.name}: {response.tool_calls}")
-                # We can execute the tools directly using langchain logic
-                for tool_call in response.tool_calls:
-                    target_tool = next((t for t in tools if t.name == tool_call["name"]), None)
-                    if target_tool:
-                        tool_result = target_tool.invoke(tool_call["args"])
-                        logger.info(f"[AutoExecution] Tool {tool_call['name']} Result: {tool_result}")
-                        
-                # Update status to EXECUTING
-                overview.status = "EXECUTING"
-                overview.save()
-            else:
-                logger.info(f"[AutoExecution] LLM decided no tools to run. {response.content}")
+            logger.info(f"[AutoExecution] Agent execution completed for {target.name}")
+            
+            # Mark step as completed
+            step.status = "COMPLETED"
+            step.completed_at = timezone.now()
+            step.save(update_fields=["status", "completed_at"])
                 
         except Exception as e:
             logger.error(f"[AutoExecution] Failed executing plan for {target.name}: {e}")
+            # Mark step as failed on exception
+            if 'step' in locals():
+                step.status = "FAILED"
+                step.completed_at = timezone.now()
+                step.save(update_fields=["status", "completed_at"])

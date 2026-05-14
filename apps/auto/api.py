@@ -124,7 +124,16 @@ async def _convert_analysis(asset_type: str, analysis_id: int) -> AutoConvertRes
 
     # 這個工具跑在非同步 thread pool，我們先包成 sync 函數
     def _run_agent():
-        assistant = AutomationAgent()
+        # Create a Step to track this planning execution
+        from apps.core.models import Step
+        step = Step.objects.create(
+            overview=overview,
+            operation_type="AI_PLANNING",
+            status="RUNNING"
+        )
+        
+        # Initialize agent with step_id for automatic logging
+        assistant = AutomationAgent(step_id=step.id)
         thread = create_thread(
             name=f"Planning for Overview#{overview.id} ({asset_type})",
             user=system_user,
@@ -150,7 +159,15 @@ Raw Content: {asset_context}
 2. `create_step` 為了挖掘上方的 Vulnerabilities 或是探索更深層次，產生 1 到 5 個具體的攻擊執行動作。
 注意傳遞參數時，asset_fk_field 為 '{cfg["asset_fk_field"]}'， asset_fk_value_id 為 {asset_id}。
 """
-        return assistant.run(prompt, thread_id=thread.id)
+        result = assistant.run(prompt, thread_id=thread.id)
+        
+        # Mark step as completed
+        from django.utils import timezone
+        step.status = "COMPLETED"
+        step.completed_at = timezone.now()
+        step.save(update_fields=["status", "completed_at"])
+        
+        return result
 
     agent_output = await sync_to_async(_run_agent)()
     count = 1 # 這邊未來可透過抓資料庫新增資料判斷實際建立多少筆

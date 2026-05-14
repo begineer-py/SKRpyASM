@@ -18,6 +18,7 @@ from typing import (
     overload,
 )
 
+from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import (
     AIMessage,
@@ -405,6 +406,32 @@ class AIAssistant(abc.ABC):  # noqa: F821
         """
         return self._method_tools
 
+    def get_callbacks(self) -> Sequence[BaseCallbackHandler]:
+        """Get the list of callback handlers for monitoring and logging assistant execution.
+        By default, returns an empty list (no callbacks enabled).
+
+        Callbacks are used to hook into the LangChain execution pipeline to monitor:
+        - Tool calls (on_tool_start, on_tool_end, on_tool_error)
+        - Agent actions (on_agent_action)
+        - Chain execution (on_chain_start, on_chain_end)
+        - LLM calls (on_llm_start, on_llm_end)
+
+        This allows for logging, metrics collection, and observability without requiring
+        the AI model to actively call logging methods.
+
+        Override this method in subclasses to provide custom callbacks.
+
+        Returns:
+            Sequence[BaseCallbackHandler]: The list of callback handlers to use.
+
+        Example:
+            class MyAssistant(AIAssistant):
+                def get_callbacks(self):
+                    from myapp.callbacks import MyCustomHandler
+                    return [MyCustomHandler()]
+        """
+        return []
+
     def get_document_separator(self) -> str:
         """Get the RAG document separator to use in the prompt. Only used when `has_rag=True`.\n
         Defaults to `"\\n\\n"`, which is the LangChain default.\n
@@ -687,12 +714,18 @@ class AIAssistant(abc.ABC):  # noqa: F821
 
         Returns:
             dict: The output of the assistant graph,
-                structured like `{"output": "assistant response", "history": ...}`.
+                 structured like `{"output": "assistant response", "history": ...}`.
         """
         graph = self.as_graph(thread_id=thread_id, thread=thread)
         config = kwargs.pop("config", {})
         config["max_concurrency"] = config.pop("max_concurrency", self.tool_max_concurrency)
         config["recursion_limit"] = config.pop("recursion_limit", getattr(self, "recursion_limit", 150))
+        
+        # Automatically inject callbacks from get_callbacks()
+        callbacks = self.get_callbacks()
+        if callbacks:
+            config.setdefault("callbacks", []).extend(callbacks)
+        
         # Inject thread_id into configurable so nested agent tools can read caller_thread_id
         if thread_id is not None:
             config.setdefault("configurable", {})["thread_id"] = thread_id
