@@ -45,7 +45,7 @@ def perform_nmap_scan(
         )
         return f"Scan ID {scan_id} not in PENDING state."
 
-    command = f"nmap {nmap_args} {ip_address}"
+    command = f"nice -n 19 nmap {nmap_args} {ip_address}"
     logger.info(f"準備執行命令: {command}")
 
     with ScannerLifecycle(scan_record, logger, output_field="nmap_output") as lc:

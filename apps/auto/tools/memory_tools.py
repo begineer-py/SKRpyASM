@@ -121,13 +121,24 @@ class MemoryMixin:
         """
         try:
             from apps.core.models.analyze.Step import Step, StepNote
+            from apps.core.models.analyze.AttackVector import AttackVector
             from apps.core.models.analyze.overview import Overview
             if not Overview.objects.filter(id=overview_id).exists():
                 return f"❌ 錯誤: Overview ID {overview_id} 不存在。請確認你使用 get_target_context 拿到的 Active Overview ID。"
             
-            step = Step.objects.create(overview_id=overview_id, status="COMPLETED")
+            step = Step.create_next(overview_id=overview_id, status="COMPLETED")
             StepNote.objects.create(step=step, content=f"[{title}]\n\n{content}")
-            return f"✅ 已記錄偵察發現至 Step#{step.id} 的 StepNote。"
+            # Auto-create AttackVector so the step is findable by get_target_context,
+            # get_exhausted_attack_vectors, and visible in the frontend as purple tags.
+            AttackVector.objects.create(
+                overview_id=overview_id,
+                discovery_step=step,
+                name=title[:500],
+                description=content[:5000],
+                status="IDENTIFIED",
+                vector_type="OTHER",
+            )
+            return f"✅ 已記錄偵察發現至 Step#{step.id} (AttackVector auto-created)。"
         except Exception as e:
             logger.error(f"Failed to write recon note for overview {overview_id}: {e}")
             return f"記錄偵察筆記失敗: {e}"

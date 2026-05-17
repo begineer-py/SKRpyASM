@@ -48,6 +48,13 @@ async def _stream_generator(thread: Thread, assistant_id: str, content: str):
         assistant_cls = AIAssistant.get_cls(assistant_id)
         assistant = assistant_cls(thread=thread)  # pass thread so tools can access it
 
+        # Save the HumanMessage to DB immediately so it's not lost if stream aborts/hangs
+        from asgiref.sync import sync_to_async
+        from langchain_core.messages import HumanMessage
+        from django_ai_assistant.helpers.django_messages import save_django_messages
+        
+        await sync_to_async(save_django_messages)([HumanMessage(content=content)], thread=thread)
+
         # Yield a "start" event so the frontend knows streaming has begun
         yield _sse_event(json.dumps({"status": "started"}), event="start")
 

@@ -149,31 +149,6 @@ def _build_global_context(overview: Overview) -> dict:
         "pending": overview.steps.filter(status="PENDING").count(),
     }
 
-    # 蒐集深度分析結果 (AI 的初步判斷)
-    ip_analyses = list(
-        overview.ip_analyses.filter(status="COMPLETED").values(
-            "id",
-            "ip_id",
-            "summary",
-            "port_analysis_summary",
-            "potential_vulnerabilities",
-        )
-    )
-    subdomain_analyses = list(
-        overview.subdomain_analyses.filter(status="COMPLETED").values(
-            "id",
-            "subdomain_id",
-            "summary",
-            "tech_stack_summary",
-            "potential_vulnerabilities",
-        )
-    )
-    url_analyses = list(
-        overview.url_analyses.filter(status="COMPLETED").values(
-            "id", "url_result_id", "summary", "potential_vulnerabilities"
-        )
-    )
-
     return {
         "overview_summary": overview.summary,
         "overview_plan": overview.plan,
@@ -186,11 +161,6 @@ def _build_global_context(overview: Overview) -> dict:
         "attack_vectors": attack_vectors,
         "step_stats": step_stats,
         "recent_history": recent_steps_data,
-        "deep_analysis_findings": {
-            "ip": ip_analyses,
-            "subdomain": subdomain_analyses,
-            "url": url_analyses,
-        },
     }
 
 

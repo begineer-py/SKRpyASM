@@ -40,6 +40,9 @@ class MySpider:
         method: str = "GET",
         cookie_string: str = "",
         flaresolverr_url: Optional[str] = None,
+        body: str | None = None,
+        content_type: str | None = None,
+        host_header: str | None = None,
         **kwargs: Any,
     ) -> None:
         self.url: str = url
@@ -47,6 +50,9 @@ class MySpider:
         self.method: str = method
         self.cookie_string: str = cookie_string
         self.flaresolverr_url: Optional[str] = flaresolverr_url
+        self.body: str | None = body
+        self.content_type: str | None = content_type
+        self.host_header: str | None = host_header
         self.used_flaresolverr: bool = False
 
         self.content_fetch_status: str = "FAILED_NETWORK_ERROR"
@@ -288,6 +294,9 @@ class MySpider:
                     self.cookie_string,
                     self.flaresolverr_url,
                     1,
+                    body=self.body,
+                    content_type=self.content_type,
+                    host_header=self.host_header,
                 )
 
                 if fs_response_dict:

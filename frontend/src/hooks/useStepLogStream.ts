@@ -143,8 +143,10 @@ export function useStepLogStream(
       eventSourceRef.current.close();
     }
 
+    // Note: django_ai_assistant urls are mounted at /api/assistant/ (see c2_core/urls.py).
+    // GLOBAL_CONFIG.DJANGO_API_BASE points at /api, so SSE must include the /assistant prefix.
     const url = new URL(
-      `${GLOBAL_CONFIG.DJANGO_API_BASE}/v1/steps/${stepId}/logs/stream/`,
+      `${GLOBAL_CONFIG.DJANGO_API_BASE}/assistant/v1/steps/${stepId}/logs/stream/`,
       window.location.origin
     );
     
@@ -155,8 +157,7 @@ export function useStepLogStream(
     try {
       const eventSource = new EventSource(url.toString());
 
-      eventSource.addEventListener('start', (e: Event) => {
-        const messageEvent = e as MessageEvent;
+      eventSource.addEventListener('start', () => {
         console.log('[StepLogStream] Connection established for step', stepId);
         setIsConnected(true);
         setError(null);
@@ -193,15 +194,14 @@ export function useStepLogStream(
         }
       });
 
-      eventSource.addEventListener('done', (e: Event) => {
+      eventSource.addEventListener('done', () => {
         console.log('[StepLogStream] Stream completed');
         eventSource.close();
         setIsConnected(false);
       });
 
       eventSource.addEventListener('error', (e: Event) => {
-        const messageEvent = e as MessageEvent;
-        const event = parseSSEEvent('error', messageEvent.data);
+        const event = parseSSEEvent('error', (e as MessageEvent).data);
         if (event.type === 'error') {
           const errorMsg = event.data.error || 'Unknown error';
           console.error('[StepLogStream] Error:', errorMsg);
@@ -291,6 +291,11 @@ export function useStepLogStream(
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
+      logsRef.current = [];
+      setLogs([]);
+      setLastSequence(0);
+      lastSequenceRef.current = 0;
+      retryCountRef.current = 0;
     };
   }, [stepId, connect]);
 

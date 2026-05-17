@@ -5,7 +5,7 @@
  * Displayed in AICenterPage right panel empty state.
  */
 
-import React from 'react';
+// React import not needed with react-jsx runtime
 
 interface TutorialPanelProps {
   /** View mode to show relevant shortcuts */

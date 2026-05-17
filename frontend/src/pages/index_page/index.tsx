@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 // 注意路徑：回到 src 根目錄找 services 和 type
 import { TargetService, gqlFetcher, GET_TARGETS_QUERY } from '../../services/api';

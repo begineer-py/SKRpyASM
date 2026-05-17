@@ -62,6 +62,54 @@ class StepManagementMixin:
             return f"更新 Overview 時發生錯誤: {e}"
 
     @method_tool
+    def update_step_note(
+        self,
+        step_id: int,
+        summary: str | None = None,
+        details: str | None = None,
+        ai_thoughts: str | None = None,
+        append: bool = False,
+    ) -> str:
+        """Update (or create) the human-facing StepNote.
+
+        Intended workflow:
+        - `summary` is a short human-friendly note shown in the step list/preview.
+        - `details` and `ai_thoughts` can contain longer execution trace / reasoning.
+        - If `append=True`, the provided text will be appended.
+        """
+        try:
+            from apps.core.models import Step
+            from apps.core.models.analyze.Step import StepNote
+
+            step = Step.objects.filter(id=step_id).first()
+            if not step:
+                return f"CRITICAL_FAILURE: Step#{step_id} not found."
+
+            note, _created = StepNote.objects.get_or_create(step=step)
+
+            def _merge(old: str | None, new: str | None) -> str | None:
+                if new is None:
+                    return old
+                if not append:
+                    return new
+                if not old:
+                    return new
+                return old + "\n" + new
+
+            # Keep summary in content by default (human-facing)
+            note.content = _merge(note.content, summary)
+            # Store longer details by appending into content if provided
+            if details:
+                note.content = _merge(note.content, details)
+            note.ai_thoughts = _merge(note.ai_thoughts, ai_thoughts)
+            note.save(update_fields=["content", "ai_thoughts"])
+
+            return f"✅ Step#{step_id} StepNote updated."
+        except Exception as e:
+            logger.error(f"update_step_note failed for step_id={step_id}: {e}")
+            return f"更新 StepNote 失敗: {e}"
+
+    @method_tool
     def query_steps(self, overview_id: int, status_filter: str = None, limit: int = 20) -> str:
         """
         查詢指定 Overview 下的所有 Step 的詳細狀態與內容。
@@ -166,7 +214,7 @@ class StepManagementMixin:
                 logger.warning(f"Invalid parent_step_id {parent_step_id}, setting to None")
                 parent_step_id = None
 
-            step = Step.objects.create(
+            step = Step.create_next(
                 overview_id=overview_id,
                 parent_step_id=parent_step_id,
                 status="PENDING"
@@ -261,10 +309,22 @@ class StepManagementMixin:
             
             step.save(update_fields=["status", "completed_at"])
             
-            # 附加執行輸出到 StepNote
+            # Append execution output to StepNote without destroying the first-line summary.
             if execution_output:
                 note, _ = StepNote.objects.get_or_create(step=step)
-                note.content = (note.content or "") + f"\n[{status}] {execution_output}"
+                existing = (note.content or "").strip()
+                details_line = f"[{status}] {execution_output}".strip()
+                if existing:
+                    first_line = (existing.split("\n")[0] or "").strip()
+                    rest = "\n".join(existing.split("\n")[1:]).strip()
+                    combined = first_line
+                    if rest:
+                        combined += "\n" + rest
+                    combined += "\n\n" + details_line
+                    note.content = combined
+                else:
+                    # If we have no summary yet, create one from the status line.
+                    note.content = details_line
                 note.save(update_fields=["content"])
             
             return f"Step#{step_id} 狀態已更新為 {status}。"

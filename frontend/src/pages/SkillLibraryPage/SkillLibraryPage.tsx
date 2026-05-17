@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useHasuraQuery } from '../../hooks/useHasuraQuery';
 import { GET_SKILLS } from '../../queries';
 import './SkillLibrary.css';

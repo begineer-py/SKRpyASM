@@ -52,10 +52,32 @@ async def get_all_url(
     if clean_name.startswith("http"):
         clean_name = urlparse(clean_name).hostname or clean_name
         
-    try:
-        subdomain = await Subdomain.objects.aget(name=clean_name)
-    except ObjectDoesNotExist:
-        logger.warning(f"Subdomain不存在: {clean_name}")
+    from apps.core.models import Step
+    
+    subdomain = None
+    
+    # 優先使用 subdomain_id
+    if payloads.subdomain_id:
+        subdomain = await Subdomain.objects.filter(id=payloads.subdomain_id).afirst()
+    
+    if not subdomain:
+        subdomains = Subdomain.objects.filter(name=clean_name)
+
+        # 如果有 callback_step_id，優先找該 Step 所屬 Target 的 Subdomain
+        if payloads.callback_step_id:
+            try:
+                step = await Step.objects.select_related('overview__target').aget(id=payloads.callback_step_id)
+                if step.overview and step.overview.target:
+                    subdomain = await subdomains.filter(target=step.overview.target).afirst()
+            except Exception as e:
+                logger.debug(f"無法透過 callback_step_id 確定 Target: {e}")
+
+        # 如果沒找到（或沒帶 step_id），就取第一個
+        if not subdomain:
+            subdomain = await subdomains.afirst()
+
+    if not subdomain:
+        logger.warning(f"Subdomain不存在: {clean_name if not payloads.subdomain_id else payloads.subdomain_id}")
         raise HttpError(404, f"Subdomain '{clean_name}' does not exist.")
 
     if subdomain.is_active == False:

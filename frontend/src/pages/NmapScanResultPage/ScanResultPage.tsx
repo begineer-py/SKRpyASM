@@ -1,6 +1,6 @@
 // 檔案路徑: frontend/src/pages/ScanResultPage/ScanResultPage.tsx
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom'; // 導入 useParams 獲取 URL 參數
 import axios from 'axios';
 // 導入你的類型定義。操！注意路徑！它在 src/pages/ 下面，所以是 ../../type
@@ -93,7 +93,7 @@ function ScanResultPage() {
         <p>沒有掃描到開放埠。</p>
       ) : (
         <div className="port-list">
-          {scanResult.ports.map((port) => (
+          {scanResult.ports.map((port: PortSchema) => (
             <div key={`${port.port_number}-${port.protocol}`} className="port-item">
               <p><strong>埠號:</strong> {port.port_number}/{port.protocol}</p>
               <p><strong>狀態:</strong> <span className={`port-state-${port.state.toLowerCase()}`}>{port.state}</span></p>

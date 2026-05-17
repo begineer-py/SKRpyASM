@@ -36,7 +36,12 @@ def scan_subdomains_without_url_results(batch_size: int = 5):
     for sub_obj in subdomains_to_scan:
         try:
             resp = requests.post(
-                GET_ALL_URL_ENDPOINT_TEMPLATE, json={"name": sub_obj.name}, timeout=5
+                GET_ALL_URL_ENDPOINT_TEMPLATE, 
+                json={
+                    "name": sub_obj.name,
+                    "subdomain_id": sub_obj.id
+                }, 
+                timeout=5
             )
             if 200 <= resp.status_code < 300:
                 success_count += 1

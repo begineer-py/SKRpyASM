@@ -25,15 +25,21 @@ class ReconOrchestrator:
     具備錯誤感知能力，根據 Spider 的回傳狀態動態決定執行哪些分析模組。
     """
 
-    def __init__(self, url: str, method: str = "GET", cookie_string: str = ""):
+    def __init__(self, url: str, method: str = "GET", cookie_string: str = "", body: str | None = None, content_type: str | None = None, host_header: str | None = None):
         self.url = url
         self.method = method
         self.cookie_string = cookie_string
+        self.body = body
+        self.content_type = content_type
+        self.host_header = host_header
         self.spider = MySpider(
             url=self.url,
             method=self.method,
             cookie_string=self.cookie_string,
             flaresolverr_url=os.getenv("FLARESOLVERR_URL") or "http://127.0.0.1:8191",
+            body=self.body,
+            content_type=self.content_type,
+            host_header=self.host_header,
         )
         self.analyzer = PatternAnalyzer()
         self.tech_scanner = TechScanner()

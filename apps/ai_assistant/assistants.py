@@ -101,12 +101,7 @@ class HackerAssistantAgent(AIAssistant):
         from langchain_community.tools.sql_database.tool import QuerySQLDataBaseTool
         from django.conf import settings
         from apps.auto.assistants.planning_agent import AutomationAgent
-        from apps.analyze_ai.assistants import (
-            InitialAnalyzerAgent,
-            IPAnalyzerAgent,
-            SubdomainAnalyzerAgent,
-            URLAnalyzerAgent,
-        )
+        from apps.analyze_ai.assistants import InitialAnalyzerAgent
 
         db_settings = settings.DATABASES["default"]
         db_uri = (
@@ -125,15 +120,6 @@ class HackerAssistantAgent(AIAssistant):
             InitialAnalyzerAgent().as_tool(
                 description="Delegates initial analysis of assets to the Initial Analyzer Agent."
             ),
-            IPAnalyzerAgent().as_tool(
-                description="Delegates specific IP analysis."
-            ),
-            SubdomainAnalyzerAgent().as_tool(
-                description="Delegates specific Subdomain analysis."
-            ),
-            URLAnalyzerAgent().as_tool(
-                description="Delegates specific URL/Link analysis."
-            )
         ]
         tools = super().get_tools()
         for tool in my_custom_tools:

@@ -181,6 +181,9 @@ class FlaresolverrTriggerSchema(Schema):  # <--- 繼承 Schema
     target_id: int | None = None
     auto_create: bool = False
     callback_step_id: int | None = Field(None, description="回調用的 Step ID (必填，來自 create_step)")
+    body: str | None = Field(None, description="Raw request body (for POST/PUT)")
+    content_type: str | None = Field(None, description="Content-Type override")
+    host_header: str | None = Field(None, description="Override the Host header (vhost routing)")
 
 
 class FlaresolverrResponse(Schema):  # <--- 繼承 Schema

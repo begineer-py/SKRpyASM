@@ -39,12 +39,12 @@ class EnumToolConfig:
 
 def _build_subfinder_command(seed_val: str, config_file: str, output_file: str = None) -> List[str]:
     # subfinder 直接輸出到 stdout (所以不需要 output_file 參數，或可忽略)
-    return ["subfinder", "-d", seed_val, "-json", "-silent", "-all", "-pc", config_file]
+    return ["nice", "-n", "19", "subfinder", "-d", seed_val, "-json", "-silent", "-all", "-pc", config_file]
 
 
 def _build_amass_command(seed_val: str, config_file: str, output_file: str) -> List[str]:
     # amass 建議輸出到檔案, 因為其輸出較大且慢
-    return ["amass", "enum", "-d", seed_val, "-json", output_file, "-config", config_file, "-passive", "-silent"]
+    return ["nice", "-n", "19", "amass", "enum", "-d", seed_val, "-json", output_file, "-config", config_file, "-passive", "-silent"]
 
 
 # =============================================================================

@@ -33,8 +33,11 @@ def perform_scan_for_url(
     method: str = "GET",
     seed_id: int = None,
     auto_create: bool = False,
-    target_id: int = None,  # 新增：直接接收已驗證的 target_id
+    target_id: int = None,
     callback_step_id: int = None,
+    body: str | None = None,
+    content_type: str | None = None,
+    host_header: str | None = None,
 ):
     """
     對指定 URL 執行深度偵察。
@@ -53,21 +56,28 @@ def perform_scan_for_url(
 
         # 準備 Subdomain 的預設值
         defaults = {"is_active": True, "last_seen": timezone.now()}
-        if target_id:
-            defaults["target_id"] = target_id
 
         # 獲取或創建 Subdomain
         if auto_create or target_id:
-            subdomain, created = Subdomain.objects.get_or_create(
-                name=hostname,
-                defaults=defaults,
-            )
-            if created:
+            lookup = {"name": hostname}
+            if target_id:
+                lookup["target_id"] = target_id
+            
+            # 使用 filter().first() 配合 manual create 來模擬 get_or_create 但避免 MultipleObjectsReturned
+            subdomain = Subdomain.objects.filter(**lookup).first()
+            if not subdomain:
+                subdomain = Subdomain.objects.create(**lookup, **defaults)
+                created = True
                 logger.info(
                     f"發現並創建了新子域名資產: {hostname} (Target ID: {target_id})"
                 )
+            else:
+                created = False
         else:
-            subdomain = Subdomain.objects.get(name=hostname)
+            # 這裡如果有多個，只能取第一個，因為沒有 target_id 可過濾
+            subdomain = Subdomain.objects.filter(name=hostname).first()
+            if not subdomain:
+                raise Subdomain.DoesNotExist(f"Subdomain {hostname} does not exist.")
             created = False
 
         # 自動修復：如果傳入了 target_id 但 Subdomain 尚未綁定，則進行綁定
@@ -115,7 +125,7 @@ def perform_scan_for_url(
             logger.info(f"掃描初始化完成。Task ID: {scan_task.id}, Target: {url}")
 
         # 【步驟 3：執行核心掃描邏輯 (Orchestrator)】
-        orchestrator = ReconOrchestrator(url=url, method=method)
+        orchestrator = ReconOrchestrator(url=url, method=method, body=body, content_type=content_type, host_header=host_header)
         result = orchestrator.run()
 
         # 獲取關鍵狀態位
