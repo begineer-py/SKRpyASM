@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useParams } from "react-router-dom";
 import { gqlFetcher } from "../../services/api";
 import { GET_SUBDOMAIN_DETAIL_QUERY } from "../../services/subdomains_detail";
 import { AiAnalysisService } from "../../services/api_ai";
@@ -34,7 +34,7 @@ const CommandAction: React.FC<{ command: string }> = ({ command }) => {
 };
 function SubdomainDetailPage() {
   const { targetId, subdomainId } = useParams();
-  const navigate = useNavigate();
+  // navigate was previously unused; keep page non-navigational for now.
   const nSubdomainId = Number(subdomainId);
 
   // === 狀態聲明 (只聲明一次) ===

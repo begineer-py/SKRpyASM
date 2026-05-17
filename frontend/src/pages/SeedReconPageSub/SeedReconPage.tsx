@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useParams } from "react-router-dom";
 import { gqlFetcher } from "../../services/api";
 import {
   ReconService,
@@ -36,7 +36,7 @@ const AssetCard: React.FC<{
 
 function SeedReconPage() {
   const { targetId, seedId } = useParams();
-  const navigate = useNavigate();
+  // navigate was previously unused; keep page non-navigational for now.
   const nSeedId = Number(seedId);
 
   const [intel, setIntel] = useState<SeedIntelligenceResponse | null>(null);

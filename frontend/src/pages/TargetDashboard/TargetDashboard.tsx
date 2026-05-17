@@ -53,11 +53,13 @@ interface URLAsset {
 interface AIOverview {
   id: number;
   status: string;
-  summary: string;
-  plan: any;
-  knowledge: any;
+  summary?: string;
+  plan?: any;
+  knowledge?: any;
   risk_score: number;
-  business_impact: string;
+  business_impact?: string;
+  thread_id?: number | null;
+  parent_thread_id?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -145,7 +147,11 @@ function TargetDashboard() {
         const d = await gqlFetcher<{ core_ip: IPAsset[] }>(
           GET_TARGET_IPS_QUERY, { targetId: numericId }
         );
-        setIps(d.core_ip || []);
+        const mapped = (d.core_ip || []).map((ip: any) => ({
+          ...ip,
+          ports: ip.core_ports || [],
+        }));
+        setIps(mapped);
       } else if (tab === "urls") {
         const d = await gqlFetcher<{ core_urlresult: URLAsset[] }>(
           GET_TARGET_URLS_QUERY, { targetId: numericId }
@@ -517,6 +523,7 @@ function TargetDashboard() {
                         <StatusBadge status={ov.status} />
                         {ov.business_impact && <span className="c2-badge c2-badge--amber">{ov.business_impact}</span>}
                         <span className="td-mono" style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>ID #{ov.id}</span>
+                        {ov.thread_id && <span className="td-mono" style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginLeft: 8 }}>Thread #{ov.thread_id}</span>}
                       </div>
                       <div style={{ textAlign: "right" }}>
                         <div style={{ marginBottom: 6, width: 140 }}>

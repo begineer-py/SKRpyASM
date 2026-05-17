@@ -15,6 +15,11 @@ from .schemas import (
 )
 from apps.core.schemas import FlaresolverrTriggerSchema, FlaresolverrResponse
 from .tasks import perform_scan_for_url, perform_js_scan, download_external_js
+from .request_schemas import (
+    FlareSolverrSendRequestSchema,
+    FlareSolverrSendRequestResponse,
+)
+from .tasks import perform_flaresolverr_request
 from c2_core.config.logging import log_function_call
 
 router = Router()
@@ -69,6 +74,9 @@ async def start_crawl(request, trigger_data: FlaresolverrTriggerSchema):
         auto_create=auto_create,
         target_id=target_id,
         callback_step_id=trigger_data.callback_step_id,
+        body=trigger_data.body,
+        content_type=trigger_data.content_type,
+        host_header=trigger_data.host_header,
     )
 
     return 200, FlaresolverrResponse(
@@ -85,7 +93,7 @@ async def start_crawl(request, trigger_data: FlaresolverrTriggerSchema):
 )
 async def check_flaresolverr(request):
     logger.info("檢查 FlareSolverr 狀態...")
-    url = os.getenv("FLARESOLVERR_URL") or "http://localhost:8191/v1"
+    url = os.getenv("FLARESOLVERR_URL") or "http://localhost:8191"
 
     try:
         # 使用 httpx 進行非阻塞請求
@@ -121,4 +129,63 @@ async def json_analyze(request, data: JSAnalyzeRequest):
     perform_js_scan.delay(data.id, data.type)
     return FlaresolverrResponse(
         detail="AI 掃描任務已提交", status_code=200, if_run=True
+    )
+
+
+@log_function_call()
+@router.post(
+    "/send_request",
+    response={202: FlareSolverrSendRequestResponse, 404: FlareSolverrSendRequestResponse},
+)
+async def send_request(request, payload: FlareSolverrSendRequestSchema):
+    """Send an arbitrary HTTP request via FlareSolverr with session reuse.
+
+    This endpoint is designed for the AI workflow: it accepts callback_step_id so
+    the hook can persist the request/response trace under the Step.
+    """
+
+    # Keep the same asset ownership gate as the crawler: require target mapping.
+    url = payload.url
+    hostname = urlparse(url).hostname
+    target_id = payload.target_id
+    seed_id = payload.seed_id
+
+    if not target_id and seed_id:
+        target_id = (
+            await Seed.objects.filter(id=seed_id)
+            .values_list("target_id", flat=True)
+            .afirst()
+        )
+
+    if not target_id and hostname:
+        target_id = (
+            await Subdomain.objects.filter(name=hostname)
+            .values_list("target_id", flat=True)
+            .afirst()
+        )
+
+    if not target_id:
+        return 404, FlareSolverrSendRequestResponse(
+            detail=f"目標 {hostname} 無法關聯到任何有效的 Target。",
+            status_code=404,
+            if_run=False,
+        )
+
+    perform_flaresolverr_request.delay(
+        url=payload.url,
+        method=payload.method,
+        headers=payload.headers or {},
+        cookies=payload.cookies or "",
+        body=payload.body,
+        content_type=payload.content_type,
+        host_header=payload.host_header,
+        session_key=payload.session_key,
+        refresh_session=payload.refresh_session,
+        callback_step_id=payload.callback_step_id,
+    )
+
+    return 202, FlareSolverrSendRequestResponse(
+        detail="FlareSolverr request 任務已提交。",
+        status_code=202,
+        if_run=True,
     )

@@ -124,7 +124,7 @@ export const GET_TARGET_IPS_QUERY = `
       id
       address
       version
-      ports {
+      core_ports {
         id
         port_number
         protocol
@@ -151,6 +151,8 @@ export const GET_TARGET_OVERVIEWS_QUERY = `
       knowledge
       risk_score
       business_impact
+      thread_id
+      parent_thread_id
       created_at
       updated_at
     }

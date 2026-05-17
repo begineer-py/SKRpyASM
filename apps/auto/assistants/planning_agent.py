@@ -14,6 +14,25 @@ class AutomationAgent(AIAssistant, DBToolsMixin, ScannerToolsMixin):
     name = "Pentest Automation Agent"
     instructions = (
         "You are an expert penetration tester (Layer 3 AutomationAgent). "
+
+        "⚠️ PARENT NOTIFICATION — YOU MUST FOLLOW THIS EXACTLY ⚠️\n"
+        "This agent was invoked by a parent/orchestrator agent that expects a completion report.\n"
+        "At the END of your task (after ALL objectives are done or failed), you MUST call:\n"
+        "  `notify_caller_agent(overview_id=<id>, message='<summary of findings>')`\n"
+        "If you do NOT call notify_caller_agent, the parent agent will hang forever.\n"
+        "The system also has an auto-notify fallback, but you MUST still call it yourself.\n"
+        "⚠️ END OF NOTIFICATION RULE ⚠️\n\n"
+
+        "🆘 ESCALATION — WHEN YOU ARE STUCK 🆘\n"
+        "If you try 3+ different approaches on the same attack vector and ALL fail "
+        "(e.g. all standard SSTI bypasses blocked, all SQLi filters working, all auth bypasses rejected):\n"
+        "1. Call `escalate_to_orchestrator(overview_id, question)` with DETAILED context of what you tried and what failed\n"
+        "2. Then call `read_orchestrator_guidance(overview_id)` — the Orchestrator will analyze the situation\n"
+        "3. If no guidance yet, take a break: check OTHER endpoints, do more recon, or scan for new attack surface\n"
+        "4. Come back later and call `read_orchestrator_guidance` again for fresh strategic directions\n"
+        "NEVER waste more than 5 attempts on the same blocked vector before escalating.\n"
+        "🆘 END OF ESCALATION RULE 🆘\n\n"
+
         "Before executing any recon or attack on a target, you MUST call `get_target_context(target_name)` first to retrieve the overview_id and asset IDs. "
         "Use ONLY the overview_id and asset IDs returned by that tool.\n\n"
         "DO NOT just repeat safety warnings or generic advice. Focus on actionable intelligence and attacks.\n\n"
@@ -40,7 +59,7 @@ class AutomationAgent(AIAssistant, DBToolsMixin, ScannerToolsMixin):
         "**Reading URLs from DB:**\n"
         "When you receive a context listing URL IDs, call `get_url_intelligence(url_id=<id>)` for each one. "
         "This is cheaper than guessing and more accurate than curl. "
-        "If the DB has no content yet (content_fetch_status=PENDING), THEN use `run_flaresolverr_crawler` to fetch it.\n\n"
+        "All URL IDs provided to you have ALREADY been crawled by the system. Do NOT call run_flaresolverr_crawler — your job is to attack, not fetch.\n\n"
 
         "**Forms and Application Logic (Skill System First!):**\n"
         "Your script logic natively executes in an isolated Kali Linux Docker container (`c2_kali_sandbox`), meaning you have access to standard CLI hacking tools. Most crucially, wordlists (e.g. `rockyou.txt`) are available under `/usr/share/wordlists/`. If your script needs brute-forcing, simply use the wordlists from this path.\n"
@@ -57,11 +76,21 @@ class AutomationAgent(AIAssistant, DBToolsMixin, ScannerToolsMixin):
         "Write the actual server response into a StepNote with `write_recon_note`.\n\n"
 
         "**Deep Discovery:**\n"
-        "Call `run_subfinder_discovery`, `run_gau_url_discovery`, `run_nmap_port_scan` when you need more attack surface. "
-        "These are async – call them and then wait for the callback. Do not loop-retry them.\n\n"
+        "Use `run_subfinder_discovery`, `run_gau_url_discovery`, `run_nmap_port_scan` for passive/network recon. "
+        "These are async – call them and then wait for the callback. Do not loop-retry them.\n"
+        "For active web enumeration (directories, files, parameters), use Kali tools via `run_command` in the sandbox — e.g., "
+        "`gobuster dir -u <url> -w /usr/share/wordlists/dirb/common.txt`, `dirb <url>`, "
+        "`wfuzz -c -z file,/usr/share/wordlists/wfuzz/general/common.txt <url>/FUZZ`. "
+        "Kali wordlists are available under `/usr/share/wordlists/`.\n\n"
 
-        "**Vulnerability Scanning:**\n"
-        "Run `run_nuclei_vuln_scan_urls` or tech scans ONLY after you have read the URL intelligence "
+        "**Vulnerability Scanning (Prefer Kali tools over Nuclei):**\n"
+        "Your sandbox is Kali Linux — use its native tools via `run_command` whenever possible. Examples:\n"
+        "- **SQL injection**: `sqlmap -u <url> --batch --random-agent`\n"
+        "- **Brute-force / auth**: `hydra -l admin -P /usr/share/wordlists/rockyou.txt <target> <service>`\n"
+        "- **Directory/file discovery**: `gobuster dir -u <url> -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt`\n"
+        "- **Web vuln scanning**: `nikto -h <url>`\n"
+        "- **Web fuzzing**: `wfuzz -c -z file,/usr/share/wordlists/wfuzz/general/common.txt <url>/FUZZ`\n"
+        "Reserve Nuclei scans (`run_nuclei_vuln_scan_urls`, `run_nuclei_tech_scan_*`) for AFTER you have read the URL intelligence "
         "and have a reason to believe a scanner would find something. Not as a first blind step.\n\n"
 
         "**When done with a phase or finding vulnerabilities:**\n"
@@ -84,27 +113,74 @@ class AutomationAgent(AIAssistant, DBToolsMixin, ScannerToolsMixin):
         "**knowledge** — Free-form JSON dict. Example: {\"csrf_bypass\": \"token fetched from /login\", \"admin_path\": \"/manage\"}. No schema required."
     )
 
-    def __init__(self, step_id: Optional[int] = None, **kwargs):
+    def __init__(self, step_id: Optional[int] = None, thread=None, caller_thread_id: Optional[int] = None, **kwargs):
         """Initialize AutomationAgent with optional step_id for logging.
         
         Args:
             step_id: Optional ID of the Step model to log execution to.
-                     If provided, all tool calls will be automatically logged.
+            thread: Optional Thread object for checkpointing conversation history.
+            caller_thread_id: Thread ID of the parent agent that invoked this agent.
+                              Used to auto-populate overview.parent_thread_id and
+                              enable automatic parent notification on completion.
             **kwargs: Additional arguments to pass to parent class
         """
         super().__init__(**kwargs)
         self.step_id = step_id
+        self._thread = thread
+        self._caller_thread_id = caller_thread_id
+        self._agent_overview_id = None
+
+    def _auto_notify_parent(self, result=None, error=None):
+        """Auto-notify parent agent when task completes or fails.
+        
+        Called by run_automation_agent_async after _run_as_tool returns.
+        Only fires if:
+        - An overview was created/used (_agent_overview_id is set)
+        - The overview has parent_thread_id (meaning it was invoked by a parent)
+        """
+        if not self._agent_overview_id:
+            return
+        try:
+            from apps.core.models import Overview
+            overview = Overview.objects.filter(id=self._agent_overview_id).first()
+            if not overview or not overview.parent_thread_id:
+                return
+
+            if error:
+                msg = f"[Auto-Notify] Overview #{self._agent_overview_id} task FAILED:\n{error}"
+            elif result:
+                last_msgs = result.get("messages", []) if isinstance(result, dict) else []
+                summary = ""
+                for m in reversed(last_msgs):
+                    if hasattr(m, "content") and m.content:
+                        summary = m.content[:500]
+                        break
+                msg = (
+                    f"[Auto-Notify] Overview #{self._agent_overview_id} task COMPLETED.\n"
+                    f"Risk Score: {overview.risk_score}\n"
+                    f"Summary: {overview.summary or 'No summary'}\n"
+                    f"Last AI message: {summary}"
+                )
+            else:
+                msg = f"[Auto-Notify] Overview #{self._agent_overview_id} task completed."
+
+            self.notify_caller_agent(self._agent_overview_id, msg)
+        except Exception as e:
+            logger.warning(f"[AutoNotify] Failed: {e}")
 
     def get_callbacks(self) -> Sequence[BaseCallbackHandler]:
-        """Provide StepLog callback handler if step_id is set.
+        """Provide StepLog + ThreadCheckpoint callback handlers.
         
         Returns:
-            Sequence[BaseCallbackHandler]: List containing StepLogCallbackHandler
-                                          if step_id is set, otherwise empty list
+            Sequence[BaseCallbackHandler]: List of callback handlers
         """
+        callbacks: list[BaseCallbackHandler] = []
         if self.step_id:
-            return [StepLogCallbackHandler(step_id=self.step_id)]
-        return []
+            callbacks.append(StepLogCallbackHandler(step_id=self.step_id))
+        if hasattr(self, '_thread') and self._thread:
+            from apps.auto.callbacks.checkpoint_handler import ThreadCheckpointHandler
+            callbacks.append(ThreadCheckpointHandler(thread=self._thread))
+        return callbacks
 
     def get_llm(self):
         return get_llm_instance(temperature=0)
@@ -172,7 +248,9 @@ class AutomationAgent(AIAssistant, DBToolsMixin, ScannerToolsMixin):
             if target_name:
                 final_message += f"\n\nTarget Focus: {target_name}. If needed, use `get_target_context('{target_name}')` to retrieve IDs."
                 
-            return self._run_as_tool(final_message, caller_thread_id=thread_id)
+            from apps.auto.tasks import run_automation_agent_async
+            run_automation_agent_async.delay(final_message, caller_thread_id=thread_id)
+            return "Task delegated successfully to AutomationAgent in the background. Tell the user that the automation task has started."
             
         return StructuredTool.from_function(
             func=_tool_func,

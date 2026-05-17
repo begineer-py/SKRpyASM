@@ -6,7 +6,7 @@
  * Used in AICenterPage right panel to visualize performance.
  */
 
-import React, { useEffect, useRef, useMemo } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 
 interface StepTiming {
   id: number;
@@ -42,6 +42,8 @@ export function WaveformChart({
   maxDuration,
   animate = true,
 }: WaveformChartProps) {
+  // Keep prop for API compatibility even if animation is currently not implemented.
+  void animate;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   
   // Auto-detect max duration from steps

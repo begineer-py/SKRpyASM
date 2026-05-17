@@ -247,7 +247,10 @@ class EndpointMixin:
             if content:
                 sections.append(f"\n[Content Preview (2000 chars)]\n{content[:2000]}")
             else:
-                sections.append("\n[Content] No HTML content stored yet – may need Flaresolverr crawl.")
+                if url_obj.content_fetch_status == "PENDING":
+                    sections.append("\n[Content] No HTML content stored yet – may need Flaresolverr crawl.")
+                else:
+                    sections.append(f"\n[Content] No parseable HTML content (status={url_obj.content_fetch_status}). Already attempted crawl — skip this URL and move on.")
 
             sections.append("=== END URL INTELLIGENCE ===")
             return "\n".join(sections)

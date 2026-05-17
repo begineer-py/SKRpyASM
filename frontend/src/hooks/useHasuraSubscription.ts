@@ -15,7 +15,6 @@ const wsClient = createClient({
   keepAlive: 30_000, // 心跳間隔 30 秒
   retryAttempts: Infinity, // 無限重試
   shouldRetry: () => true, // 總是重試
-  maxBackoffMs: 30_000, // 最大退避 30 秒
 });
 
 export function useHasuraSubscription(query: string) {

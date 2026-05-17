@@ -13,9 +13,6 @@ from apps.core.models import (
     Iframe,
     NmapScan,
     Port,
-    IPAIAnalysis,
-    SubdomainAIAnalysis,
-    URLAIAnalysis,
     SubfinderScan,
     Overview,
     Step,
@@ -23,7 +20,6 @@ from apps.core.models import (
     Verification,
 )
 
-# Register your models here.
 admin.site.register(IP)
 admin.site.register(URLResult)
 admin.site.register(Subdomain)
@@ -37,12 +33,7 @@ admin.site.register(Comment)
 admin.site.register(Iframe)
 admin.site.register(NmapScan)
 admin.site.register(Port)
-admin.site.register(IPAIAnalysis)
-admin.site.register(SubdomainAIAnalysis)
-admin.site.register(URLAIAnalysis)
 admin.site.register(SubfinderScan)
-
-# Register your models here.
 admin.site.register(Overview)
 admin.site.register(Step)
 admin.site.register(Payload)

@@ -5,7 +5,7 @@
  * Includes auto-scrolling, filtering, and compact/expanded views.
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useStepLogStream } from '../hooks/useStepLogStream';
 import type { StepLog } from '../hooks/useStepLogStream';
 import './StepLogViewer.css';
@@ -64,7 +64,7 @@ export function StepLogViewer({
 }: StepLogViewerProps) {
   const { logs, isConnected, error, lastSequence } = useStepLogStream(stepId);
   const [filter, setFilter] = useState<string>('');
-  const [levelFilter, setLevelFilter] = useState<string[]>([]);
+  const [hiddenLevels, setHiddenLevels] = useState<string[]>([]);
   const [expandedLogId, setExpandedLogId] = useState<number | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
@@ -73,7 +73,7 @@ export function StepLogViewer({
 
   // Apply filters
   const filteredLogs = displayLogs.filter((log) => {
-    if (levelFilter.length > 0 && !levelFilter.includes(log.level)) {
+    if (hiddenLevels.includes(log.level)) {
       return false;
     }
     if (filter && !log.message.toLowerCase().includes(filter.toLowerCase())) {
@@ -143,16 +143,13 @@ export function StepLogViewer({
             <label key={level} className="slv-filter-label" title={level}>
               <input
                 type="checkbox"
-                checked={levelFilter.includes(level) || levelFilter.length === 0}
-                onChange={(e) => {
-                  if (e.target.checked) {
-                    setLevelFilter(levelFilter.length === Object.keys(LEVEL_COLORS).length - 1
-                      ? []
-                      : [...levelFilter.filter(l => l !== level)].filter(l => l !== level)
-                    );
-                  } else {
-                    setLevelFilter([...levelFilter.filter(l => l !== level), level]);
-                  }
+                checked={!hiddenLevels.includes(level)}
+                onChange={() => {
+                  setHiddenLevels((prev) =>
+                    prev.includes(level)
+                      ? prev.filter((l) => l !== level)
+                      : [...prev, level]
+                  );
                 }}
               />
               <span style={{ color: levelColor(level).text }}>

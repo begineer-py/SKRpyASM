@@ -7,17 +7,24 @@ const api = axios.create({
 
 export const assistantApi = {
   // Create a new thread assigned to hacker_assistant_agent
-  createThread: async () => {
+  createThread: async (name?: string) => {
     const response = await api.post('/threads/', {
-      assistant_id: 'hacker_assistant_agent'
+      assistant_id: 'hacker_assistant_agent',
+      ...(name ? { name } : {}),
     });
     return response.data;
   },
 
-  // Get messages for a thread
-  getMessages: async (threadId: number | string) => {
-    const response = await api.get(`/threads/${threadId}/messages/`);
+  // Rename/update a thread
+  updateThread: async (threadId: number | string, payload: { name: string }) => {
+    const response = await api.patch(`/threads/${threadId}/`, payload);
     return response.data;
+  },
+
+  // Get messages for a thread
+  getMessages: async (threadId: number | string): Promise<any[]> => {
+    const response = await api.get(`/threads/${threadId}/messages/`);
+    return Array.isArray(response.data) ? response.data : [];
   },
 
   // Post a message (blocking — kept for backward compatibility / fallback)
@@ -102,9 +109,9 @@ export const assistantApi = {
   },
 
   // Get all threads
-  getThreads: async () => {
+  getThreads: async (): Promise<any[]> => {
     const response = await api.get('/threads/');
-    return response.data;
+    return Array.isArray(response.data) ? response.data : [];
   },
 
   // Delete a thread

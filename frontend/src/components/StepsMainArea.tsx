@@ -5,14 +5,17 @@
  * Part of P11 redesigned AICenterPage layout (Sidebar + Main Content).
  */
 
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { StepLogViewer } from './StepLogViewer';
 
 interface Step {
   id: number;
-  status: 'COMPLETED' | 'FAILED' | 'RUNNING' | 'PENDING';
-  note?: { content: string };
+  status: string;
+  /** Hasura GraphQL returns this shape */
+  core_stepnote?: { content?: string | null } | null;
   core_attackvectors?: Array<{ name: string }>;
+  /** Injected by the caller so we can show target context per step */
+  targetName?: string | null;
 }
 
 interface StepsMainAreaProps {
@@ -89,7 +92,11 @@ export function StepsMainArea({
           {recentSteps.length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {recentSteps.map((step) => {
-                const name = step.core_attackvectors?.[0]?.name || step.note?.content || `Step #${step.id}`;
+                const noteLine = (step.core_stepnote?.content || '').split('\n')[0].trim();
+                const name =
+                  noteLine ||
+                  step.core_attackvectors?.[0]?.name ||
+                  `Step #${step.id}`;
                 const statusColor =
                   step.status === 'COMPLETED'
                     ? '#10B981'
@@ -133,16 +140,39 @@ export function StepsMainArea({
                             : 'none',
                       }}
                     />
-                    <div
-                      style={{
-                        flex: 1,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        color: '#94a3b8',
-                      }}
-                    >
-                      {name}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          color: '#94a3b8',
+                        }}
+                      >
+                        {name}
+                      </div>
+                      <div
+                        style={{
+                          marginTop: 2,
+                          display: 'flex',
+                          gap: 6,
+                          alignItems: 'center',
+                          fontSize: '0.7rem',
+                          color: '#64748b',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        <span style={{ color: statusColor, fontWeight: 700 }}>
+                          {step.status}
+                        </span>
+                        {step.targetName ? (
+                          <span style={{ opacity: 0.9 }} title={step.targetName}>
+                            TARGET: {step.targetName}
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
                     <div style={{ color: statusColor, flexShrink: 0, fontSize: '0.7rem' }}>
                       {step.status[0]}
@@ -184,12 +214,12 @@ export function StepsMainArea({
               {selectedStepId ? (
                 <span>Loading logs...</span>
               ) : recentSteps.length > 0 ? (
-                <span>👈 Select a step to view its execution logs</span>
-              ) : (
-                <span>No execution data available</span>
-              )}
-            </div>
-          )}
+                  <span>&lt;- Select a step to view its execution logs</span>
+                ) : (
+                  <span>No execution data available</span>
+                )}
+              </div>
+            )}
         </div>
       </div>
     </div>

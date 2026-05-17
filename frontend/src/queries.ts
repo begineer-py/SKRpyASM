@@ -1,9 +1,12 @@
 export const GET_LIVE_MISSIONS = `
   subscription GetLiveMissions {
-    core_overview(order_by: {updated_at: desc}, limit: 5) {
+    core_overview(order_by: {updated_at: desc}, limit: 10) {
       id
       status
+      thread_id
+      parent_thread_id
       core_target {
+        id
         name
       }
       core_steps(order_by: {created_at: desc}, limit: 10) {
@@ -27,11 +30,14 @@ export const GET_LIVE_MISSIONS = `
  */
 export const GET_RECENT_STEPS_UPDATES = `
   subscription GetRecentStepsUpdates {
-    core_overview(order_by: {updated_at: desc}, limit: 5) {
+    core_overview(order_by: {updated_at: desc}, limit: 10) {
       id
       status
       updated_at
+      thread_id
+      parent_thread_id
       core_target {
+        id
         name
       }
       core_steps(order_by: {created_at: desc}, limit: 20) {
@@ -62,6 +68,8 @@ export const GET_ALL_EXECUTION_STEPS = `
       knowledge
       created_at
       updated_at
+      thread_id
+      parent_thread_id
       core_target {
         id
         name

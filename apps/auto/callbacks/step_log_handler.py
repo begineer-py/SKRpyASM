@@ -169,7 +169,7 @@ class StepLogCallbackHandler(DjangoAIAssistantCallbackHandler):
             **kwargs: Additional LangChain callback arguments
         """
         try:
-            chain_name = serialized.get("name", "unknown_chain")
+            chain_name = serialized.get("name", "unknown_chain") if serialized else "unknown_chain"
             logger.debug(f"[StepLog] Chain START: step_id={self.step_id}, chain={chain_name}")
         except Exception as e:
             logger.error(f"[StepLog] Failed to log chain start for step {self.step_id}: {e}")

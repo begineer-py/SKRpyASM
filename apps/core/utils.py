@@ -59,8 +59,12 @@ def with_auto_callback(func: Callable) -> Callable:
             try:
                 logger.info(f"偵測到 callback_step_id={callback_step_id}，掃描完成。準備發送 Callback...")
                 
-                # 簡單取字串表示結果或摘要
-                summary = str(result) if result is not None else f"✅ 掃描任務 {func.__name__} 完成 (回報 ID: {callback_step_id})"
+                # 簡單取字串表示結果或摘要（截斷避免超過 AI context window 上限）
+                raw_summary = str(result) if result is not None else f"✅ 掃描任務 {func.__name__} 完成 (回報 ID: {callback_step_id})"
+                max_len = 5000
+                summary = raw_summary[:max_len]
+                if len(raw_summary) > max_len:
+                    summary += f"\n... [輸出過長，已截斷至 {max_len} 字元，原始長度 {len(raw_summary)} 字元]"
                 
                 # 透過 Django AI Assistant create_message 喚醒 AI (Django ORM, 不需要 HTTP)
                 try:

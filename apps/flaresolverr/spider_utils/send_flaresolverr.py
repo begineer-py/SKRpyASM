@@ -8,7 +8,17 @@ logger = logging.getLogger(__name__)
 
 
 def call_flaresolverr_api(
-    url, method, headers, cookie_string, flaresolverr_url, flaresolverr_max_retries
+    url,
+    method,
+    headers,
+    cookie_string,
+    flaresolverr_url,
+    flaresolverr_max_retries,
+    *,
+    body: str | None = None,
+    content_type: str | None = None,
+    host_header: str | None = None,
+    session: str | None = None,
 ):
     """
     Calls FlareSolverr API to bypass Cloudflare protections.
@@ -40,6 +50,20 @@ def call_flaresolverr_api(
                 "customHeaders": custom_headers_list,
             }
 
+            # Host header override (for vhost routing / CTF challenges).
+            if host_header:
+                custom_headers_list.append({"name": "Host", "value": host_header})
+
+            # POST/PUT/PATCH body support.
+            if body is not None and method.upper() in {"POST", "PUT", "PATCH", "DELETE"}:
+                flaresolverr_payload["postData"] = body
+                if content_type:
+                    custom_headers_list.append({"name": "Content-Type", "value": content_type})
+
+            # Session support (reuse browser context).
+            if session:
+                flaresolverr_payload["session"] = session
+
             with httpx.Client() as client:
                 fs_response = client.post(
                     f"{flaresolverr_url}/v1",
@@ -69,6 +93,9 @@ def call_flaresolverr_api(
                     "response_text": solution["response"],  # 這裡是 String
                     "response_headers": response_headers,
                     "response_url": solution["url"],
+                    # Pass back cookies if present.
+                    "response_cookies": solution.get("cookies", []),
+                    "user_agent": solution.get("userAgent"),
                     # 如果需要 cookies，可以加在這裡，但 utils 裡目前主要看 headers
                 }
 
@@ -92,3 +119,28 @@ def call_flaresolverr_api(
         if fs_retry_count < flaresolverr_max_retries:
             time.sleep(3)
     return None
+
+
+def create_flaresolverr_session(*, flaresolverr_url: str, max_timeout_ms: int = 60000) -> str | None:
+    """Create a FlareSolverr session and return session id."""
+    payload = {"cmd": "sessions.create", "maxTimeout": max_timeout_ms}
+    try:
+        with httpx.Client() as client:
+            resp = client.post(f"{flaresolverr_url}/v1", json=payload, timeout=65)
+        resp.raise_for_status()
+        data = resp.json()
+        if data.get("status") != "ok":
+            return None
+        return data.get("session")
+    except Exception:
+        return None
+
+
+def destroy_flaresolverr_session(*, flaresolverr_url: str, session: str) -> bool:
+    payload = {"cmd": "sessions.destroy", "session": session}
+    try:
+        with httpx.Client() as client:
+            resp = client.post(f"{flaresolverr_url}/v1", json=payload, timeout=30)
+        return resp.status_code == 200
+    except Exception:
+        return False

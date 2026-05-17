@@ -40,6 +40,12 @@ class ReconnaissanceMixin:
                 target=target, status__in=["PLANNING", "EXECUTING"]
             ).order_by("-id").first()
 
+            # If no active overview, fall back to most recent COMPLETED overview
+            if not active_overview:
+                active_overview = Overview.objects.filter(
+                    target=target, status="COMPLETED"
+                ).order_by("-id").first()
+
             subdomains = list(Subdomain.objects.filter(target=target).values("id", "name")[:15])
             ips = list(IP.objects.filter(target=target).values("id", "address")[:15])
             seeds = list(Seed.objects.filter(target=target).values("id", "type", "value")[:10])
@@ -51,7 +57,7 @@ class ReconnaissanceMixin:
                     f"Current System Time: {now_str}\n"
                     f"Target Name: {target.name}\n"
                     f"Target ID: {target.id}\n"
-                    f"Active Overview: NONE - No PLANNING/EXECUTING overview found.\n"
+                    f"Active Overview: NONE - No PLANNING/EXECUTING/COMPLETED overview found.\n"
                     f"  ⚠ DO NOT call create_step or update_overview_status.\n"
                     f"  👉 You MUST call `create_overview` with target_id={target.id} to initialize a new overview, then call `get_target_context` again.\n"
                     f"Real Seeds: {seeds}\n"
@@ -60,6 +66,30 @@ class ReconnaissanceMixin:
                     f"Real URLs: {urls}\n"
                     f"=== END OF CONTEXT ==="
                 )
+
+            # ════════════════════════════════════════════════════════════════
+            # Auto-bind thread_id when this agent was invoked by a parent
+            # (Orchestrator delegation flow). The sub-thread was already
+            # created by _run_as_tool — we just need to store its ID on the
+            # overview so the frontend can display it and async scanners
+            # can callback to the correct thread.
+            # ════════════════════════════════════════════════════════════════
+            if not active_overview.thread_id:
+                _caller_id = getattr(self, '_caller_thread_id', None)
+                if _caller_id:
+                    from django_ai_assistant.models import Thread
+                    sub_thread = Thread.objects.filter(
+                        name=f"subagent_automation_agent_for_thread_{_caller_id}"
+                    ).first()
+                    if sub_thread:
+                        active_overview.thread_id = sub_thread.id
+                        active_overview.save(update_fields=['thread_id'])
+                        logger.info(f"[get_target_context] Auto-bound overview {active_overview.id} → sub-thread {sub_thread.id}")
+            if hasattr(self, '_agent_overview_id') is not None and not self._agent_overview_id:
+                self._agent_overview_id = active_overview.id
+
+            is_completed = active_overview.status == "COMPLETED"
+            context_prefix = "RECENTLY COMPLETED" if is_completed else "ACTIVE"
 
             steps_info = ""
             steps = active_overview.steps.all().prefetch_related('discovered_vectors', 'note_detail').order_by('id')
@@ -80,8 +110,10 @@ class ReconnaissanceMixin:
                 f"Current System Time: {now_str}\n"
                 f"Target Name: {target.name}\n"
                 f"Target ID: {target.id}\n"
-                f"Active Overview ID: {active_overview.id}  ← USE THIS as overview_id in ALL tools\n"
+                f"{context_prefix} Overview ID: {active_overview.id}  ← USE THIS as overview_id in ALL tools\n"
                 f"Overview Status: {active_overview.status}\n"
+                f"Overview Thread ID: {active_overview.thread_id or '—'}  ← Your conversation thread\n"
+                f"Overview Parent Thread ID: {active_overview.parent_thread_id or '—'}  ← Parent/caller thread\n"
                 f"Overview Knowledge: {active_overview.knowledge}\n"
                 f"Overview Plan: {active_overview.plan}\n"
                 f"Overview Active Steps:{steps_info}\n"
@@ -90,7 +122,12 @@ class ReconnaissanceMixin:
                 f"Real IPs (use for Nmap/Nuclei): {ips}\n"
                 f"Real URLs (use for URL Nuclei/tech): {urls}\n"
                 f"=== END OF CONTEXT ===\n"
-                f"IMPORTANT: Use overview_id={active_overview.id} in every subsequent tool call."
+                + (
+                    f"NOTE: This overview is COMPLETED. If you need to continue investigation, "
+                    f"call update_overview_status to set it back to EXECUTING."
+                    if is_completed else
+                    f"IMPORTANT: Use overview_id={active_overview.id} in every subsequent tool call."
+                )
             )
         except Exception as e:
             logger.error(f"get_target_context failed: {e}")
@@ -100,6 +137,7 @@ class ReconnaissanceMixin:
     def create_overview(self, target_id: int, thread_id: int = None, parent_thread_id: int = None) -> str:
         """
         為沒有 Active Overview 的 Target 建立一個全新的 Overview。
+        注意：若目標已存在 PLANNING/EXECUTING 的 Overview，此工具會直接回傳現有的，不會重複建立。
         建立後，請務必重新呼叫 get_target_context 來獲取新的 overview_id。
 
         Args:
@@ -109,15 +147,59 @@ class ReconnaissanceMixin:
         """
         try:
             from apps.core.models import Target, Overview
+            from django.db import transaction
+            from django_ai_assistant.models import Thread
             target = Target.objects.get(id=target_id)
-            overview = Overview.objects.create(
-                target=target,
-                status="PLANNING",
-                risk_score=50,
-                plan={"steps": []},
-                thread_id=thread_id,
-                parent_thread_id=parent_thread_id,
-            )
+
+            # ══════════════════════════════════════════════════════════════
+            # Auto-bind parent_thread_id & thread_id from caller context
+            # This ensures parent notification works even if the LLM forgets
+            # to pass these parameters explicitly.
+            # ══════════════════════════════════════════════════════════════
+            _caller_id = getattr(self, '_caller_thread_id', None)
+            if _caller_id:
+                if not parent_thread_id:
+                    parent_thread_id = _caller_id
+                if not thread_id:
+                    sub_thread = Thread.objects.filter(
+                        name=f"subagent_automation_agent_for_thread_{_caller_id}"
+                    ).first()
+                    if sub_thread:
+                        thread_id = sub_thread.id
+
+            # ⚠️ Idempotency 保護：防止重複建立
+            with transaction.atomic():
+                existing = Overview.objects.select_for_update().filter(
+                    target=target,
+                    status__in=["PLANNING", "EXECUTING"]
+                ).order_by("-id").first()
+                if existing:
+                    # Auto-bind parent_thread_id on existing overview too
+                    if _caller_id and not existing.parent_thread_id and not parent_thread_id:
+                        existing.parent_thread_id = _caller_id
+                        existing.save(update_fields=['parent_thread_id'])
+                    if hasattr(self, '_agent_overview_id') is not None:
+                        self._agent_overview_id = existing.id
+                    logger.warning(
+                        f"create_overview called but active overview already exists "
+                        f"(Overview#{existing.id}) for Target {target.name}. Returning existing."
+                    )
+                    return (
+                        f"⚠️ Target {target.name} (ID: {target.id}) 已有 Active Overview (ID: {existing.id}, "
+                        f"Status: {existing.status})。無需重複建立，請直接使用此 overview_id={existing.id}。"
+                        f"請重新呼叫 get_target_context 確認。"
+                    )
+
+                overview = Overview.objects.create(
+                    target=target,
+                    status="PLANNING",
+                    risk_score=50,
+                    plan={"steps": []},
+                    thread_id=thread_id,
+                    parent_thread_id=parent_thread_id,
+                )
+            if hasattr(self, '_agent_overview_id') is not None:
+                self._agent_overview_id = overview.id
             return f"成功為 Target {target.name} (ID: {target.id}) 建立新的 Overview (ID: {overview.id})。請重新呼叫 get_target_context。"
         except Exception as e:
             logger.error(f"Failed to create overview for target {target_id}: {e}")
@@ -203,6 +285,120 @@ class ReconnaissanceMixin:
             return summary
         except Exception as e:
             return f"Error checking scanned subdomains: {str(e)}"
+
+    @method_tool
+    def escalate_to_orchestrator(self, overview_id: int, question: str) -> str:
+        """
+        [Escalation] 當你完全卡住時呼叫此工具向 HackerAssistant (Orchestrator/Layer 2) 請求戰略指導。
+        例如：所有已知的繞過手法都失敗、找不到新的攻擊面、或不確定下一步該做什麼。
+        系統會自動標記 Overview 為 NEEDS_GUIDANCE，並啟動自動化戰略分析。
+
+        Args:
+            overview_id: 當前 Overview 的 ID。
+            question: 你的問題。描述你嘗試了什麼、失敗了什麼、需要什麼方向指引。
+                      要詳細 (例如 'SSTI sandbox escape 所有標準繞過都被擋: __class__, __globals__, __builtins__ 全被攔截，還有其他思路嗎？')
+        """
+        try:
+            from apps.core.models import Overview
+            from django_ai_assistant.helpers.use_cases import create_message
+            from django.contrib.auth import get_user_model
+            from django.utils import timezone
+
+            if not Overview.objects.filter(id=overview_id).exists():
+                return f"CRITICAL_FAILURE: overview_id={overview_id} does not exist."
+
+            overview = Overview.objects.get(id=overview_id)
+            if not overview.parent_thread_id:
+                return "⚠️ 沒有設定 parent_thread_id，無法向 Orchestrator 求助。請繼續自行嘗試。"
+
+            User = get_user_model()
+            system_user = User.objects.filter(is_superuser=True).first()
+
+            create_message(
+                assistant_id="hacker_assistant_agent",
+                thread_id=overview.parent_thread_id,
+                user=system_user,
+                content=(
+                    f"🤖 **AutomationAgent needs guidance (Overview #{overview_id})**\n\n"
+                    f"**Target**: {overview.target.name if overview.target else 'N/A'}\n"
+                    f"**Risk Score**: {overview.risk_score}\n"
+                    f"**Question**: {question}\n\n"
+                    f"---\n"
+                    f"System: Review the AutomationAgent's recent steps in Overview #{overview_id} "
+                    f"and provide focused strategic guidance. Be specific about what to try next."
+                )
+            )
+
+            knowledge = overview.knowledge or {}
+            knowledge['_escalation'] = {
+                'question': question,
+                'escalated_at': str(timezone.now()),
+            }
+            overview.knowledge = knowledge
+            overview.status = "NEEDS_GUIDANCE"
+            overview.save(update_fields=['status', 'knowledge'])
+
+            return (
+                f"✅ 已向 HackerAssistant (parent_thread={overview.parent_thread_id}) 求助！\n"
+                f"問題: {question}\n"
+                f"Overview #{overview_id} 已標記為 NEEDS_GUIDANCE。\n"
+                f"系統正在分析你的情況並提供戰略建議。請稍後呼叫 read_orchestrator_guidance({overview_id}) 查看回覆。"
+            )
+        except Exception as e:
+            logger.error(f"escalate_to_orchestrator failed: {e}")
+            return f"求助失敗: {e}"
+
+    @method_tool
+    def read_orchestrator_guidance(self, overview_id: int) -> str:
+        """
+        [Escalation] 在呼叫 escalate_to_orchestrator 求助之後，用此工具查看 HackerAssistant 是否已回覆指導建議。
+        如果有新的指導訊息，此工具會回傳其內容。如果還沒有回覆，會提示你等待。
+
+        Args:
+            overview_id: 當前 Overview 的 ID。
+        """
+        try:
+            from django.utils import timezone
+
+            if not Overview.objects.filter(id=overview_id).exists():
+                return f"CRITICAL_FAILURE: overview_id={overview_id} does not exist."
+
+            overview = Overview.objects.get(id=overview_id)
+
+            if overview.status == "NEEDS_GUIDANCE":
+                # Guidance is delivered to the agent's OWN thread by _handle_guidance_request
+                if not overview.thread_id:
+                    return "⏳ 尚未建立 Thread，分析可能還在進行中。請稍後再查。"
+
+                from django_ai_assistant.models import Message as AiMessage
+                agent_msgs = AiMessage.objects.filter(
+                    thread_id=overview.thread_id
+                ).order_by('-created_at')[:10]
+
+                guidance = None
+                for msg in agent_msgs:
+                    content = (msg.content or "")
+                    if "Orchestrator Strategic Guidance" in content:
+                        guidance = content
+                        break
+                    if msg._meta.label == 'django_ai_assistant.AIMessage' and hasattr(msg, 'response'):
+                        continue
+
+                if guidance:
+                    overview.status = "EXECUTING"
+                    overview.save(update_fields=['status'])
+                    return f"📨 **Orchestrator 指導建議**:\n\n{guidance}\n\n---\nOverview 已恢復 EXECUTING 狀態。請根據上述建議繼續行動。"
+                else:
+                    return (
+                        f"⏳ 等待 Orchestrator 回覆中... (Overview #{overview_id} 狀態: NEEDS_GUIDANCE)\n"
+                        f"系統自動分析正在進行。請稍後再次呼叫此工具檢查。\n"
+                        f"與此同時，你可以嘗試自行尋找替代攻擊路徑。"
+                    )
+
+            return f"Overview #{overview_id} 狀態為 {overview.status}，無需等待指導。繼續執行當前任務。"
+        except Exception as e:
+            logger.error(f"read_orchestrator_guidance failed: {e}")
+            return f"讀取指導失敗: {e}"
 
     @method_tool
     def check_scanned_ips(self, target_id: int) -> str:

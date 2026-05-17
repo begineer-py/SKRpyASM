@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { gqlFetcher } from "../../services/api";
 import "../SeedReconPageSub/SeedReconPage.css"; // Reuse styling variables

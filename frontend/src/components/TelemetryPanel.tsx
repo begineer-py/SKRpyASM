@@ -5,7 +5,7 @@
  * Part of P11 redesigned AICenterPage layout (Sidebar + Main Content).
  */
 
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { WaveformChart } from './WaveformChart';
 import { TutorialPanel } from './TutorialPanel';
 
@@ -13,7 +13,8 @@ interface Step {
   id: number;
   status: 'COMPLETED' | 'FAILED' | 'RUNNING' | 'PENDING';
   estimated_duration_ms?: number;
-  note?: { content: string };
+  /** Hasura GraphQL returns this shape */
+  core_stepnote?: { content?: string | null } | null;
   core_attackvectors?: Array<{ name: string }>;
 }
 
@@ -23,6 +24,15 @@ interface TelemetryPanelProps {
   
   /** Steps array for visualization */
   steps?: Step[];
+
+  /** Optional recent step updates (e.g., from Hasura subscription) */
+  recentOverviews?: Array<any>;
+
+  /** Map thread_id -> display name for provenance */
+  threadNameById?: Record<string, string>;
+
+  /** Jump to a main chat thread (forces MAIN view) */
+  onOpenThread?: (threadId: string) => void;
   
   /** Bound target ID */
   boundTargetId?: number | null;
@@ -37,6 +47,9 @@ interface TelemetryPanelProps {
 export function TelemetryPanel({
   lastElapsedMs = null,
   steps = [],
+  recentOverviews = [],
+  threadNameById = {},
+  onOpenThread,
   boundTargetId = null,
   viewMode = 'MAIN',
   hasData = false,
@@ -55,9 +68,12 @@ export function TelemetryPanel({
 
     const chartData = steps
       .slice(-12) // Last 12 steps for chart
-      .map((s, i) => ({
+      .map((s) => ({
         id: s.id,
-        name: s.core_attackvectors?.[0]?.name || s.note?.content || `Step #${s.id}`,
+        name:
+          s.core_attackvectors?.[0]?.name ||
+          (s.core_stepnote?.content || '').split('\n')[0].trim() ||
+          `Step #${s.id}`,
         duration_ms: s.estimated_duration_ms || 0,
         status: s.status,
       }));
@@ -144,6 +160,87 @@ export function TelemetryPanel({
 
       {/* Content */}
       <div style={{ flex: 1, padding: '16px', overflowY: 'auto', minWidth: 0 }}>
+        {/* Real-time Step Updates */}
+        {recentOverviews && recentOverviews.length > 0 && (
+          <div style={{ marginBottom: '24px' }}>
+            <div
+              style={{
+                color: '#fbbf24',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                marginBottom: '10px',
+                letterSpacing: '0.05em',
+                textTransform: 'uppercase',
+              }}
+            >
+              Real-time Step Updates
+            </div>
+            <div
+              style={{
+                padding: '10px 12px',
+                background: 'rgba(34, 197, 94, 0.05)',
+                border: '1px dashed rgba(34, 197, 94, 0.35)',
+                borderRadius: '6px',
+                fontSize: '0.75rem',
+                color: '#94a3b8',
+              }}
+            >
+              {recentOverviews.slice(0, 2).map((overview: any) => {
+                const recentSteps = (overview.core_steps || []).slice(0, 5);
+                const runningSteps = recentSteps.filter((s: any) => s.status === 'RUNNING').length;
+                const completedSteps = recentSteps.filter((s: any) => s.status === 'COMPLETED').length;
+                const failedSteps = recentSteps.filter((s: any) => s.status === 'FAILED').length;
+
+                return (
+                  <div key={overview.id} style={{ marginBottom: '6px' }}>
+                    <span style={{ color: overview.status === 'EXECUTING' ? '#fbbf24' : '#22c55e' }}>
+                      {overview.core_target?.name || `Target#${overview.id}`}:
+                    </span>{' '}
+                    {runningSteps > 0 && <span style={{ color: '#fbbf24' }}>🔄 {runningSteps} running</span>}
+                    {completedSteps > 0 && <span style={{ color: '#22c55e', marginLeft: '6px' }}>✓ {completedSteps} done</span>}
+                    {failedSteps > 0 && <span style={{ color: '#ef4444', marginLeft: '6px' }}>✗ {failedSteps} failed</span>}
+                    {(overview.thread_id || overview.parent_thread_id) && (
+                      <div style={{ marginTop: 2, color: '#64748b', fontFamily: 'monospace' }}>
+                        {(() => {
+                          const originId = overview.parent_thread_id ?? overview.thread_id;
+                          const originKey = originId != null ? String(originId) : null;
+                          const originName = originKey ? threadNameById[originKey] : null;
+
+                          return (
+                            <>
+                              <span>
+                                origin: {originName ? `${originName} ` : ''}({originKey ?? '—'})
+                              </span>
+                              {originKey && onOpenThread && (
+                                <button
+                                  onClick={() => onOpenThread(originKey)}
+                                  style={{
+                                    marginLeft: 8,
+                                    padding: '1px 6px',
+                                    fontSize: '0.7rem',
+                                    borderRadius: 4,
+                                    cursor: 'pointer',
+                                    background: 'transparent',
+                                    color: '#94a3b8',
+                                    border: '1px solid rgba(148, 163, 184, 0.35)',
+                                  }}
+                                  title="Open originating chat thread"
+                                >
+                                  Open chat
+                                </button>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* LLM Response Time */}
         <div style={{ marginBottom: '24px' }}>
           <div
@@ -260,12 +357,14 @@ export function TelemetryPanel({
                 gap: '8px',
               }}
             >
-              {[
-                ['DONE', stepStats.completed, '#10B981'],
-                ['FAIL', stepStats.failed, '#ef4444'],
-                ['RUN', stepStats.running, '#fbbf24'],
-                ['WAIT', stepStats.pending, '#6b7280'],
-              ].map(([label, count, color]) => (
+              {(
+                [
+                  ['DONE', stepStats.completed, '#10B981'],
+                  ['FAIL', stepStats.failed, '#ef4444'],
+                  ['RUN', stepStats.running, '#fbbf24'],
+                  ['WAIT', stepStats.pending, '#6b7280'],
+                ] as Array<[string, number, string]>
+              ).map(([label, count, color]) => (
                 <div
                   key={label}
                   style={{

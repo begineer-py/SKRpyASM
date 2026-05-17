@@ -96,6 +96,29 @@ export interface UrlScan {
   added_count: number;
 }
 
+// ==================================================================
+// 3.1 Nmap Scan Result Page (legacy page)
+// ==================================================================
+
+export interface PortSchema {
+  port_number: number;
+  protocol: string;
+  state: string;
+  service_name?: string | null;
+  service_version?: string | null;
+}
+
+export interface NmapScanSchema {
+  id: number;
+  target_id: number;
+  scan_type: string;
+  status: ScanStatus | string;
+  started_at: string;
+  completed_at?: string | null;
+  error_message?: string | null;
+  ports: PortSchema[];
+}
+
 
 // ==================================================================
 // 4. AI 分析模型
