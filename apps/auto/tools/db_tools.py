@@ -10,6 +10,7 @@ from apps.auto.tools.memory_tools import MemoryMixin
 from apps.auto.tools.skill_tools import SkillMixin
 from apps.auto.tools.sandbox_tools import SandboxMixin
 from apps.auto.tools.step_management_tools import StepManagementMixin
+from apps.auto.tools.cve_intelligence_tools import CVEIntelligenceMixin
 
 logger = logging.getLogger(__name__)
 
@@ -22,11 +23,12 @@ class DBToolsMixin(
     SkillMixin,
     SandboxMixin,
     StepManagementMixin,
+    CVEIntelligenceMixin,
 ):
     """
     統一的資料庫工具 Mixin，提供給 Auto Agent 呼叫的資料庫操縱工具。
     所有繼承自此 Mixin 的 Assistant 皆會繼承這些 @method_tool。
-    
+
     本 Mixin 由以下領域特定的 Mixin 組成：
     - ReconnaissanceMixin: 偵察與上下文查詢工具
     - AssetCreationMixin: 資產登記工具
@@ -35,5 +37,6 @@ class DBToolsMixin(
     - SkillMixin: 技能系統管理
     - SandboxMixin: 沙箱命令執行
     - StepManagementMixin: 步驟管理與工作流程
+    - CVEIntelligenceMixin: CVE 情報查詢與豐富化
     """
     pass

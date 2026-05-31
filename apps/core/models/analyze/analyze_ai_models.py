@@ -9,8 +9,8 @@ class InitialAIAnalysis(models.Model):
         ("FAILED", "Failed"),
     ]
 
-    ip = models.ForeignKey("core.IP", on_delete=models.CASCADE, null=True, blank=True, related_name="initial_ai_analyses")
-    subdomain = models.ForeignKey("core.Subdomain", on_delete=models.CASCADE, null=True, blank=True, related_name="initial_ai_analyses")
+    ip = models.ForeignKey("core.IP", on_delete=models.CASCADE, null=True, blank=True, related_name="initial_ai_analyses")#關聯到的資產
+    subdomain = models.ForeignKey("core.Subdomain", on_delete=models.CASCADE, null=True, blank=True, related_name="initial_ai_analyses")#關聯到的資產
     url_result = models.ForeignKey("core.URLResult", on_delete=models.CASCADE, null=True, blank=True, related_name="initial_ai_analyses")
 
     status = models.CharField(max_length=10, choices=ANALYSIS_STATUS_CHOICES, default="PENDING", db_index=True)

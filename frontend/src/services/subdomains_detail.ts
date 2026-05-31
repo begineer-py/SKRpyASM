@@ -30,15 +30,12 @@ export const GET_SUBDOMAIN_DETAIL_QUERY = `
 
       
       # 关联的 AI 分析结果 (取最新的)
-      core_subdomainaianalyses(limit: 1, order_by: {created_at: desc}) {
+      core_initialaianalyses(limit: 1, order_by: {created_at: desc}) {
         # 核心分析字段
         summary
-        business_impact
         inferred_purpose
-        tech_stack_summary
-        potential_vulnerabilities
-        recommended_actions
-        command_actions
+        risk_score
+        worth_deep_analysis
         
         # 元数据
         status

@@ -1,6 +1,6 @@
 import logging
 from django.conf import settings
-from django_ai_assistant import AIAssistant
+from apps.ai_assistant import AIAssistant
 from apps.core.llms import get_llm_instance
 
 logger = logging.getLogger(__name__)
@@ -25,7 +25,7 @@ class AnalyzerMixin:
 
     def get_llm(self):
         return get_llm_instance(
-            temperature=0,
+            agent_id="initial_analyzer_agent",
             model_kwargs={"response_format": {"type": "json_object"}},
         )
 

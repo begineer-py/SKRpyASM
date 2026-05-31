@@ -1,5 +1,5 @@
 import logging
-from django_ai_assistant import method_tool
+from apps.ai_assistant import method_tool
 
 logger = logging.getLogger(__name__)
 

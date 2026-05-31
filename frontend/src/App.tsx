@@ -15,6 +15,8 @@ import SeedReconPage from "./pages/SeedReconPageSub/SeedReconPage.tsx";
 import SubdomainDetailPage from "./pages/SubdomainDetailPage/SubdomainDetailPage.tsx";
 import UrlDetailPage from "./pages/UrlDetailPage/UrlDetailPage.tsx";
 import SkillLibraryPage from "./pages/SkillLibraryPage/SkillLibraryPage.tsx";
+import APIKeyManagerPage from "./pages/APIKeyManagerPage/APIKeyManagerPage.tsx";
+import OverviewDetailPage from "./pages/OverviewDetailPage/OverviewDetailPage.tsx";
 function App() {
   return (
     <BrowserRouter>
@@ -23,6 +25,7 @@ function App() {
         <Routes>
           <Route path="/" element={<TargetListPage />} />
           <Route path="/target/:targetId" element={<TargetDashboard />} />
+          <Route path="/overviews/:overviewId" element={<OverviewDetailPage />} />
           <Route path="/execution-monitor" element={<ExecutionMonitorPage />} />
           <Route path="/aicenter" element={<AICenterPage />} />
           <Route path="/target/nmap/:targetId" element={<ScanResultPage />} />
@@ -31,6 +34,7 @@ function App() {
           <Route path="/target/:targetId/subdomain/:subdomainId" element={<SubdomainDetailPage />} />
           <Route path="/target/:targetId/url/:urlId" element={<UrlDetailPage />} />
           <Route path="/skills" element={<SkillLibraryPage />} />
+          <Route path="/api-keys" element={<APIKeyManagerPage />} />
         </Routes>
       </main>
     </BrowserRouter>

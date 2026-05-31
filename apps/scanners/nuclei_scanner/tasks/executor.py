@@ -114,6 +114,23 @@ def execute_nuclei_command(
             status="COMPLETED", completed_at=timezone.now()
         )
 
+        # === CVE 豐富化：自動觸發 ===
+        if callback_step_id:
+            from apps.scanners.cve_intelligence.tasks.enrichment_tasks import enrich_vulnerabilities_batch
+            from apps.core.models import Vulnerability
+
+            # 查詢待豐富化的 Vulnerability（限制數量避免過載）
+            vuln_ids = list(Vulnerability.objects.filter(
+                tool_source="nuclei",
+                enrichment_status="pending"
+            ).values_list("id", flat=True)[:50])
+
+            if vuln_ids:
+                logger.info(f"Triggering CVE enrichment for {len(vuln_ids)} vulnerabilities")
+                enrich_vulnerabilities_batch.delay(vuln_ids, callback_step_id)
+            else:
+                logger.debug("No pending vulnerabilities for CVE enrichment")
+
     except Exception as e:
         logger.exception(f"{asset_type} Nuclei 掃描執行失敗: {e}")
         NucleiScan.objects.filter(id__in=scan_record_ids).update(

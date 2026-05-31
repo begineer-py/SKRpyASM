@@ -1,5 +1,6 @@
-from django_ai_assistant import AIAssistant, method_tool
+from apps.ai_assistant import AIAssistant, method_tool
 from apps.core.llms import get_llm_instance
+from apps.auto.tools.memory_tools import MemoryMixin
 from langchain_community.tools import (
     ShellTool,
     FileSearchTool,
@@ -19,21 +20,38 @@ def _generate_dynamic_instructions() -> str:
     動態生成 HackerAssistantAgent 的系統提示詞，包含 AutomationAgent 的完整工具詳情。
     """
     base_instructions = (
-        "You are the Orchestrator Hacker Assistant (Layer 2), responsible for managing penetration testing workflows and coordinating specialized agents.\n\n"
-        "Guidelines:\n"
-        "1. Delegate low-level scanning and execution tasks to the AutomationAgent (Layer 3) or specific analyzer agents.\n"
-        "2. When calling the `automation_agent` tool, you must provide a clear `instruction` (e.g., 'Perform Phase B on vuln.com'). You may optionally provide `target_name` ONLY if the instruction is related to a specific penetration testing target.\n"
-        "3. Synthesize findings from sub-agents and report progress concisely to the user.\n"
-        "4. Create seeds only for targets explicitly provided by the user; avoid using placeholders.\n"
-        "5. If a target already has discovered assets (domains, IPs, URLs), prioritize attacking/analyzing them over indefinite enumeration.\n"
-        "6. Always verify the Target ID using `list_active_targets` before performing target-specific actions.\n"
-        "7. Be concise in your communication. Acknowledge commands briefly and let the user monitor detailed progress via the UI.\n\n"
-        "## OVERVIEW STANDARDS (when calling `create_or_update_target_overview`):\n"
-        "**plan_json_string** — Always provide a valid JSON string with this structure:\n"
-        '{"objectives": [{"id": 1, "description": "...", "priority": "HIGH|MEDIUM|LOW", "status": "PENDING|IN_PROGRESS|DONE|FAILED"}], "reasoning": "...", "generated_at": "ISO8601"}\n'
-        "**risk_score** — Use these levels:\n"
-        "0-30: Recon only, no exploitable issues. | 31-60: Low risk / info disclosure. | 61-85: Mid-high severity (SQLi/SSRF/IDOR). | 86-100: Critical (RCE/full auth bypass).\n"
-        "stay calm and don't overdescribe the issue, only provide the facts.\n\n"
+        "<system>\n"
+        "  <role>\n"
+        "    You are the Orchestrator Hacker Assistant (Layer 2), responsible for managing\n"
+        "    penetration testing workflows and coordinating specialized agents.\n"
+        "  </role>\n"
+        "\n"
+        "  <guidelines>\n"
+        "    <rule id=\"1\">Delegate low-level scanning, complex script execution, and large data analysis tasks to the AutomationAgent (Layer 3) or specific analyzer agents.</rule>\n"
+        "    <rule id=\"2\">When calling the `automation_agent` tool, you must provide a clear `instruction` (e.g., 'Analyze the HTML in blob_id=45 for hidden forms'). You may optionally provide `target_name` ONLY if the instruction is related to a specific penetration testing target.</rule>\n"
+        "    <rule id=\"3\">Synthesize findings from sub-agents and report progress concisely to the user.</rule>\n"
+        "    <rule id=\"4\">Create seeds only for targets explicitly provided by the user; avoid using placeholders.</rule>\n"
+        "    <rule id=\"5\">If a target already has discovered assets (domains, IPs, URLs), prioritize attacking/analyzing them over indefinite enumeration.</rule>\n"
+        "    <rule id=\"6\">Always verify the Target ID using `list_active_targets` before performing target-specific actions.</rule>\n"
+        "    <rule id=\"7\">Be concise in your communication. Acknowledge commands briefly and let the user monitor detailed progress via the UI.</rule>\n"
+        "    <rule id=\"8\">[Data Management] Large tool outputs are automatically compressed and saved to the database. If you see a `blob_id`, DO NOT try to read it yourself unless it's very short. Instead, delegate the analysis to a sub-agent or use `read_content_blob` with a specific `focus_query`.</rule>\n"
+        "    <rule id=\"9\">[Context Binding] Once you call `bind_to_target`, the session will be automatically bound to the active Overview. You DO NOT need to provide `overview_id` in subsequent tool calls; the system will inject it for you.</rule>\n"
+        "  </guidelines>\n"
+        "\n"
+        "  <overview_standards tool=\"create_or_update_target_overview\">\n"
+        "    <field name=\"plan_json_string\">\n"
+        "      Always provide a valid JSON string with this structure:\n"
+        '      {"objectives": [{"id": 1, "description": "...", "priority": "HIGH|MEDIUM|LOW", "status": "PENDING|IN_PROGRESS|DONE|FAILED"}], "reasoning": "...", "generated_at": "ISO8601"}\n'
+        "    </field>\n"
+        "    <field name=\"risk_score\">\n"
+        "      <level range=\"0-30\">Recon only, no exploitable issues.</level>\n"
+        "      <level range=\"31-60\">Low risk / info disclosure.</level>\n"
+        "      <level range=\"61-85\">Mid-high severity (SQLi/SSRF/IDOR).</level>\n"
+        "      <level range=\"86-100\">Critical (RCE/full auth bypass).</level>\n"
+        "    </field>\n"
+        "    <note>Stay calm and don't overdescribe the issue, only provide the facts.</note>\n"
+        "  </overview_standards>\n"
+        "</system>\n\n"
     )
     
     # 動態注入 AutomationAgent 工具詳情
@@ -50,7 +68,7 @@ def _generate_dynamic_instructions() -> str:
         return base_instructions
 
 
-class HackerAssistantAgent(AIAssistant):
+class HackerAssistantAgent(MemoryMixin, AIAssistant):
     id = "hacker_assistant_agent"
     name = "Hacker Assistant"
     instructions = _generate_dynamic_instructions()
@@ -67,16 +85,32 @@ class HackerAssistantAgent(AIAssistant):
         After binding, all subsequent operations will default to this target.
         Use list_active_targets first to find the correct Target ID."""
         try:
-            from django_ai_assistant.models import Thread
-            from apps.core.models import Target
+            from apps.core.models.ai_models import Thread
+            from apps.core.models import Target, Overview
             thread = self._init_kwargs.get('thread')
             if not thread:
                 return "Error: Cannot bind — no active thread found."
             target = Target.objects.filter(id=target_id).first()
             if not target:
                 return f"Error: Target ID {target_id} does not exist in the database."
-            Thread.objects.filter(id=thread.id).update(bound_target_id=target_id)
-            return f"[BOUND] This session is now focused on Target '{target.name}' (ID: {target_id}). All subsequent operations will default to this target."
+            
+            # Find the latest active overview for this target
+            overview = Overview.objects.filter(
+                target=target, 
+                status__in=["PLANNING", "EXECUTING", "NEEDS_GUIDANCE"]
+            ).order_by("-updated_at").first()
+            
+            ov_id = overview.id if overview else None
+            
+            Thread.objects.filter(id=thread.id).update(
+                bound_target_id=target_id,
+                bound_overview_id=ov_id
+            )
+            
+            msg = f"[BOUND] This session is now focused on Target '{target.name}' (ID: {target_id})."
+            if ov_id:
+                msg += f" Automatically bound to active Overview #{ov_id}."
+            return msg
         except Exception as e:
             return f"Error binding target: {str(e)}"
 
@@ -84,12 +118,15 @@ class HackerAssistantAgent(AIAssistant):
     def unbind_target(self) -> str:
         """Remove the current target binding from this conversation session."""
         try:
-            from django_ai_assistant.models import Thread
+            from apps.core.models.ai_models import Thread
             thread = self._init_kwargs.get('thread')
             if not thread:
                 return "Error: Cannot unbind — no active thread found."
             current_id = Thread.objects.filter(id=thread.id).values_list('bound_target_id', flat=True).first()
-            Thread.objects.filter(id=thread.id).update(bound_target_id=None)
+            Thread.objects.filter(id=thread.id).update(
+                bound_target_id=None,
+                bound_overview_id=None
+            )
             if current_id:
                 return f"[UNBOUND] Session is no longer focused on Target ID {current_id}."
             return "[UNBOUND] Session had no target binding."
@@ -115,7 +152,7 @@ class HackerAssistantAgent(AIAssistant):
             DuckDuckGoSearchResults(),
             QuerySQLDataBaseTool(db=db),
             AutomationAgent().as_tool(
-                description="Delegates logic execution to the Automation Agent (Layer 3). Use this Agent to perform pentest loops or general system maintenance tasks."
+                description="Delegates tasks to the Automation Agent (Layer 3). Use this for pentest loops, complex script execution, or analyzing large data/blobs discovered during recon."
             ),
             InitialAnalyzerAgent().as_tool(
                 description="Delegates initial analysis of assets to the Initial Analyzer Agent."

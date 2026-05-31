@@ -55,8 +55,8 @@ api.add_router("/api_keys", api_keys_router, tags=["API Keys - 密鑰管理"])
 api.add_router("/auto", auto_router, tags=["Legacy Auto - 舊版自動化"])
 urlpatterns = [  # 定義 URL 模式列表
     path("admin/", admin.site.urls),  # 將 /admin/ 路徑映射到 Django 管理後台的 URL
-    # django_ai_assistant 原生接口
-    path("api/assistant/", include("django_ai_assistant.urls")),
+    # apps.ai_assistant 原生接口
+    path("api/assistant/", include("apps.ai_assistant.urls")),
     # 操！把所有 API 的總入口都設在 /api/
     # 這樣最乾淨，以後要加新功能也好管理
     path("api/", api.urls),  # 將 /api/ 路徑映射到 NinjaAPI 實例 api 的所有路由

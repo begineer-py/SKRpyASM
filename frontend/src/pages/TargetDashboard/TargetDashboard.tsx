@@ -9,6 +9,8 @@ import {
   GET_TARGET_URLS_QUERY,
 } from "../../services/api";
 import { SeedService } from "../../services/api_seed";
+import TargetActivityMonitor from "../../components/TargetActivityMonitor";
+import TechStackCVEReport from "../../components/TechStackCVEReport";
 import type { Target, Seed } from "../../type";
 import "./TargetDashboard.css";
 
@@ -54,8 +56,16 @@ interface AIOverview {
   id: number;
   status: string;
   summary?: string;
-  plan?: any;
-  knowledge?: any;
+  plan?: {
+    reasoning?: string;
+    objectives?: {
+      id: string | number;
+      description: string;
+      status?: string;
+      priority?: string;
+    }[];
+  };
+  knowledge?: Record<string, unknown>;
   risk_score: number;
   business_impact?: string;
   thread_id?: number | null;
@@ -64,7 +74,23 @@ interface AIOverview {
   updated_at: string;
 }
 
-type TabId = "seeds" | "subdomains" | "ips" | "urls" | "ai";
+interface SubdomainRaw {
+  id: number;
+  name: string;
+  is_active: boolean;
+  is_resolvable: boolean;
+  created_at: string;
+  core_subdomain_ips?: { core_ip: { id: number; address: string } }[];
+}
+
+interface IPRaw {
+  id: number;
+  address: string;
+  version: number | null;
+  core_ports?: Port[];
+}
+
+type TabId = "seeds" | "activity" | "subdomains" | "ips" | "urls" | "cve" | "ai";
 
 // ─── Helper Components ─────────────────────────────────────────
 const StatusBadge = ({ status }: { status: string }) => {
@@ -125,7 +151,7 @@ function TargetDashboard() {
       if (!data.core_target_by_pk) { setError("Target not found"); return; }
       setTarget(data.core_target_by_pk);
       setSeeds(data.core_target_by_pk.core_seeds || []);
-    } catch (e: any) { setError(e.message); }
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed to load target"); }
     finally { setLoading(false); }
   }, [numericId]);
 
@@ -135,20 +161,22 @@ function TargetDashboard() {
     setTabLoading(true);
     try {
       if (tab === "subdomains") {
-        const d = await gqlFetcher<{ core_subdomain: any[] }>(
+        const d = await gqlFetcher<{ core_subdomain: SubdomainRaw[] }>(
           GET_TARGET_SUBDOMAINS_QUERY, { targetId: numericId }
         );
         const mapped: SubdomainAsset[] = (d.core_subdomain || []).map(sub => ({
           ...sub,
-          ips: (sub.core_subdomain_ips || []).map((item: any) => item.core_ip)
+          ips: (sub.core_subdomain_ips || []).map(item => item.core_ip)
         }));
         setSubdomains(mapped);
       } else if (tab === "ips") {
-        const d = await gqlFetcher<{ core_ip: IPAsset[] }>(
+        const d = await gqlFetcher<{ core_ip: IPRaw[] }>(
           GET_TARGET_IPS_QUERY, { targetId: numericId }
         );
-        const mapped = (d.core_ip || []).map((ip: any) => ({
-          ...ip,
+        const mapped: IPAsset[] = (d.core_ip || []).map(ip => ({
+          id: ip.id,
+          address: ip.address,
+          version: ip.version,
           ports: ip.core_ports || [],
         }));
         setIps(mapped);
@@ -163,7 +191,7 @@ function TargetDashboard() {
         );
         setOverviews(d.core_overview || []);
       }
-    } catch (e: any) { console.error("Tab fetch error:", e); }
+    } catch (e: unknown) { console.error("Tab fetch error:", e); }
     finally { setTabLoading(false); }
   }, [numericId]);
 
@@ -181,7 +209,7 @@ function TargetDashboard() {
       await SeedService.add(numericId, { value: newSeedVal.trim(), type: newSeedType });
       setNewSeedVal("");
       fetchBase();
-    } catch (e: any) { alert(`Add failed: ${e.message}`); }
+    } catch (e: unknown) { alert(`Add failed: ${e instanceof Error ? e.message : "Unknown error"}`); }
     finally { setIsAdding(false); }
   };
 
@@ -200,9 +228,11 @@ function TargetDashboard() {
 
   const TABS: { id: TabId; label: string; count?: number }[] = [
     { id: "seeds",      label: "Seeds",      count: seeds.length },
+    { id: "activity",   label: "🤖 AI Activity", count: undefined },
     { id: "subdomains", label: "Subdomains", count: subdomains.length || undefined },
     { id: "ips",        label: "IPs / Ports", count: ips.length || undefined },
     { id: "urls",       label: "URLs",       count: urls.length || undefined },
+    { id: "cve",        label: "CVE Report", count: undefined },
     { id: "ai",         label: "AI Overview",count: overviews.length || undefined },
   ];
 
@@ -344,6 +374,21 @@ function TargetDashboard() {
                 <div>→ Port Scanning</div>
                 <div>→ AI Initial Analysis</div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ACTIVITY TAB */}
+        {activeTab === "activity" && (
+          <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: 12 }}>
+            <div className="c2-section-header">
+              <span className="c2-section-title">🤖 AI ACTIVITY MONITOR</span>
+              <span className="td-muted" style={{ fontSize: "0.75rem" }}>
+                Real-time tracking of AI operations on this target
+              </span>
+            </div>
+            <div style={{ flex: 1, minHeight: 0, padding: "0 16px" }}>
+              <TargetActivityMonitor targetId={numericId} compact={false} maxSteps={50} />
             </div>
           </div>
         )}
@@ -505,6 +550,13 @@ function TargetDashboard() {
           </>
         )}
 
+        {/* CVE REPORT TAB */}
+        {activeTab === "cve" && (
+          <div style={{ padding: 20 }}>
+            <TechStackCVEReport targetId={numericId} />
+          </div>
+        )}
+
         {/* AI OVERVIEW TAB */}
         {activeTab === "ai" && !tabLoading && (
           <>
@@ -546,7 +598,7 @@ function TargetDashboard() {
                         )}
                         {ov.plan.objectives && Array.isArray(ov.plan.objectives) && (
                           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                            {ov.plan.objectives.map((obj: any) => (
+                            {ov.plan.objectives.map((obj) => (
                               <div key={obj.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "6px 10px", background: "rgba(15,23,42,0.6)", borderRadius: 4, border: "1px solid var(--border-subtle)" }}>
                                 <StatusBadge status={obj.status || "PENDING"} />
                                 {obj.priority && <span className="c2-badge c2-badge--amber">{obj.priority}</span>}

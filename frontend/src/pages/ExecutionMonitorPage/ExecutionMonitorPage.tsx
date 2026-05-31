@@ -1,7 +1,9 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useHasuraSubscription } from '../../hooks/useHasuraSubscription';
 import { GET_ALL_EXECUTION_STEPS } from '../../queries';
 import StepLogViewer from '../../components/StepLogViewer';
+import ScriptExecutionViewer from '../../components/ScriptExecutionViewer';
 import { StepService } from '../../services/stepService';
 import { OverviewService } from '../../services/overviewService';
 import { assistantApi } from '../../services/assistantApi';
@@ -50,6 +52,7 @@ interface Overview {
 
 export default function ExecutionMonitorPage() {
   const { data, loading, error } = useHasuraSubscription(GET_ALL_EXECUTION_STEPS);
+  const navigate = useNavigate();
 
   // Thread id -> name mapping for provenance display.
   const [threadNameById, setThreadNameById] = useState<Record<string, string>>({});
@@ -67,24 +70,14 @@ export default function ExecutionMonitorPage() {
   // State for selected step to view logs
   const [selectedStepId, setSelectedStepId] = useState<number | null>(null);
 
+  // State for right panel tab selection (logs or script executions)
+  const [rightPanelTab, setRightPanelTab] = useState<'logs' | 'scripts'>('logs');
+
   // Right panel StepNote editor state (human-facing summary)
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [editNoteContent, setEditNoteContent] = useState<string>('');
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [noteSaveError, setNoteSaveError] = useState<string | null>(null);
-
-  // Overview editing state
-  const [editingOverviewId, setEditingOverviewId] = useState<number | null>(null);
-  const [editOverviewFields, setEditOverviewFields] = useState<{
-    status: string;
-    summary: string;
-    risk_score: number;
-    business_impact: string;
-    plan: string;
-    knowledge: string;
-  }>({ status: '', summary: '', risk_score: 0, business_impact: '', plan: '', knowledge: '' });
-  const [isSavingOverview, setIsSavingOverview] = useState(false);
-  const [overviewSaveError, setOverviewSaveError] = useState<string | null>(null);
 
   // Step editing state for ai_thoughts inline edit
   const [editAiThoughts, setEditAiThoughts] = useState('');
@@ -111,6 +104,19 @@ export default function ExecutionMonitorPage() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // Read ?step=XXX from URL for deep-linking (one-way: URL → state only)
+  const [searchParams] = useSearchParams();
+  useEffect(() => {
+    const stepParam = searchParams.get('step');
+    if (stepParam) {
+      const stepId = parseInt(stepParam, 10);
+      if (!isNaN(stepId)) {
+        setSelectedStepId(stepId);
+        setRightPanelTab('logs');
+      }
+    }
   }, []);
 
   const selectedStep = useMemo(() => {
@@ -310,7 +316,7 @@ export default function ExecutionMonitorPage() {
   }
 
   return (
-      <div style={{ display: 'flex', height: '100vh', gap: '0', overflow: 'hidden' }}>
+      <div className="execution-monitor-layout" style={{ display: 'flex', height: 'calc(100vh - var(--navbar-height))', marginTop: 'var(--navbar-height)', gap: '0', overflow: 'hidden' }}>
         {/* Left: Execution Monitor */}
       <div
         className="execution-monitor-page"
@@ -538,21 +544,12 @@ export default function ExecutionMonitorPage() {
                         className="filter-btn"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setEditingOverviewId(overview.id);
-                          setEditOverviewFields({
-                            status: overview.status,
-                            summary: overview.summary || '',
-                            risk_score: overview.risk_score,
-                            business_impact: overview.business_impact || '',
-                            plan: overview.plan ? (typeof overview.plan === 'string' ? overview.plan : JSON.stringify(overview.plan, null, 2)) : '',
-                            knowledge: overview.knowledge ? (typeof overview.knowledge === 'string' ? overview.knowledge : JSON.stringify(overview.knowledge, null, 2)) : '',
-                          });
-                          setOverviewSaveError(null);
+                          navigate(`/overviews/${overview.id}`);
                         }}
-                        title="Edit overview"
+                        title="Manage overview"
                         style={{ marginRight: 4 }}
                       >
-                        Edit
+                        Manage
                       </button>
                       <button
                         className="filter-btn"
@@ -697,168 +694,9 @@ export default function ExecutionMonitorPage() {
         </div>
       </div>
 
-      {/* Overview Edit Modal */}
-      {editingOverviewId !== null && (
-        <div
-          style={{
-            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-            background: 'rgba(0,0,0,0.5)', zIndex: 9999,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
-          onClick={() => setEditingOverviewId(null)}
-        >
-          <div
-            style={{
-              background: '#fff', borderRadius: 12, padding: 24, width: 800,
-              maxWidth: '92vw', maxHeight: '85vh', overflowY: 'auto',
-              boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>
-              Overview #{editingOverviewId}
-            </h3>
+      {/* Overview Detail Page handled via navigate */}
 
-            {/* Read-only info bar */}
-            {(() => {
-              const ov = overviews.find(o => o.id === editingOverviewId);
-              if (!ov) return null;
-              return (
-                <div style={{
-                  background: '#f3f4f6', borderRadius: 8, padding: '10px 14px',
-                  marginBottom: 16, fontSize: 12, display: 'flex', flexWrap: 'wrap', gap: '12px',
-                }}>
-                  <span><strong>Target:</strong> {ov.core_target?.name || '—'}</span>
-                  <span><strong>Created:</strong> {new Date(ov.created_at).toLocaleString()}</span>
-                  <span><strong>Updated:</strong> {new Date(ov.updated_at).toLocaleString()}</span>
-                  <span><strong>Thread:</strong> {ov.thread_id ?? '—'}</span>
-                  <span><strong>Parent Thread:</strong> {ov.parent_thread_id ?? '—'}</span>
-                </div>
-              );
-            })()}
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>
-                Status
-                <select
-                  value={editOverviewFields.status}
-                  onChange={(e) => setEditOverviewFields(p => ({ ...p, status: e.target.value }))}
-                  style={{ width: '100%', marginTop: 4, padding: '6px 8px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 13 }}
-                >
-                  {['PLANNING', 'EXECUTING', 'STALLED', 'COMPLETED'].map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </label>
-
-              <div style={{ display: 'flex', gap: 12 }}>
-                <label style={{ flex: 1, fontSize: 12, fontWeight: 600, color: '#374151' }}>
-                  Risk Score (0-100)
-                  <input
-                    type="number" min={0} max={100}
-                    value={editOverviewFields.risk_score}
-                    onChange={(e) => setEditOverviewFields(p => ({ ...p, risk_score: Math.min(100, Math.max(0, Number(e.target.value)) || 0) }))}
-                    style={{ width: '100%', marginTop: 4, padding: '6px 8px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 13 }}
-                  />
-                </label>
-                <label style={{ flex: 1, fontSize: 12, fontWeight: 600, color: '#374151' }}>
-                  Business Impact
-                  <select
-                    value={editOverviewFields.business_impact}
-                    onChange={(e) => setEditOverviewFields(p => ({ ...p, business_impact: e.target.value }))}
-                    style={{ width: '100%', marginTop: 4, padding: '6px 8px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 13 }}
-                  >
-                    <option value="">—</option>
-                    {['Critical', 'High', 'Medium', 'Low'].map(s => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-
-              <label style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>
-                Summary
-                <textarea
-                  rows={4}
-                  value={editOverviewFields.summary}
-                  onChange={(e) => setEditOverviewFields(p => ({ ...p, summary: e.target.value }))}
-                  style={{ width: '100%', marginTop: 4, padding: '6px 8px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 13, resize: 'vertical', fontFamily: 'monospace' }}
-                />
-              </label>
-
-              <label style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>
-                Plan (JSON)
-                <textarea
-                  rows={6}
-                  value={editOverviewFields.plan}
-                  onChange={(e) => setEditOverviewFields(p => ({ ...p, plan: e.target.value }))}
-                  style={{ width: '100%', marginTop: 4, padding: '6px 8px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 12, resize: 'vertical', fontFamily: 'monospace' }}
-                  placeholder='{"steps": [...]}'
-                />
-              </label>
-
-              <label style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>
-                Knowledge (JSON)
-                <textarea
-                  rows={6}
-                  value={editOverviewFields.knowledge}
-                  onChange={(e) => setEditOverviewFields(p => ({ ...p, knowledge: e.target.value }))}
-                  style={{ width: '100%', marginTop: 4, padding: '6px 8px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 12, resize: 'vertical', fontFamily: 'monospace' }}
-                />
-              </label>
-            </div>
-
-            {overviewSaveError && (
-              <div style={{ color: '#ef4444', fontSize: 12, marginTop: 8 }}>{overviewSaveError}</div>
-            )}
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-              <button
-                className="filter-btn"
-                onClick={() => setEditingOverviewId(null)}
-                disabled={isSavingOverview}
-              >
-                Cancel
-              </button>
-              <button
-                className="filter-btn active"
-                disabled={isSavingOverview}
-                onClick={async () => {
-                  setIsSavingOverview(true);
-                  setOverviewSaveError(null);
-                  try {
-                    const payload: any = {
-                      status: editOverviewFields.status,
-                      summary: editOverviewFields.summary || null,
-                      risk_score: editOverviewFields.risk_score,
-                      business_impact: editOverviewFields.business_impact || null,
-                    };
-                    // Try to parse plan/knowledge as JSON; fallback to raw string
-                    if (editOverviewFields.plan) {
-                      try { payload.plan = JSON.parse(editOverviewFields.plan); }
-                      catch { payload.plan = editOverviewFields.plan; }
-                    }
-                    if (editOverviewFields.knowledge) {
-                      try { payload.knowledge = JSON.parse(editOverviewFields.knowledge); }
-                      catch { payload.knowledge = editOverviewFields.knowledge; }
-                    }
-                    await OverviewService.update(editingOverviewId, payload);
-                    setEditingOverviewId(null);
-                  } catch (err: any) {
-                    setOverviewSaveError(String(err?.response?.data?.detail || err?.message || 'Save failed'));
-                  } finally {
-                    setIsSavingOverview(false);
-                  }
-                }}
-              >
-                {isSavingOverview ? 'Saving...' : 'Save'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Right: Step Log Viewer */}
+      {/* Right: Step Log Viewer & Script Executions */}
       {selectedStepId && (
         <div
           style={{
@@ -870,6 +708,7 @@ export default function ExecutionMonitorPage() {
             minHeight: 0,
           }}
         >
+          {/* Header with Step Info and Tabs */}
           <div
             style={{
               padding: '12px 16px',
@@ -878,12 +717,51 @@ export default function ExecutionMonitorPage() {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '10px',
             }}
           >
             <span style={{ fontWeight: 600, fontSize: '13px' }}>
-              Step #{selectedStepId} Logs
+              Step #{selectedStepId}
             </span>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            
+            {/* Tabs */}
+            <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid #e5e7eb' }}>
+              <button
+                onClick={() => setRightPanelTab('logs')}
+                style={{
+                  padding: '8px 16px',
+                  background: rightPanelTab === 'logs' ? '#ffffff' : 'transparent',
+                  border: 'none',
+                  borderBottom: rightPanelTab === 'logs' ? '2px solid #3b82f6' : 'none',
+                  cursor: 'pointer',
+                  fontWeight: rightPanelTab === 'logs' ? 600 : 400,
+                  color: rightPanelTab === 'logs' ? '#3b82f6' : '#9ca3af',
+                  fontSize: '13px',
+                  marginBottom: '-2px',
+                }}
+              >
+                Logs
+              </button>
+              <button
+                onClick={() => setRightPanelTab('scripts')}
+                style={{
+                  padding: '8px 16px',
+                  background: rightPanelTab === 'scripts' ? '#ffffff' : 'transparent',
+                  border: 'none',
+                  borderBottom: rightPanelTab === 'scripts' ? '2px solid #3b82f6' : 'none',
+                  cursor: 'pointer',
+                  fontWeight: rightPanelTab === 'scripts' ? 600 : 400,
+                  color: rightPanelTab === 'scripts' ? '#3b82f6' : '#9ca3af',
+                  fontSize: '13px',
+                  marginBottom: '-2px',
+                }}
+              >
+                Scripts
+              </button>
+            </div>
+            
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginLeft: 'auto' }}>
               {/* Retry: reset FAILED step to PENDING */}
               {selectedStep?.status === 'FAILED' && (
                 <button
@@ -932,75 +810,79 @@ export default function ExecutionMonitorPage() {
               </button>
             </div>
           </div>
-          {/* StepNote (human-facing) */}
-          <div
-            style={{
-              padding: '12px 16px',
-              borderBottom: '1px solid #e5e7eb',
-              background: '#ffffff',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
-              <div style={{ fontWeight: 700, fontSize: '12px', letterSpacing: '0.04em', textTransform: 'uppercase', color: '#374151' }}>
-                StepNote (Summary)
-              </div>
-              <button
-                className="filter-btn"
-                onClick={() => {
-                  setIsEditingNote((v) => {
-                    const next = !v;
-                    if (!v && next) {
-                      setEditNoteContent(selectedStepNoteContent);
-                      setEditAiThoughts(selectedStep?.core_stepnote?.ai_thoughts || '');
-                      setNoteSaveError(null);
-                    }
-                    return next;
-                  });
+
+          {/* Logs Tab Content */}
+          {rightPanelTab === 'logs' && (
+            <>
+              {/* StepNote (human-facing) */}
+              <div
+                style={{
+                  padding: '12px 16px',
+                  borderBottom: '1px solid #e5e7eb',
+                  background: '#ffffff',
                 }}
               >
-                {isEditingNote ? 'Close' : 'Edit'}
-              </button>
-            </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ fontWeight: 700, fontSize: '12px', letterSpacing: '0.04em', textTransform: 'uppercase', color: '#374151' }}>
+                    StepNote (Summary)
+                  </div>
+                  <button
+                    className="filter-btn"
+                    onClick={() => {
+                      setIsEditingNote((v) => {
+                        const next = !v;
+                        if (!v && next) {
+                          setEditNoteContent(selectedStepNoteContent);
+                          setEditAiThoughts(selectedStep?.core_stepnote?.ai_thoughts || '');
+                          setNoteSaveError(null);
+                        }
+                        return next;
+                      });
+                    }}
+                  >
+                    {isEditingNote ? 'Close' : 'Edit'}
+                  </button>
+                </div>
 
-            {isEditingNote ? (
-              <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontSize: 11, fontWeight: 600, color: '#374151' }}>Summary (human-facing)</label>
-                <textarea
-                  value={editNoteContent}
-                  onChange={(e) => setEditNoteContent(e.target.value)}
-                  rows={6}
-                  style={{
-                    width: '100%',
-                    resize: 'vertical',
-                    padding: '10px',
-                    borderRadius: '8px',
-                    border: '1px solid #d1d5db',
-                    background: '#f9fafb',
-                    color: '#111827',
-                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                    fontSize: '12px',
-                  }}
-                />
-                <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', marginTop: 4 }}>
-                  Reason / AI Thoughts (why this step exists)
-                </label>
-                <textarea
-                  value={editAiThoughts}
-                  onChange={(e) => setEditAiThoughts(e.target.value)}
-                  rows={4}
-                  style={{
-                    width: '100%',
-                    resize: 'vertical',
-                    padding: '10px',
-                    borderRadius: '8px',
-                    border: '1px solid #d1d5db',
-                    background: '#f9fafb',
-                    color: '#111827',
-                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                    fontSize: '12px',
-                  }}
-                  placeholder="AI's reasoning for creating this step — what it was trying to achieve"
-                />
+                {isEditingNote ? (
+                  <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: '#374151' }}>Summary (human-facing)</label>
+                    <textarea
+                      value={editNoteContent}
+                      onChange={(e) => setEditNoteContent(e.target.value)}
+                      rows={6}
+                      style={{
+                        width: '100%',
+                        resize: 'vertical',
+                        padding: '10px',
+                        borderRadius: '8px',
+                        border: '1px solid #d1d5db',
+                        background: '#f9fafb',
+                        color: '#111827',
+                        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                        fontSize: '12px',
+                      }}
+                    />
+                    <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', marginTop: 4 }}>
+                      Reason / AI Thoughts (why this step exists)
+                    </label>
+                    <textarea
+                      value={editAiThoughts}
+                      onChange={(e) => setEditAiThoughts(e.target.value)}
+                      rows={4}
+                      style={{
+                        width: '100%',
+                        resize: 'vertical',
+                        padding: '10px',
+                        borderRadius: '8px',
+                        border: '1px solid #d1d5db',
+                        background: '#f9fafb',
+                        color: '#111827',
+                        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                        fontSize: '12px',
+                      }}
+                      placeholder="AI's reasoning for creating this step — what it was trying to achieve"
+                    />
                 {noteSaveError && (
                   <div style={{ color: '#ef4444', fontSize: '12px' }}>{noteSaveError}</div>
                 )}
@@ -1039,31 +921,40 @@ export default function ExecutionMonitorPage() {
                   >
                     {isSavingNote ? 'Saving...' : 'Save'}
                   </button>
-                </div>
-              </div>
-            ) : (
-              <div style={{ marginTop: '10px', fontSize: '12px', color: '#111827', whiteSpace: 'pre-wrap' }}>
-                {selectedStepNoteContent ? selectedStepNoteContent.split('\n')[0] : 'No StepNote yet'}
-              </div>
-            )}
+                 </div>
+               </div>
+             ) : (
+               <div style={{ marginTop: '10px', fontSize: '12px', color: '#111827', whiteSpace: 'pre-wrap' }}>
+                 {selectedStepNoteContent ? selectedStepNoteContent.split('\n')[0] : 'No StepNote yet'}
+               </div>
+             )}
 
-            {/* Step reason: StepNote.ai_thoughts (operator-facing) */}
-            {!isEditingNote && selectedStep?.core_stepnote?.ai_thoughts && (
-              <details style={{ marginTop: 10 }}>
-                <summary style={{ cursor: 'pointer', fontSize: '12px', color: '#374151', fontWeight: 600 }}>
-                  Reason (AI Thoughts)
-                </summary>
-                <div style={{ marginTop: 8, fontSize: '12px', color: '#111827', whiteSpace: 'pre-wrap' }}>
-                  {selectedStep.core_stepnote.ai_thoughts}
-                </div>
-              </details>
-            )}
-          </div>
+             {/* Step reason: StepNote.ai_thoughts (operator-facing) */}
+             {!isEditingNote && selectedStep?.core_stepnote?.ai_thoughts && (
+               <details style={{ marginTop: 10 }}>
+                 <summary style={{ cursor: 'pointer', fontSize: '12px', color: '#374151', fontWeight: 600 }}>
+                   Reason (AI Thoughts)
+                 </summary>
+                 <div style={{ marginTop: 8, fontSize: '12px', color: '#111827', whiteSpace: 'pre-wrap' }}>
+                   {selectedStep.core_stepnote.ai_thoughts}
+                 </div>
+               </details>
+             )}
+             </div>
 
-          {/* StepLogViewer (full execution trace) */}
-          <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
-            <StepLogViewer stepId={selectedStepId} autoScroll={true} />
-          </div>
+             {/* StepLogViewer (full execution trace) */}
+             <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+               <StepLogViewer stepId={selectedStepId} autoScroll={true} />
+             </div>
+            </>
+          )}
+
+          {/* Scripts Tab Content */}
+          {rightPanelTab === 'scripts' && (
+            <div style={{ flex: 1, overflow: 'hidden', minHeight: 0, padding: '12px 16px' }}>
+              <ScriptExecutionViewer stepId={selectedStepId} compact={false} />
+            </div>
+          )}
         </div>
       )}
     </div>

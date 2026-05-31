@@ -52,20 +52,6 @@ export const GET_URL_DETAIL_QUERY = `
         template_id
       }
 
-      # AI 分析
-      core_urlaianalyses(limit: 1, order_by: {created_at: desc}) {
-        id
-        status
-        summary
-        inferred_purpose
-        potential_vulnerabilities
-        recommended_actions
-        command_actions
-        created_at
-        completed_at
-        error_message
-      }
-
       # HTTP Headers
       headers
 

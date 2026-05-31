@@ -1,0 +1,979 @@
+import abc
+import importlib
+import inspect
+import logging
+import re
+from typing import (
+    Annotated,
+    Any,
+    AsyncIterable,
+    AsyncIterator,
+    ClassVar,
+    Dict,
+    Literal,
+    Sequence,
+    Type,
+    TypedDict,
+    cast,
+    overload,
+)
+
+from langchain_core.callbacks import BaseCallbackHandler
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import (
+    AIMessage,
+    AnyMessage,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+)
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import (
+    ChatPromptTemplate,
+    MessagesPlaceholder,
+    PromptTemplate,
+    format_document,
+)
+from langchain_core.retrievers import (
+    BaseRetriever,
+    RetrieverOutput,
+)
+from langchain_core.runnables import (
+    Runnable,
+    RunnableBranch,
+)
+from langchain_core.tools import BaseTool, StructuredTool
+from langgraph.graph import END, StateGraph, add_messages
+from langgraph.prebuilt import ToolNode
+from pydantic import BaseModel
+
+from apps.ai_assistant.decorators import with_cast_id
+from apps.ai_assistant.exceptions import (
+    AIAssistantMisconfiguredError,
+)
+from apps.ai_assistant.helpers.django_messages import save_django_messages
+from apps.ai_assistant.langchain.tools import tool as tool_decorator
+
+
+ProviderName = Literal["openai", "anthropic", "google"]
+
+
+class ProviderConfig(TypedDict):
+    langchain_module: str
+    llm_class: str
+
+
+PROVIDER_LLM_LOOKUP: dict[ProviderName, ProviderConfig] = {
+    "openai": {
+        "langchain_module": "langchain_openai",
+        "llm_class": "ChatOpenAI",
+    },
+    "anthropic": {
+        "langchain_module": "langchain_anthropic",
+        "llm_class": "ChatAnthropic",
+    },
+    "google": {
+        "langchain_module": "langchain_google_genai",
+        "llm_class": "ChatGoogleGenerativeAI",
+    },
+}
+
+
+class AIAssistant(abc.ABC):  # noqa: F821
+    """Base class for AI Assistants. Subclasses must define at least the following attributes:
+
+    * id: str
+    * name: str
+    * instructions: str
+    * model: str
+
+    Subclasses can override the public methods to customize the behavior of the assistant.\n
+    Tools can be added to the assistant by decorating methods with `@method_tool`.\n
+    Check the docs Tutorial for more info on how to build an AI Assistant.
+    """
+
+    id: ClassVar[str]  # noqa: A003
+    """Class variable with the id of the assistant. Used to select the assistant to use.\n
+    Must be unique across the whole Django project and match the pattern '^[a-zA-Z0-9_-]+$'."""
+    name: ClassVar[str]
+    """Class variable with the name of the assistant.
+    Should be a friendly name to optionally display to users."""
+    instructions: str
+    """Instructions for the AI assistant knowing what to do. This is the LLM system prompt."""
+    model: str
+    """LLM model name to use for the assistant.\n
+    Should be a valid model name from OpenAI, because the default `get_llm` method uses OpenAI.\n
+    `get_llm` can be overridden to use a different LLM implementation.
+    """
+    temperature: float | None = 1.0
+    """Temperature to use for the assistant LLM model.\n
+    Defaults to `1.0`.\n
+    When `None`, the temperature parameter is omitted when constructing the BaseChatModel
+    in the `get_llm` method.
+    """
+    tool_max_concurrency: int = 1
+    """Maximum number of tools to run concurrently / in parallel.\nDefaults to `1` (no concurrency)."""
+    recursion_limit: int = 150
+    """LangGraph recursion limit. Defaults to `150` to allow for longer workflows."""
+    has_rag: bool = False
+    """Whether the assistant uses RAG (Retrieval-Augmented Generation) or not.\n
+    Defaults to `False`.
+    When True, the assistant will use a retriever to get documents to provide as context to the LLM.
+    Additionally, the assistant class should implement the `get_retriever` method to return
+    the retriever to use."""
+    structured_output: Dict[str, Any] | Type[BaseModel] | Type | None = None
+    """Structured output to use for the assistant.\n
+    Defaults to `None`.
+    When not `None`, the assistant will return a structured output in the provided format.
+    See https://python.langchain.com/v0.3/docs/how_to/structured_output/ for the available formats.
+    """
+    _user: Any | None
+    """The current user the assistant is helping. A model instance.\n
+    Set by the constructor.
+    When API views are used, this is set to the current request user.\n
+    Can be used in any `@method_tool` to customize behavior."""
+    _request: Any | None
+    """The current Django request the assistant was initialized with. A request instance.\n
+    Set by the constructor.\n
+    Can be used in any `@method_tool` to customize behavior."""
+    _view: Any | None
+    """The current Django view the assistant was initialized with. A view instance.\n
+    Set by the constructor.\n
+    Can be used in any `@method_tool` to customize behavior."""
+    _init_kwargs: dict[str, Any]
+    """Extra keyword arguments passed to the constructor.\n
+    Set by the constructor.\n
+    Can be used in any `@method_tool` to customize behavior."""
+    _method_tools: Sequence[BaseTool]
+    """List of `@method_tool` tools the assistant can use. Automatically set by the constructor."""
+    _provider: ProviderName
+    """The provider key used to resolve and import the chat model class."""
+
+    _registry: ClassVar[dict[str, type["AIAssistant"]]] = {}
+    """Registry of all AIAssistant subclasses by their id.\n
+    Automatically populated by when a subclass is declared.\n
+    Use `get_cls_registry` and `get_cls` to access the registry."""
+
+    DEFAULT_DOCUMENT_PROMPT: ClassVar[PromptTemplate] = PromptTemplate.from_template(
+        "{page_content}"
+    )
+    DEFAULT_DOCUMENT_SEPARATOR: ClassVar[str] = "\n\n"
+
+    def __init__(
+        self,
+        *,
+        user=None,
+        request=None,
+        view=None,
+        provider: ProviderName = "openai",
+        **kwargs: Any,
+    ):
+        """Initialize the AIAssistant instance.\n
+        Optionally set the current user, request, and view for the assistant.\n
+        Those can be used in any `@method_tool` to customize behavior.\n
+
+        Args:
+            user (Any | None): The current user the assistant is helping. A model instance.
+                Defaults to `None`. Stored in `self._user`.
+            request (Any | None): The current Django request the assistant was initialized with.
+                A request instance. Defaults to `None`. Stored in `self._request`.
+            view (Any | None): The current Django view the assistant was initialized with.
+                A view instance. Defaults to `None`. Stored in `self._view`.
+            provider (ProviderName): The provider used to build the LLM instance.
+                Requires the corresponding langchain module to be installed (see `PROVIDER_LLM_LOOKUP`).
+                Defaults to `openai`. Stored in `self._provider`.
+            **kwargs: Extra keyword arguments passed to the constructor. Stored in `self._init_kwargs`.
+        """
+
+        self._user = user
+        self._request = request
+        self._view = view
+        self._provider = provider
+        self._init_kwargs = kwargs
+
+        self._set_method_tools()
+
+    def __init_subclass__(cls, **kwargs: Any):
+        """Called when a class is subclassed from AIAssistant.
+
+        This method is automatically invoked when a new subclass of AIAssistant
+        is created. It allows AIAssistant to perform additional setup or configuration
+        for the subclass, such as registering the subclass in a registry.
+
+        Args:
+            cls (type): The newly created subclass.
+            **kwargs: Additional keyword arguments passed during subclass creation.
+        """
+        super().__init_subclass__(**kwargs)
+
+        if not hasattr(cls, "id"):
+            raise AIAssistantMisconfiguredError(f"Assistant id is not defined at {cls.__name__}")
+        if cls.id is None:
+            raise AIAssistantMisconfiguredError(f"Assistant id is None at {cls.__name__}")
+        if not re.match(r"^[a-zA-Z0-9_-]+$", cls.id):
+            # id should match the pattern '^[a-zA-Z0-9_-]+$ to support as_tool in OpenAI
+            raise AIAssistantMisconfiguredError(
+                f"Assistant id '{cls.id}' does not match the pattern '^[a-zA-Z0-9_-]+$'"
+                f"at {cls.__name__}"
+            )
+
+        cls._registry[cls.id] = cls
+
+    def _set_method_tools(self):
+        # Find tool methods (decorated with `@method_tool` from apps.ai_assistant/tools.py):
+        members = inspect.getmembers(
+            self,
+            predicate=lambda m: inspect.ismethod(m) and getattr(m, "_is_tool", False),
+        )
+        tool_methods = [m for _, m in members]
+
+        # Sort tool methods by the order they appear in the source code,
+        # since this can be meaningful:
+        tool_methods.sort(key=lambda m: inspect.getsourcelines(m)[1])
+
+        # Transform tool methods into tool objects:
+        tools = []
+        for method in tool_methods:
+            if hasattr(method, "_tool_maker_args"):
+                tool = tool_decorator(
+                    *method._tool_maker_args,
+                    **method._tool_maker_kwargs,
+                )(method)
+            else:
+                tool = tool_decorator(method)
+            tools.append(cast(BaseTool, tool))
+
+        # Remove self from each tool args_schema:
+        for tool in tools:
+            if tool.args_schema:
+                if isinstance(tool.args_schema.__fields_set__, set):
+                    tool.args_schema.__fields_set__.remove("self")
+                tool.args_schema.__fields__.pop("self", None)
+
+        self._method_tools = tools
+
+    @classmethod
+    def get_cls_registry(cls) -> dict[str, type["AIAssistant"]]:
+        """Get the registry of AIAssistant classes.
+
+        Returns:
+            dict[str, type[AIAssistant]]: A dictionary mapping assistant ids to their classes.
+        """
+        return cls._registry
+
+    @classmethod
+    def get_cls(cls, assistant_id: str) -> type["AIAssistant"]:
+        """Get the AIAssistant class for the given assistant ID.
+
+        Args:
+            assistant_id (str): The ID of the assistant to get.
+        Returns:
+            type[AIAssistant]: The AIAssistant subclass for the given ID.
+        """
+        return cls.get_cls_registry()[assistant_id]
+
+    @classmethod
+    def clear_cls_registry(cls: type["AIAssistant"]) -> None:
+        """Clear the registry of AIAssistant classes."""
+
+        cls._registry.clear()
+
+    def get_instructions(self) -> str:
+        """Get the instructions for the assistant. By default, this is the `instructions` attribute.\n
+        Override the `instructions` attribute or this method to use different instructions.
+
+        Returns:
+            str: The instructions for the assistant, i.e., the LLM system prompt.
+        """
+        return self.instructions
+
+    def get_model(self) -> str:
+        """Get the LLM model name for the assistant. By default, this is the `model` attribute.\n
+        Used by the `get_llm` method to create the LLM instance.\n
+        Override the `model` attribute or this method to use a different LLM model.
+
+        Returns:
+            str: The LLM model name for the assistant.
+        """
+        return self.model
+
+    def get_temperature(self) -> float | None:
+        """Get the temperature to use for the assistant LLM model.
+        By default, this is the `temperature` attribute, which is `1.0` by default.\n
+        Used by the `get_llm` method to create the LLM instance.\n
+        Override the `temperature` attribute or this method to use a different temperature.\n
+        Returning `None` is a valid option, particularly for models that do not support
+        temperature control, allowing the parameter to be omitted in the `get_llm` method.\n
+
+        Returns:
+            float | None: The temperature to use for the assistant LLM model.
+        """
+        return self.temperature
+
+    def get_model_kwargs(self) -> dict[str, Any]:
+        """Get additional keyword arguments to pass to the LLM model constructor.\n
+        Used by the `get_llm` method to create the LLM instance.\n
+        Override this method to pass additional keyword arguments to the LLM model constructor.
+
+        Returns:
+            dict[str, Any]: Additional keyword arguments to pass to the LLM model constructor.
+        """
+        return {}
+
+    def _import_llm_class(self):
+        provider = PROVIDER_LLM_LOOKUP.get(self._provider)
+        if not provider:
+            valid_providers_list = PROVIDER_LLM_LOOKUP.keys()
+            raise AIAssistantMisconfiguredError(
+                f"Invalid provider={self._provider}, please use one "
+                f"of the supported providers: {valid_providers_list}"
+            )
+
+        # Performs a deferred import of the LLM class that corresponds to
+        # the self._provider value and returns it.
+        try:
+            langchain_module_str = provider["langchain_module"]
+            langchain_module = importlib.import_module(f"{langchain_module_str}")
+        except ImportError as err:
+            raise ImportError(
+                f"'{langchain_module_str}' is required to use this provider. "
+                f"Install it with: pip install django-ai-assistant[{self._provider}]"
+            ) from err
+
+        llm_class_str = provider["llm_class"]
+        try:
+            return getattr(langchain_module, llm_class_str)
+        except AttributeError as err:
+            raise ImportError(
+                f"'{llm_class_str}' is not a valid LLM class for provider '{self._provider}'."
+            ) from err
+
+    def get_llm(self) -> BaseChatModel:
+        """Get the LangChain LLM instance for the assistant.
+        By default, this uses the OpenAI implementation.\n
+        `get_model`, `get_temperature`, and `get_model_kwargs` are used to create the LLM instance.\n
+        Override this method to use a different LLM implementation.
+
+        Returns:
+            BaseChatModel: The LLM instance for the assistant.
+        """
+        model = self.get_model()
+        temperature = self.get_temperature()
+        model_kwargs = self.get_model_kwargs()
+
+        llm_class = self._import_llm_class()
+
+        if temperature is not None:
+            return llm_class(
+                model=model,
+                temperature=temperature,
+                model_kwargs=model_kwargs,
+            )
+        else:
+            return llm_class(
+                model=model,
+                model_kwargs=model_kwargs,
+            )
+
+    def get_structured_output_llm(self) -> Runnable:
+        """Get the LLM model to use for the structured output.
+
+        Returns:
+            BaseChatModel: The LLM model to use for the structured output.
+        """
+        if not self.structured_output:
+            raise ValueError("structured_output is not defined")
+
+        llm = self.get_llm()
+
+        method = "json_mode"
+        if self._provider == "openai":
+            # When using ChatOpenAI, it's better to use json_schema method
+            # because it enables strict mode.
+            # https://platform.openai.com/docs/guides/structured-outputs
+            method = "json_schema"
+
+        return llm.with_structured_output(self.structured_output, method=method)
+
+    def get_tools(self) -> Sequence[BaseTool]:
+        """Get the list of method tools the assistant can use.
+        By default, this is the `_method_tools` attribute, which are all `@method_tool`s.\n
+        Override and call super to add additional tools,
+        such as [any langchain_community tools](https://python.langchain.com/v0.3/docs/integrations/tools/).
+
+        Returns:
+            Sequence[BaseTool]: The list of tools the assistant can use.
+        """
+        return self._method_tools
+
+    def _internal_generate_summary(self, content: str) -> str:
+        """Internal helper to generate summary for large tool outputs using a cheap LLM."""
+        try:
+            # Try to use a faster/cheaper model if possible, otherwise use the default
+            llm = self.get_llm()
+            from langchain_core.messages import HumanMessage
+            
+            prompt = (
+                "You are a professional security analyst. The following is a very large tool output (HTML, report, or log).\n"
+                "Please provide a concise summary (max 500 words) in Traditional Chinese, focusing on:\n"
+                "1. Core tech stack or frameworks identified\n"
+                "2. Error messages, exceptions, or security vulnerability clues\n"
+                "3. Forms, endpoints, or sensitive paths\n"
+                "4. Other actionable intelligence\n\n"
+                f"=== RAW CONTENT (First 30k chars) ===\n{content[:30000]}"
+            )
+            resp = llm.invoke([HumanMessage(content=prompt)])
+            return resp.content[:1000] if hasattr(resp, 'content') else str(resp)[:1000]
+        except Exception as e:
+            logger.error(f"Internal summary generation failed: {e}")
+            return f"[Summary generation failed: {e}]"
+
+    def get_callbacks(self) -> Sequence[BaseCallbackHandler]:
+        """Get the list of callback handlers for monitoring and logging assistant execution.
+        By default, returns an empty list (no callbacks enabled).
+
+        Callbacks are used to hook into the LangChain execution pipeline to monitor:
+        - Tool calls (on_tool_start, on_tool_end, on_tool_error)
+        - Agent actions (on_agent_action)
+        - Chain execution (on_chain_start, on_chain_end)
+        - LLM calls (on_llm_start, on_llm_end)
+
+        This allows for logging, metrics collection, and observability without requiring
+        the AI model to actively call logging methods.
+
+        Override this method in subclasses to provide custom callbacks.
+
+        Returns:
+            Sequence[BaseCallbackHandler]: The list of callback handlers to use.
+
+        Example:
+            class MyAssistant(AIAssistant):
+                def get_callbacks(self):
+                    from myapp.callbacks import MyCustomHandler
+                    return [MyCustomHandler()]
+        """
+        return []
+
+    def get_document_separator(self) -> str:
+        """Get the RAG document separator to use in the prompt. Only used when `has_rag=True`.\n
+        Defaults to `"\\n\\n"`, which is the LangChain default.\n
+        Override this method to use a different separator.
+
+        Returns:
+            str: a separator for documents in the prompt.
+        """
+        return self.DEFAULT_DOCUMENT_SEPARATOR
+
+    def get_document_prompt(self) -> PromptTemplate:
+        """Get the PromptTemplate template to use when rendering RAG documents in the prompt.
+        Only used when `has_rag=True`.\n
+        Defaults to `PromptTemplate.from_template("{page_content}")`, which is the LangChain default.\n
+        Override this method to use a different template.
+
+        Returns:
+            PromptTemplate: a prompt template for RAG documents.
+        """
+        return self.DEFAULT_DOCUMENT_PROMPT
+
+    def get_retriever(self) -> BaseRetriever:
+        """Get the RAG retriever to use for fetching documents.\n
+        Must be implemented by subclasses when `has_rag=True`.\n
+
+        Returns:
+            BaseRetriever: the RAG retriever to use for fetching documents.
+        """
+        raise NotImplementedError(
+            f"Override the get_retriever with your implementation at {self.__class__.__name__}"
+        )
+
+    def get_contextualize_prompt(self) -> ChatPromptTemplate:
+        """Get the contextualize prompt template for the assistant.\n
+        This is used when `has_rag=True` and there are previous messages in the thread.
+        Since the latest user question might reference the chat history,
+        the LLM needs to generate a new standalone question,
+        and use that question to query the retriever for relevant documents.\n
+        By default, this is a prompt that asks the LLM to
+        reformulate the latest user question without the chat history.\n
+        Override this method to use a different contextualize prompt.\n
+        See `get_history_aware_retriever` for how this prompt is used.\n
+
+        Returns:
+            ChatPromptTemplate: The contextualize prompt template for the assistant.
+        """
+        contextualize_q_system_prompt = (
+            "Given a chat history and the latest user question "
+            "which might reference context in the chat history, "
+            "formulate a standalone question which can be understood "
+            "without the chat history. Do NOT answer the question, "
+            "just reformulate it if needed and otherwise return it as is."
+        )
+        return ChatPromptTemplate.from_messages(
+            [
+                ("system", contextualize_q_system_prompt),
+                # TODO: make history key configurable?
+                MessagesPlaceholder("history"),
+                # TODO: make input key configurable?
+                ("human", "{input}"),
+            ]
+        )
+
+    def get_history_aware_retriever(self) -> Runnable[dict, RetrieverOutput]:
+        """Get the history-aware retriever LangChain chain for the assistant.\n
+        This is used when `has_rag=True` to fetch documents based on the chat history.\n
+        By default, this is a chain that checks if there is chat history,
+        and if so, it uses the chat history to generate a new standalone question
+        to query the retriever for relevant documents.\n
+        When there is no chat history, it just passes the input to the retriever.\n
+        Override this method to use a different history-aware retriever chain.
+
+        Read more about the history-aware retriever in the
+        [LangChain docs](https://python.langchain.com/v0.2/docs/how_to/qa_chat_history_how_to/).
+
+        Returns:
+            Runnable[dict, RetrieverOutput]: a history-aware retriever LangChain chain.
+        """
+        llm = self.get_llm()
+        retriever = self.get_retriever()
+        prompt = self.get_contextualize_prompt()
+
+        # Based on create_history_aware_retriever:
+        return RunnableBranch(
+            (
+                lambda x: not x.get("history", False),  # pyright: ignore[reportAttributeAccessIssue]
+                # If no chat history, then we just pass input to retriever
+                (lambda x: x["input"]) | retriever,
+            ),
+            # If chat history, then we pass inputs to LLM chain, then to retriever
+            prompt | llm | StrOutputParser() | retriever,
+        )
+
+    @with_cast_id
+    def as_graph(
+        self, thread_id: Any | None = None, thread: Any | None = None
+    ) -> Runnable[dict, dict]:
+        """Create the LangGraph graph for the assistant.\n
+        This graph is an agent that supports chat history, tool calling, and RAG (if `has_rag=True`).\n
+        `as_graph` uses many other methods to create the graph for the assistant.
+        Prefer to override the other methods to customize the graph for the assistant.
+        Only override this method if you need to customize the graph at a lower level.
+
+        If both arguments are `None`, an in-memory chat message history is used.
+
+        Args:
+            thread_id (Any | None): The thread ID for the chat message history.
+            thread (Any | None): The thread object for the chat message history.
+
+        Returns:
+            the compiled graph
+        """
+        from apps.core.models import Thread
+
+        llm = self.get_llm()
+        tools = self.get_tools()
+
+        if thread and thread.bound_overview_id:
+            wrapped_tools = []
+            for tool in tools:
+                # Check if tool expects overview_id
+                has_ov_id = False
+                if tool.args_schema:
+                    # Support both Pydantic v1 (__fields__) and v2 (model_fields)
+                    fields = getattr(tool.args_schema, "model_fields", getattr(tool.args_schema, "__fields__", {}))
+                    if "overview_id" in fields:
+                        has_ov_id = True
+                
+                if has_ov_id:
+                    def _create_wrapped_func(t, ov_id):
+                        orig_func = getattr(t, "func", None)
+                        if not orig_func:
+                            return None
+                            
+                        def _wrapped(*args, **kwargs):
+                            # Auto-inject overview_id if not provided or provided as None
+                            if kwargs.get("overview_id") is None:
+                                kwargs["overview_id"] = ov_id
+                            return orig_func(*args, **kwargs)
+                        return _wrapped
+
+                    wrapped_func = _create_wrapped_func(tool, thread.bound_overview_id)
+                    if wrapped_func:
+                        new_tool = StructuredTool.from_function(
+                            func=wrapped_func,
+                            name=tool.name,
+                            description=tool.description,
+                            args_schema=tool.args_schema
+                        )
+                        wrapped_tools.append(new_tool)
+                        continue
+                
+                wrapped_tools.append(tool)
+            tools = wrapped_tools
+
+        llm_with_tools = llm.bind_tools(tools) if tools else llm
+        if thread is None and thread_id is not None:
+            thread = Thread.objects.get(id=thread_id)
+
+        class AgentState(TypedDict):
+            messages: Annotated[list[AnyMessage], add_messages]
+            input: str | None  # noqa: A003
+            output: Any
+
+        def setup(state: AgentState):
+            system_prompt = self.get_instructions()
+            if thread:
+                system_prompt += f"\n\n[SYSTEM INFO]\nYour current Thread ID is: {thread.id}\nIf you delegate long tasks asynchronously to another agent, explicitly pass your Thread ID via their `caller_thread_id` tool parameter so they can wake you up when done."
+            return {"messages": [SystemMessage(content=system_prompt)]}
+
+        def history(state: AgentState):
+            messages = thread.get_messages(include_extra_messages=True) if thread else []
+            if state["input"]:
+                messages.append(HumanMessage(content=state["input"]))
+
+            return {"messages": messages}
+
+        def retriever(state: AgentState):
+            if not self.has_rag:
+                return
+
+            retriever = self.get_history_aware_retriever()
+            # Remove the initial instructions to prevent having two SystemMessages
+            # This is necessary for compatibility with Anthropic
+            messages_to_summarize = state["messages"][1:-1]
+            input_message = state["messages"][-1]
+            docs = retriever.invoke(
+                {"input": input_message.content, "history": messages_to_summarize}
+            )
+
+            document_separator = self.get_document_separator()
+            document_prompt = self.get_document_prompt()
+
+            formatted_docs = document_separator.join(
+                format_document(doc, document_prompt) for doc in docs
+            )
+
+            system_message = state["messages"][0]
+            system_message.content += (
+                f"\n\n---START OF CONTEXT---\n{formatted_docs}---END OF CONTEXT---\n\n"
+            )
+
+        def agent(state: AgentState):
+            _logger = logging.getLogger("ai_assistant.agent")
+            if _logger.isEnabledFor(logging.DEBUG):
+                for i, msg in enumerate(state["messages"]):
+                    _logger.debug(f"[AGENT INVOKE] msg[{i}] type={type(msg).__name__}: {str(msg.content)[:500]}")
+            response = llm_with_tools.invoke(state["messages"])
+            if _logger.isEnabledFor(logging.DEBUG):
+                _logger.debug(f"[AGENT RESPONSE] tool_calls={getattr(response, 'tool_calls', [])}")
+            return {"messages": [response]}
+
+        def tool_selector(state: AgentState):
+            last_message = state["messages"][-1]
+
+            if isinstance(last_message, AIMessage) and last_message.tool_calls:
+                return "call_tool"
+
+            return "continue"
+
+        def post_tool_hook(state: AgentState):
+            """Hook to intercept and compress large tool outputs before they reach the LLM."""
+            messages = state["messages"]
+            last_tool_messages = []
+            
+            # Find the recent wave of tool messages
+            for msg in reversed(messages):
+                if msg.type == "tool":
+                    last_tool_messages.append(msg)
+                else:
+                    break
+            
+            if not last_tool_messages:
+                return {"messages": []}
+
+            updated_messages = []
+            for msg in last_tool_messages:
+                content = str(msg.content)
+                # Auto-compress if output > 2500 chars
+                if len(content) > 2500:
+                    try:
+                        from apps.core.models.analyze.ContentBlob import ContentBlob
+                        
+                        summary = self._internal_generate_summary(content)
+                        
+                        blob = ContentBlob.objects.create(
+                            raw_content=content,
+                            content_size=len(content),
+                            ai_summary=summary,
+                            source_type="auto_hook",
+                        )
+                        
+                        # Replace content in the message object
+                        new_content = (
+                            f"⚠️ [AUTO-COMPRESSED] Tool output too large ({len(content)} chars). Moved to database.\n"
+                            f"**Summary**: {summary}\n"
+                            f"**Blob ID**: {blob.id}\n"
+                            f"Use `read_content_blob(blob_id={blob.id})` for details."
+                        )
+                        msg.content = new_content
+                        updated_messages.append(msg)
+                    except Exception as e:
+                        logger.error(f"Post-tool hook compression failed: {e}")
+                else:
+                    updated_messages.append(msg)
+            
+            # Return updated messages with same IDs to update state
+            return {"messages": updated_messages}
+
+        def record_response(state: AgentState):
+            # Structured output must happen in the end, to avoid disabling tool calling.
+            # Tool calling + structured output is not supported by OpenAI:
+            if self.structured_output:
+                messages = state["messages"]
+
+                # Change the original system prompt:
+                if isinstance(messages[0], SystemMessage):
+                    messages[0].content += "\nUse the chat history to produce a JSON output."
+
+                # Add a final message asking for JSON generation / structured output:
+                json_request_message = HumanMessage(
+                    content="Use the chat history to produce a JSON output."
+                )
+                messages.append(json_request_message)
+
+                llm_with_structured_output = self.get_structured_output_llm()
+                response = llm_with_structured_output.invoke(messages)
+            else:
+                response = state["messages"][-1].content
+
+            if thread:
+                # Save all messages, except the initial system message:
+                thread_messages = [m for m in state["messages"] if not isinstance(m, SystemMessage)]
+                save_django_messages(cast(list[BaseMessage], thread_messages), thread=thread)
+            return {"output": response}
+
+        workflow = StateGraph(AgentState)
+
+        workflow.add_node("setup", setup)
+        workflow.add_node("history", history)
+        workflow.add_node("retriever", retriever)
+        workflow.add_node("agent", agent)
+        workflow.add_node("tools", ToolNode(tools=tools))
+        workflow.add_node("post_tool_hook", post_tool_hook)
+        workflow.add_node("respond", record_response)
+
+        workflow.set_entry_point("setup")
+        workflow.add_edge("setup", "history")
+        workflow.add_edge("history", "retriever")
+        workflow.add_edge("retriever", "agent")
+        workflow.add_conditional_edges(
+            "agent",
+            tool_selector,
+            {
+                "call_tool": "tools",
+                "continue": "respond",
+            },
+        )
+        workflow.add_edge("tools", "post_tool_hook")
+        workflow.add_edge("post_tool_hook", "agent")
+        workflow.add_edge("respond", END)
+
+        return workflow.compile()
+
+    @overload
+    def invoke(
+        self,
+        *args: Any,
+        thread_id: Any | None,
+        thread: Any | None = None,
+        mode: Literal["invoke"] = "invoke",
+        **kwargs: Any,
+    ) -> dict:
+        ...  # pragma: no cover
+
+    @overload
+    def invoke(
+        self,
+        *args: Any,
+        thread_id: Any | None,
+        thread: Any | None = None,
+        mode: Literal["astream"],
+        **kwargs: Any,
+    ) -> AsyncIterator[dict]:
+        ...  # pragma: no cover
+
+    @with_cast_id
+    def invoke(
+        self,
+        *args: Any,
+        thread_id: Any | None = None,
+        thread: Any | None = None,
+        mode: Literal["invoke", "astream"] = "invoke",
+        **kwargs: Any,
+    ) -> dict | AsyncIterator[dict]:
+        """Invoke the assistant LangChain graph with the given arguments and keyword arguments.\n
+        This is the lower-level method to run the assistant.\n
+        The graph is created by the `as_graph` method.\n
+
+        If thread_id and thread are `None`, an in-memory chat message history is used.
+
+        Args:
+            *args: Positional arguments to pass to the graph.
+                To add a new message, use a dict like `{"input": "user message"}`.
+                If thread already has a `HumanMessage` in the end, you can invoke without args.
+            thread_id (Any | None): The thread ID for the chat message history.
+            thread (Any | None): The thread object for the chat message history.
+            mode (invoke | astream): call named graph method
+            **kwargs: Keyword arguments to pass to the graph.
+
+        Returns:
+            dict: The output of the assistant graph,
+                 structured like `{"output": "assistant response", "history": ...}`.
+        """
+        graph = self.as_graph(thread_id=thread_id, thread=thread)
+        config = kwargs.pop("config", {})
+        config["max_concurrency"] = config.pop("max_concurrency", self.tool_max_concurrency)
+        config["recursion_limit"] = config.pop("recursion_limit", getattr(self, "recursion_limit", 150))
+        
+        # Automatically inject callbacks from get_callbacks()
+        callbacks = self.get_callbacks()
+        if callbacks:
+            config.setdefault("callbacks", []).extend(callbacks)
+        
+        # Inject thread_id into configurable so nested agent tools can read caller_thread_id
+        if thread_id is not None:
+            config.setdefault("configurable", {})["thread_id"] = thread_id
+        if mode not in ("invoke", "astream"):
+            raise NotImplementedError(f"mode={mode!r}")
+        return getattr(graph, mode)(*args, config=config, **kwargs)
+
+    @with_cast_id
+    def run(self, message: str, thread_id: Any | None = None, **kwargs: Any) -> Any:
+        """Run the assistant with the given message and thread ID.\n
+        This is the higher-level method to run the assistant.\n
+
+        Args:
+            message (str): The user message to pass to the assistant.
+            thread_id (Any | None): The thread ID for the chat message history.
+                If `None`, an in-memory chat message history is used.
+            **kwargs: Additional keyword arguments to pass to the graph.
+
+        Returns:
+            Any: The assistant response to the user message.
+        """
+        return self.invoke(
+            {
+                "input": message,
+            },
+            thread_id=thread_id,
+            **kwargs,
+        )["output"]
+
+    @with_cast_id
+    async def astream(
+        self, message: str, thread: Any | None = None, **kwargs: Any
+    ) -> AsyncIterable[Any]:
+        """Async-stream the assistant with the given message and thread.\n
+        This is the higher-level method to run the assistant.\n
+
+        Args:
+            message (str): The user message to pass to the assistant.
+            thread (Any | None): The thread object for the chat message history.
+                If `None`, an in-memory chat message history is used.
+            **kwargs: Additional keyword arguments to pass to the graph.
+
+        Yields:
+            Any: The assistant response to the user message.
+        """
+        async for output, metadata in self.invoke(
+            {
+                "input": message,
+            },
+            thread=thread,
+            mode="astream",
+            stream_mode="messages",
+            **kwargs,
+        ):
+            if metadata.get("langgraph_node") == "agent" and (content := output.content):
+                yield content
+
+    def _run_as_tool(self, message: str, caller_thread_id: int | None = None, persistent: bool = True, **kwargs: Any) -> Any:
+        _logger = logging.getLogger("ai_assistant.agent")
+        _logger.info(f"[AS_TOOL CALLED] assistant_id={self.id!r} | message={message[:500]!r} | caller_thread_id={caller_thread_id} | persistent={persistent}")
+        
+        target_thread_id = None
+        if caller_thread_id:
+            try:
+                from apps.core.models import Thread
+                
+                # 決定 Thread 名稱與隱藏屬性
+                if persistent:
+                    sub_thread_name = f"subagent_{self.id}_for_thread_{caller_thread_id}"
+                    is_hidden = False
+                else:
+                    # 一次性調用也建立 DB 記錄以保證可靠性，但標記為隱藏
+                    import uuid
+                    sub_thread_name = f"ephemeral_{self.id}_{uuid.uuid4().hex[:8]}"
+                    is_hidden = True
+                
+                # 繼承父層使用者
+                parent_user = None
+                try:
+                    parent_thread = Thread.objects.filter(id=caller_thread_id).first()
+                    if parent_thread:
+                        parent_user = parent_thread.created_by
+                except Exception:
+                    pass
+
+                sub_thread, created = Thread.objects.get_or_create(
+                    name=sub_thread_name,
+                    defaults={
+                        'assistant_id': self.id, 
+                        'created_by': parent_user,
+                        'is_hidden': is_hidden
+                    }
+                )
+                
+                if not created:
+                    if parent_user and not sub_thread.created_by:
+                        sub_thread.created_by = parent_user
+                    sub_thread.is_hidden = is_hidden
+                    sub_thread.save(update_fields=['created_by', 'is_hidden'])
+
+                target_thread_id = sub_thread.id
+                _logger.info(f"[{self.id}] Binding to DB thread {sub_thread.id} (hidden={is_hidden}) for reliability.")
+            except Exception as e:
+                _logger.error(f"Failed to manage sub-thread: {e}")
+
+        if target_thread_id:
+            if persistent:
+                message = f"[System Context: Your own assigned Thread ID is {target_thread_id}. You were invoked by an upper-layer agent from parent Thread ID {caller_thread_id}. When calling `create_overview`, YOU MUST explicitly set `thread_id={target_thread_id}` and `parent_thread_id={caller_thread_id}` so that async background tasks will callback to YOUR thread ({target_thread_id}) and wake YOU up. Once you decide the entire 4-phase operation is complete, use `notify_caller_agent` to wake up your parent ({caller_thread_id}).]\n\n" + message
+            else:
+                message = f"[System Context: This is a ONE-TIME execution but state-managed for reliability. You are running in Thread ID {target_thread_id}. Your output will be returned to the caller. Do not expect long-term interaction.]\n\n" + message
+            
+        return self.run(message, thread_id=target_thread_id, **kwargs)
+
+    def as_tool(self, description: str) -> BaseTool:
+        """Create a tool from the assistant.\n
+        This is useful to compose assistants.\n
+
+        Args:
+            description (str): The description for the tool.
+
+        Returns:
+            BaseTool: A tool that runs the assistant. The tool name is this assistant's id.
+        """
+        _logger = logging.getLogger("ai_assistant.agent")
+        _logger.info(f"[AS_TOOL REGISTERED] assistant_id={self.id!r} | description={description!r}")
+        
+        from langchain_core.runnables import RunnableConfig
+        
+        def _tool_func(message: str, persistent: bool = True, config: RunnableConfig = None) -> Any:
+            thread_id = None
+            if config and "configurable" in config:
+                thread_id = config["configurable"].get("thread_id")
+            return self._run_as_tool(message, caller_thread_id=thread_id, persistent=persistent)
+
+        return StructuredTool.from_function(
+            func=_tool_func,
+            name=self.id,
+            description=description,
+        )

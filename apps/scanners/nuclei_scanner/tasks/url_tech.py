@@ -59,4 +59,16 @@ def scan_url_tech_stack(url_result_ids: list[int], callback_step_id: int = None)
             logger.error(f"掃描 URL 失敗 {url_res.url}: {str(e)}")
             continue
 
+    # === CVE 對應：自動觸發 TechStack CVE 同步 ===
+    if callback_step_id and urls_to_scan.exists():
+        from apps.scanners.cve_intelligence.tasks.enrichment_tasks import sync_techstack_cves
+
+        # 取得所有相關的 target_id
+        target_ids = set(urls_to_scan.values_list("target_id", flat=True))
+
+        for target_id in target_ids:
+            if target_id:
+                logger.info(f"Triggering TechStack CVE sync for target {target_id}")
+                sync_techstack_cves.delay(target_id, callback_step_id)
+
     return f"完成 {results_count} 個 URL 的技術堆疊掃描"

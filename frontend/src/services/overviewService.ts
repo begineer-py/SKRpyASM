@@ -12,6 +12,7 @@ export interface OverviewUpdatePayload {
   risk_score?: number | null;
   business_impact?: string | null;
   plan?: any;
+  knowledge?: any;
 }
 
 export interface OverviewCreatePayload {

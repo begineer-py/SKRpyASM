@@ -17,7 +17,7 @@ const wsClient = createClient({
   shouldRetry: () => true, // 總是重試
 });
 
-export function useHasuraSubscription(query: string) {
+export function useHasuraSubscription(query: string, variables?: Record<string, any>) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -31,7 +31,7 @@ export function useHasuraSubscription(query: string) {
     const subscribe = () => {
       try {
         unsubscribe = wsClient.subscribe(
-          { query },
+          { query, variables },
           {
             next: (res) => {
               setData(res.data);
@@ -76,7 +76,7 @@ export function useHasuraSubscription(query: string) {
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
       if (unsubscribe) unsubscribe();
     };
-  }, [query]);
+  }, [query, JSON.stringify(variables)]);
 
   return { data, loading, error, isConnected };
 }

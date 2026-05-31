@@ -18,6 +18,7 @@ const AICenterPage: React.FC = () => {
   const [threadsLoading, setThreadsLoading] = useState(true);
   const [threadsError, setThreadsError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [targetSearchId, setTargetSearchId] = useState<string>("");
 
   // Target binding
   const [boundTargetId, setBoundTargetId] = useState<number | null>(null);
@@ -36,10 +37,10 @@ const AICenterPage: React.FC = () => {
     scrollToBottom();
   }, [messages, streamingText]);
 
-  // Load all threads on mount
+  // Load all threads on mount or filter change
   useEffect(() => {
     loadThreads();
-  }, []);
+  }, [targetSearchId]);
 
   // Load messages when thread changes
   useEffect(() => {
@@ -52,9 +53,12 @@ const AICenterPage: React.FC = () => {
     setThreadsLoading(true);
     setThreadsError(null);
     try {
-      const res: any[] = await assistantApi.getThreads() as any[];
+      const params: any = { include_hidden: true };
+      if (targetSearchId.trim()) {
+        params.target_id = parseInt(targetSearchId);
+      }
+      const res: any[] = await assistantApi.getThreads(params) as any[];
       const filteredThreads = res
-        .filter((t: any) => !t.name?.startsWith('subagent_'))
         .sort((a: any, b: any) => Number(b.id) - Number(a.id));
       setAllThreads(filteredThreads);
 
@@ -75,6 +79,12 @@ const AICenterPage: React.FC = () => {
       } else if (filteredThreads.length === 0 && selectedThreadId) {
         setSelectedThreadId(null);
         setMessages([]);
+      } else if (selectedThreadId) {
+        // Update boundTargetId for the currently selected thread
+        const currentThread = filteredThreads.find((t: any) => String(t.id) === selectedThreadId);
+        if (currentThread) {
+          setBoundTargetId(currentThread.bound_target_id ?? null);
+        }
       }
     } catch (err) {
       console.error("Failed to load threads", err);
@@ -164,11 +174,7 @@ const AICenterPage: React.FC = () => {
       return;
     }
 
-    // Block automation_agent threads
-    if (currentThread.assistant_id === 'automation_agent') {
-      alert("This is a read-only automation thread");
-      return;
-    }
+
 
     const userMsg = inputVal;
     setInputVal("");
@@ -210,13 +216,7 @@ const AICenterPage: React.FC = () => {
         }
 
         // Refresh threads and messages
-        const threads = await assistantApi.getThreads() as any[];
-        setAllThreads(threads
-          .filter((t: any) => !t.name?.startsWith('subagent_'))
-          .sort((a: any, b: any) => Number(b.id) - Number(a.id))
-        );
-        const t = threads.find((th: any) => th.id == selectedThreadId);
-        if (t) setBoundTargetId(t.bound_target_id ?? null);
+        await loadThreads();
         await loadMessagesForThread(selectedThreadId);
       },
       // onError
@@ -240,7 +240,11 @@ const AICenterPage: React.FC = () => {
   }, [inputVal, selectedThreadId, allThreads, streamingText]);
 
   const getThreadDisplayName = (thread: any) => {
-    return `[ID: ${thread.id}] ${thread.name || 'Untitled'}`;
+    let prefix = "";
+    if (thread.is_hidden) prefix = "🔒 ";
+    if (thread.assistant_id === 'hacker_assistant_agent') prefix += "🎖️ ";
+    if (thread.name?.startsWith('subagent_') || thread.assistant_id === 'automation_agent') prefix += "🤖 ";
+    return `${prefix}[ID: ${thread.id}] ${thread.name || 'Untitled'}`;
   };
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -283,6 +287,18 @@ const AICenterPage: React.FC = () => {
         >
           + New Chat
         </button>
+
+        <div className="sidebar-filter">
+          <input 
+            type="text" 
+            placeholder="🔍 Filter by Target ID..." 
+            value={targetSearchId}
+            onChange={(e) => setTargetSearchId(e.target.value)}
+          />
+          {targetSearchId && (
+            <button className="clear-filter" onClick={() => setTargetSearchId("")}>✕</button>
+          )}
+        </div>
 
         {threadsLoading && (
           <div className="sidebar-loading">

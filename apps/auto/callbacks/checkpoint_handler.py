@@ -2,9 +2,9 @@ import logging
 from typing import Any, Set
 
 from langchain_core.callbacks import BaseCallbackHandler
-from langchain_core.messages import AIMessage, ToolMessage
-from django_ai_assistant.helpers.django_messages import save_django_messages
-from django_ai_assistant.models import Thread, Message
+from langchain_core.messages import AIMessage, ToolMessage, HumanMessage, SystemMessage
+from apps.ai_assistant.helpers.django_messages import save_django_messages
+from apps.core.models.ai_models import Thread, Message
 
 logger = logging.getLogger(__name__)
 
@@ -47,10 +47,12 @@ class ThreadCheckpointHandler(BaseCallbackHandler):
         messages = outputs.get("messages", [])
         if not messages:
             return
-        # Only save AI and Tool messages — skip Human/System-only batches
-        has_ai_or_tool = any(isinstance(m, (AIMessage, ToolMessage)) for m in messages)
-        if has_ai_or_tool:
-            self._save_new_messages(messages)
+        # Save AI, Tool, and Human messages — skip System-only batches
+        has_saveable = any(isinstance(m, (AIMessage, ToolMessage, HumanMessage)) for m in messages)
+        if has_saveable:
+            # Filter out SystemMessages before saving
+            to_save = [m for m in messages if not isinstance(m, SystemMessage)]
+            self._save_new_messages(to_save)
 
     def on_chain_error(self, error: BaseException, **kwargs: Any) -> None:
         logger.warning(f"[Checkpoint] Chain error (preserving previously saved messages): {error}")
