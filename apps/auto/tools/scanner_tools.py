@@ -1,7 +1,7 @@
 import logging
 import requests
 from django.conf import settings
-from django_ai_assistant import method_tool
+from apps.ai_assistant import method_tool
 
 logger = logging.getLogger(__name__)
 
@@ -67,13 +67,13 @@ class ScannerToolsMixin:
             return f"CRITICAL_FAILURE: 內部執行例外錯誤: {e}"
 
     @method_tool
-    def run_flaresolverr_crawler(self, overview_id: int, target_url: str) -> str:
+    def run_flaresolverr_crawler(self, overview_id: int = None, target_url: str = "") -> str:
         """
         [Phase A - Surface Mapping] 使用 Flaresolverr 爬取指定網頁 (GET)。
         會自動找出 URL、Form、Parameters。
         
         Args:
-            overview_id: 目標目前的 Overview ID
+            overview_id: (Optional) 目標目前的 Overview ID。自動注入。
             target_url: 完整的網址 (例如 'https://example.com/')
         """
         return self._dispatch_scanner(
@@ -85,8 +85,8 @@ class ScannerToolsMixin:
     @method_tool
     def run_flaresolverr_request(
         self,
-        overview_id: int,
-        target_url: str,
+        overview_id: int = None,
+        target_url: str = "",
         method: str = "GET",
         body: str | None = None,
         content_type: str | None = None,
@@ -102,6 +102,10 @@ class ScannerToolsMixin:
         The platform will log request/response under the created Step.
 
         Use host_header to override the HTTP Host header (e.g. for vhost routing).
+
+        Args:
+            overview_id: (Optional) 當前 Overview ID。自動注入。
+            target_url: 目標 URL。
         """
 
         payload = {
@@ -124,12 +128,12 @@ class ScannerToolsMixin:
         )
         
     @method_tool
-    def run_subfinder_discovery(self, overview_id: int, seed_id: int) -> str:
+    def run_subfinder_discovery(self, overview_id: int = None, seed_id: int = None) -> str:
         """
         [Phase C - Deep Discovery] 呼叫 Subfinder 從 Seed 發掘子域名。
         
         Args:
-            overview_id: 目標目前的 Overview ID
+            overview_id: (Optional) 目標目前的 Overview ID。自動注入。
             seed_id: 對應的 Seed ID
         """
         return self._dispatch_scanner(
@@ -138,12 +142,12 @@ class ScannerToolsMixin:
         )
         
     @method_tool
-    def run_gau_url_discovery(self, overview_id: int, subdomain_name: str) -> str:
+    def run_gau_url_discovery(self, overview_id: int = None, subdomain_name: str = "") -> str:
         """
         [Phase C - Deep Discovery] 呼叫 GAU 被動收集網域的歷史 URL。
         
         Args:
-            overview_id: 目標目前的 Overview ID
+            overview_id: (Optional) 目標目前的 Overview ID。自動注入。
             subdomain_name: 目標子域名「字串」(e.g., 'vuln-f9wi.onrender.com')，這『不是』ID！
         """
         return self._dispatch_scanner(
@@ -152,9 +156,13 @@ class ScannerToolsMixin:
         )
 
     @method_tool
-    def run_nuclei_tech_scan_subdomains(self, overview_id: int, subdomain_ids: list[int]) -> str:
+    def run_nuclei_tech_scan_subdomains(self, overview_id: int = None, subdomain_ids: list[int] = None) -> str:
         """
         [Phase D - Tech Fingerprint] 在子域上執行 Nuclei 技術堆疊掃描 (Tech-stack)。
+        
+        Args:
+            overview_id: (Optional) 目標目前的 Overview ID。自動注入。
+            subdomain_ids: 要掃描的子域名 ID 列表。
         """
         return self._dispatch_scanner(
             overview_id, "nuclei-tech", "/scanners/vuln/subs_tech", 
@@ -162,9 +170,13 @@ class ScannerToolsMixin:
         )
 
     @method_tool
-    def run_nuclei_tech_scan_urls(self, overview_id: int, url_ids: list[int]) -> str:
+    def run_nuclei_tech_scan_urls(self, overview_id: int = None, url_ids: list[int] = None) -> str:
         """
         [Phase D - Tech Fingerprint] 在 URL 上執行 Nuclei 技術堆疊掃描 (Tech-stack)。
+        
+        Args:
+            overview_id: (Optional) 目標目前的 Overview ID。自動注入。
+            url_ids: 要掃描的 URL ID 列表。
         """
         return self._dispatch_scanner(
             overview_id, "nuclei-tech", "/scanners/vuln/urls_tech", 
@@ -172,10 +184,14 @@ class ScannerToolsMixin:
         )
 
     @method_tool
-    def run_nuclei_vuln_scan_urls(self, overview_id: int, url_ids: list[int]) -> str:
+    def run_nuclei_vuln_scan_urls(self, overview_id: int = None, url_ids: list[int] = None) -> str:
         """
         [Phase E - Vulnerability Scan] 在 URL 上執行 Nuclei 的「漏洞」模板掃描 (Vuln)。
         注意：請先完成 A~D 階段再調用此工具。
+
+        Args:
+            overview_id: (Optional) 目標目前的 Overview ID。自動注入。
+            url_ids: 要掃描的 URL ID 列表。
         """
         return self._dispatch_scanner(
             overview_id, "nuclei-vuln", "/scanners/vuln/urls", 
@@ -183,9 +199,13 @@ class ScannerToolsMixin:
         )
 
     @method_tool
-    def run_nuclei_vuln_scan_subdomains(self, overview_id: int, subdomain_ids: list[int]) -> str:
+    def run_nuclei_vuln_scan_subdomains(self, overview_id: int = None, subdomain_ids: list[int] = None) -> str:
         """
         [Phase E - Vulnerability Scan] 在子域名上執行 Nuclei 的「漏洞」模板掃描 (Vuln)。
+
+        Args:
+            overview_id: (Optional) 目標目前的 Overview ID。自動注入。
+            subdomain_ids: 要掃描的子域名 ID 列表。
         """
         return self._dispatch_scanner(
             overview_id, "nuclei-vuln", "/scanners/vuln/subdomains", 
@@ -193,12 +213,12 @@ class ScannerToolsMixin:
         )
 
     @method_tool
-    def run_nmap_port_scan(self, overview_id: int, ip_id: int, seed_id: int) -> str:
+    def run_nmap_port_scan(self, overview_id: int = None, ip_id: int = None, seed_id: int = None) -> str:
         """
         [Phase C - Deep Discovery] 針對發現的 IP 執行 Nmap Full Port Scan 掃描。
         
         Args:
-            overview_id: 目標目前的 Overview ID
+            overview_id: (Optional) 目標目前的 Overview ID。自動注入。
             ip_id: 要掃描的 IP 資產的 ID (整數)
             seed_id: 該 IP 對應的 Seed ID (整數)
         """
@@ -218,12 +238,12 @@ class ScannerToolsMixin:
         )
 
     @method_tool
-    def analyze_javascript_file(self, overview_id: int, js_id: int, js_type: str) -> str:
+    def analyze_javascript_file(self, overview_id: int = None, js_id: int = None, js_type: str = "") -> str:
         """
         對抓取到的 JavaScript 檔案進行 Nuclei JS 分析。
         
         Args:
-            overview_id: 目標目前的 Overview ID
+            overview_id: (Optional) 目標目前的 Overview ID。自動注入。
             js_id: 提取到的 JS ID
             js_type: 必須是 "inline" 或 "external"
         """

@@ -85,7 +85,7 @@ function SubdomainDetailPage() {
 
   // === 數據準備 (只準備一次) ===
   const subdomain = intel.core_subdomain_by_pk;
-  const aiAnalysis = subdomain.core_subdomainaianalyses?.[0];
+  const aiAnalysis = subdomain.core_initialaianalyses?.[0];
   const relatedUrls = intel.core_urlresult.filter((url) =>
     url.url.includes(subdomain.name)
   );
@@ -209,55 +209,24 @@ function SubdomainDetailPage() {
             {aiAnalysis ? (
               // === 渲染完整的分析结果 ===
               <div className="info-card-body">
-                <div className="summary-card">
-                  <h3>AI Summary</h3>
-                  <p>{aiAnalysis.summary}</p>
+                <div className="info-item">
+                  <span className="info-label">Risk Score</span>
+                  <span className="info-value">{aiAnalysis.risk_score}</span>
                 </div>
 
                 <div className="info-item">
-                  <span className="info-label">Executive Summary</span>
+                  <span className="info-label">Worth Deep Analysis</span>
+                  <BooleanDisplay value={aiAnalysis.worth_deep_analysis} />
+                </div>
+
+                <div className="info-item">
+                  <span className="info-label">Summary</span>
                   <p className="ai-summary">{aiAnalysis.summary}</p>
                 </div>
 
                 <div className="info-item">
                   <span className="info-label">Inferred Purpose</span>
                   <p className="ai-summary">{aiAnalysis.inferred_purpose}</p>
-                </div>
-
-                <div className="info-item">
-                  <span className="info-label">Business Impact</span>
-                  <p className="ai-summary">{aiAnalysis.business_impact}</p>
-                </div>
-
-                <div className="info-item">
-                  <span className="info-label">Tech Stack Summary</span>
-                  <p className="ai-summary">{aiAnalysis.tech_stack_summary}</p>
-                </div>
-
-                <div className="info-item">
-                  <span className="info-label">Potential Vulnerabilities</span>
-                  <div className="pre-box">
-                    {/* 将数组转换成带项目符号的列表字符串 */}
-                    {(aiAnalysis.potential_vulnerabilities || [])
-                      .map((vuln: string) => `- ${vuln}`)
-                      .join("\n")}
-                  </div>
-                </div>
-
-                <div className="info-item">
-                  <span className="info-label">Recommended Actions</span>
-                  <div className="pre-box">
-                    {(aiAnalysis.recommended_actions || [])
-                      .map((action: string) => `• ${action}`)
-                      .join("\n")}
-                  </div>
-                </div>
-
-                <div className="info-item">
-                  <span className="info-label">Immediate Command Actions</span>
-                  {(aiAnalysis.command_actions || []).map((cmd: string, index: number) => (
-                    <CommandAction key={index} command={cmd} />
-                  ))}
                 </div>
               </div>
             ) : (

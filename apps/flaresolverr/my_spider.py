@@ -5,7 +5,12 @@ import httpx
 from urllib.parse import urlparse
 from typing import Optional, Any, Dict
 from .spider_utils.techstack_httpx import send_httpx_request
-from .spider_utils.send_flaresolverr import call_flaresolverr_api
+from .spider_utils.send_flaresolverr import (
+    call_flaresolverr_api,
+    create_flaresolverr_session,
+    destroy_flaresolverr_session,
+)
+from .session_store import FlareSolverrSessionStore
 from .spider_utils.utils import check_if_blocked, translate_response_to_json, if_spa
 from c2_core.config.logging import log_function_call
 
@@ -60,6 +65,14 @@ class MySpider:
         self.final_source_type: Optional[str] = None
         self.final_url: str = url
 
+        # 解析 hostname 用於 session key
+        self.hostname = urlparse(url).hostname or "unknown"
+
+        # Session 管理
+        self.session_store = FlareSolverrSessionStore(ttl_seconds=300)  # 5 分钟超时
+        self.session_id: Optional[str] = None
+        self._session_was_created: bool = False
+
         # 建立一個輕量的 httpx client 用於預檢和非瀏覽器下載
         # verify=False 忽略 SSL 錯誤，timeout 設定短一點避免阻塞
         self.client = httpx.Client(verify=False, timeout=15.0, follow_redirects=True)
@@ -72,6 +85,31 @@ class MySpider:
                     cookies[k] = v
             self.client.cookies.update(cookies)
         self.client.headers.update(self.headers)
+
+    def _get_or_create_session(self) -> Optional[str]:
+        """获取或创建 FlareSolverr session"""
+        if not self.flaresolverr_url:
+            return None
+
+        # 先尝试获取已存在的 session
+        session = self.session_store.get(self.hostname)
+        if session:
+            logger.debug(f"复用现有 Session: {session.session_id} (Host: {self.hostname})")
+            return session.session_id
+
+        # 创建新 session
+        logger.info(f"创建新 FlareSolverr Session (Host: {self.hostname})")
+        session_id = create_flaresolverr_session(
+            flaresolverr_url=self.flaresolverr_url
+        )
+        if session_id:
+            self.session_store.set(self.hostname, session_id)
+            self._session_was_created = True
+            logger.debug(f"Session 创建成功: {session_id}")
+        else:
+            logger.warning(f"Session 创建失败 (Host: {self.hostname})")
+
+        return session_id
 
     def _check_dns(self) -> bool:
         """
@@ -286,6 +324,11 @@ class MySpider:
         # --- 3. FlareSolverr ---
         if self.flaresolverr_url:
             self.used_flaresolverr = True
+            
+            # 获取或创建 session
+            session_id = self._get_or_create_session()
+            self.session_id = session_id
+            
             try:
                 fs_response_dict = call_flaresolverr_api(
                     self.url,
@@ -297,6 +340,7 @@ class MySpider:
                     body=self.body,
                     content_type=self.content_type,
                     host_header=self.host_header,
+                    session=session_id,  # 使用 session!
                 )
 
                 if fs_response_dict:

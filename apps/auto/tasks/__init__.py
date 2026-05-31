@@ -2,8 +2,8 @@ import logging
 import json
 from celery import shared_task
 from c2_core.config.logging import log_function_call
-from django_ai_assistant import AIAssistant, method_tool
-from django_ai_assistant.helpers.use_cases import create_thread
+from apps.ai_assistant import AIAssistant, method_tool
+from apps.ai_assistant.helpers.use_cases import create_thread
 from apps.core.models import Target, Subdomain, IP
 from apps.core.models.analyze.overview import Overview
 from apps.analyze_ai.assistants import InitialAnalyzerAgent
@@ -62,7 +62,7 @@ def preprocess_data():
             from django.db import transaction
             with transaction.atomic():
                 active_overview = Overview.objects.select_for_update().filter(
-                    target=target, status__in=["PLANNING", "EXECUTING"]
+                    target=target, status__in=["PLANNING", "EXECUTING", "NEEDS_GUIDANCE"]
                 ).first()
                 if not active_overview:
                     active_overview = Overview.objects.create(
@@ -135,7 +135,7 @@ def _handle_guidance_request(overview):
     import json
     from apps.core.llms import get_llm_instance
     from apps.core.models import Step
-    from django_ai_assistant.helpers.use_cases import create_message
+    from apps.ai_assistant.helpers.use_cases import create_message
     from django.contrib.auth import get_user_model
 
     target = overview.target
@@ -215,7 +215,7 @@ def auto_execute_plan():
     from langchain_core.messages import HumanMessage
     import json
     
-    overviews = Overview.objects.filter(status__in=["PLANNING", "EXECUTING", "NEEDS_GUIDANCE"])
+    overviews = Overview.objects.filter(status__in=["EXECUTING", "NEEDS_GUIDANCE"])
     if not overviews.exists():
         return
 
@@ -255,7 +255,7 @@ def auto_execute_plan():
                 overview.save(update_fields=['thread_id'])
                 logger.info(f"[AutoExecution] Created new Thread {thread_obj.id} for Overview {overview.id}")
             else:
-                from django_ai_assistant.models import Thread
+                from apps.core.models.ai_models import Thread
                 thread_obj = Thread.objects.get(id=overview.thread_id)
             
             # Create a Step to track this execution
@@ -342,6 +342,8 @@ def run_automation_agent_async(message: str, caller_thread_id: int = None):
     try:
         result = agent._run_as_tool(message, caller_thread_id=caller_thread_id)
         agent._auto_notify_parent(result=result)
+        return result
     except Exception as e:
-        logger.error(f"[run_automation_agent_async] Failed: {e}")
+        logger.exception(f"[run_automation_agent_async] Failed: {e}")
         agent._auto_notify_parent(error=str(e))
+        raise

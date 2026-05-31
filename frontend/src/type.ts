@@ -140,6 +140,18 @@ export interface SubdomainAIAnalysis {
   raw_response?: any;
 }
 
+export interface InitialAIAnalysis {
+  summary: string;
+  inferred_purpose: string;
+  risk_score: number;
+  worth_deep_analysis: boolean;
+  status: ScanStatus;
+  created_at: string;
+  completed_at?: string | null;
+  error_message?: string | null;
+  raw_response?: any;
+}
+
 
 // ==================================================================
 // 5. GraphQL 聚合响应模型 (最重要的部分)
@@ -189,7 +201,7 @@ export interface SubdomainIntelResponse {
     core_subdomain_ips: {
       core_ip: IP;
     }[];
-    core_subdomainaianalyses: SubdomainAIAnalysis[];
+    core_initialaianalyses: InitialAIAnalysis[];
   };
   core_urlresult: UrlResult[];
 }
@@ -205,4 +217,54 @@ export interface UrlSeedIntelligenceResponse {
     core_gauscans: UrlScan[];
     core_urlresults: UrlResult[];
   };
+}
+
+// ==================================================================
+// CVE Intelligence Types
+// ==================================================================
+
+export interface CVEIntelligence {
+  id: number;
+  cve_id: string;
+  description: string;
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  cvss_score: number | null;
+  cvss_vector: string | null;
+  affected_products: Array<{
+    vendor: string;
+    product: string;
+    version?: string;
+  }>;
+  exploit_available: boolean;
+  exploited_in_wild: boolean;
+  cisa_kev: boolean;
+  epss_score: number | null;
+  references: Array<{
+    url: string;
+    tags?: string[];
+  }>;
+  published_date: string | null;
+  created_at: string;
+  updated_at: string;
+  risk_score?: number;
+}
+
+export interface TechStackCVEMapping {
+  cve_id: string;
+  severity: string;
+  cvss_score: number | null;
+  cisa_kev: boolean;
+  exploit_available: boolean;
+  techstack_name: string;
+  techstack_version: string | null;
+  confidence: number;
+}
+
+export interface TechStackCVEReport {
+  target_id: number;
+  total_cves: number;
+  critical_count: number;
+  high_count: number;
+  kev_count: number;
+  top_cves: TechStackCVEMapping[];
 }

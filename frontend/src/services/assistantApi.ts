@@ -109,8 +109,8 @@ export const assistantApi = {
   },
 
   // Get all threads
-  getThreads: async (): Promise<any[]> => {
-    const response = await api.get('/threads/');
+  getThreads: async (params?: { assistant_id?: string; target_id?: number; include_hidden?: boolean }): Promise<any[]> => {
+    const response = await api.get('/threads/', { params });
     return Array.isArray(response.data) ? response.data : [];
   },
 

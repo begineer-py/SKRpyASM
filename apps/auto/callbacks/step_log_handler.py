@@ -8,7 +8,7 @@ calls, agent actions, and errors to the StepLog model.
 import logging
 from typing import Any, Optional
 
-from django_ai_assistant.callbacks.base import DjangoAIAssistantCallbackHandler
+from apps.ai_assistant.callbacks.base import DjangoAIAssistantCallbackHandler
 from apps.core.models import StepLog
 
 logger = logging.getLogger(__name__)

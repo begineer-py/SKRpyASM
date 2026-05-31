@@ -1,5 +1,5 @@
 import logging
-from django_ai_assistant import method_tool
+from apps.ai_assistant import method_tool
 
 logger = logging.getLogger(__name__)
 
@@ -11,7 +11,7 @@ class StepManagementMixin:
     """
 
     @method_tool
-    def update_overview_status(self, overview_id: int, new_status: str = None, new_summary: str = None, new_knowledge: dict = None, new_plan: dict = None, new_risk_score: int = None) -> str:
+    def update_overview_status(self, overview_id: int = None, new_status: str = None, new_summary: str = None, new_knowledge: dict = None, new_plan: dict = None, new_risk_score: int = None) -> str:
         """
         更新目標 Overview（專案概覽）的多個欄位。可同時更新以下任意組合：
         - status: 狀態轉換 ('PLANNING' → 'EXECUTING' → 'COMPLETED' → 'STALLED')。
@@ -21,7 +21,7 @@ class StepManagementMixin:
         - risk_score: 風險評分 (0-100)。
         
         Args:
-            overview_id: The ID of the Overview.
+            overview_id: (Optional) The ID of the Overview. Automatically injected if session is bound.
             new_status: 新的狀態值 ('PLANNING', 'EXECUTING', 'COMPLETED', 'STALLED')。
             new_summary: 更新的文字筆記或總結。
             new_knowledge: A JSON dictionary representing discovered intelligence.
@@ -110,14 +110,14 @@ class StepManagementMixin:
             return f"更新 StepNote 失敗: {e}"
 
     @method_tool
-    def query_steps(self, overview_id: int, status_filter: str = None, limit: int = 20) -> str:
+    def query_steps(self, overview_id: int = None, status_filter: str = None, limit: int = 20) -> str:
         """
         查詢指定 Overview 下的所有 Step 的詳細狀態與內容。
         可以按狀態過濾 (e.g. 只看 COMPLETED 或 FAILED)。
         回傳每個 Step 的 ID、狀態、關聯攻擊向量、筆記內容。
 
         Args:
-            overview_id: 要查詢的 Overview ID。
+            overview_id: (Optional) 要查詢的 Overview ID。自動注入。
             status_filter: (選填) 過濾狀態 ('PENDING', 'RUNNING', 'COMPLETED', 'FAILED', 'WAITING_FOR_ASYNC', 'ENDED')。
             limit: (選填) 最大回傳數量，預設 20。
         """
@@ -172,24 +172,24 @@ class StepManagementMixin:
 
     @method_tool
     def create_step(
-        self, 
-        overview_id: int, 
-        command_name: str,
-        command_template_str: str, 
-        description: str,
-        asset_fk_field: str,
-        asset_fk_value_id: int,
-        parent_step_id: int = None,
+        self,
+        overview_id: int = None,
         tool_name: str = None,
+        command_name: str = None,
+        command_template_str: str = None,
+        description: str = "",
+        asset_fk_field: str = None,
+        asset_fk_value_id: int = None,
+        parent_step_id: int = None,
         note: str = None,
-        ai_thoughts: str = None
+        ai_thoughts: str = None,
     ) -> str:
         """
-        為自動化滲透測試流程建立一個新的執行步驟（Step）。
+        [Workflow] 建立一個新的任務步驟 (Step) 與關聯的攻擊向量。
         這會同步建立關聯的 StepNote、AttackVector 以及 CommandTemplate。
 
         Args:
-            overview_id: 關聯的 Overview ID。
+            overview_id: (Optional) 關聯的 Overview ID。自動注入。
             command_name: 命令的簡稱。
             command_template_str: 要執行的 CLI 命令（例如 'nmap -sV -p 80 {{ip}}'）。
             description: 這個步驟的說明與目的。
@@ -363,24 +363,167 @@ class StepManagementMixin:
             return f"建立 Verification 發生錯誤: {e}"
 
     @method_tool
-    def get_exhausted_attack_vectors(self, overview_id: int) -> str:
+    def get_exhausted_attack_vectors(
+        self,
+        overview_id: int,
+        limit: int = 50,
+        offset: int = 0
+    ) -> str:
         """
-        取得此 Overview 中所有狀態為 EXHAUSTED (失敗) 或 MITIGATED (已緩解) 的攻擊向量。
+        取得此 Overview 中所有狀態為 EXHAUSTED (失敗) 或 MITIGATED (已緩解) 的攻擊向量（支持分页）。
+
         AI 在規劃 Step 前應先呼叫此工具，避免重複使用已經失敗的攻擊向量！
+
+        Args:
+            overview_id: Overview ID
+            limit: 返回数量上限（默认 50，最大 100）
+            offset: 分页偏移（默认 0）
+
+        Returns:
+            格式化的失败攻击向量列表
         """
         try:
             from apps.core.models import AttackVector
-            vectors = AttackVector.objects.filter(
-                overview_id=overview_id, 
+
+            query = AttackVector.objects.filter(
+                overview_id=overview_id,
                 status__in=["EXHAUSTED", "MITIGATED"]
             )
-            if not vectors.exists():
+
+            # 限制最大值
+            limit = min(limit, 100)
+
+            # 获取总数
+            total = query.count()
+
+            if total == 0:
                 return "目前沒有已失敗或無效的攻擊向量。可自由進行測試。"
-            
-            res = []
+
+            # 获取分页数据
+            vectors = query.order_by('-created_at')[offset:offset+limit]
+
+            summary = f"Exhausted Attack Vectors (showing {len(vectors)}/{total}):\n\n"
+
             for v in vectors:
                 cmds = list(v.command_templates.values_list('command', flat=True))
-                res.append(f"Vector ID: {v.id} | Name: {v.name} | Commands tried: {cmds} | Status: {v.status}")
-            return "\n".join(res)
+                summary += f"[{v.id}] {v.name} - {v.status}\n"
+                summary += f"  Commands tried: {cmds}\n\n"
+
+            if total > offset + limit:
+                summary += f"\n💡 Tip: Use offset={offset+limit} to see next {limit} vectors\n"
+
+            return summary
         except Exception as e:
             return f"獲取失敗的攻擊向量時發生錯誤: {e}"
+
+    @method_tool
+    def notify_caller_agent(self, overview_id: int, message: str) -> str:
+        """
+        [Layered Intelligence] 向發起任務的父層 Agent (HackerAssistant) 報告關鍵進度或最終結果。
+        
+        ⚠️ 強烈建議：
+        1. 當你完成了一個階段 (Phase) 的任務時使用。
+        2. 當你發現了高嚴重度漏洞 (SQLi, RCE, Data Leak) 時使用。
+        3. 當你決定結束整個測試流程 (COMPLETED) 時使用。
+        
+        這會讓你的父層 Agent 能夠即時感知進度，並在需要時向使用者進行總結報告。
+
+        Args:
+            overview_id: 當前 Overview 的 ID。
+            message: 你要報告的內容（包含具體發現、數據、與下一步建議）。
+        """
+        try:
+            from apps.core.models import Overview
+            from apps.ai_assistant.helpers.use_cases import create_message
+            from django.contrib.auth import get_user_model
+
+            overview = Overview.objects.filter(id=overview_id).first()
+            if not overview:
+                return f"CRITICAL_FAILURE: overview_id={overview_id} does not exist."
+
+            if not overview.parent_thread_id:
+                return "ℹ️ 此任務沒有關聯的父層 Thread，訊息已記錄在當前日誌中，但未發送至父層。"
+
+            User = get_user_model()
+            system_user = User.objects.filter(is_superuser=True).first()
+
+            # 發送訊息至父層 Thread
+            create_message(
+                assistant_id="hacker_assistant_agent",
+                thread_id=overview.parent_thread_id,
+                user=system_user,
+                content=(
+                    f"📢 **Intelligence Report from AutomationAgent (Overview #{overview_id})**\n\n"
+                    f"{message}\n\n"
+                    f"---\n"
+                    f"*Reported from autonomous execution layer.*"
+                )
+            )
+
+            return f"✅ 成功將報告發送至父層 Thread (ID: {overview.parent_thread_id})。"
+        except Exception as e:
+            logger.error(f"notify_caller_agent failed: {e}")
+            return f"報告發送失敗: {e}"
+
+    @method_tool
+    def record_vulnerability(
+        self,
+        overview_id: int = None,
+        name: str = "",
+        severity: str = "info",
+        matched_at: str = "",
+        description: str = "",
+        vector_id: int = None,
+        extracted_results: dict = None,
+        request_raw: str = "",
+        response_raw: str = "",
+        tool_source: str = "automation-agent"
+    ) -> str:
+        """
+        [Final Achievement] 當 AI 成功驗證並確認一個漏洞時，呼叫此工具將其記錄到資料庫。
+        這會將漏洞與當前的 Overview 以及發現它的 AttackVector 關聯起來。
+
+        Args:
+            overview_id: (Optional) 當前任務的 Overview ID。自動注入。
+            name: 漏洞名稱（例如: "SQL Injection in Search Field"）。
+            severity: 嚴重程度 ('critical', 'high', 'medium', 'low', 'info')。
+            matched_at: 發現漏洞的具體位置（例如 URL 或 IP:PORT）。
+            description: 漏洞的詳細描述與影響。
+            vector_id: (選填) 關聯的攻擊向量 ID。
+            extracted_results: (選填) 漏洞 Payload 或版本號等結構化數據。
+            request_raw: (選填) 觸發漏洞的原始請求內容。
+            response_raw: (選填) 包含漏洞證據的原始響應內容。
+            tool_source: 來源工具，預設為 "automation-agent"。
+        """
+        try:
+            from apps.core.models import Vulnerability, Overview, AttackVector
+            
+            overview = Overview.objects.filter(id=overview_id).first()
+            if not overview:
+                return f"ERROR: Overview#{overview_id} not found."
+
+            vector = None
+            if vector_id:
+                vector = AttackVector.objects.filter(id=vector_id).first()
+
+            # 建立漏洞記錄
+            vuln = Vulnerability.objects.create(
+                overview=overview,
+                source_attack_vector=vector,
+                name=name,
+                severity=severity.lower(),
+                matched_at=matched_at,
+                description=description,
+                extracted_results=extracted_results,
+                request_raw=request_raw,
+                response_raw=response_raw,
+                tool_source=tool_source,
+                template_id=name.lower().replace(" ", "-"), # 模擬 template_id
+                status="confirmed"
+            )
+
+            logger.info(f"[Automation] Recorded confirmed vulnerability: {name} (ID: {vuln.id})")
+            return f"✅ 已成功將漏洞 '{name}' 記錄至資料庫 (ID: {vuln.id})，狀態標記為 'confirmed'。"
+        except Exception as e:
+            logger.error(f"record_vulnerability failed: {e}")
+            return f"記錄漏洞時發生錯誤: {e}"

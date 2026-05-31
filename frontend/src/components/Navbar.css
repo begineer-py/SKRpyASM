@@ -1,38 +1,4 @@
-/* 檔案路徑: frontend/src/components/Navbar.css */
-.main-nav {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background-color: #3a3f47;
-    padding: 15px 30px;
-    border-bottom: 2px solid #61dafb;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
-  }
-  
-  .nav-logo a {
-    color: #61dafb;
-    text-decoration: none;
-    font-size: 1.5em;
-    font-weight: bold;
-  }
-  
-  .nav-links a {
-    color: #e0e0e0;
-    text-decoration: none;
-    margin-left: 25px;
-    font-size: 1.1em;
-    padding: 8px 12px;
-    border-radius: 6px;
-    transition: background-color 0.3s ease, color 0.3s ease;
-  }
-  
-  .nav-links a:hover {
-    background-color: #5a606d;
-  }
-  
-  /* NavLink 的 active 狀態樣式 */
-  .nav-links a.active {
-    background-color: #61dafb;
-    color: #282c34;
-    font-weight: bold;
-  }
+/* 
+   Navbar.css - Deprecated. 
+   Styles moved to global.css (.c2-navbar) 
+*/

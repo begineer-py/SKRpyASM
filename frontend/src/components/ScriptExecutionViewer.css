@@ -1,0 +1,404 @@
+/**
+ * ScriptExecutionViewer.css
+ * 
+ * 樣式表用於 ScriptExecutionViewer 組件
+ * 顯示腳本執行歷史與驗證狀態
+ */
+
+.script-execution-viewer {
+  width: 100%;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.script-execution-viewer.compact {
+  padding: 12px;
+  font-size: 0.85rem;
+}
+
+.script-execution-viewer.expanded {
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+/* 標題 */
+.script-execution-viewer h3 {
+  margin: 0 0 16px 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+/* 空狀態 */
+.script-execution-viewer.empty {
+  text-align: center;
+  padding: 40px 16px;
+  color: #9ca3af;
+  font-size: 0.95rem;
+}
+
+.script-execution-viewer.empty p {
+  margin: 0;
+}
+
+/* 加載狀態 */
+.script-execution-viewer.loading {
+  text-align: center;
+  padding: 40px 16px;
+  color: #6b7280;
+}
+
+.script-execution-viewer .spinner {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.script-execution-viewer.loading p {
+  margin-top: 12px;
+  font-size: 0.95rem;
+}
+
+/* 錯誤狀態 */
+.script-execution-viewer.error {
+  padding: 16px;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  color: #7f1d1d;
+  font-size: 0.95rem;
+}
+
+.script-execution-viewer.error p {
+  margin: 0;
+}
+
+/* 執行列表 */
+.execution-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* 執行項目容器 */
+.execution-item {
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.execution-item:hover {
+  border-color: #9ca3af;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.execution-item.expanded {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* 執行項目頭部 */
+.execution-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #f9fafb;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.2s;
+}
+
+.execution-header:hover {
+  background: #f3f4f6;
+}
+
+.execution-item.expanded .execution-header {
+  background: #eff6ff;
+  border-bottom: 1px solid #dbeafe;
+}
+
+/* 狀態徽章 */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* 技能信息 */
+.skill-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.skill-name {
+  display: inline-block;
+  font-weight: 500;
+  color: #374151;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}
+
+.skill-name.temporary {
+  color: #9ca3af;
+  font-style: italic;
+}
+
+.skill-name .version {
+  margin-left: 8px;
+  font-weight: 400;
+  font-size: 0.85rem;
+  color: #6b7280;
+  padding: 2px 6px;
+  background: #f3f4f6;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.skill-name .version.robust {
+  color: #059669;
+  background: #d1fae5;
+}
+
+/* 驗證徽章 */
+.validation-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* 執行時間 */
+.duration {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: #f0fdf4;
+  color: #16a34a;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* 時間戳 */
+.timestamp {
+  color: #9ca3af;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* 展開圖標 */
+.expand-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  color: #9ca3af;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+  transition: color 0.2s, transform 0.2s;
+}
+
+.execution-item.expanded .expand-icon {
+  color: #3b82f6;
+  transform: rotate(0deg);
+}
+
+/* 執行詳情 */
+.execution-details {
+  padding: 16px;
+  background: white;
+  border-top: 1px solid #f3f4f6;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+/* 詳情區塊 */
+.detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.detail-section h4 {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.detail-section code {
+  display: block;
+  padding: 10px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  font-family: "Monaco", "Courier New", monospace;
+  font-size: 0.85rem;
+  color: #374151;
+  overflow-x: auto;
+  word-break: break-all;
+}
+
+.detail-section pre {
+  margin: 0;
+  padding: 10px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  font-family: "Monaco", "Courier New", monospace;
+  font-size: 0.85rem;
+  color: #374151;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.detail-section.raw-output pre {
+  max-height: 300px;
+  overflow-y: auto;
+  background: #1f2937;
+  color: #d1d5db;
+}
+
+/* 錯誤詳情區塊 */
+.detail-section.error {
+  background: #fef2f2;
+  padding: 12px;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+}
+
+.detail-section.error h4 {
+  color: #7f1d1d;
+}
+
+.detail-section.error pre {
+  background: #fecaca;
+  color: #7f1d1d;
+  border-color: #fca5a5;
+}
+
+/* 建議詳情區塊 */
+.detail-section.suggestion {
+  background: #f0fdf4;
+  padding: 12px;
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+}
+
+.detail-section.suggestion h4 {
+  color: #065f46;
+}
+
+.detail-section.suggestion p {
+  margin: 0 0 8px 0;
+  color: #065f46;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.detail-section.suggestion code {
+  background: #d1fae5;
+  border-color: #86efac;
+  color: #065f46;
+  word-break: break-all;
+}
+
+/* 鏈接樣式 */
+.detail-section a {
+  color: #3b82f6;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.detail-section a:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+/* 響應式設計 */
+@media (max-width: 768px) {
+  .script-execution-viewer {
+    padding: 12px;
+  }
+
+  .execution-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .skill-name {
+    max-width: 150px;
+  }
+
+  .execution-details {
+    max-height: 400px;
+  }
+
+  .detail-section code,
+  .detail-section pre {
+    font-size: 0.8rem;
+  }
+}
+
+/* 滾動條樣式 */
+.script-execution-viewer.expanded::-webkit-scrollbar,
+.execution-details::-webkit-scrollbar {
+  width: 8px;
+}
+
+.script-execution-viewer.expanded::-webkit-scrollbar-track,
+.execution-details::-webkit-scrollbar-track {
+  background: #f3f4f6;
+}
+
+.script-execution-viewer.expanded::-webkit-scrollbar-thumb,
+.execution-details::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 4px;
+}
+
+.script-execution-viewer.expanded::-webkit-scrollbar-thumb:hover,
+.execution-details::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}

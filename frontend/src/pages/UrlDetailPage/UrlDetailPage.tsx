@@ -46,19 +46,6 @@ interface Form {
   parameters?: any;
 }
 
-interface AIAnalysis {
-  id: number;
-  status: string;
-  summary?: string;
-  inferred_purpose?: string;
-  potential_vulnerabilities?: string[];
-  recommended_actions?: string[];
-  command_actions?: string[];
-  created_at: string;
-  completed_at?: string;
-  error_message?: string;
-}
-
 interface UrlDetail {
   id: number;
   url: string;
@@ -79,7 +66,6 @@ interface UrlDetail {
   core_techstacks: TechStack[];
   core_nucleiscans: NucleiScan[];
   core_vulnerabilities: Vulnerability[];
-  core_urlaianalyses: AIAnalysis[];
   core_metatags: MetaTag[];
   core_links: Link_[];
   core_forms: Form[];
@@ -169,7 +155,7 @@ export default function UrlDetailPage() {
     setIsScanning(true);
     try {
       const { GLOBAL_CONFIG } = await import("../../config");
-      const res = await fetch(`${GLOBAL_CONFIG.DJANGO_API_BASE}/scanners/nuclei/urls`, {
+      const res = await fetch(`${GLOBAL_CONFIG.DJANGO_API_BASE}/scanners/vuln/urls`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -221,7 +207,6 @@ export default function UrlDetailPage() {
 
   const d = data;
   const subdomains = d.core_urlresult_related_subdomains.map(r => r.core_subdomain);
-  const aiAnalysis = d.core_urlaianalyses?.[0];
   const parsedHeaders: Record<string, string> = d.headers
     ? (typeof d.headers === "string" ? JSON.parse(d.headers) : d.headers)
     : {};
@@ -372,66 +357,6 @@ export default function UrlDetailPage() {
                   {v.description && <p className="vuln-desc">{v.description}</p>}
                 </div>
               ))
-            )}
-          </Collapsible>
-
-          {/* AI Analysis */}
-          <Collapsible title="AI Analysis" icon="🤖">
-            {!aiAnalysis ? (
-              <p className="muted">No AI analysis yet. Check back after scanning.</p>
-            ) : (
-              <>
-                <div className="ai-status-bar">
-                  <span className="badge badge-info">{aiAnalysis.status}</span>
-                  <span style={{ color: "#484f58", fontSize: "0.7rem" }}>
-                    {new Date(aiAnalysis.created_at).toLocaleString()}
-                  </span>
-                </div>
-
-                {aiAnalysis.summary && (
-                  <p className="ai-summary-text">{aiAnalysis.summary}</p>
-                )}
-
-                {aiAnalysis.inferred_purpose && (
-                  <div style={{ marginBottom: 14 }}>
-                    <div className="info-label" style={{ marginBottom: 6 }}>Inferred Purpose</div>
-                    <p className="ai-summary-text">{aiAnalysis.inferred_purpose}</p>
-                  </div>
-                )}
-
-                {(aiAnalysis.potential_vulnerabilities || []).length > 0 && (
-                  <div style={{ marginBottom: 14 }}>
-                    <div className="info-label" style={{ marginBottom: 8 }}>Potential Vulnerabilities</div>
-                    {(aiAnalysis.potential_vulnerabilities || []).map((v, i) => (
-                      <div key={i} className="ai-list-item">
-                        <span className="ai-list-icon">⚠️</span>
-                        <span>{v}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {(aiAnalysis.recommended_actions || []).length > 0 && (
-                  <div style={{ marginBottom: 14 }}>
-                    <div className="info-label" style={{ marginBottom: 8 }}>Recommended Actions</div>
-                    {(aiAnalysis.recommended_actions || []).map((a, i) => (
-                      <div key={i} className="ai-list-item">
-                        <span className="ai-list-icon">→</span>
-                        <span>{a}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {(aiAnalysis.command_actions || []).length > 0 && (
-                  <div>
-                    <div className="info-label" style={{ marginBottom: 8 }}>Command Actions</div>
-                    {(aiAnalysis.command_actions || []).map((cmd, i) => (
-                      <CopyText key={i} text={cmd} />
-                    ))}
-                  </div>
-                )}
-              </>
             )}
           </Collapsible>
 

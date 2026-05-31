@@ -1,5 +1,5 @@
 import logging
-from django_ai_assistant import method_tool
+from apps.ai_assistant import method_tool
 
 logger = logging.getLogger(__name__)
 
@@ -109,13 +109,13 @@ class MemoryMixin:
             return f"聚焦分析失敗: {e}. 摘要: {blob.ai_summary}"
 
     @method_tool
-    def write_recon_note(self, overview_id: int, title: str, content: str) -> str:
+    def write_recon_note(self, overview_id: int = None, title: str = "", content: str = "") -> str:
         """
         快速將偵察發現（例如 curl 的回應、表單結構、注入測試結果）儲存為一個新的 Step + StepNote。
         在完成任何手動操作（如 run_command 執行 curl）後，立刻呼叫此工具保存結果。
 
         Args:
-            overview_id: 當前 Overview 的 ID。
+            overview_id: (Optional) 當前 Overview 的 ID。自動注入。
             title: 此發現的簡短標題 (e.g., 'POST /register – SQLi 測試結果')。
             content: 詳細的發現內容（可包含 curl 回應、觀察到的行為、評估等）。
         """

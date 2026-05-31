@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import APIKey
+from apps.core.models.api_key import APIKey
 
 @admin.register(APIKey)
 class APIKeyAdmin(admin.ModelAdmin):

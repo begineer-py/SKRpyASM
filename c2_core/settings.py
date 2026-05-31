@@ -41,11 +41,10 @@ INSTALLED_APPS = [  # 註冊 Django 項目中使用的應用程序列表
     "django.contrib.sessions",  # 會話管理系統
     "django.contrib.messages",  # 消息框架
     "django.contrib.staticfiles",  # 靜態文件管理
-    "rest_framework",  # Django REST framework 應用
-    "rest_framework.authtoken",  # DRF 的 Token 認證應用
-    "django_ai_assistant",  # Django AI Assistant 應用
-    # 操！就是這裡！把你自己的核心 App 加進來！
-    "c2_core",  # <--- 加上這行！ # 核心應用程序
+     "rest_framework",  # Django REST framework 應用
+     "rest_framework.authtoken",  # DRF 的 Token 認證應用
+     # 操！就是這裡！把你自己的核心 App 加進來！
+     "c2_core",  # <--- 加上這行！ # 核心應用程序
     # 你的 Apps
     "apps.targets",  # 自定義應用：目標管理
     "apps.scanners.nmap_scanner",  # 自定義應用：Nmap 掃描器
@@ -235,6 +234,8 @@ CELERY_IMPORTS = (
     "apps.scanners.nuclei_scanner.tasks",
     "apps.scheduler.tasks",
     "apps.auto.tasks",  # Auto App - AI Orchestration Tasks
+    "apps.scanners.cve_intelligence.tasks.enrichment_tasks",  # CVE Enrichment
+    "apps.scanners.cve_intelligence.tasks.scheduled_sync",  # CVE Scheduled Sync
 )
 API_BASE_URL = "http://127.0.0.1:8000"
 LOG_DIR = BASE_DIR / "c2_core" / "logs"
@@ -337,7 +338,7 @@ LOGGING = {
             "propagate": False,
         },
         # Django AI Assistant 場景 debug (看 as_tool 輸入 與 agent 訊息)
-        "django_ai_assistant.agent": {
+        "ai_assistant.agent": {
             "handlers": ["console", "app_file"],
             "level": "DEBUG",  # 改 DEBUG 可看到每条 message 內容
             "propagate": False,
@@ -356,15 +357,15 @@ LOGGING = {
         },
     },
 }
-AI_ASSISTANT_INIT_API_FN = "django_ai_assistant.api.views.init_api"
-AI_ASSISTANT_CAN_CREATE_THREAD_FN = "django_ai_assistant.permissions.allow_all"
-AI_ASSISTANT_CAN_VIEW_THREAD_FN = "django_ai_assistant.permissions.allow_all"
-AI_ASSISTANT_CAN_UPDATE_THREAD_FN = "django_ai_assistant.permissions.allow_all"
-AI_ASSISTANT_CAN_DELETE_THREAD_FN = "django_ai_assistant.permissions.allow_all"
-AI_ASSISTANT_CAN_CREATE_MESSAGE_FN = "django_ai_assistant.permissions.allow_all"
-AI_ASSISTANT_CAN_UPDATE_MESSAGE_FN = "django_ai_assistant.permissions.allow_all"
-AI_ASSISTANT_CAN_DELETE_MESSAGE_FN = "django_ai_assistant.permissions.allow_all"
-AI_ASSISTANT_CAN_RUN_ASSISTANT = "django_ai_assistant.permissions.allow_all"
+AI_ASSISTANT_INIT_API_FN = "apps.ai_assistant.api.views.init_api"
+AI_ASSISTANT_CAN_CREATE_THREAD_FN = "apps.ai_assistant.permissions.allow_all"
+AI_ASSISTANT_CAN_VIEW_THREAD_FN = "apps.ai_assistant.permissions.allow_all"
+AI_ASSISTANT_CAN_UPDATE_THREAD_FN = "apps.ai_assistant.permissions.allow_all"
+AI_ASSISTANT_CAN_DELETE_THREAD_FN = "apps.ai_assistant.permissions.allow_all"
+AI_ASSISTANT_CAN_CREATE_MESSAGE_FN = "apps.ai_assistant.permissions.allow_all"
+AI_ASSISTANT_CAN_UPDATE_MESSAGE_FN = "apps.ai_assistant.permissions.allow_all"
+AI_ASSISTANT_CAN_DELETE_MESSAGE_FN = "apps.ai_assistant.permissions.allow_all"
+AI_ASSISTANT_CAN_RUN_ASSISTANT = "apps.ai_assistant.permissions.allow_all"
 
 # LangChain Verbose Logging (scoped, avoids crashing Rich with debug mode)
 # langchain.debug = True  # 千萬別開！會讓 Rich log handler 遞迴爛掉

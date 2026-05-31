@@ -41,8 +41,24 @@ class Overview(models.Model):
     ]
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default="PLANNING")
     risk_score = models.PositiveSmallIntegerField(default=0, help_text="綜合風險評分 (0-100)")
-    thread_id = models.IntegerField(null=True, blank=True, help_text="筆記本 Overview 的 AI 對話 Thread ID (for push-callback)")
-    parent_thread_id = models.IntegerField(null=True, blank=True, help_text="建立此任務的上層節點/Caller Thread ID (for async completion callback)")
+    thread = models.ForeignKey(
+        "core.Thread",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="overviews",
+        db_column="thread_id",
+        help_text="筆記本 Overview 的 AI 對話 Thread (for push-callback)",
+    )
+    parent_thread = models.ForeignKey(
+        "core.Thread",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="child_overviews",
+        db_column="parent_thread_id",
+        help_text="建立此任務的上層節點/Caller Thread (for async completion callback)",
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

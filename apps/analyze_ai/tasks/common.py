@@ -193,7 +193,7 @@ def _execute_ai_batch(asset_type: str, asset_ids: List[int], task_self) -> None:
                 asset["strategic_context"] = _build_strategic_context(record)
 
         from django.contrib.auth import get_user_model
-        from django_ai_assistant.helpers.use_cases import create_thread
+        from apps.ai_assistant.helpers.use_cases import create_thread
         from apps.analyze_ai.assistants import InitialAnalyzerAgent
 
         User = get_user_model()

@@ -7,8 +7,8 @@ from apps.analyze_ai.tasks.planning import propose_next_steps
 
 logger = logging.getLogger(__name__)
 
-from django_ai_assistant.models import Thread
-from django_ai_assistant.helpers.use_cases import create_message
+from apps.core.models.ai_models import Thread
+from apps.ai_assistant.helpers.use_cases import create_message
 from django.contrib.auth import get_user_model
 
 def send_rescue_message(ov: Overview, msg: str):
@@ -106,7 +106,7 @@ def compress_long_threads():
     定時任務：掃描所有活躍 AI Thread，
     若訊息數量超過閾值則壓縮舊訊息為摘要，防止 Token 視窗爆炸。
     """
-    from django_ai_assistant.models import Thread, Message
+    from apps.core.models.ai_models import Thread, Message
     from langchain_core.messages import message_to_dict
     import json
 

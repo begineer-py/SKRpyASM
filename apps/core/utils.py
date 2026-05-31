@@ -69,8 +69,8 @@ def with_auto_callback(func: Callable) -> Callable:
                 # 透過 Django AI Assistant create_message 喚醒 AI (Django ORM, 不需要 HTTP)
                 try:
                     from .models import Step
-                    from django_ai_assistant.models import Thread
-                    from django_ai_assistant.helpers.use_cases import create_message
+                    from apps.core.models.ai_models import Thread
+                    from apps.ai_assistant.helpers.use_cases import create_message
                     from django.contrib.auth import get_user_model
 
                     step_obj = Step.objects.select_related('overview').filter(id=callback_step_id).first()
@@ -88,7 +88,7 @@ def with_auto_callback(func: Callable) -> Callable:
                         
                         # Fallback 2：找最近一個 automation_agent 的 Thread
                         if not thread_id:
-                            from django_ai_assistant.models import Thread
+                            from apps.core.models.ai_models import Thread
                             latest = Thread.objects.filter(assistant_id="automation_agent").order_by('-updated_at').first()
                             if latest:
                                 thread_id = latest.id

@@ -6,8 +6,9 @@
 
 .aicenter-container {
   display: flex;
-  height: calc(100vh - var(--header-height, 60px));
+  height: calc(100vh - var(--navbar-height, 58px));
   width: 100%;
+  margin-top: var(--navbar-height, 58px);
   background: linear-gradient(135deg, #0f172a 0%, #0a0e27 100%);
   color: #f8fafc;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -90,6 +91,46 @@
 .new-chat-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.sidebar-filter {
+  margin: 0 12px 12px;
+  position: relative;
+}
+
+.sidebar-filter input {
+  width: 100%;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 8px 32px 8px 12px;
+  color: #f1f5f9;
+  font-size: 0.75rem;
+  transition: all 0.2s ease;
+}
+
+.sidebar-filter input:focus {
+  outline: none;
+  border-color: #22c55e;
+  background: #0f172a;
+  box-shadow: 0 0 0 1px #22c55e;
+}
+
+.sidebar-filter .clear-filter {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 4px;
+}
+
+.sidebar-filter .clear-filter:hover {
+  color: #f1f5f9;
 }
 
 .sidebar-loading,
@@ -247,6 +288,27 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+/* 訊息區域專屬的明亮綠色捲軸，防止與極暗背景融為一體 */
+.messages-area::-webkit-scrollbar {
+  width: 8px;
+}
+
+.messages-area::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 4px;
+}
+
+.messages-area::-webkit-scrollbar-thumb {
+  background: rgba(34, 197, 94, 0.35); /* C2 綠色主題 */
+  border-radius: 4px;
+  border: 1px solid rgba(34, 197, 94, 0.1);
+  transition: background 0.2s ease;
+}
+
+.messages-area::-webkit-scrollbar-thumb:hover {
+  background: rgba(34, 197, 94, 0.6);
 }
 
 .empty-chat,

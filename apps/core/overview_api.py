@@ -110,4 +110,4 @@ def delete_overview(request, overview_id: int):
     if not obj:
         raise HttpError(404, f"Overview {overview_id} not found")
     obj.delete()
-    return {"deleted": True, "overview_id": overview_id}
+    return {"success": True}

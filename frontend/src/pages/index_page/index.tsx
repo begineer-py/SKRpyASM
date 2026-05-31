@@ -85,7 +85,7 @@ function IndexPage() {
   }, []);
 
   return (
-    <div className="dashboard-container">
+    <div className="c2-page dashboard-container">
       {/* 頁面標頭 */}
       <header className="dashboard-header">
         <h1>C2 Overwatch <span style={{fontSize: '0.5em', color: '#666'}}>// Target Command</span></h1>

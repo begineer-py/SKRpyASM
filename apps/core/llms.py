@@ -1,6 +1,7 @@
 import os
 import logging
 from pathlib import Path
+from typing import Optional, Dict, Any
 from dotenv import load_dotenv
 
 # Explicitly load .env file from project root
@@ -11,20 +12,70 @@ from langchain_core.language_models.chat_models import BaseChatModel
 
 logger = logging.getLogger(__name__)
 
-def get_llm_instance(model_name=None, temperature=0, **kwargs) -> BaseChatModel:
+
+def get_llm_instance(
+    model_name: Optional[str] = None, 
+    temperature: float = 0, 
+    provider: Optional[str] = None, 
+    agent_id: Optional[str] = None, 
+    **kwargs
+) -> BaseChatModel:
     """
     Factory pattern to generate a LangChain Chat Model dynamically.
     Checks environment logs to choose between openai, mistral, deepseek, ollama or proxy.
+    
+    Can be called with an agent_id to get agent-specific configuration.
     """
-    provider = os.environ.get("AI_PROVIDER", "mistral").lower()
+    # Import here to avoid circular imports
+    try:
+        from apps.auto.settings import config as auto_config
+        has_auto_config = True
+    except ImportError:
+        has_auto_config = False
+    
+    # Initialize variables
+    agent_api_key = None
+    agent_api_base_url = None
+    
+    # Get configuration based on agent_id if provided
+    if agent_id and has_auto_config:
+        agent_config = auto_config.get_agent_config(agent_id)
+        if not provider:
+            provider = agent_config["provider"]
+        if not model_name:
+            model_name = agent_config["model"]
+        if temperature == 0 and agent_config["temperature"] is not None:
+            temperature = agent_config["temperature"]
+        # Get agent-specific API configuration
+        agent_api_key = agent_config.get("api_key")
+        agent_api_base_url = agent_config.get("api_base_url")
+    
+    # If no agent or no auto config, fall back to env vars
+    if not provider:
+        provider = os.environ.get("AI_PROVIDER", "mistral").lower()
+    
     default_model = os.environ.get("AI_MODEL_NAME")
     
     # AI_MODEL_NAME in env overrides the hardcoded class model
-    final_model = default_model or model_name
-    api_key = os.environ.get("AI_API_KEY")
-    api_base = os.environ.get("AI_API_BASE_URL")
+    final_model = model_name or default_model
     
-    logger.info(f"Initializing LLM with provider={provider}, model={final_model}, base_url={api_base}")
+    # Get API keys and base URL
+    # Priority: agent-specific > provider-specific > global
+    api_key = agent_api_key or os.environ.get("AI_API_KEY")
+    api_base = agent_api_base_url or os.environ.get("AI_API_BASE_URL")
+    
+    # Provider-specific API keys (only if no agent-specific key)
+    if not agent_api_key:
+        if provider == "openai":
+            api_key = os.environ.get("OPENAI_API_KEY") or api_key
+        elif provider == "mistral":
+            api_key = os.environ.get("MISTRAL_API_KEY") or api_key
+        elif provider == "anthropic":
+            api_key = os.environ.get("ANTHROPIC_API_KEY") or api_key
+        elif provider == "deepseek":
+            api_key = os.environ.get("DEEPSEEK_API_KEY") or api_key
+    
+    logger.info(f"Initializing LLM with provider={provider}, model={final_model}, base_url={api_base}, temperature={temperature}, agent_id={agent_id}")
 
     if provider in ["openai", "proxy"]:
         from langchain_openai import ChatOpenAI
@@ -36,6 +87,16 @@ def get_llm_instance(model_name=None, temperature=0, **kwargs) -> BaseChatModel:
             api_key=api_key, 
             base_url=api_base,
             **kwargs,
+        )
+    elif provider == "anthropic":
+        from langchain_anthropic import ChatAnthropic
+        if not final_model:
+            final_model = "claude-3-opus-20240229"
+        return ChatAnthropic(
+            model=final_model,
+            temperature=temperature,
+            api_key=api_key,
+            **kwargs
         )
     elif provider == "ollama":
         from langchain_community.chat_models import ChatOllama

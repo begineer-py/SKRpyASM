@@ -41,6 +41,12 @@ function Navbar() {
         >
           Skill Library
         </NavLink>
+        <NavLink
+          to="/api-keys"
+          className={({ isActive }) => `c2-navbar__link${isActive ? ' active' : ''}`}
+        >
+          API Keys
+        </NavLink>
       </div>
 
       {/* Status indicator */}
