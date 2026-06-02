@@ -5,6 +5,12 @@ from pydantic import field_validator, model_validator
 import json  # 操！这次绝不能漏！
 
 
+class RegisteredTaskSchema(Schema):
+    """已在 Celery 中登記的任務"""
+    name: str
+    doc: Optional[str] = None
+
+
 # ... (Output Schemas 保持不变) ...
 class IntervalScheduleSchema(Schema):
     id: int

@@ -9,6 +9,7 @@ from apps.core.models import CVEIntelligence
 class CVEQuerySchema(Schema):
     """查詢特定 CVE 的請求 schema"""
     cve_id: str
+    use_nvd: bool = True  # 若本地 DB 沒有，是否嘗試從 NVD 拉取
 
 
 class CVESearchSchema(Schema):
@@ -17,6 +18,11 @@ class CVESearchSchema(Schema):
     version: Optional[str] = None
     severity_min: str = "MEDIUM"  # CRITICAL, HIGH, MEDIUM, LOW
     exploited_only: bool = False
+    limit: int = 20              # 返回條數，最多 100
+    pub_start_date: Optional[str] = None  # ISO date 字串，如 "2023-01-01"
+    pub_end_date: Optional[str] = None
+    min_cvss: Optional[float] = None    # CVSS 最低分數過濾，對應 data_sources.nvd.cvss_score
+    min_epss: Optional[float] = None    # EPSS 最低分數過濾，對應 data_sources.epss.epss_score
 
 
 class CVESearchByTagsSchema(Schema):
@@ -54,7 +60,7 @@ class CVEIntelligenceOut(ModelSchema):
             "id", "cve_id", "description", "severity",
             "cvss_score", "cvss_vector", "affected_products",
             "exploit_available", "exploited_in_wild", "cisa_kev",
-            "epss_score", "references", "published_date",
+            "epss_score", "references", "cwe_ids", "published_date",
             "created_at", "updated_at"
         ]
 

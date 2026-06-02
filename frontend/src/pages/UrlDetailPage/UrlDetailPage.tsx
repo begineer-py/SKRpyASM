@@ -105,21 +105,6 @@ function VulnBadge({ severity }: { severity: string }) {
   return <span className={`badge ${cls}`}>{severity}</span>;
 }
 
-function CopyText({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-  const copy = () => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1800);
-  };
-  return (
-    <div className="cmd-block">
-      <span className="cmd-text">{text}</span>
-      <button className="btn-copy-sm" onClick={copy}>{copied ? "✓ COPIED" : "COPY"}</button>
-    </div>
-  );
-}
-
 function Collapsible({ title, icon, count, children }: { title: string; icon: string; count?: number; children: React.ReactNode }) {
   const [open, setOpen] = useState(true);
   return (

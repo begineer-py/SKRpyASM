@@ -4,8 +4,8 @@ import concurrent.futures
 from openai import OpenAI
 
 # 設定環境變數
-API_KEY = os.getenv("AI_API_KEY", "fe_oa_f2f979cbfdc7a624464ff3ae8e009b0ded85747a1070bda8")
-BASE_URL = os.getenv("AI_API_BASE_URL", "https://api.freemodel.dev/v1")
+API_KEY = os.getenv("AI_API_KEY", "sk-bkAQ1jYqRmL1HxARU4WYTnQOz6m7TUvadqUSnraSfhafyZXs")
+BASE_URL = os.getenv("AI_API_BASE_URL", "https://api.bluesminds.com/v1")
 
 # 初始化 OpenAI 客戶端
 client = OpenAI(
@@ -17,7 +17,8 @@ client = OpenAI(
 models_to_test = [
     # Page 1
     # "glm-5",
-    "asdiasflash"
+    # "asdiasflash"
+    "z-ai/glm-5.1"
     # "openai/gpt-oss-20b",
     # "gpt-5-nano"
     # "gpt-5.5",

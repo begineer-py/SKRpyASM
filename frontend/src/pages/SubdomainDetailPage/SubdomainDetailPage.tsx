@@ -14,24 +14,6 @@ const BooleanDisplay: React.FC<{ value: boolean }> = ({ value }) => (
     {value ? "TRUE" : "FALSE"}
   </span>
 );
-// [新增] 可复制命令行的组件
-const CommandAction: React.FC<{ command: string }> = ({ command }) => {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(command);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000); // 2秒后恢复状态
-  };
-  return (
-    <div className="command-action-item">
-      <pre className="command-text">{command}</pre>
-      <button onClick={handleCopy} className="btn-copy">
-        {copied ? "COPIED!" : "COPY"}
-      </button>
-    </div>
-  );
-};
 function SubdomainDetailPage() {
   const { targetId, subdomainId } = useParams();
   // navigate was previously unused; keep page non-navigational for now.

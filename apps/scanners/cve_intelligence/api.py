@@ -5,6 +5,7 @@ from ninja.errors import HttpError
 from typing import List
 from concurrent.futures import ThreadPoolExecutor
 import threading
+from django.db.models import Q
 
 from apps.core.models import CVEIntelligence, Vulnerability, Target, TechStackCVEMapping
 from apps.core.schemas import SuccessSendToAISchema, ErrorSchema
@@ -61,10 +62,16 @@ def query_cve(request, payload: CVEQuerySchema):
     try:
         # 使用豐富化服務（三層快取策略）
         service = CVEEnrichmentService()
-        cve_intel = run_async_in_thread(service.enrich_cve(cve_id))
+        cve_intel = run_async_in_thread(
+            service.enrich_cve(cve_id, use_external=payload.use_nvd)
+        )
 
         if not cve_intel:
-            raise HttpError(404, f"CVE {cve_id} 未找到")
+            not_found_msg = (
+                f"CVE {cve_id} 不在本地資料庫中" if not payload.use_nvd
+                else f"CVE {cve_id} 未找到"
+            )
+            raise HttpError(404, not_found_msg)
 
         return 200, cve_intel
 
@@ -88,28 +95,49 @@ def search_cves(request, payload: CVESearchSchema):
         # 查詢本地資料庫
         query = CVEIntelligence.objects.all()
 
-        # 關鍵字過濾
+        # 關鍵字過濾：CPE 結構化資料優先（GIN index），fallback 到描述文字搜索
         if payload.tech_name:
-            query = query.filter(description__icontains=payload.tech_name)
+            tech_lower = payload.tech_name.lower()
+            cve_filter = (
+                Q(affected_products__contains=[{"product": tech_lower}]) |
+                Q(affected_products__contains=[{"vendor": tech_lower}]) |
+                Q(description__icontains=payload.tech_name)
+            )
+            query = query.filter(cve_filter)
 
-        # 嚴重性過濾
+        # 嚴重性過濾：使用 JSONB 路徑查詢 data_sources.nvd.severity（GIN index 可命中 @> 操作）
         severity_order = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1}
         min_level = severity_order.get(payload.severity_min.upper(), 2)
         severity_filter = [k for k, v in severity_order.items() if v >= min_level]
-        query = query.filter(severity__in=severity_filter)
+        query = query.filter(data_sources__nvd__severity__in=severity_filter)
+
+        # CVSS 最低分數過濾（JSONB 路徑：data_sources.nvd.cvss_score）
+        if payload.min_cvss is not None:
+            query = query.filter(data_sources__nvd__cvss_score__gte=payload.min_cvss)
+
+        # EPSS 最低分數過濾（JSONB 路徑：data_sources.epss.epss_score）
+        if payload.min_epss is not None:
+            query = query.filter(data_sources__epss__epss_score__gte=payload.min_epss)
 
         # 已利用過濾
         if payload.exploited_only:
-            from django.db.models import Q
             query = query.filter(Q(cisa_kev=True) | Q(exploit_available=True))
+
+        # 發布日期過濾
+        if payload.pub_start_date:
+            query = query.filter(published_date__gte=payload.pub_start_date)
+        if payload.pub_end_date:
+            query = query.filter(published_date__lte=payload.pub_end_date)
 
         # 排序
         query = query.order_by("-cvss_score", "-epss_score")
 
-        # 版本匹配（如果提供了版本）
+        limit = min(payload.limit, 100)
+
+        # 版本匹配：先用 JSONB 篩出所有 vendor/product 相關 CVE，再記憶體比對，最後截斷
         if payload.version:
             matcher = VersionMatcher()
-            all_cves = list(query[:100])  # 限制查詢數量
+            all_cves = list(query)  # 不限筆數，由前置 JSONB 過濾控制規模
             matched_cves = []
 
             for cve in all_cves:
@@ -119,10 +147,10 @@ def search_cves(request, payload: CVESearchSchema):
                 if is_match and confidence >= 0.5:
                     matched_cves.append(cve)
 
-            cves = matched_cves[:20]
+            cves = matched_cves[:limit]
             total = len(matched_cves)
         else:
-            cves = list(query[:20])
+            cves = list(query[:limit])
             total = query.count()
 
         return 200, CVESearchResultOut(total=total, cves=cves)

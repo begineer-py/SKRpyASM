@@ -1,11 +1,25 @@
 import logging
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 from celery import shared_task
 from django.utils import timezone
 from apps.core.models import CVEIntelligence, TechStackCVEMapping
 from apps.scanners.cve_intelligence.clients import CISAKEVClient
 from apps.scanners.cve_intelligence.services.cve_enrichment import CVEEnrichmentService
-import asyncio
+
+
+def _run_async(coro):
+    """在獨立 thread 中執行 async 協程，避免 eventlet monkey-patch 導致的 SynchronousOnlyOperation。"""
+    def run():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            return loop.run_until_complete(coro)
+        finally:
+            loop.close()
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        return executor.submit(run).result()
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +45,7 @@ def sync_cisa_kev_database(self, callback_step_id: Optional[int] = None):
         async with CISAKEVClient() as kev_client:
             return await kev_client.fetch_kev_catalog()
 
-    kev_catalog = asyncio.run(fetch_kev())
+    kev_catalog = _run_async(fetch_kev())
 
     if not kev_catalog:
         logger.error("Failed to fetch CISA KEV catalog")
@@ -79,7 +93,7 @@ def sync_cisa_kev_database(self, callback_step_id: Optional[int] = None):
         batch_size = 50
         for i in range(0, len(missing_cve_ids), batch_size):
             batch = missing_cve_ids[i:i + batch_size]
-            cve_intel_map = asyncio.run(service.enrich_cves_batch(batch))
+            cve_intel_map = _run_async(service.enrich_cves_batch(batch))
 
             # 更新 KEV 狀態
             for cve_id in batch:

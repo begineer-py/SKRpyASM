@@ -27,7 +27,7 @@ function Navbar() {
           to="/execution-monitor"
           className={({ isActive }) => `c2-navbar__link${isActive ? ' active' : ''}`}
         >
-          Execution Monitor
+          Monitor
         </NavLink>
         <NavLink
           to="/aicenter"
@@ -36,16 +36,28 @@ function Navbar() {
           AI Center
         </NavLink>
         <NavLink
+          to="/cve-intelligence"
+          className={({ isActive }) => `c2-navbar__link${isActive ? ' active' : ''}`}
+        >
+          CVE Intel
+        </NavLink>
+        <NavLink
+          to="/scheduler"
+          className={({ isActive }) => `c2-navbar__link${isActive ? ' active' : ''}`}
+        >
+          Scheduler
+        </NavLink>
+        <NavLink
           to="/skills"
           className={({ isActive }) => `c2-navbar__link${isActive ? ' active' : ''}`}
         >
-          Skill Library
+          Skills
         </NavLink>
         <NavLink
           to="/api-keys"
           className={({ isActive }) => `c2-navbar__link${isActive ? ' active' : ''}`}
         >
-          API Keys
+          Keys
         </NavLink>
       </div>
 
