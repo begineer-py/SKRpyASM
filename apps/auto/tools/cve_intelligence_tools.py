@@ -78,6 +78,13 @@ class CVEIntelligenceMixin:
                     output.append(f"  ... 及其他 {len(cve_intel.affected_products) - 5} 個產品")
                 output.append("")
 
+            # CWE 分類
+            if cve_intel.cwe_ids:
+                output.append("🔐 CWE 分類：")
+                for cwe in cve_intel.cwe_ids[:5]:
+                    output.append(f"  • {cwe}")
+                output.append("")
+
             # 參考連結
             if cve_intel.references:
                 output.append("🔗 參考連結：")
@@ -101,7 +108,9 @@ class CVEIntelligenceMixin:
         tech_name: str,
         version: str = None,
         severity_min: str = "MEDIUM",
-        exploited_only: bool = False
+        exploited_only: bool = False,
+        min_cvss: float = None,
+        min_epss: float = None,
     ) -> str:
         """
         根據技術名稱和版本搜尋相關的 CVE。
@@ -111,6 +120,8 @@ class CVEIntelligenceMixin:
             version: 版本號 (例如 '2.5.30', '4.2.0')，若為 None 則搜尋所有版本
             severity_min: 最低嚴重性 (CRITICAL, HIGH, MEDIUM, LOW)
             exploited_only: 是否只返回已被利用的 CVE (CISA KEV 或 exploit available)
+            min_cvss: 最低 CVSS 分數 (0.0-10.0)，例如 7.0
+            min_epss: 最低 EPSS 分數 (0.0-1.0)，例如 0.5
 
         Returns:
             相關 CVE 列表，按 CVSS 分數和 EPSS 分數排序
@@ -118,12 +129,20 @@ class CVEIntelligenceMixin:
         try:
             logger.info(f"Searching CVEs for {tech_name} {version or 'all versions'}")
 
+            from django.db.models import Q
+
             # 查詢本地資料庫
             query = CVEIntelligence.objects.all()
 
-            # 關鍵字過濾
+            # CPE 優先 + description fallback（GIN index 加速 affected_products 查詢）
             if tech_name:
-                query = query.filter(description__icontains=tech_name)
+                tech_lower = tech_name.lower()
+                cve_filter = (
+                    Q(affected_products__contains=[{"product": tech_lower}]) |
+                    Q(affected_products__contains=[{"vendor": tech_lower}]) |
+                    Q(description__icontains=tech_name)
+                )
+                query = query.filter(cve_filter)
 
             # 嚴重性過濾
             severity_order = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1}
@@ -133,11 +152,16 @@ class CVEIntelligenceMixin:
 
             # 已利用過濾
             if exploited_only:
-                from django.db.models import Q
                 query = query.filter(Q(cisa_kev=True) | Q(exploit_available=True))
 
-            # 排序
-            query = query.order_by("-cvss_score", "-epss_score")[:20]
+            # CVSS / EPSS 分數過濾
+            if min_cvss is not None:
+                query = query.filter(cvss_score__gte=min_cvss)
+            if min_epss is not None:
+                query = query.filter(epss_score__gte=min_epss)
+
+            # 排序（不在版本匹配前截斷，避免漏掉低排名但版本吻合的 CVE）
+            query = query.order_by("-cvss_score", "-epss_score")
 
             cves = list(query)
 

@@ -13,6 +13,7 @@ from .schemas import (
     PeriodicTaskUpdateSchema,
     IntervalScheduleSchema,
     CrontabScheduleSchema,
+    RegisteredTaskSchema,
 )
 from django.shortcuts import get_object_or_404
 
@@ -115,15 +116,64 @@ async def create_periodic_task(
             f"为新任务创建了时间计划: every {interval_data['every']} {interval_data['period']}"
         )
 
+    task_name = task_data.pop("name")
     # 操！異步化！
     task, created = await PeriodicTask.objects.aupdate_or_create(
-        name=task_data.pop("name"),
+        name=task_name,
         defaults={**task_data, "interval": interval_schedule},
     )
 
     if not created:
         raise HttpError(409, f"Task with name '{payload.name}' already exists.")
-    return task
+
+    # 重新 select_related 確保序列化時 interval/crontab 已載入
+    task = await PeriodicTask.objects.select_related("interval", "crontab").aget(id=task.id)
+
+    task_doc = None
+    if task.task in current_app.tasks:
+        celery_task = current_app.tasks[task.task]
+        if celery_task.__doc__:
+            task_doc = celery_task.__doc__.strip()
+
+    return {
+        "id": task.id,
+        "name": task.name,
+        "task": task.task,
+        "task_doc": task_doc,
+        "enabled": task.enabled,
+        "description": task.description,
+        "interval": (
+            {"id": task.interval.id, "every": task.interval.every, "period": task.interval.period}
+            if task.interval else None
+        ),
+        "crontab": (
+            {
+                "id": task.crontab.id,
+                "minute": task.crontab.minute,
+                "hour": task.crontab.hour,
+                "day_of_week": task.crontab.day_of_week,
+                "day_of_month": task.crontab.day_of_month,
+                "month_of_year": task.crontab.month_of_year,
+                "timezone": str(task.crontab.timezone) if task.crontab.timezone else None,
+            }
+            if task.crontab else None
+        ),
+        "total_run_count": task.total_run_count,
+        "date_changed": task.date_changed,
+        "last_run_at": task.last_run_at,
+        "solar": None,
+        "clocked": None,
+        "args": task.args,
+        "kwargs": task.kwargs,
+        "queue": task.queue,
+        "exchange": task.exchange,
+        "routing_key": task.routing_key,
+        "priority": task.priority,
+        "expires": task.expires,
+        "expire_seconds": task.expire_seconds,
+        "one_off": task.one_off,
+        "start_time": task.start_time,
+    }
 
 
 # --- 查詢單個定時任務 ---
@@ -221,3 +271,23 @@ async def delete_periodic_task(request, task_id: int):  # 操！異步化！
 async def list_intervals(request):  # 操！異步化！
     # .all() 是 lazy 的，Ninja 的異步模式會處理好異步迭代
     return await IntervalSchedule.objects.all()
+
+
+# --- 列出所有已在 Celery 中登記的任務 ---
+@router.get("/registered_tasks", response=List[RegisteredTaskSchema])
+def list_registered_tasks(request):
+    """
+    返回所有已在 Celery 中登記的任務名稱與文檔，供前端建立定時任務時選擇。
+    過濾掉 celery. 開頭的內建任務。
+    """
+    result = []
+    for task_name in sorted(current_app.tasks.keys()):
+        if task_name.startswith("celery."):
+            continue
+        task = current_app.tasks[task_name]
+        doc = None
+        if task.__doc__:
+            first_line = task.__doc__.strip().split("\n")[0].strip()
+            doc = first_line if first_line else None
+        result.append({"name": task_name, "doc": doc})
+    return result

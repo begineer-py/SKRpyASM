@@ -17,6 +17,8 @@ import UrlDetailPage from "./pages/UrlDetailPage/UrlDetailPage.tsx";
 import SkillLibraryPage from "./pages/SkillLibraryPage/SkillLibraryPage.tsx";
 import APIKeyManagerPage from "./pages/APIKeyManagerPage/APIKeyManagerPage.tsx";
 import OverviewDetailPage from "./pages/OverviewDetailPage/OverviewDetailPage.tsx";
+import CVEIntelligencePage from "./pages/CVEIntelligencePage/CVEIntelligencePage.tsx";
+import SchedulerPage from "./pages/SchedulerPage/SchedulerPage.tsx";
 function App() {
   return (
     <BrowserRouter>
@@ -33,6 +35,8 @@ function App() {
           <Route path="/target/:targetId/seed/:seedId/subdomain" element={<SeedReconPage />} />
           <Route path="/target/:targetId/subdomain/:subdomainId" element={<SubdomainDetailPage />} />
           <Route path="/target/:targetId/url/:urlId" element={<UrlDetailPage />} />
+          <Route path="/cve-intelligence" element={<CVEIntelligencePage />} />
+          <Route path="/scheduler" element={<SchedulerPage />} />
           <Route path="/skills" element={<SkillLibraryPage />} />
           <Route path="/api-keys" element={<APIKeyManagerPage />} />
         </Routes>

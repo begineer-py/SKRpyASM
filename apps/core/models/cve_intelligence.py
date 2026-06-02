@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.postgres.indexes import GinIndex
 
 
 class CVEIntelligence(models.Model):
@@ -66,6 +67,12 @@ class CVEIntelligence(models.Model):
         default=list,
         help_text="參考連結清單，包含 advisories、patches、exploits"
     )
+    cwe_ids = models.JSONField(
+        default=list,
+        null=True,
+        blank=True,
+        help_text="CWE 弱點分類 ID 清單，例如 [\"CWE-79\", \"CWE-502\"]"
+    )
     published_date = models.DateTimeField(
         null=True,
         blank=True,
@@ -102,6 +109,8 @@ class CVEIntelligence(models.Model):
             models.Index(fields=["severity", "cvss_score"]),
             models.Index(fields=["cisa_kev", "exploited_in_wild"]),
             models.Index(fields=["published_date"]),
+            GinIndex(fields=["affected_products"], name="cve_affected_products_gin"),
+            GinIndex(fields=["data_sources"], name="cve_data_sources_gin"),
         ]
 
     def __str__(self):

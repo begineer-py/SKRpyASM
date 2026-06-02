@@ -28,6 +28,7 @@ export interface CVEIntelligence {
     url: string;
     tags?: string[];
   }>;
+  cwe_ids?: string[];
   published_date: string | null;
   created_at: string;
   updated_at: string;
@@ -68,15 +69,19 @@ export const CVEService = {
    * 同步目标技术栈 CVE（异步任务）
    */
   syncTechStack: async (targetId: number): Promise<{ detail: string }> => {
-    const response = await cveApi.post('/sync_techstack', { target_id: targetId });
+    const response = await cveApi.post<{ detail: string }>('/sync_techstack', { target_id: targetId });
     return response.data;
   },
 
   /**
    * 查询单个 CVE 详情（P1）
+   * use_nvd: 若本地 DB 沒有，是否嘗試從 NVD 拉取（預設 true）
    */
-  queryCVE: async (cveId: string): Promise<CVEIntelligence> => {
-    const response = await cveApi.post<CVEIntelligence>('/query', { cve_id: cveId });
+  queryCVE: async (cveId: string, useNvd = true): Promise<CVEIntelligence> => {
+    const response = await cveApi.post<CVEIntelligence>('/query', {
+      cve_id: cveId,
+      use_nvd: useNvd,
+    });
     return response.data;
   },
 
@@ -88,8 +93,13 @@ export const CVEService = {
     version?: string;
     severity_min?: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
     exploited_only?: boolean;
+    limit?: number;
+    pub_start_date?: string;
+    pub_end_date?: string;
+    min_cvss?: number;
+    min_epss?: number;
   }): Promise<{ total: number; cves: CVEIntelligence[] }> => {
-    const response = await cveApi.post('/search', params);
+    const response = await cveApi.post<{ total: number; cves: CVEIntelligence[] }>('/search', params);
     return response.data;
   },
 
@@ -97,7 +107,7 @@ export const CVEService = {
    * 批量丰富化漏洞（异步任务）（P2）
    */
   enrichVulnerabilities: async (vulnerabilityIds: number[]): Promise<{ detail: string }> => {
-    const response = await cveApi.post('/enrich_vulnerabilities', {
+    const response = await cveApi.post<{ detail: string }>('/enrich_vulnerabilities', {
       vulnerability_ids: vulnerabilityIds,
     });
     return response.data;
@@ -107,7 +117,7 @@ export const CVEService = {
    * 同步 CISA KEV 数据库（异步任务）（P2）
    */
   syncKEV: async (): Promise<{ detail: string }> => {
-    const response = await cveApi.post('/sync_kev', {});
+    const response = await cveApi.post<{ detail: string }>('/sync_kev', {});
     return response.data;
   },
 };

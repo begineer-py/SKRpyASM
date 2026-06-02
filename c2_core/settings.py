@@ -61,6 +61,7 @@ INSTALLED_APPS = [  # 註冊 Django 項目中使用的應用程序列表
     "apps.api_keys",
     "apps.ai_assistant",
     "apps.auto",  # Auto App - 3-Tier Agent Orchestration
+    "django.contrib.postgres",  # PostgreSQL 特定功能（GIN index 等）
 ]
 MIDDLEWARE = [  # 中間件列表，處理請求和響應的層次
     "corsheaders.middleware.CorsMiddleware",  # CORS 中間件，處理跨域請求

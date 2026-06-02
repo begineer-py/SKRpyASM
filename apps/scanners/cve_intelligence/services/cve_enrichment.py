@@ -18,18 +18,24 @@ class CVEEnrichmentService:
     def __init__(self):
         self.cache_ttl = 86400  # 24 小時
 
-    async def enrich_cve(self, cve_id: str, force_refresh: bool = False) -> Optional[CVEIntelligence]:
+    async def enrich_cve(
+        self,
+        cve_id: str,
+        force_refresh: bool = False,
+        use_external: bool = True,
+    ) -> Optional[CVEIntelligence]:
         """
         豐富化單個 CVE，使用三層快取策略
 
         快取策略：
         1. PostgreSQL (CVEIntelligence 模型) - 永久儲存
         2. Redis - 24h TTL
-        3. 外部 API - 最後手段
+        3. 外部 API - 最後手段（可透過 use_external=False 關閉）
 
         Args:
             cve_id: CVE 編號
             force_refresh: 是否強制重新查詢外部 API
+            use_external: 若本地 DB/Redis 都沒有，是否嘗試查詢 NVD 等外部 API
 
         Returns:
             CVEIntelligence 實例，若查詢失敗則返回 None
@@ -50,7 +56,11 @@ class CVEEnrichmentService:
                 logger.debug(f"CVE {cve_id} found in Redis cache")
                 return cached
 
-        # Layer 3: 查詢外部 API
+        # Layer 3: 查詢外部 API（可由呼叫方選擇是否啟用）
+        if not use_external:
+            logger.info(f"CVE {cve_id} not in local DB/cache, use_external=False — skipping NVD")
+            return None
+
         logger.info(f"Fetching CVE {cve_id} from external APIs")
         cve_data = await self._fetch_from_apis(cve_id)
 
@@ -235,6 +245,7 @@ class CVEEnrichmentService:
             "cvss_vector": nvd_data.get("cvss_vector"),
             "affected_products": nvd_data.get("affected_products", []),
             "references": nvd_data.get("references", []),
+            "cwe_ids": nvd_data.get("cwe_ids") or [],
             "published_date": nvd_data.get("published_date"),
             "last_modified_date": nvd_data.get("last_modified_date"),
             "exploit_available": False,
@@ -257,12 +268,11 @@ class CVEEnrichmentService:
             merged["epss_score"] = epss_data.get("epss_score")
             merged["data_sources"]["epss"] = epss_data
 
-        # 檢查參考連結中是否有 exploit
+        # 檢查參考連結中是否有 exploit（掃描所有 references）
         for ref in merged["references"]:
             tags = ref.get("tags", [])
             if any(tag.lower() in ["exploit", "exploit-db", "metasploit"] for tag in tags):
                 merged["exploit_available"] = True
-                break
 
         return merged
 
@@ -294,6 +304,7 @@ class CVEEnrichmentService:
                 "cisa_kev": cve_data.get("cisa_kev", False),
                 "epss_score": cve_data.get("epss_score"),
                 "references": cve_data.get("references", []),
+                "cwe_ids": cve_data.get("cwe_ids") or [],
                 "published_date": published_date,
                 "last_modified_date": last_modified_date,
                 "data_sources": cve_data.get("data_sources", {}),

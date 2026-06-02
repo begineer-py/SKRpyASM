@@ -232,6 +232,15 @@ class NVDClient(BaseCVEClient):
         published_date = cve_item.get("published")
         last_modified_date = cve_item.get("lastModified")
 
+        # 提取 CWE IDs（來自 weaknesses 欄位）
+        cwe_ids = []
+        for weakness in cve_item.get("weaknesses", []):
+            for desc in weakness.get("description", []):
+                val = desc.get("value", "")
+                if desc.get("lang") == "en" and val.startswith("CWE-"):
+                    if val not in cwe_ids:
+                        cwe_ids.append(val)
+
         return {
             "cve_id": cve_id,
             "description": description,
@@ -242,5 +251,6 @@ class NVDClient(BaseCVEClient):
             "references": references,
             "published_date": published_date,
             "last_modified_date": last_modified_date,
+            "cwe_ids": cwe_ids,
             "source": "nvd",
         }
