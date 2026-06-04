@@ -54,6 +54,12 @@ function Navbar() {
           Skills
         </NavLink>
         <NavLink
+          to="/agent-config"
+          className={({ isActive }) => `c2-navbar__link${isActive ? ' active' : ''}`}
+        >
+          Agents
+        </NavLink>
+        <NavLink
           to="/api-keys"
           className={({ isActive }) => `c2-navbar__link${isActive ? ' active' : ''}`}
         >

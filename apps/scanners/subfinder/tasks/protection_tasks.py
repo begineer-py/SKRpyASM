@@ -1,10 +1,10 @@
 import logging
+import asyncio
 import subprocess
 import json
 from typing import Optional
 from celery import shared_task
 from django.db import transaction
-from eventlet.greenpool import GreenPool
 
 from apps.core.models import Subdomain, Seed
 from c2_core.config.logging import log_function_call
@@ -53,27 +53,31 @@ def check_protection_for_seed(
         
         logger.info(f"将 {len(all_names)} 個子域名分成 {len(chunks)} 批進行連發檢測。")
 
-        def run_cdncheck_on_chunk(chunk):
-            """Run cdncheck on a chunk of subdomains."""
-            input_data = "\n".join(chunk)
+        async def run_cdncheck_on_chunk_async(chunk):
+            input_data = "\n".join(chunk).encode()
             try:
-                process = subprocess.run(
-                    command, input=input_data, capture_output=True, text=True, timeout=300
+                proc = await asyncio.create_subprocess_exec(
+                    *command,
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
                 )
-                if process.returncode == 0:
-                    return [line for line in process.stdout.strip().split("\n") if line]
+                stdout, stderr = await asyncio.wait_for(proc.communicate(input=input_data), timeout=300)
+                if proc.returncode == 0:
+                    return [line for line in stdout.decode().strip().split("\n") if line]
                 else:
-                    logger.error(f"cdncheck 批次執行失敗: {process.stderr}")
+                    logger.error(f"cdncheck 批次執行失敗: {stderr.decode()}")
                     return []
             except Exception as e:
                 logger.error(f"cdncheck 批次執行異常: {e}")
                 return []
 
-        # Execute cdncheck concurrently
-        pool = GreenPool(size=greenpool_size)
-        all_lines = []
-        for lines_chunk in pool.imap(run_cdncheck_on_chunk, chunks):
-            all_lines.extend(lines_chunk)
+        async def run_all_chunks():
+            results = await asyncio.gather(*[run_cdncheck_on_chunk_async(c) for c in chunks])
+            return [line for chunk_lines in results for line in chunk_lines]
+
+        # Execute cdncheck concurrently via asyncio
+        all_lines = asyncio.run(run_all_chunks())
 
         updates_count = 0
         

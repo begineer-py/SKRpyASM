@@ -35,6 +35,53 @@ def get_active_api_keys():
     logger.info(f"🔑 使用中的 API 金鑰: {summary}")
     return dict(result)
 
+_AI_PROVIDER_ENV_MAP = {
+    "openai":    "OPENAI_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
+    "mistral":   "MISTRAL_API_KEY",
+    "gemini":    "GEMINI_API_KEY",
+    "deepseek":  "DEEPSEEK_API_KEY",
+    "langchain": "LANGCHAIN_API_KEY",
+    "nvd":       "NVD_API_KEY",
+    "vulncheck": "VULNCHECK_API_KEY",
+    "ollama":    None,  # 本地服務，無需 API 鍵
+}
+
+
+def get_ai_provider_key(provider: str) -> str | None:
+    """
+    取得 AI 提供商 API 密鑰，DB 優先、env var 備援。
+
+    查詢順序：
+      1. DB：APIKey.objects.filter(service_name=provider, is_active=True)
+      2. 環境變量：依 _AI_PROVIDER_ENV_MAP 映射
+      3. 兩者均無則回傳 None
+
+    Args:
+        provider: 提供商名稱（小寫），例如 "openai"、"anthropic"。
+    """
+    provider = provider.lower()
+
+    # 1. DB 查詢（module 頂層已 import APIKey；try/except 防早期啟動異常）
+    try:
+        record = APIKey.objects.filter(
+            service_name__iexact=provider, is_active=True
+        ).first()
+        if record:
+            return record.key_value
+    except Exception as exc:
+        logger.warning(f"get_ai_provider_key: DB lookup failed for '{provider}': {exc}")
+
+    # 2. env var 備援
+    env_var = _AI_PROVIDER_ENV_MAP.get(provider)
+    if env_var:
+        value = os.environ.get(env_var)
+        if value:
+            return value
+
+    return None
+
+
 def generate_subfinder_config(keys):
     """
     生成 subfinder 的 provider-config.yaml。
