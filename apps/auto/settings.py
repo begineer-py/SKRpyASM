@@ -204,23 +204,57 @@ class AutoAppConfig:
     def get_agent_config(cls, agent_id: str) -> Dict[str, Any]:
         """
         Get configuration for a specific agent.
-        
+
+        Resolution priority per field:
+          1. DB (AgentLLMConfig) — UI 可管理，最高優先
+          2. Env var (AGENT_<ID>_* 系列)
+          3. Global defaults (DEFAULT_LLM_PROVIDER / DEFAULT_MODELS / DEFAULT_TEMPERATURE)
+
         Args:
             agent_id: ID of the agent (e.g., "initial_analyzer_agent")
-            
+
         Returns:
             Dictionary with agent-specific configuration, using defaults if not set
         """
-        agent_config = cls.AGENT_CONFIGS.get(agent_id, {})
-        
+        # 1. 從 DB 讀取 AgentLLMConfig（try/except 防止早期啟動或 DB 不可用時崩潰）
+        db_provider = db_model = db_temperature = db_api_base_url = db_api_key = None
+        try:
+            from apps.api_keys.models import AgentLLMConfig
+            db_cfg = (
+                AgentLLMConfig.objects
+                .filter(agent_id=agent_id, is_active=True)
+                .select_related("api_key_ref")
+                .first()
+            )
+            if db_cfg:
+                db_provider = db_cfg.provider or None
+                db_model = db_cfg.model_name or None
+                db_temperature = db_cfg.temperature  # None 表示不覆蓋
+                db_api_base_url = db_cfg.api_base_url or None
+                if db_cfg.api_key_ref and db_cfg.api_key_ref.is_active:
+                    db_api_key = db_cfg.api_key_ref.key_value
+        except Exception:
+            pass  # DB 不可用時靜默回退到 env var
+
+        # 2. env var 配置（現有機制）
+        env_config = cls.AGENT_CONFIGS.get(agent_id, {})
+
+        # 3. 合并（DB > env > 全域默認）
+        provider = db_provider or env_config.get("provider") or cls.DEFAULT_LLM_PROVIDER
+        model = db_model or env_config.get("model") or cls.DEFAULT_MODELS.get(provider)
+        temperature = (
+            db_temperature if db_temperature is not None
+            else (env_config.get("temperature") or cls.DEFAULT_TEMPERATURE)
+        )
+        api_base_url = db_api_base_url or env_config.get("api_base_url")
+        api_key = db_api_key or env_config.get("api_key")
+
         return {
-            "model": agent_config.get("model") or cls.DEFAULT_MODELS.get(
-                agent_config.get("provider") or cls.DEFAULT_LLM_PROVIDER
-            ),
-            "provider": agent_config.get("provider") or cls.DEFAULT_LLM_PROVIDER,
-            "temperature": agent_config.get("temperature") or cls.DEFAULT_TEMPERATURE,
-            "api_key": agent_config.get("api_key"),
-            "api_base_url": agent_config.get("api_base_url"),
+            "model": model,
+            "provider": provider,
+            "temperature": temperature,
+            "api_key": api_key,
+            "api_base_url": api_base_url,
         }
     
     @classmethod

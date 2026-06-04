@@ -60,20 +60,30 @@ def get_llm_instance(
     final_model = model_name or default_model
     
     # Get API keys and base URL
-    # Priority: agent-specific > provider-specific > global
+    # Priority: agent-specific > DB/env (via get_ai_provider_key) > global fallback
     api_key = agent_api_key or os.environ.get("AI_API_KEY")
     api_base = agent_api_base_url or os.environ.get("AI_API_BASE_URL")
-    
-    # Provider-specific API keys (only if no agent-specific key)
+
     if not agent_api_key:
-        if provider == "openai":
-            api_key = os.environ.get("OPENAI_API_KEY") or api_key
-        elif provider == "mistral":
-            api_key = os.environ.get("MISTRAL_API_KEY") or api_key
-        elif provider == "anthropic":
-            api_key = os.environ.get("ANTHROPIC_API_KEY") or api_key
-        elif provider == "deepseek":
-            api_key = os.environ.get("DEEPSEEK_API_KEY") or api_key
+        # 優先從 DB 查詢，DB 無值則自動回退到 env var（DB+env 二合一）
+        try:
+            from apps.api_keys.utils import get_ai_provider_key
+            provider_key = get_ai_provider_key(provider)
+        except Exception:
+            provider_key = None
+
+        if provider_key:
+            api_key = provider_key
+        else:
+            # 備援：直接讀 env var（保持既有行為，防 api_keys app 不可用）
+            if provider == "openai":
+                api_key = os.environ.get("OPENAI_API_KEY") or api_key
+            elif provider == "mistral":
+                api_key = os.environ.get("MISTRAL_API_KEY") or api_key
+            elif provider == "anthropic":
+                api_key = os.environ.get("ANTHROPIC_API_KEY") or api_key
+            elif provider == "deepseek":
+                api_key = os.environ.get("DEEPSEEK_API_KEY") or api_key
     
     logger.info(f"Initializing LLM with provider={provider}, model={final_model}, base_url={api_base}, temperature={temperature}, agent_id={agent_id}")
 

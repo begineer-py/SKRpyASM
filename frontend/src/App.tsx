@@ -16,6 +16,7 @@ import SubdomainDetailPage from "./pages/SubdomainDetailPage/SubdomainDetailPage
 import UrlDetailPage from "./pages/UrlDetailPage/UrlDetailPage.tsx";
 import SkillLibraryPage from "./pages/SkillLibraryPage/SkillLibraryPage.tsx";
 import APIKeyManagerPage from "./pages/APIKeyManagerPage/APIKeyManagerPage.tsx";
+import AgentLLMConfigPage from "./pages/AgentLLMConfigPage/AgentLLMConfigPage.tsx";
 import OverviewDetailPage from "./pages/OverviewDetailPage/OverviewDetailPage.tsx";
 import CVEIntelligencePage from "./pages/CVEIntelligencePage/CVEIntelligencePage.tsx";
 import SchedulerPage from "./pages/SchedulerPage/SchedulerPage.tsx";
@@ -39,6 +40,7 @@ function App() {
           <Route path="/scheduler" element={<SchedulerPage />} />
           <Route path="/skills" element={<SkillLibraryPage />} />
           <Route path="/api-keys" element={<APIKeyManagerPage />} />
+          <Route path="/agent-config" element={<AgentLLMConfigPage />} />
         </Routes>
       </main>
     </BrowserRouter>

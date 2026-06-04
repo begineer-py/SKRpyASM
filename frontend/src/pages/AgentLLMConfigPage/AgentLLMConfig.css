@@ -1,0 +1,325 @@
+.agent-config-container {
+  padding: 80px 24px 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+  color: #e2e8f0;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* Header */
+.agent-config-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.agent-config-header-left {
+  display: flex;
+  flex-direction: column;
+}
+
+.agent-config-title {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  margin: 0;
+  color: #f1f5f9;
+}
+
+.agent-bracket {
+  color: #64748b;
+}
+
+.agent-config-subtitle {
+  font-size: 13px;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+/* Priority Legend Bar */
+.agent-priority-bar {
+  background: #1e2937;
+  border: 1px solid #475569;
+  border-radius: 8px;
+  padding: 10px 20px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.priority-label {
+  color: #64748b;
+  font-size: 11px;
+  letter-spacing: 1px;
+  margin-right: 4px;
+}
+
+.priority-arrow {
+  color: #475569;
+  font-size: 14px;
+}
+
+/* Status Badges */
+.agent-status-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+.agent-status-badge.db-override {
+  background: #14532d;
+  color: #86efac;
+  border: 1px solid #166534;
+}
+
+.agent-status-badge.env-var {
+  background: #0e3a52;
+  color: #67e8f9;
+  border: 1px solid #155e75;
+}
+
+.agent-status-badge.default {
+  background: #1e293b;
+  color: #64748b;
+  border: 1px solid #334155;
+}
+
+/* Agent List */
+.agent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.agent-card {
+  background: #1e2937;
+  border: 1px solid #475569;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.agent-card.has-db {
+  border-color: #166534;
+}
+
+.agent-card-header {
+  padding: 14px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #475569;
+}
+
+.agent-id-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.agent-id {
+  font-size: 15px;
+  font-weight: 700;
+  color: #f1f5f9;
+  letter-spacing: 0.5px;
+}
+
+.agent-card-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Agent Body */
+.agent-card-body {
+  padding: 14px 20px;
+  background: #0f172a;
+}
+
+.agent-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px 24px;
+}
+
+.agent-info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.agent-info-item.full-width {
+  grid-column: 1 / -1;
+}
+
+.info-label {
+  font-size: 10px;
+  color: #64748b;
+  letter-spacing: 1px;
+}
+
+.info-value {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.provider-value {
+  color: #67e8f9;
+  text-transform: uppercase;
+}
+
+.model-value {
+  color: #c4b5fd;
+}
+
+.key-ref-value {
+  color: #fbbf24;
+}
+
+.url-value {
+  color: #94a3b8;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+/* Shared Button Styles */
+.btn {
+  padding: 8px 18px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid #475569;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.btn-primary {
+  background: #3b82f6;
+  color: white;
+  border-color: #3b82f6;
+}
+
+.btn-primary:hover {
+  background: #2563eb;
+}
+
+.btn-primary:disabled {
+  background: #1e3a5f;
+  color: #64748b;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: #1e2937;
+  color: #e2e8f0;
+}
+
+.btn-secondary:hover {
+  background: #334155;
+}
+
+.btn-danger {
+  background: #1e2937;
+  color: #f87171;
+  border-color: #7f1d1d;
+}
+
+.btn-danger:hover {
+  background: #7f1d1d;
+  color: #fca5a5;
+}
+
+.btn-sm {
+  padding: 4px 12px;
+  font-size: 12px;
+}
+
+/* Loading / Error */
+.agent-loading,
+.agent-error {
+  text-align: center;
+  padding: 60px 20px;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.agent-error {
+  color: #ef4444;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.agent-modal {
+  background: #1e2937;
+  border: 1px solid #475569;
+  border-radius: 8px;
+  padding: 24px;
+  width: 480px;
+  max-width: 90vw;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.agent-modal h3 {
+  margin: 0 0 20px;
+  color: #f1f5f9;
+  font-size: 16px;
+  letter-spacing: 1px;
+}
+
+.agent-modal input,
+.agent-modal select {
+  width: 100%;
+  margin-bottom: 4px;
+  padding: 10px 12px;
+  background: #0f172a;
+  border: 1px solid #475569;
+  border-radius: 6px;
+  color: #e2e8f0;
+  font-family: inherit;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.agent-modal select {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 30px;
+}
+
+.agent-modal select option {
+  background: #1e2937;
+  color: #e2e8f0;
+}
+
+.modal-label {
+  display: block;
+  font-size: 10px;
+  color: #64748b;
+  margin-bottom: 4px;
+  margin-top: 12px;
+  letter-spacing: 0.8px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}

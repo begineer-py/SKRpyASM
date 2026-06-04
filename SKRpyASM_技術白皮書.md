@@ -2444,6 +2444,50 @@ threshold = 40   # Message 數量 > 40 條
 # COMPRESSOR → mistral-small-latest（低成本壓縮）
 ```
 
+#### 模式 H：Agent 獨立 LLM 配置（DB 化）
+
+**問題背景：** 5 個 Agent（`initial_analyzer_agent`、`automation_agent`、`skill_creator_agent`、`skill_verifier_agent`、`skill_merger_evaluator_agent`）需要使用不同廠商的不同模型，但純 env var 方式無法透過 UI 動態管理。
+
+**解決方案：** `AgentLLMConfig` 資料模型 + REST API + 前端管理頁面，實現 DB 化的 per-agent LLM 配置。
+
+**資料模型（`apps/api_keys/models.py`）：**
+
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| `agent_id` | `CharField(unique)` | Agent 識別碼，例如 `automation_agent` |
+| `provider` | `CharField(nullable)` | LLM 廠商：openai / anthropic / mistral / deepseek / ollama |
+| `model_name` | `CharField(nullable)` | 具體模型，例如 `gpt-4o`、`claude-3-5-sonnet-20241022` |
+| `temperature` | `FloatField(nullable)` | 溫度參數 0.0–2.0；`None` 沿用全域默認 |
+| `api_base_url` | `CharField(nullable)` | 自定義 API Base URL（代理 / 私有部署） |
+| `api_key_ref` | `FK → core.APIKey(nullable)` | 指向特定 APIKey 記錄；`None` 則使用全域同廠商密鑰 |
+| `is_active` | `BooleanField` | 是否啟用此配置 |
+
+**配置解析優先級（每個欄位獨立計算）：**
+
+```
+DB (AgentLLMConfig) > env var (AGENT_<ID>_*) > 全域默認 (DEFAULT_LLM_PROVIDER)
+```
+
+實現位置：`apps/auto/settings.py` → `AutoAppConfig.get_agent_config(agent_id)`，在方法內優先查詢 DB，DB 無值則自動回退到 env var 或全域默認。
+
+**REST API（`/api/api_keys/`）：**
+
+| 方法 | 路徑 | 說明 |
+|------|------|------|
+| GET | `/agent-configs/` | 所有已知 agent 的有效配置（DB + env + 默認合并視圖） |
+| GET | `/agent-configs/db/` | 僅 DB 中有記錄的 agent |
+| PUT | `/agent-configs/{agent_id}` | Upsert（新建或更新） |
+| DELETE | `/agent-configs/{agent_id}` | 刪除 DB 記錄，回退到 env/默認 |
+
+**前端管理頁面：** 路由 `/agent-config`（Navbar → Agents），顯示每個 agent 的有效配置及狀態標籤（DB OVERRIDE / ENV VAR / DEFAULT），支援直接 EDIT 和 RESET。
+
+**典型使用場景：**
+```
+automation_agent     → openai  / gpt-4o               （高精度漏洞分析）
+skill_creator_agent  → anthropic / claude-3-5-sonnet  （長上下文程式碼生成）
+skill_verifier_agent → mistral / mistral-small         （低成本快速驗證）
+```
+
 ### 7.8 ER 關係圖（文字版）
 
 ```
@@ -4328,6 +4372,58 @@ npm run dev
 
 詳細部署指南請參考 `BUILD_GUIDE.md`。
 
+### 14.4 Docker 全棧部署模式
+
+除 conda 混合模式外（Django 在 host 執行、基礎設施在 Docker），項目亦支援完整的容器化全棧部署。
+
+**架構設計：**
+- 單一 `Dockerfile`（`python:3.10-slim`）同時服務於 Django、Celery Worker、Celery Beat，以不同 `command` 啟動
+- 安全工具直接嵌入鏡像：`nmap`（apt）、`subfinder v2.6.6`（Go binary）、`nuclei v3.1.0`（Go binary）
+- 雙文件 env 注入：`.env`（密鑰，不進鏡像）+ `.env.docker`（Docker 內服務名覆蓋）
+
+**完整服務清單（`docker/docker-compose.yml`）：**
+
+| 服務名 | 鏡像 / 來源 | 用途 |
+|--------|------------|------|
+| `postgres` | `postgres:14-bullseye` | PostgreSQL 資料庫 |
+| `redis` | `redis:8.0` | Celery broker / result backend |
+| `hasura` | `hasura/graphql-engine:v2.36.0` | GraphQL 即時查詢層 |
+| `nocodb` | `nocodb/nocodb:latest` | 無代碼資料庫管理後台 |
+| `flaresolverr` | `ghcr.io/flaresolverr/flaresolverr` | Cloudflare WAF 繞過 |
+| `flareproxygo` | `ghcr.io/kljensen/flareproxygo` | FlareSolverr 代理 |
+| `c2_kali_sandbox` | `./kali_sandbox`（本地 build） | AI Skill 沙盒執行環境（`network_mode: host`） |
+| `django` | `Dockerfile`（本地 build） | Django ASGI Web 服務（uvicorn × 4 workers） |
+| `celery_worker` | `Dockerfile`（本地 build） | Celery 任務執行（prefork × 8） |
+| `celery_beat` | `Dockerfile`（本地 build） | Celery Beat 定時排程 |
+
+**環境配置機制：**
+
+```ini
+# .env.docker（僅覆蓋 Docker 容器內差異值，不含密鑰）
+POSTGRES_HOST=postgres           # 容器服務名取代 localhost
+CELERY_BROKER_URL=redis://redis:6379/0
+CELERY_RESULT_BACKEND=redis://redis:6379/0
+API_BASE_URL=http://django:8000
+DJANGO_ALLOWED_HOSTS=django,localhost,127.0.0.1
+```
+
+**全棧啟動命令：**
+
+```bash
+# 1. 填寫密鑰
+cp .env.example .env
+
+# 2. 全棧啟動（自動執行 migrate）
+cd docker
+docker compose up --build -d
+
+# 3. 確認服務狀態
+docker logs c2_django --tail 30     # 看到 "Started server process"
+docker logs c2_celery_worker --tail 10  # 看到 "celery@... ready"
+```
+
+**Conda 混合模式相容性：** `c2_core/settings.py` 所有 Redis / Postgres 連線設定均採用 `os.environ.get(key, localhost_default)` 模式，conda 本地開發模式完全不受影響。
+
 ---
 
-_本白皮書基於 SKRpyASM 原始碼分析生成，反映截至 2026-05-19 的系統架構與設計。_
+_本白皮書基於 SKRpyASM 原始碼分析生成，反映截至 2026-06-02 的系統架構與設計。_

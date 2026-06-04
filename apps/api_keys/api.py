@@ -4,7 +4,16 @@ from django.shortcuts import get_object_or_404
 from django.http import FileResponse
 import os
 from apps.core.models.api_key import APIKey
-from .schemas import APIKeyIn, APIKeyOut, APIKeyUpdate
+from .models import AgentLLMConfig
+from .schemas import (
+    APIKeyIn,
+    APIKeyOut,
+    APIKeyUpdate,
+    AgentLLMConfigIn,
+    AgentLLMConfigOut,
+    AgentLLMConfigUpdate,
+    AgentEffectiveConfigOut,
+)
 from .utils import (
     get_active_api_keys,
     generate_subfinder_config,
@@ -14,6 +23,7 @@ from .utils import (
 )
 
 SUPPORTED_SERVICES = [
+    # --- 安全掃描服務 ---
     "shodan",
     "securitytrails",
     "censys",
@@ -36,10 +46,21 @@ SUPPORTED_SERVICES = [
     "netlas",
     "publicwww",
     "nvd",
+    # --- AI 提供商密鑰 ---
+    "openai",
+    "anthropic",
+    "mistral",
+    "gemini",
+    "deepseek",
+    "ollama",
+    "langchain",
+    "vulncheck",
 ]
 
 router = Router(tags=["API Keys"])
 
+
+# ── APIKey CRUD ────────────────────────────────────────────────────────────────
 
 @router.get("/supported-services", response=List[str])
 def list_supported_services(request):
@@ -112,3 +133,122 @@ def delete_api_key(request, api_key_id: int):
     api_key = get_object_or_404(APIKey, id=api_key_id)
     api_key.delete()
     return {"success": True}
+
+
+# ── AgentLLMConfig CRUD ────────────────────────────────────────────────────────
+
+def _build_effective_config(agent_id: str, db_cfg) -> AgentEffectiveConfigOut:
+    """
+    為指定 agent 建立合并視圖：DB（最高）> env var > 全域默認。
+    """
+    from apps.auto.settings import AutoAppConfig
+
+    env_config = AutoAppConfig.AGENT_CONFIGS.get(agent_id, {})
+    has_env_override = any(v is not None for v in env_config.values())
+
+    # 直接呼叫已更新的 get_agent_config()，它已整合 DB 查詢
+    effective = AutoAppConfig.get_agent_config(agent_id)
+
+    db_out = None
+    if db_cfg is not None:
+        db_out = AgentLLMConfigOut.from_orm(db_cfg)
+
+    return AgentEffectiveConfigOut(
+        agent_id=agent_id,
+        effective_provider=effective["provider"],
+        effective_model=effective["model"],
+        effective_temperature=effective["temperature"],
+        effective_api_base_url=effective.get("api_base_url"),
+        has_db_config=db_cfg is not None,
+        has_env_override=has_env_override,
+        db_config=db_out,
+    )
+
+
+@router.get("/agent-configs/", response=List[AgentEffectiveConfigOut])
+def list_agent_effective_configs(request):
+    """
+    回傳所有已知 Agent 的有效配置（DB + env var + 全域默認合并視圖）。
+    """
+    from apps.auto.settings import AutoAppConfig
+
+    known_ids = list(AutoAppConfig.AGENT_CONFIGS.keys())
+    db_map = {
+        cfg.agent_id: cfg
+        for cfg in AgentLLMConfig.objects.filter(
+            agent_id__in=known_ids
+        ).select_related("api_key_ref")
+    }
+
+    return [
+        _build_effective_config(agent_id, db_map.get(agent_id))
+        for agent_id in known_ids
+    ]
+
+
+@router.get("/agent-configs/db/", response=List[AgentLLMConfigOut])
+def list_agent_db_configs(request):
+    """回傳僅在 DB 中有記錄的 Agent 配置（原始 DB 值，不合并默認值）。"""
+    return AgentLLMConfig.objects.all().select_related("api_key_ref")
+
+
+@router.post("/agent-configs/", response=AgentLLMConfigOut)
+def create_agent_config(request, data: AgentLLMConfigIn):
+    """為指定 Agent 新建 LLM 配置。若已存在請改用 PUT。"""
+    api_key_ref = None
+    if data.api_key_id is not None:
+        api_key_ref = get_object_or_404(APIKey, id=data.api_key_id)
+
+    cfg = AgentLLMConfig.objects.create(
+        agent_id=data.agent_id,
+        provider=data.provider,
+        model_name=data.model_name,
+        temperature=data.temperature,
+        api_base_url=data.api_base_url,
+        api_key_ref=api_key_ref,
+        is_active=data.is_active,
+        description=data.description,
+    )
+    return cfg
+
+
+@router.get("/agent-configs/{agent_id}", response=AgentEffectiveConfigOut)
+def get_agent_effective_config(request, agent_id: str):
+    """取得指定 Agent 的有效配置（合并視圖）。"""
+    db_cfg = (
+        AgentLLMConfig.objects
+        .filter(agent_id=agent_id)
+        .select_related("api_key_ref")
+        .first()
+    )
+    return _build_effective_config(agent_id, db_cfg)
+
+
+@router.put("/agent-configs/{agent_id}", response=AgentLLMConfigOut)
+def upsert_agent_config(request, agent_id: str, data: AgentLLMConfigUpdate):
+    """
+    Upsert：若 DB 已有此 agent_id 的記錄則更新，否則新建。
+    僅更新請求中明確傳入的欄位（非 None 才覆蓋）。
+    """
+    cfg, _ = AgentLLMConfig.objects.get_or_create(agent_id=agent_id)
+
+    update_data = data.dict(exclude_unset=True)
+
+    if "api_key_id" in update_data:
+        key_id = update_data.pop("api_key_id")
+        cfg.api_key_ref = get_object_or_404(APIKey, id=key_id) if key_id is not None else None
+
+    for attr, value in update_data.items():
+        setattr(cfg, attr, value)
+
+    cfg.save()
+    cfg.refresh_from_db()
+    return cfg
+
+
+@router.delete("/agent-configs/{agent_id}")
+def delete_agent_config(request, agent_id: str):
+    """刪除 DB 中的 Agent 配置記錄，使其回退到 env var 或全域默認值。"""
+    cfg = get_object_or_404(AgentLLMConfig, agent_id=agent_id)
+    cfg.delete()
+    return {"success": True, "message": f"Agent '{agent_id}' config deleted; reverted to env/default."}

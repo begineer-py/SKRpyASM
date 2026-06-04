@@ -19,7 +19,7 @@ cd docker && docker compose up -d && cd ..
 uvicorn c2_core.asgi:application --host 0.0.0.0 --port 8000 --reload
 
 # Celery worker
-celery -A c2_core worker -P eventlet -c 100 -l info
+celery -A c2_core worker -P prefork -c 8 -l info
 
 # Celery Beat scheduler
 celery -A c2_core beat -l info

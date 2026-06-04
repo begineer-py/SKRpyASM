@@ -14,7 +14,6 @@ psycopg2-binary==2.9.10
 celery==5.5.3
 redis==5.2.1
 kombu==5.5.4
-eventlet==0.40.2
 
 # === Server ===
 uvicorn==0.29.0

@@ -24,12 +24,19 @@ BASE_DIR = Path(__file__).resolve().parent.parent  # 定義項目根目錄的路
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-=kr5uz%vc5zo$2ex*^hb2uw&+2odbk2r1sp)l6s@-ess_qgume"  # Django 項目的密鑰，用於加密簽名，生產環境中應保密
+SECRET_KEY = os.environ.get(
+    "DJANGO_SECRET_KEY",
+    "django-insecure-=kr5uz%vc5zo$2ex*^hb2uw&+2odbk2r1sp)l6s@-ess_qgume",
+)  # Django 項目的密鑰，用於加密簽名，生產環境中應保密
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True  # 開啟調試模式，開發環境使用，生產環境應設為 False
 
-ALLOWED_HOSTS = []  # 允許訪問 Django 應用的主機名列表，開發環境通常為空
+ALLOWED_HOSTS = (
+    os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(",")
+    if os.environ.get("DJANGO_ALLOWED_HOSTS")
+    else ["*"]
+)  # 允許訪問 Django 應用的主機名列表；Docker 模式由 .env.docker 設定，conda 模式默認 ["*"]
 
 
 # Application definition
@@ -197,12 +204,14 @@ STATIC_URL = "static/"  # 靜態文件的 URL 前綴
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"  # 模型中自動創建主鍵的默認字段類型
-CELERY_BROKER_URL = "redis://localhost:6379/0"  # Celery 消息代理的 URL (這裡使用 Redis)
+CELERY_BROKER_URL = os.environ.get(
+    "CELERY_BROKER_URL", "redis://localhost:6379/0"
+)  # Celery 消息代理的 URL；Docker 模式由 .env.docker 覆蓋為 redis://redis:6379/0
 
 # 任務結果儲存地址 (也可以用 Redis)
-CELERY_RESULT_BACKEND = (
-    "redis://localhost:6379/0"  # Celery 任務結果後端 URL (這裡使用 Redis)
-)
+CELERY_RESULT_BACKEND = os.environ.get(
+    "CELERY_RESULT_BACKEND", "redis://localhost:6379/0"
+)  # Celery 任務結果後端 URL；Docker 模式由 .env.docker 覆蓋
 
 # 任務結果的序列化格式
 CELERY_RESULT_SERIALIZER = "json"  # Celery 任務結果的序列化格式設為 JSON
@@ -238,7 +247,7 @@ CELERY_IMPORTS = (
     "apps.scanners.cve_intelligence.tasks.enrichment_tasks",  # CVE Enrichment
     "apps.scanners.cve_intelligence.tasks.scheduled_sync",  # CVE Scheduled Sync
 )
-API_BASE_URL = "http://127.0.0.1:8000"
+API_BASE_URL = os.environ.get("API_BASE_URL", "http://127.0.0.1:8000")
 LOG_DIR = BASE_DIR / "c2_core" / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 LOGGING = {
