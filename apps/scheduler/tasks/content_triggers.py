@@ -2,6 +2,7 @@ import asyncio
 import logging
 
 import httpx
+from asgiref.sync import sync_to_async
 from celery import shared_task
 
 from c2_core.config.logging import log_function_call
@@ -27,44 +28,48 @@ async def _post_all(url: str, payloads: list, timeout: int = 5) -> int:
 
 @shared_task(name="scheduler.tasks.scan_subdomains_without_url_results")
 @log_function_call()
-def scan_subdomains_without_url_results(batch_size: int = 5):
+async def scan_subdomains_without_url_results(batch_size: int = 5):
     logger.info(f"定時任務啟動：查找無被GAU掃描的子域名 (Limit {batch_size})")
-    gau_subdomain_ids = URLScan.objects.filter(tool="gau").values_list(
-        "target_subdomain_id", flat=True
-    )
 
-    subdomains_to_scan = (
-        Subdomain.objects.filter(is_active=True, is_resolvable=True, target__isnull=False)
-        .exclude(id__in=gau_subdomain_ids)
-        .order_by("-id")[:batch_size]
-    )
+    def _fetch():
+        gau_subdomain_ids = URLScan.objects.filter(tool="gau").values_list(
+            "target_subdomain_id", flat=True
+        )
+        subdomains = (
+            Subdomain.objects.filter(is_active=True, is_resolvable=True, target__isnull=False)
+            .exclude(id__in=gau_subdomain_ids)
+            .order_by("-id")[:batch_size]
+        )
+        return [{"name": sub.name, "subdomain_id": sub.id} for sub in subdomains]
 
-    actual_count = len(subdomains_to_scan)
+    payloads = await sync_to_async(_fetch)()
+    actual_count = len(payloads)
     if actual_count == 0:
         return "No new Subdomains to scan."
 
-    payloads = [{"name": sub.name, "subdomain_id": sub.id} for sub in subdomains_to_scan]
-    success_count = asyncio.run(_post_all(GET_ALL_URL_ENDPOINT_TEMPLATE, payloads))
+    success_count = await _post_all(GET_ALL_URL_ENDPOINT_TEMPLATE, payloads)
     return f"Triggered URL Scan for {success_count}/{actual_count} Subdomains."
 
 
 @shared_task(name="scheduler.tasks.scan_urls_missing_response")
 @log_function_call()
-def scan_urls_missing_response(batch_size: int = 5):
+async def scan_urls_missing_response(batch_size: int = 5):
     logger.info(f"定時任務啟動：查找未抓取內容的 URL (Limit {batch_size})")
 
-    urls_to_scan = URLResult.objects.filter(
-        content_fetch_status="PENDING",
-        target__isnull=False
-    ).order_by("-id")[:batch_size]
+    def _fetch():
+        urls = URLResult.objects.filter(
+            content_fetch_status="PENDING",
+            target__isnull=False
+        ).order_by("-id")[:batch_size]
+        return [
+            {"url": url_obj.url, "method": "GET", "target_id": url_obj.target_id}
+            for url_obj in urls
+        ]
 
-    actual_count = len(urls_to_scan)
+    payloads = await sync_to_async(_fetch)()
+    actual_count = len(payloads)
     if actual_count == 0:
         return "No new URLs to fetch."
 
-    payloads = [
-        {"url": url_obj.url, "method": "GET", "target_id": url_obj.target_id}
-        for url_obj in urls_to_scan
-    ]
-    success_count = asyncio.run(_post_all(FLARESOLVERR_START_SCANNER_URL, payloads))
+    success_count = await _post_all(FLARESOLVERR_START_SCANNER_URL, payloads)
     return f"Triggered Fetch for {success_count}/{actual_count} URLs."

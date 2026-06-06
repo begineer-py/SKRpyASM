@@ -118,25 +118,6 @@ def download_config(request, tool: str):
             os.remove(path)
 
 
-@router.get("/{api_key_id}", response=APIKeyOut)
-def get_api_key(request, api_key_id: int):
-    return get_object_or_404(APIKey, id=api_key_id)
-
-@router.patch("/{api_key_id}", response=APIKeyOut)
-def update_api_key(request, api_key_id: int, data: APIKeyUpdate):
-    api_key = get_object_or_404(APIKey, id=api_key_id)
-    for attr, value in data.dict(exclude_unset=True).items():
-        setattr(api_key, attr, value)
-    api_key.save()
-    return api_key
-
-@router.delete("/{api_key_id}")
-def delete_api_key(request, api_key_id: int):
-    api_key = get_object_or_404(APIKey, id=api_key_id)
-    api_key.delete()
-    return {"success": True}
-
-
 # ── AgentLLMConfig CRUD ────────────────────────────────────────────────────────
 
 def _build_effective_config(agent_id: str, db_cfg) -> AgentEffectiveConfigOut:
@@ -145,7 +126,16 @@ def _build_effective_config(agent_id: str, db_cfg) -> AgentEffectiveConfigOut:
     """
     from apps.auto.settings import AutoAppConfig
 
+    # 判斷是否有 env var 覆蓋（AGENT_CONFIGS 已包含所有已知 agent，含動態發現的）
     env_config = AutoAppConfig.AGENT_CONFIGS.get(agent_id, {})
+    if not env_config:
+        # 對 AGENT_CONFIGS 之外的 agent，嘗試動態 env var 格式
+        import os as _os
+        prefix = f"AGENT_{agent_id.upper()}_"
+        env_config = {
+            k: _os.getenv(f"{prefix}{k.upper()}")
+            for k in ("model", "provider", "temperature", "api_key", "api_base_url")
+        }
     has_env_override = any(v is not None for v in env_config.values())
 
     # 直接呼叫已更新的 get_agent_config()，它已整合 DB 查詢
@@ -171,10 +161,12 @@ def _build_effective_config(agent_id: str, db_cfg) -> AgentEffectiveConfigOut:
 def list_agent_effective_configs(request):
     """
     回傳所有已知 Agent 的有效配置（DB + env var + 全域默認合并視圖）。
+    agent 清單由 agent_registry.discover_agent_ids() 自動發現：
+    新增含有 assistant_id 的 AIAssistant 子類後自動出現，無需手動維護清單。
     """
-    from apps.auto.settings import AutoAppConfig
+    from apps.auto.agent_registry import discover_agent_ids
 
-    known_ids = list(AutoAppConfig.AGENT_CONFIGS.keys())
+    known_ids = discover_agent_ids()
     db_map = {
         cfg.agent_id: cfg
         for cfg in AgentLLMConfig.objects.filter(
@@ -345,3 +337,23 @@ def test_agent_config(request, agent_id: str):
             model_used=cfg.get("model"),
             provider_used=cfg["provider"],
         )
+
+
+# ── APIKey 單筆 CRUD（必須放在所有具名路由之後，避免 /{id} 攔截其他路徑）────────
+@router.get("/{api_key_id}", response=APIKeyOut)
+def get_api_key(request, api_key_id: int):
+    return get_object_or_404(APIKey, id=api_key_id)
+
+@router.patch("/{api_key_id}", response=APIKeyOut)
+def update_api_key(request, api_key_id: int, data: APIKeyUpdate):
+    api_key = get_object_or_404(APIKey, id=api_key_id)
+    for attr, value in data.dict(exclude_unset=True).items():
+        setattr(api_key, attr, value)
+    api_key.save()
+    return api_key
+
+@router.delete("/{api_key_id}")
+def delete_api_key(request, api_key_id: int):
+    api_key = get_object_or_404(APIKey, id=api_key_id)
+    api_key.delete()
+    return {"success": True}

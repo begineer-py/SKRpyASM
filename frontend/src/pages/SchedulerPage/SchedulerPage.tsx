@@ -6,6 +6,17 @@ import {
   type UpdateTaskPayload,
   type RegisteredTask,
 } from '../../services/api_scheduler';
+import { GLOBAL_CONFIG } from '../../config';
+
+interface TaskRequirements {
+  task: string;
+  requires_api: boolean;
+  agent_id: string | null;
+  provider: string | null;
+  has_key: boolean;
+  description: string | null;
+  missing_key_hint: string | null;
+}
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -240,9 +251,26 @@ interface TaskFormProps {
 
 function TaskForm({ mode, initial, saving, registeredTasks, onSubmit, onCancel }: TaskFormProps) {
   const [f, setF] = useState<FormState>(initial);
+  const [taskReq, setTaskReq] = useState<TaskRequirements | null>(null);
 
   const set = <K extends keyof FormState>(key: K, val: FormState[K]) =>
     setF(prev => ({ ...prev, [key]: val }));
+
+  // 選擇任務路徑時，查詢 AI API 密鑰需求（400ms debounce 防止頻繁請求）
+  useEffect(() => {
+    if (!f.task) { setTaskReq(null); return; }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `${GLOBAL_CONFIG.DJANGO_API_BASE}/scheduler/task-requirements?task=${encodeURIComponent(f.task)}`
+        );
+        if (res.ok) setTaskReq(await res.json());
+      } catch { setTaskReq(null); }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [f.task]);
+
+  const hasApiBlock = taskReq?.requires_api === true && taskReq?.has_key === false;
 
   return (
     <div className="c2-card" style={{ padding: '16px 18px', marginBottom: 16 }}>
@@ -284,6 +312,24 @@ function TaskForm({ mode, initial, saving, registeredTasks, onSubmit, onCancel }
                 <option key={t.name} value={t.name} label={t.doc ?? undefined} />
               ))}
             </datalist>
+          )}
+          {/* AI API 密鑰需求警告 */}
+          {taskReq?.requires_api && (
+            <div style={{
+              marginTop: 6,
+              padding: '6px 10px',
+              borderRadius: 4,
+              fontSize: '0.72rem',
+              fontFamily: 'var(--font-mono)',
+              background: taskReq.has_key ? 'rgba(20, 83, 45, 0.5)' : 'rgba(69, 10, 10, 0.5)',
+              color: taskReq.has_key ? '#86efac' : '#fca5a5',
+              border: `1px solid ${taskReq.has_key ? '#166534' : '#7f1d1d'}`,
+              lineHeight: 1.5,
+            }}>
+              {taskReq.has_key
+                ? `✓ API 密鑰已配置（${taskReq.agent_id || taskReq.provider}）`
+                : `⚠ ${taskReq.description} — 請至 /agent-config 或 /api-keys 配置後再創建`}
+            </div>
           )}
         </div>
       </div>
@@ -424,7 +470,8 @@ function TaskForm({ mode, initial, saving, registeredTasks, onSubmit, onCancel }
           <button
             className="c2-btn"
             onClick={() => onSubmit(f)}
-            disabled={saving || !f.name.trim() || !f.task.trim()}
+            disabled={saving || !f.name.trim() || !f.task.trim() || hasApiBlock}
+            title={hasApiBlock ? '請先配置所需的 AI API 密鑰' : undefined}
           >
             {saving ? 'SAVING…' : mode === 'create' ? 'CREATE' : 'SAVE'}
           </button>

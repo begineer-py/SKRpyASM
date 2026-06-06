@@ -150,13 +150,24 @@ class AutoAppConfig:
     SKILL_MERGER_EVALUATOR_AGENT_MODEL: Optional[str] = os.getenv("AGENT_SKILL_MERGER_EVALUATOR_MODEL")
     SKILL_MERGER_EVALUATOR_AGENT_PROVIDER: Optional[str] = os.getenv("AGENT_SKILL_MERGER_EVALUATOR_PROVIDER")
     SKILL_MERGER_EVALUATOR_AGENT_TEMPERATURE: Optional[float] = (
-        float(os.getenv("AGENT_SKILL_MERGER_EVALUATOR_TEMPERATURE")) 
-        if os.getenv("AGENT_SKILL_MERGER_EVALUATOR_TEMPERATURE") 
+        float(os.getenv("AGENT_SKILL_MERGER_EVALUATOR_TEMPERATURE"))
+        if os.getenv("AGENT_SKILL_MERGER_EVALUATOR_TEMPERATURE")
         else None
     )
     SKILL_MERGER_EVALUATOR_AGENT_API_KEY: Optional[str] = os.getenv("AGENT_SKILL_MERGER_EVALUATOR_API_KEY")
     SKILL_MERGER_EVALUATOR_AGENT_API_BASE_URL: Optional[str] = os.getenv("AGENT_SKILL_MERGER_EVALUATOR_API_BASE_URL")
-    
+
+    # Hacker Assistant Agent (Layer 2 總指揮 / Orchestrator)
+    HACKER_ASSISTANT_AGENT_MODEL: Optional[str] = os.getenv("AGENT_HACKER_ASSISTANT_MODEL")
+    HACKER_ASSISTANT_AGENT_PROVIDER: Optional[str] = os.getenv("AGENT_HACKER_ASSISTANT_PROVIDER")
+    HACKER_ASSISTANT_AGENT_TEMPERATURE: Optional[float] = (
+        float(os.getenv("AGENT_HACKER_ASSISTANT_TEMPERATURE"))
+        if os.getenv("AGENT_HACKER_ASSISTANT_TEMPERATURE")
+        else None
+    )
+    HACKER_ASSISTANT_AGENT_API_KEY: Optional[str] = os.getenv("AGENT_HACKER_ASSISTANT_API_KEY")
+    HACKER_ASSISTANT_AGENT_API_BASE_URL: Optional[str] = os.getenv("AGENT_HACKER_ASSISTANT_API_BASE_URL")
+
     # Agent configuration mapping
     AGENT_CONFIGS: Dict[str, Dict[str, Any]] = {
         "initial_analyzer_agent": {
@@ -193,6 +204,14 @@ class AutoAppConfig:
             "temperature": SKILL_MERGER_EVALUATOR_AGENT_TEMPERATURE,
             "api_key": SKILL_MERGER_EVALUATOR_AGENT_API_KEY,
             "api_base_url": SKILL_MERGER_EVALUATOR_AGENT_API_BASE_URL,
+        },
+        # Layer 2 總指揮 — 使用 AGENT_HACKER_ASSISTANT_* env vars 設定
+        "hacker_assistant_agent": {
+            "model": HACKER_ASSISTANT_AGENT_MODEL,
+            "provider": HACKER_ASSISTANT_AGENT_PROVIDER,
+            "temperature": HACKER_ASSISTANT_AGENT_TEMPERATURE,
+            "api_key": HACKER_ASSISTANT_AGENT_API_KEY,
+            "api_base_url": HACKER_ASSISTANT_AGENT_API_BASE_URL,
         },
     }
     
@@ -236,8 +255,24 @@ class AutoAppConfig:
         except Exception:
             pass  # DB 不可用時靜默回退到 env var
 
-        # 2. env var 配置（現有機制）
-        env_config = cls.AGENT_CONFIGS.get(agent_id, {})
+        # 2. env var 配置
+        # 優先查 AGENT_CONFIGS（現有 5 個 agent 的縮寫 env var 名）
+        # 若 agent_id 不在 AGENT_CONFIGS，動態讀取 AGENT_<ID_UPPER>_* 格式
+        # 例：new_agent_id → AGENT_NEW_AGENT_ID_MODEL / AGENT_NEW_AGENT_ID_PROVIDER ...
+        if agent_id in cls.AGENT_CONFIGS:
+            env_config = cls.AGENT_CONFIGS[agent_id]
+        else:
+            prefix = f"AGENT_{agent_id.upper()}_"
+            temperature_raw = os.getenv(f"{prefix}TEMPERATURE")
+            env_config = {
+                "model":       os.getenv(f"{prefix}MODEL"),
+                "provider":    os.getenv(f"{prefix}PROVIDER"),
+                "temperature": float(temperature_raw) if temperature_raw else None,
+                "api_key":     os.getenv(f"{prefix}API_KEY"),
+                "api_base_url": os.getenv(f"{prefix}API_BASE_URL"),
+            }
+            # 過濾掉 None，避免覆蓋後面的默認值
+            env_config = {k: v for k, v in env_config.items() if v is not None}
 
         # 3. 合并（DB > env > 全域默認）
         provider = db_provider or env_config.get("provider") or cls.DEFAULT_LLM_PROVIDER

@@ -6,6 +6,7 @@ from c2_core.config.logging import log_function_call
 import logging
 from django.core.exceptions import ValidationError  # <--- 記得導入這個！
 from celery import current_app
+from asgiref.sync import sync_to_async
 
 from .schemas import (
     PeriodicTaskSchema,
@@ -14,7 +15,9 @@ from .schemas import (
     IntervalScheduleSchema,
     CrontabScheduleSchema,
     RegisteredTaskSchema,
+    TaskRequirementsSchema,
 )
+from .agent_requirements import check_task_api_requirements, get_task_requirements_info
 from django.shortcuts import get_object_or_404
 
 router = Router()
@@ -104,6 +107,11 @@ async def create_periodic_task(
     """
     一步到位创建一个新的周期性任务。API 内部会自动处理 IntervalSchedule 的查找或创建。
     """
+    # 創建前驗證：若任務需要 AI agent/provider，檢查對應 API 密鑰是否已配置
+    is_valid, error_msg = await sync_to_async(check_task_api_requirements)(payload.task)
+    if not is_valid:
+        raise HttpError(422, error_msg)
+
     task_data = payload.dict()
     interval_data = task_data.pop("interval")
 
@@ -236,6 +244,12 @@ def update_periodic_task(request, task_id: int, payload: PeriodicTaskUpdateSchem
     for key, value in data.items():
         setattr(task, key, value)
 
+    # 更新前驗證：若 task 路徑有變更，檢查新 task 的 AI 密鑰需求
+    new_task_path = data.get("task") or task.task
+    is_valid, error_msg = check_task_api_requirements(new_task_path)
+    if not is_valid:
+        raise HttpError(422, error_msg)
+
     try:
         task.save()
     except ValidationError as e:
@@ -271,6 +285,16 @@ async def delete_periodic_task(request, task_id: int):  # 操！異步化！
 async def list_intervals(request):  # 操！異步化！
     # .all() 是 lazy 的，Ninja 的異步模式會處理好異步迭代
     return await IntervalSchedule.objects.all()
+
+
+# --- 查詢任務的 AI API 密鑰需求 ---
+@router.get("/task-requirements", response=TaskRequirementsSchema)
+def get_task_api_requirements(request, task: str):
+    """
+    查詢指定 Celery task 是否需要 AI API 密鑰，以及當前是否已配置。
+    供前端在選擇任務時即時顯示警告。
+    """
+    return get_task_requirements_info(task)
 
 
 # --- 列出所有已在 Celery 中登記的任務 ---
