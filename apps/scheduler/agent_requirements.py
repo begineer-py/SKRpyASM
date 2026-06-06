@@ -13,9 +13,8 @@ TASK_AGENT_REQUIREMENTS: dict = {
         "agent_id": "automation_agent",
         "description": "需要 automation_agent 的 API 密鑰（用於偵測停滯任務並發送救援訊息 + 自動觸發策略規劃）",
     },
-    "scheduler.tasks.compress_long_threads": {
-        "provider": "mistral",
-        "description": "需要 Mistral API 密鑰（用於壓縮過長的對話 thread）",
+    "scheduler.tasks.cleanup_orphaned_assets": {
+        "description": "清除沒有關聯 Target 的孤立資產（IP、Subdomain、URLResult、Overview）",
     },
     "analyze_ai.tasks.periodic_initial_analysis_bootstrapper": {
         "agent_id": "initial_analyzer_agent",

@@ -110,6 +110,13 @@ class GlobalContextOverview(models.Model):
 class MessageCompressionChunk(models.Model):
     """Represents a logical chunk of messages for compression."""
 
+    STRATEGY_CHOICES = [
+        ('PENDING', 'Pending'),
+        ('RETAIN', 'Retain Full Content'),
+        ('TEXTUALIZE', 'Textualize'),
+        ('DISCARD', 'Discard Entirely'),
+    ]
+
     thread = models.ForeignKey(
         'core.Thread',
         on_delete=models.CASCADE,
@@ -140,6 +147,13 @@ class MessageCompressionChunk(models.Model):
     tool_calls = models.JSONField(
         default=list,
         help_text="List of tools called in this chunk"
+    )
+
+    strategy = models.CharField(
+        max_length=20,
+        choices=STRATEGY_CHOICES,
+        default='PENDING',
+        help_text="Agent-decided retention strategy for this chunk"
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
