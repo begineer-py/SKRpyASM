@@ -2,11 +2,9 @@ import logging
 import json
 from celery import shared_task
 from c2_core.config.logging import log_function_call
-from apps.ai_assistant import AIAssistant, method_tool
 from apps.ai_assistant.helpers.use_cases import create_thread
 from apps.core.models import Target, Subdomain, IP
 from apps.core.models.analyze.overview import Overview
-from apps.analyze_ai.assistants import InitialAnalyzerAgent
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -16,115 +14,14 @@ logger = logging.getLogger(__name__)
 @log_function_call()
 def preprocess_data():
     """
-    Celery Beat 定期任務：Data Pre-processing Layer
-    功能：掃描全平台 Target 的新資產，呼叫 InitialAnalyzerAgent，並將其結果寫入 Overview 提供給第 2 層。
+    ⚠️ DEPRECATED — 此任務與 analyze_ai.tasks.periodic_initial_analysis_bootstrapper 重複。
+    新資產的初步分析現在由 periodic_initial_analysis_bootstrapper 負責，
+    並自動鏈式觸發 propose_next_steps → auto_execute_plan。
+    保留此任務僅為向後兼容，執行時直接委託給 bootstrapper。
     """
-    targets = Target.objects.all()
-    for target in targets:
-        # 尋找是否已經有 PLANNING 或 EXECUTING 的 overview
-        active_overview = Overview.objects.filter(target=target, status__in=["PLANNING", "EXECUTING"]).first()
-        
-        # 收集資產資訊 (拿最新的 50 筆供 Initial AI 分析)
-        from apps.core.models import Seed
-        seeds = list(Seed.objects.filter(target=target).values("type", "value"))
-        subdomains = list(Subdomain.objects.filter(target=target).values_list("name", flat=True)[:50])
-        ips = list(IP.objects.filter(target=target).values_list("address", flat=True)[:50])
-        
-        if not seeds and not subdomains and not ips:
-            continue
-            
-        data_to_analyze = {
-            "target": target.name,
-            "description": target.description,
-            "seeds": seeds,
-            "subdomains_sample": subdomains,
-            "ips_sample": ips
-        }
-        
-        try:
-            agent = InitialAnalyzerAgent()
-            llm = agent.get_llm() # Returns JSON format ChatMistralAI
-            system_prompt = agent.get_instructions()
-            
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": json.dumps(data_to_analyze)}
-            ]
-            response = llm.invoke(messages)
-            
-            # 解析 Initial Analyzer 的 JSON 回應
-            try:
-                ai_result = json.loads(response.content)
-            except json.JSONDecodeError:
-                ai_result = {"raw": response.content}
-
-            # 若無正在運行的 Overview，建立一個新的（使用 select_for_update 防並發重複建立）
-            from django.db import transaction
-            with transaction.atomic():
-                active_overview = Overview.objects.select_for_update().filter(
-                    target=target, status__in=["PLANNING", "EXECUTING", "NEEDS_GUIDANCE"]
-                ).first()
-                if not active_overview:
-                    active_overview = Overview.objects.create(
-                        target=target,
-                        status="PLANNING",
-                        summary=f"Automated pre-processing summary for {target.name}",
-                    )
-            
-            active_overview.knowledge = ai_result.get("knowledge", ai_result)
-            
-            # 初始化規劃
-            # 我們給 Layer 3 的 Plan
-            # Initial AI 找出攻擊點後，更新 plan 讓 Orchestrator (Layer 2) 知道
-            new_plan = ai_result.get("plan", {
-                "objectives": [{"id": 1, "description": "Investigate newly found subdomains and IPs.", "status": "PENDING"}],
-                "reasoning": "Data pre-processing detected active assets."
-            })
-            active_overview.plan = new_plan
-            active_overview.save()
-            
-            logger.info(f"[PreProcess] Successfully updated Overview ID {active_overview.id} for Target {target.name}")
-            
-        except Exception as e:
-            logger.error(f"[PreProcess] Failed analyzing target {target.name}: {e}")
-
-def _crawl_pending_urls(target):
-    """
-    在交給 AI 之前，由系統自動爬取所有 PENDING 的 URL。
-    流量削鋒：少量多次，每次最多爬 3 個，間隔 10 秒，避免瞬間大量請求。
-    """
-    from apps.core.models.url_assets import URLResult
-    pending = list(URLResult.objects.filter(
-        target=target, content_fetch_status="PENDING"
-    ).values("id", "url")[:20])
-    
-    if not pending:
-        return
-    
-    logger.info(f"[AutoExecution] Auto-crawling {len(pending)} PENDING URLs for {target.name} (流量削鋒: 每次最多3個, 間隔10s)")
-    import requests
-    import time
-    from django.conf import settings
-    API_BASE = getattr(settings, "INTERNAL_API_BASE_URL", "http://127.0.0.1:8000/api")
-    
-    batch_size = 3
-    for i in range(0, len(pending), batch_size):
-        batch = pending[i:i + batch_size]
-        for url_item in batch:
-            try:
-                resp = requests.post(
-                    f"{API_BASE.rstrip('/')}/flaresolverr/start_scanner",
-                    json={"url": url_item["url"], "method": "GET"},
-                    timeout=10,
-                )
-                if resp.status_code >= 400:
-                    logger.warning(f"[AutoExecution] Crawl dispatch failed for URL {url_item['id']}: {resp.status_code}")
-            except Exception as e:
-                logger.warning(f"[AutoExecution] Crawl error for URL {url_item['id']}: {e}")
-        if i + batch_size < len(pending):
-            logger.info(f"[AutoExecution] 流量削鋒: 已送出 {min(i+batch_size, len(pending))}/{len(pending)}，等待 10 秒後繼續...")
-            time.sleep(10)
-
+    logger.warning("[DEPRECATED] preprocess_data 已廢棄，委託給 periodic_initial_analysis_bootstrapper")
+    from apps.analyze_ai.tasks.initial_tasks import periodic_initial_analysis_bootstrapper
+    return periodic_initial_analysis_bootstrapper()
 
 def _handle_guidance_request(overview):
     """
@@ -205,16 +102,32 @@ def _handle_guidance_request(overview):
 @log_function_call()
 def auto_execute_plan():
     """
-    Celery Beat 定期任務：自動化執行引擎
-    功能：
-    1. 先自動爬取所有 PENDING URL（不讓 AI 浪費時間做爬蟲）
-    2. 查找所有狀態為 PLANNING/EXECUTING 的 Overview，投入給 Layer 3 AutomationAgent 執行。
-    如此一來就能達成真正的全自動：「新建 Domain -> Initial AI 產生計畫 -> 自動爬 URL -> 自動攻擊」
+    Celery Beat 定期任務：自動化執行引擎（鏈式流程最終環節）
+
+    完整鏈式流程：
+      新資產 → periodic_initial_analysis_bootstrapper (Layer 1)
+             → propose_next_steps (Layer 2)
+             → auto_execute_plan (Layer 3, 本任務)
+
+    職責：
+    1. 對卡在 PLANNING 狀態的 Overview 自動觸發策略規劃
+    2. 對 NEEDS_GUIDANCE 狀態的 Overview 自動生成指導建議
+    3. 對 EXECUTING 狀態的 Overview 驅動 AutomationAgent 執行
     """
     from apps.auto.assistants.planning_agent import AutomationAgent
     from langchain_core.messages import HumanMessage
     import json
-    
+
+    # ═══ Phase 0: 對停滯在 PLANNING 的 Overview 自動觸發策略規劃 ═══
+    stalled_planning = Overview.objects.filter(status="PLANNING")
+    for ov in stalled_planning:
+        # 檢查是否有 PENDING 的 Step（有 = 正在等規劃結果，跳過）
+        has_pending_steps = ov.steps.filter(status="PENDING").exists()
+        if not has_pending_steps:
+            from apps.analyze_ai.tasks.planning import propose_next_steps
+            logger.info(f"[AutoExecute] Overview#{ov.id} 停滯在 PLANNING 且無待執行步驟，觸發策略規劃")
+            propose_next_steps.delay(ov.id)
+
     overviews = Overview.objects.filter(status__in=["EXECUTING", "NEEDS_GUIDANCE"])
     if not overviews.exists():
         return
@@ -238,8 +151,8 @@ def auto_execute_plan():
         logger.info(f"[AutoExecution] Starting autonomous execution for Target {target.name}")
         
         try:
-            # === Step 0: 系統自動爬取所有 PENDING URL ===
-            _crawl_pending_urls(target)
+            # _crawl_pending_urls 已移除，URL 爬取由 scheduler 定時任務負責
+            # （scan_urls_missing_response + periodic_initial_analysis_bootstrapper）
             
             # 確保每個 Overview 有屬於自己的 Django AI Thread
             if not overview.thread_id:

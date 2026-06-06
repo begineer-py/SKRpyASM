@@ -66,10 +66,7 @@ const apiBase = GLOBAL_CONFIG.DJANGO_API_BASE;
 
 function StatusBadge({ config }: { config: AgentEffectiveConfig }) {
   if (config.has_db_config) {
-    return <span className="agent-status-badge db-override">DB OVERRIDE</span>;
-  }
-  if (config.has_env_override) {
-    return <span className="agent-status-badge env-var">ENV VAR</span>;
+    return <span className="agent-status-badge db-override">CONFIGURED</span>;
   }
   return <span className="agent-status-badge default">DEFAULT</span>;
 }
@@ -268,12 +265,10 @@ const AgentLLMConfigPage: React.FC = () => {
       {/* Priority Legend */}
       <div className="agent-priority-bar">
         <span className="priority-label">PRIORITY:</span>
-        <span className="agent-status-badge db-override">DB OVERRIDE</span>
-        <span className="priority-arrow">&gt;</span>
-        <span className="agent-status-badge env-var">ENV VAR</span>
+        <span className="agent-status-badge db-override">CONFIGURED</span>
         <span className="priority-arrow">&gt;</span>
         <span className="agent-status-badge default">DEFAULT</span>
-        <span className="priority-tip">— 自定義 provider 視為 OpenAI-compatible API</span>
+        <span className="priority-tip">— 在 EDIT 中設定後生效；自定義 provider 視為 OpenAI-compatible API</span>
       </div>
 
       {loading && <div className="agent-loading">LOADING AGENT CONFIGS...</div>}

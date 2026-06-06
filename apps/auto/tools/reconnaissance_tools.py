@@ -116,6 +116,15 @@ class ReconnaissanceMixin:
             else:
                 steps_info = "\n  No Steps created yet."
 
+            bound_ips = list(active_overview.ips.values("id", "address")[:20])
+            bound_subdomains = list(active_overview.subdomains.values("id", "name")[:20])
+            bound_urls = list(active_overview.url_results.values("id", "url")[:20])
+            bound_asset_counts = {
+                "ips": active_overview.ips.count(),
+                "subdomains": active_overview.subdomains.count(),
+                "urls": active_overview.url_results.count(),
+            }
+
             return (
                 f"=== TARGET CONTEXT (USE ONLY THESE IDs) ===\n"
                 f"Current System Time: {now_str}\n"
@@ -128,6 +137,10 @@ class ReconnaissanceMixin:
                 f"Overview Knowledge: {active_overview.knowledge}\n"
                 f"Overview Plan: {active_overview.plan}\n"
                 f"Overview Active Steps:{steps_info}\n"
+                f"Overview Bound Asset Counts: {bound_asset_counts}\n"
+                f"Overview Bound IPs (high-value/current scope): {bound_ips}\n"
+                f"Overview Bound Subdomains (high-value/current scope): {bound_subdomains}\n"
+                f"Overview Bound URLs (high-value/current scope): {bound_urls}\n"
                 f"Real Seeds (use for Subfinder/crawler): {seeds}\n"
                 f"Real Subdomains (use for Nuclei): {subdomains}\n"
                 f"Real IPs (use for Nmap/Nuclei): {ips}\n"

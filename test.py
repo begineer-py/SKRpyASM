@@ -4,8 +4,8 @@ import concurrent.futures
 from openai import OpenAI
 
 # 設定環境變數
-API_KEY = os.getenv("AI_API_KEY", "sk-nkC4JJnxHtgI-PM_HFc9QPTcwkVqRUP7MAhh6cafk5pvWaO1D6DXr59puppWzVRc")
-BASE_URL = os.getenv("AI_API_BASE_URL", "https://api.yuhuanstudio.com/v1")
+API_KEY = os.getenv("AI_API_KEY", "sk-GMa3aMdJd2jcnY4dP8h9q8q5PLW6FbtFyCiqoDRrddyhad0v")
+BASE_URL = os.getenv("AI_API_BASE_URL", "https://tokeness.cn/v1")
 
 # 初始化 OpenAI 客戶端
 client = OpenAI(
@@ -13,66 +13,42 @@ client = OpenAI(
     base_url=BASE_URL
 )
 
-# 待測試的模型清單（已整理你提供的新清單）
 models_to_test = [
-    # --- TokenRouter 來源 ---
-    "tokenrouter/deepseek/deepseek-v4-flash",
-    "tokenrouter/deepseek/deepseek-v4-pro",
-    "tokenrouter/moonshotai/kimi-k2.6",
-    "tokenrouter/qwen/qwen3.7-max",
-    "tokenrouter/qwen/qwen3.7-plus",
-    "tokenrouter/seed-2-0-lite-260428",
-    "tokenrouter/seed-2-0-mini-260428",
-    "tokenrouter/seed-2-0-pro-260328",
-    "tokenrouter/xiaomi/mimo-v2.5",
-    "tokenrouter/xiaomi/mimo-v2.5-pro",
+    # Claude 系列
+    "claude-haiku-4-5",
+    "claude-opus-4-6",
+    "claude-opus-4-7",
+    "claude-opus-4-8",
+    "claude-sonnet-4-6",
     
-    # --- Z.ai (Zhipu) 來源 ---
-    "zai/glm-4.5",
-    "zai/glm-4.5-air",
-    "zai/glm-4.6",
-    "zai/glm-4.7",
-    "zai/glm-5",
-    "zai/glm-5-turbo",
-    "zai/glm-5.1",
-    "zai/glm-5v-turbo",
+    # DeepSeek 系列
+    "deepseek-v4-flash",
+    "deepseek-v4-pro",
     
-    # --- OpenRouter (免費版) 來源 ---
-    "openrouter/google/gemma-4-26b-a4b-it:free",
-    "openrouter/google/gemma-4-31b-it:free",
-    "openrouter/moonshotai/kimi-k2.6:free",
-    "openrouter/openai/gpt-oss-120b:free",
-    "openrouter/qwen/qwen3-coder:free",
-    "openrouter/qwen/qwen3-next-80b-a3b-instruct:free",
-    "openrouter/z-ai/glm-4.5-air:free",
+    # Gemini 系列
+    # "gemini-3.1-flash-image", # 圖片生成，文字對話會噴錯，預設註解
+    "gemini-3.1-pro",
+    "gemini-3.5-flash",
     
-    # --- Google 原生 來源 ---
-    "google/gemini-3-flash-preview",
-    "google/gemini-3.1-flash-lite-preview",
-    "google/gemma-4-26b-a4b-it",
-    "google/gemma-4-31b-it",
-    # "google/gemini-embedding-2",  # Embedding模型，chat.completions會報錯，預設註解
-
-    # --- ModelScope 來源 ---
-    # "modelscope/Qwen/Qwen-Image-2512", # 圖片生成，chat.completions會報錯，預設註解
-    # "modelscope/Qwen/Qwen-Image-Edit", # 圖片編輯，chat.completions會報錯，預設註解
-    "modelscope/deepseek-ai/DeepSeek-V4-Flash",
-    "modelscope/deepseek-ai/DeepSeek-V4-Pro",
-    "modelscope/zai-org/GLM-5.1",
-
-    # --- MiniMax 來源 ---
-    "minimax/MiniMax-M2.5",
-    "minimax/MiniMax-M2.5-highspeed",
-    "minimax/MiniMax-M2.7",
-    "minimax/MiniMax-M2.7-highspeed",
-
-    # --- NVIDIA 來源 ---
-    "nvidia/stepfun-ai/step-3.5-flash",
-    "nvidia/z-ai/glm-5.1",
-    "nvidia/z-ai/glm4.7",
-
-    # --- GitHub Models 來源 ---
-    # "github/openai/text-embedding-3-large" # Embedding模型，chat.completions會報錯，預設註解
+    # GLM 系列
+    "glm-5.1",
+    
+    # GPT 系列
+    "gpt-5.4",
+    "gpt-5.4-mini",
+    "gpt-5.5",
+    # "gpt-image-2", # 圖片生成，文字對話會噴錯，預設註解
+    
+    # Kimi 系列
+    "kimi-k2.6", # 注意：此模型可能要求 temperature 必須為 1.0
+    
+    # MiMo 系列
+    "mimo-v2.5",
+    "mimo-v2.5-pro",
+    
+    # MiniMax 系列
+    "minimax-m2.7",
+    "minimax-m3"
 ]
 
 def send_single_request(model_name, timeout=15.0):

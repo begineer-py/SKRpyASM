@@ -121,29 +121,38 @@ def download_config(request, tool: str):
 # ── AgentLLMConfig CRUD ────────────────────────────────────────────────────────
 
 def _build_effective_config(agent_id: str, db_cfg) -> AgentEffectiveConfigOut:
-    """
-    為指定 agent 建立合并視圖：DB（最高）> env var > 全域默認。
-    """
+    """合并視圖：DB（最高）> 全域默認。"""
     from apps.auto.settings import AutoAppConfig
 
-    # 判斷是否有 env var 覆蓋（AGENT_CONFIGS 已包含所有已知 agent，含動態發現的）
-    env_config = AutoAppConfig.AGENT_CONFIGS.get(agent_id, {})
-    if not env_config:
-        # 對 AGENT_CONFIGS 之外的 agent，嘗試動態 env var 格式
-        import os as _os
-        prefix = f"AGENT_{agent_id.upper()}_"
-        env_config = {
-            k: _os.getenv(f"{prefix}{k.upper()}")
-            for k in ("model", "provider", "temperature", "api_key", "api_base_url")
-        }
-    has_env_override = any(v is not None for v in env_config.values())
-
-    # 直接呼叫已更新的 get_agent_config()，它已整合 DB 查詢
     effective = AutoAppConfig.get_agent_config(agent_id)
 
     db_out = None
     if db_cfg is not None:
-        db_out = AgentLLMConfigOut.from_orm(db_cfg)
+        # 顯式構造，避免 Pydantic v2 廢棄的 from_orm 造成 model_dump 錯誤
+        key_ref = None
+        if db_cfg.api_key_ref_id is not None:
+            try:
+                kr = db_cfg.api_key_ref
+                key_ref = APIKeyBriefOut(
+                    id=kr.id,
+                    service_name=kr.service_name,
+                    description=kr.description,
+                )
+            except Exception:
+                pass
+        db_out = AgentLLMConfigOut(
+            id=db_cfg.id,
+            agent_id=db_cfg.agent_id,
+            provider=db_cfg.provider,
+            model_name=db_cfg.model_name,
+            temperature=db_cfg.temperature,
+            api_base_url=db_cfg.api_base_url,
+            api_key_ref=key_ref,
+            is_active=db_cfg.is_active,
+            description=db_cfg.description,
+            created_at=db_cfg.created_at,
+            updated_at=db_cfg.updated_at,
+        )
 
     return AgentEffectiveConfigOut(
         agent_id=agent_id,
@@ -152,7 +161,7 @@ def _build_effective_config(agent_id: str, db_cfg) -> AgentEffectiveConfigOut:
         effective_temperature=effective["temperature"],
         effective_api_base_url=effective.get("api_base_url"),
         has_db_config=db_cfg is not None,
-        has_env_override=has_env_override,
+        has_env_override=False,   # env var per-agent 已移除，狀態只有 DB / DEFAULT
         db_config=db_out,
     )
 
@@ -226,7 +235,7 @@ def upsert_agent_config(request, agent_id: str, data: AgentLLMConfigUpdate):
     """
     cfg, _ = AgentLLMConfig.objects.get_or_create(agent_id=agent_id)
 
-    update_data = data.dict(exclude_unset=True)
+    update_data = data.model_dump(exclude_unset=True)  # Pydantic v2 compatible
 
     if "api_key_id" in update_data:
         key_id = update_data.pop("api_key_id")
@@ -236,7 +245,8 @@ def upsert_agent_config(request, agent_id: str, data: AgentLLMConfigUpdate):
         setattr(cfg, attr, value)
 
     cfg.save()
-    cfg.refresh_from_db()
+    # select_related 確保 api_key_ref 已載入，避免序列化時觸發額外查詢
+    cfg = AgentLLMConfig.objects.select_related("api_key_ref").get(id=cfg.id)
     return cfg
 
 

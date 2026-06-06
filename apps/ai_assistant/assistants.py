@@ -75,9 +75,7 @@ class HackerAssistantAgent(MemoryMixin, AIAssistant):
 
 
     def get_llm(self):
-        return get_llm_instance(
-            temperature=0,
-        )
+        return get_llm_instance(agent_id=self.id)
 
     @method_tool
     def bind_to_target(self, target_id: int) -> str:
