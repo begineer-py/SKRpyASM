@@ -104,11 +104,9 @@ def process_initial_analysis_conversions(analysis_ids: List[int]):
             continue
 
         target = getattr(asset, 'target', None)
-
-        if asset.overviews.exists():
-            a.is_converted = True
-            a.save()
-            continue
+        if not target and a.url_result:
+            related_subdomain = a.url_result.related_subdomains.filter(target__isnull=False).first()
+            target = related_subdomain.target if related_subdomain else None
 
         ov = None
         if target:
@@ -155,10 +153,28 @@ def process_initial_analysis_conversions(analysis_ids: List[int]):
             ov.subdomains.add(a.subdomain)
         elif a.url_result:
             ov.url_results.add(a.url_result)
-            if a.url_result.subdomain:
-                ov.subdomains.add(a.url_result.subdomain)
+            related_subdomains = list(a.url_result.related_subdomains.all())
+            if related_subdomains:
+                ov.subdomains.add(*related_subdomains)
+
+        if target and not ov.target_id:
+            ov.target = target
+            ov.save(update_fields=["target"])
             
         a.is_converted = True
         a.overview = ov
-        a.save()
-        logger.info(f"資產 {asset} 通過初步分析，已自動建立 Overview#{ov.id}。")
+        a.save(update_fields=["is_converted", "overview"])
+        logger.info(f"資產 {asset} 通過初步分析，已綁定到 Overview#{ov.id}。")
+
+    # ═══════════════════════════════════════════════════════════════════
+    # 鏈式觸發：為新建的 Overview 自動進入策略規劃
+    # ═══════════════════════════════════════════════════════════════════
+    newly_planning_overview_ids = set()
+    for a in analyses:
+        if a.overview_id and a.overview and a.overview.status == "PLANNING":
+            newly_planning_overview_ids.add(a.overview_id)
+
+    for ov_id in newly_planning_overview_ids:
+        from .planning import propose_next_steps
+        logger.info(f"[Chain] 自動觸發策略規劃 for Overview#{ov_id}")
+        propose_next_steps.delay(ov_id)

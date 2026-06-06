@@ -35,14 +35,16 @@ _SCAN_PACKAGES: list[str] = [
 
 
 def _scan_module(module_path: str, found: set[str]) -> None:
-    """掃描單個模組，收集所有 assistant_id 屬性為字串的類別。"""
+    """掃描單個模組，收集所有定義了 id 屬性（字串）的 AIAssistant 子類。
+    django_ai_assistant 框架使用 `id` 作為 agent 識別符。
+    """
     try:
         module = importlib.import_module(module_path)
         for _, obj in inspect.getmembers(module, inspect.isclass):
             # 只收集定義在此模組的類別（過濾 import 進來的類別）
             if obj.__module__ != module_path:
                 continue
-            aid = getattr(obj, "assistant_id", None)
+            aid = getattr(obj, "id", None)
             if aid and isinstance(aid, str):
                 found.add(aid)
     except Exception as e:
@@ -74,24 +76,16 @@ def discover_agent_ids() -> list[str]:
     """
     返回系統中所有已知 agent 的 agent_id 清單（已排序）。
 
-    資料來源（三層，取聯集）：
+    資料來源（兩層，取聯集）：
       1. 掃描 _SCAN_PACKAGES 中含有 assistant_id 的類別（自動發現）
-      2. _UTILITY_AGENT_IDS 回退清單（工具類 agent）
-      3. AutoAppConfig.AGENT_CONFIGS.keys()（已手動配置 env var 的 agent 保底）
+      2. _UTILITY_AGENT_IDS 清單（無 AIAssistant 基類的工具 agent）
 
-    新增 AIAssistant 子類並設定 assistant_id → 自動出現在前端，無需改動任何清單。
-    已在 AGENT_CONFIGS 中的 agent 不受類別掃描成敗影響，一定出現。
+    新增 AIAssistant 子類並設定 assistant_id → 自動出現在前端。
+    新增工具 agent → 在 _UTILITY_AGENT_IDS 補一行。
+    不依賴 env var，不依賴 settings.py。
     """
     discovered = _scan_packages()
-
-    # 保底來源：AGENT_CONFIGS 中已明確定義的 agent（含 hacker_assistant_agent）
-    try:
-        from apps.auto.settings import AutoAppConfig
-        agent_config_ids = set(AutoAppConfig.AGENT_CONFIGS.keys())
-    except Exception:
-        agent_config_ids = set()
-
-    all_ids = discovered | set(_UTILITY_AGENT_IDS) | agent_config_ids
+    all_ids = discovered | set(_UTILITY_AGENT_IDS)
     result = sorted(all_ids)
     logger.debug(f"agent_registry: 發現 {len(result)} 個 agent: {result}")
     return result

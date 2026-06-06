@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 def propose_next_steps(overview_id: int) -> dict:
     """
     【策略規劃任務】以 Overview 為中心分析全貌，決定接下來的自動化步驟。
+    鏈式流程：InitialAIAnalysis → (本任務) → Step 建立 → auto_execute_plan
     """
     try:
         overview = Overview.objects.prefetch_related(
@@ -31,6 +32,13 @@ def propose_next_steps(overview_id: int) -> dict:
     except Overview.DoesNotExist:
         logger.error(f"[Planning] Overview#{overview_id} 不存在。")
         return {"ok": False, "error": "Overview not found"}
+
+    # 防護：避免對已進入執行中或已完成的 Overview 重複規劃
+    if overview.status in ("EXECUTING", "COMPLETED", "STALLED"):
+        logger.warning(
+            f"[Planning] Overview#{overview_id} 狀態為 {overview.status}，跳過重複規劃。"
+        )
+        return {"ok": False, "error": f"Overview status is {overview.status}, skip planning"}
 
     logger.info(f"[Planning] 🧠 開始為 Overview#{overview_id} 進行策略規劃...")
 
@@ -91,6 +99,13 @@ def propose_next_steps(overview_id: int) -> dict:
         )
 
         _trigger_first_pending_step(overview)
+
+        # 鏈式觸發：規劃完成且有新步驟，自動交給 Layer 3 執行
+        if overview.status == "EXECUTING" and created_count > 0:
+            from apps.auto.tasks import auto_execute_plan
+            logger.info(f"[Chain] 策略規劃完成，自動觸發 auto_execute_plan")
+            auto_execute_plan.delay()
+
         return {"ok": True, "created_count": created_count}
 
     except Exception as e:

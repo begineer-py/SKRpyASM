@@ -11,11 +11,39 @@
 TASK_AGENT_REQUIREMENTS: dict = {
     "scheduler.tasks.watchdog_stalled_overviews": {
         "agent_id": "automation_agent",
-        "description": "需要 automation_agent 的 API 密鑰（用於偵測停滯任務並發送救援訊息）",
+        "description": "需要 automation_agent 的 API 密鑰（用於偵測停滯任務並發送救援訊息 + 自動觸發策略規劃）",
     },
     "scheduler.tasks.compress_long_threads": {
         "provider": "mistral",
         "description": "需要 Mistral API 密鑰（用於壓縮過長的對話 thread）",
+    },
+    "analyze_ai.tasks.periodic_initial_analysis_bootstrapper": {
+        "agent_id": "initial_analyzer_agent",
+        "description": "需要 initial_analyzer_agent 的 API 密鑰（用於初步資產 AI 分析）",
+    },
+    "analyze_ai.tasks.planning.propose_next_steps": {
+        "agent_id": "automation_agent",
+        "description": "需要 automation_agent / StrategyAgent 的 API 密鑰（用於策略規劃）",
+    },
+    "apps.auto.tasks.auto_execute_plan": {
+        "agent_id": "automation_agent",
+        "description": "需要 automation_agent 的 API 密鑰（用於自動化滲透執行）",
+    },
+    "apps.auto.tasks.verify_skills_periodic": {
+        "agent_id": "automation_agent",
+        "description": "需要 automation_agent 的 API 密鑰（用於定期驗證技能）",
+    },
+    "apps.auto.tasks.evaluate_skill_merges": {
+        "agent_id": "automation_agent",
+        "description": "需要 automation_agent 的 API 密鑰（用於評估技能合併）",
+    },
+    "apps.auto.tasks.preprocess_data": {
+        "agent_id": "initial_analyzer_agent",
+        "description": "[DEPRECATED] 委託給 periodic_initial_analysis_bootstrapper，需要 initial_analyzer_agent 的 API 密鑰",
+    },
+    "scheduler.tasks.trigger_scan_js": {
+        "agent_id": "initial_analyzer_agent",
+        "description": "需要 initial_analyzer_agent 的 API 密鑰（用於 JS AI 掃描）",
     },
 }
 

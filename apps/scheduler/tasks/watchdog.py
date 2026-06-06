@@ -42,16 +42,27 @@ def watchdog_stalled_overviews():
     summary = {"recovered_planning": 0, "recovered_executing": 0}
     now_time = timezone.now()
 
-    # 1. Recover PLANNING overviews
+    # 1. Recover PLANNING overviews — 自動觸發策略規劃，而非僅發送救援訊息
     stalled_planning = list(Overview.objects.filter(
         status="PLANNING",
         updated_at__lt=now - timedelta(minutes=15)
     ))
     for ov in stalled_planning:
-        logger.warning(f"[Watchdog] Overview#{ov.id} stalled in PLANNING. Sending rescue message.")
-        send_rescue_message(ov, f"[SYSTEM Watchdog] 任務中斷或等候超時: Overview #{ov.id} 卡在 PLANNING 超過 15 分鐘。請呼叫 get_target_context 重新確認狀態並繼續行動，或是結束任務。")
+        logger.warning(f"[Watchdog] Overview#{ov.id} stalled in PLANNING. Triggering propose_next_steps.")
+        # 鏈式修復：自動觸發策略規劃，不再依賴 Agent 回應
+        has_pending_steps = ov.steps.filter(status="PENDING").exists()
+        if not has_pending_steps:
+            from apps.analyze_ai.tasks.planning import propose_next_steps
+            propose_next_steps.delay(ov.id)
+            summary["recovered_planning"] += 1
+        else:
+            # 有待執行步驟但 PLANNING 狀態異常 → 修正為 EXECUTING
+            ov.status = "EXECUTING"
+            ov.save(update_fields=["status", "updated_at"])
+            logger.info(f"[Watchdog] Overview#{ov.id} has PENDING steps but stuck in PLANNING, fixed to EXECUTING")
+            summary["recovered_planning"] += 1
+        send_rescue_message(ov, f"[SYSTEM Watchdog] 概觀 #{ov.id} 在規劃中停滯超過 15 分鐘。系統已自動觸發策略規劃或修正狀態。")
         ov.updated_at = now_time
-        summary["recovered_planning"] += 1
 
     if stalled_planning:
         Overview.objects.bulk_update(stalled_planning, ['updated_at'])
