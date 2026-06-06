@@ -20,17 +20,17 @@ class Command(BaseCommand):
                 period=IntervalSchedule.MINUTES,
             )
 
-            # 建立/更新 preprocess_data 任務
+            # 建立/更新 periodic_initial_analysis_bootstrapper 任務
             preprocess_task, created = PeriodicTask.objects.update_or_create(
-                name="[Auto] Data Pre-processing (Initial AI Analysis)",
+                name="[Auto] Periodic AI Asset Analysis",
                 defaults={
-                    "task": "apps.auto.tasks.preprocess_data",
+                    "task": "analyze_ai.tasks.periodic_initial_analysis_bootstrapper",
                     "interval": preprocess_schedule,
                     "enabled": True,
                 },
             )
             status = "✅ Created" if created else "🔄 Updated"
-            self.stdout.write(f"{status}: preprocess_data → every 30 minutes")
+            self.stdout.write(f"{status}: periodic_initial_analysis_bootstrapper → every 30 minutes")
 
             # 建立/更新 auto_execute_plan 任務
             execute_task, created = PeriodicTask.objects.update_or_create(

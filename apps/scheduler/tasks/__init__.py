@@ -5,7 +5,6 @@ from .content_triggers import (
     scan_urls_missing_response,
 )
 from .utils import is_content_already_analyzed
-# DEPRECATED: trigger_pending_ai_analyses removed — replaced by periodic_initial_analysis_bootstrapper
 from .nuclei_triggers import (
     trigger_scan_ips_without_nuclei_results,
     trigger_scan_subdomains_without_nuclei_results,

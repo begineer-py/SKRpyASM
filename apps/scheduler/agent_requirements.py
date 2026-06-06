@@ -36,10 +36,6 @@ TASK_AGENT_REQUIREMENTS: dict = {
         "agent_id": "automation_agent",
         "description": "需要 automation_agent 的 API 密鑰（用於評估技能合併）",
     },
-    "apps.auto.tasks.preprocess_data": {
-        "agent_id": "initial_analyzer_agent",
-        "description": "[DEPRECATED] 委託給 periodic_initial_analysis_bootstrapper，需要 initial_analyzer_agent 的 API 密鑰",
-    },
     "scheduler.tasks.trigger_scan_js": {
         "agent_id": "initial_analyzer_agent",
         "description": "需要 initial_analyzer_agent 的 API 密鑰（用於 JS AI 掃描）",
