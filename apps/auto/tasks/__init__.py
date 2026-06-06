@@ -10,19 +10,6 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 
-@shared_task(name="apps.auto.tasks.preprocess_data")
-@log_function_call()
-def preprocess_data():
-    """
-    ⚠️ DEPRECATED — 此任務與 analyze_ai.tasks.periodic_initial_analysis_bootstrapper 重複。
-    新資產的初步分析現在由 periodic_initial_analysis_bootstrapper 負責，
-    並自動鏈式觸發 propose_next_steps → auto_execute_plan。
-    保留此任務僅為向後兼容，執行時直接委託給 bootstrapper。
-    """
-    logger.warning("[DEPRECATED] preprocess_data 已廢棄，委託給 periodic_initial_analysis_bootstrapper")
-    from apps.analyze_ai.tasks.initial_tasks import periodic_initial_analysis_bootstrapper
-    return periodic_initial_analysis_bootstrapper()
-
 def _handle_guidance_request(overview):
     """
     當 AutomationAgent 卡住時（overview.status == NEEDS_GUIDANCE），

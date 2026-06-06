@@ -14,7 +14,8 @@ from apps.core.models.url_assets import URLResult
 from apps.core.models.analyze.Step import StepNote
 from apps.core.models.ai_models import Thread, Message
 from apps.ai_assistant.helpers.use_cases import create_thread
-from apps.auto.tasks import preprocess_data, auto_execute_plan
+from apps.analyze_ai.tasks.initial_tasks import periodic_initial_analysis_bootstrapper as preprocess_data
+from apps.auto.tasks import auto_execute_plan
 from django.contrib.auth import get_user_model
 
 def cleanup_all():
