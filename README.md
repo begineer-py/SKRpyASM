@@ -85,11 +85,11 @@ React frontend
 ```text
 .
 ├── apps/
-│   ├── ai_assistant/     # Assistant/thread/message APIs, SSE streaming, LangChain helpers
+│   ├── ai_assistant/     # Assistant/thread/message REST APIs and SSE streaming
 │   ├── core/             # Shared asset, scan, URL, vulnerability, and analysis models
 │   ├── targets/          # Target and seed management APIs
 │   ├── scanners/         # Nmap, Subfinder, Amass, Nuclei, URL discovery, CVE intelligence
-│   ├── flaresolverr/     # Protected page fetching, parsing, JS/security analysis helpers
+│   ├── flaresolverr/     # Protected page crawling, request replay, and anti-bot bypass helpers
 │   ├── analyze_ai/       # Initial AI analysis, overview conversion, and planning triggers
 │   ├── scheduler/        # Celery Beat schedules and recurring scan triggers
 │   ├── auto/             # Internal automation framework, agent registry, and execution tasks
@@ -288,12 +288,12 @@ The central API is mounted under `/api/` in `c2_core/urls.py`.
 | ------------------------- | ------------------------------ | ----------------------------------------- |
 | `/api/targets`            | `apps.targets`            | Target and seed CRUD                                  |
 | `/api/scanners`           | `apps.scanners`           | Unified scanner namespace                              |
-| `/api/flaresolverr`       | `apps.flaresolverr`       | Protected page retrieval and parsing                  |
+| `/api/flaresolverr`       | `apps.flaresolverr`       | Protected page crawling, request replay, and bypass  |
 | `/api/core`               | `apps.core`               | Step/overview APIs over the shared core model layer   |
 | `/api/analyze_ai`         | `apps.analyze_ai`         | Initial AI analysis entrypoint                        |
 | `/api/scheduler`          | `apps.scheduler`          | Schedule and trigger management                       |
 | `/api/http_sender`        | `apps.http_sender`        | Endpoint fuzzing entrypoint                           |
-| `/api/api_keys`           | `apps.api_keys`           | External API key management                           |
+| `/api/api_keys`           | `apps.api_keys`           | API keys, tool config export, and Agent LLM config   |
 | `/api/auto`               | `apps.auto`               | Deprecated public API; live automation is internal    |
 | `/api/assistant/`         | `apps.ai_assistant.urls`  | Assistant thread/message APIs and SSE streaming       |
 
@@ -376,6 +376,19 @@ npm run lint
 - [Build Guide](docs/BUILD_GUIDE.md): installation, deployment, and operations notes.
 - [Documentation Center](docs/README.md): current document index under `docs/`.
 - [App Documentation Audit](docs/APP_DOC_AUDIT.md): app-by-app implementation vs documentation gap analysis.
+- [Auto App](docs/auto.md): internal automation framework notes.
+- [Core App](docs/core.md): core model layer and current public API surface.
+- [Analyze AI App](docs/analyze_ai.md): initial AI analysis and overview planning flow.
+- [HTTP Sender App](docs/http_sender.md): endpoint fuzzing flow and ffuf integration.
+- [API Keys App](docs/api_keys.md): API key storage, config export, and Agent LLM config.
+- [AI Assistant App](docs/ai_assistant.md): assistant REST and SSE interfaces.
+- [Scheduler App](docs/scheduler.md): periodic task API and background triggers.
+- [FlareSolverr App](docs/flaresolverr.md): crawler/request workflows and session reuse.
+- [Targets App](docs/targets.md): target/seed management and asset creation side effects.
+- [Nmap Scanner App](docs/nmap_scanner.md): Nmap scan dispatch workflow.
+- [Subfinder App](docs/subfinder.md): Subfinder and Amass recon chain.
+- [Nuclei Scanner App](docs/nuclei_scanner.md): vulnerability scans and tech-detect workflows.
+- [Get All URL App](docs/get_all_url.md): GAU-based URL collection flow.
 - [CVE API Guide](docs/CVE_API_GUIDE.md): CVE intelligence REST API usage.
 - [CVE Implementation Summary](docs/CVE_IMPLEMENTATION_SUMMARY.md): CVE system architecture notes.
 - [Technical Details](docs/technical_details.md): implementation-oriented notes.
