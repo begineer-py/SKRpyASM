@@ -59,6 +59,7 @@ const AICenterPage: React.FC = () => {
       }
       const res: any[] = await assistantApi.getThreads(params) as any[];
       const filteredThreads = res
+        .filter((t: any) => !t.is_hidden && t.assistant_id !== 'automation_agent' && !t.name?.startsWith('subagent_'))
         .sort((a: any, b: any) => Number(b.id) - Number(a.id));
       setAllThreads(filteredThreads);
 
@@ -240,11 +241,7 @@ const AICenterPage: React.FC = () => {
   }, [inputVal, selectedThreadId, allThreads, streamingText]);
 
   const getThreadDisplayName = (thread: any) => {
-    let prefix = "";
-    if (thread.is_hidden) prefix = "🔒 ";
-    if (thread.assistant_id === 'hacker_assistant_agent') prefix += "🎖️ ";
-    if (thread.name?.startsWith('subagent_') || thread.assistant_id === 'automation_agent') prefix += "🤖 ";
-    return `${prefix}[ID: ${thread.id}] ${thread.name || 'Untitled'}`;
+    return `${thread.name || 'Untitled'}`;
   };
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
