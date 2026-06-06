@@ -152,3 +152,14 @@ class CrontabScheduleCreateSchema(Schema):
     day_of_month: str = "*"
     month_of_year: str = "*"
     timezone: Optional[str] = None
+
+
+class TaskRequirementsSchema(Schema):
+    """任務的 AI API 密鑰需求資訊，供前端即時顯示警告。"""
+    task: str
+    requires_api: bool
+    agent_id: Optional[str] = None
+    provider: Optional[str] = None
+    has_key: bool
+    description: Optional[str] = None
+    missing_key_hint: Optional[str] = None

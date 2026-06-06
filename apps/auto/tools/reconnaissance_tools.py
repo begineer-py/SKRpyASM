@@ -408,11 +408,36 @@ class ReconnaissanceMixin:
         content_fetch_status: str = None,
         used_flaresolverr: bool = None,
         status_code: int = None,
+        has_forms: bool = None,
+        has_links: bool = None,
+        has_meta_tags: bool = None,
+        has_iframes: bool = None,
+        has_comments: bool = None,
+        has_findings: bool = None,
+        has_endpoints: bool = None,
+        has_javascript_files: bool = None,
+        has_inline_js: bool = None,
+        has_technologies: bool = None,
+        has_vulnerabilities: bool = None,
+        form_method: str = None,
+        form_action_contains: str = None,
+        finding_name_contains: str = None,
+        endpoint_path_contains: str = None,
+        endpoint_param_contains: str = None,
+        link_href_contains: str = None,
+        iframe_src_contains: str = None,
+        comment_contains: str = None,
+        meta_tag_contains: str = None,
+        technology_name_contains: str = None,
+        vulnerability_severity: str = None,
         limit: int = 20
     ) -> str:
         """
         【灵活查询】根据多个条件组合查询 URLResult 记录。
-        支持按 Target、Hostname、URL 关键词、状态等条件进行筛选。
+        支持按 Target、Hostname、URL 关键词、状态、以及 URL 底下已发现资产进行筛选。
+        例如：用 target_id + has_forms=True 找出目标下所有含 HTML Form 的 URL，
+        或用 has_findings=True / has_vulnerabilities=True 找出高价值 URL。
+        AutomationAgent 不需要先记住单一 url_id 再逐笔查询。
         避免一次性获取大量不相关的 URL，提高查询效率。
         
         Args:
@@ -422,13 +447,65 @@ class ReconnaissanceMixin:
             content_fetch_status: (可选) 按抓取状态筛选 (e.g., 'SUCCESS_FETCHED', 'FAILED_BLOCKED')
             used_flaresolverr: (可选) 按是否使用过 Flaresolverr 筛选
             status_code: (可选) 按 HTTP 状态码筛选
+            has_forms: (可选) True 只返回有 HTML Form 的 URL；False 只返回没有 Form 的 URL
+            has_links: (可选) 筛选是否有 Link 资产
+            has_meta_tags: (可选) 筛选是否有 MetaTag 资产
+            has_iframes: (可选) 筛选是否有 Iframe 资产
+            has_comments: (可选) 筛选是否有 HTML Comment 资产
+            has_findings: (可选) 筛选是否有 AnalysisFinding 敏感发现
+            has_endpoints: (可选) 筛选是否有关联 Endpoint
+            has_javascript_files: (可选) 筛选是否有关联外部 JavaScriptFile
+            has_inline_js: (可选) 筛选是否有 ExtractedJS inline block
+            has_technologies: (可选) 筛选是否有 TechStack
+            has_vulnerabilities: (可选) 筛选是否有关联漏洞
+            form_method: (可选) 筛选表单 method (e.g., 'GET', 'POST')，会自动启用 has_forms=True
+            form_action_contains: (可选) 筛选 form action 包含特定字符串，会自动启用 has_forms=True
+            finding_name_contains: (可选) 筛选 finding pattern_name 包含特定字符串，会自动启用 has_findings=True
+            endpoint_path_contains: (可选) 筛选 endpoint path 包含特定字符串，会自动启用 has_endpoints=True
+            endpoint_param_contains: (可选) 筛选 endpoint 参数名包含特定字符串，会自动启用 has_endpoints=True
+            link_href_contains: (可选) 筛选 link href 包含特定字符串，会自动启用 has_links=True
+            iframe_src_contains: (可选) 筛选 iframe src 包含特定字符串，会自动启用 has_iframes=True
+            comment_contains: (可选) 筛选 HTML comment 内容包含特定字符串，会自动启用 has_comments=True
+            meta_tag_contains: (可选) 筛选 meta tag JSON 属性包含特定字符串，会自动启用 has_meta_tags=True
+            technology_name_contains: (可选) 筛选技术名称包含特定字符串，会自动启用 has_technologies=True
+            vulnerability_severity: (可选) 筛选漏洞严重度 (info/low/medium/high/critical)，会自动启用 has_vulnerabilities=True
             limit: (可选) 返回结果数量上限，默认 20
         """
         try:
             from apps.core.models.url_assets import URLResult
-            from django.db.models import Q
+            from django.db.models import Count, Q
             
-            query = URLResult.objects.all()
+            asset_relations = {
+                "forms": "forms",
+                "links": "links",
+                "meta_tags": "meta_tags",
+                "iframes": "iframes",
+                "comments": "comments",
+                "findings": "findings",
+                "endpoints": "found_endpoints",
+                "javascript_files": "javascript_files",
+                "inline_js": "extracted_js_blocks",
+                "technologies": "technologies",
+                "vulnerabilities": "vulnerabilities",
+            }
+            asset_flags = {
+                "forms": has_forms,
+                "links": has_links,
+                "meta_tags": has_meta_tags,
+                "iframes": has_iframes,
+                "comments": has_comments,
+                "findings": has_findings,
+                "endpoints": has_endpoints,
+                "javascript_files": has_javascript_files,
+                "inline_js": has_inline_js,
+                "technologies": has_technologies,
+                "vulnerabilities": has_vulnerabilities,
+            }
+            annotations = {
+                f"{asset_name}_count": Count(relation_name, distinct=True)
+                for asset_name, relation_name in asset_relations.items()
+            }
+            query = URLResult.objects.annotate(**annotations)
             
             # Build filters
             filters = Q()
@@ -445,10 +522,71 @@ class ReconnaissanceMixin:
                 filters &= Q(url__icontains=hostname_contains)
             if url_contains is not None:
                 filters &= Q(url__icontains=url_contains)
+
+            if form_method is not None or form_action_contains is not None:
+                has_forms = True
+                asset_flags["forms"] = True
+            if finding_name_contains is not None:
+                has_findings = True
+                asset_flags["findings"] = True
+            if endpoint_path_contains is not None:
+                has_endpoints = True
+                asset_flags["endpoints"] = True
+            if endpoint_param_contains is not None:
+                has_endpoints = True
+                asset_flags["endpoints"] = True
+            if link_href_contains is not None:
+                has_links = True
+                asset_flags["links"] = True
+            if iframe_src_contains is not None:
+                has_iframes = True
+                asset_flags["iframes"] = True
+            if comment_contains is not None:
+                has_comments = True
+                asset_flags["comments"] = True
+            if meta_tag_contains is not None:
+                has_meta_tags = True
+                asset_flags["meta_tags"] = True
+            if technology_name_contains is not None:
+                has_technologies = True
+                asset_flags["technologies"] = True
+            if vulnerability_severity is not None:
+                has_vulnerabilities = True
+                asset_flags["vulnerabilities"] = True
+
+            for asset_name, enabled in asset_flags.items():
+                relation_name = asset_relations[asset_name]
+                if enabled is True:
+                    filters &= Q(**{f"{relation_name}__isnull": False})
+                elif enabled is False:
+                    filters &= Q(**{f"{relation_name}__isnull": True})
+
+            if form_method is not None:
+                filters &= Q(forms__method__iexact=form_method)
+            if form_action_contains is not None:
+                filters &= Q(forms__action__icontains=form_action_contains)
+            if finding_name_contains is not None:
+                filters &= Q(findings__pattern_name__icontains=finding_name_contains)
+            if endpoint_path_contains is not None:
+                filters &= Q(found_endpoints__path__icontains=endpoint_path_contains)
+            if endpoint_param_contains is not None:
+                filters &= Q(found_endpoints__query_parameters__key__icontains=endpoint_param_contains)
+            if link_href_contains is not None:
+                filters &= Q(links__href__icontains=link_href_contains)
+            if iframe_src_contains is not None:
+                filters &= Q(iframes__src__icontains=iframe_src_contains)
+            if comment_contains is not None:
+                filters &= Q(comments__content__icontains=comment_contains)
+            if meta_tag_contains is not None:
+                filters &= Q(meta_tags__attributes__icontains=meta_tag_contains)
+            if technology_name_contains is not None:
+                filters &= Q(technologies__name__icontains=technology_name_contains)
+            if vulnerability_severity is not None:
+                filters &= Q(vulnerabilities__severity__iexact=vulnerability_severity)
             
-            urls = query.filter(filters).values(
+            urls = query.filter(filters).distinct().values(
                 "id", "url", "used_flaresolverr", "content_fetch_status", 
-                "status_code", "target_id"
+                "status_code", "target_id", *annotations.keys()
             )[:limit]
             
             if not urls:
@@ -459,6 +597,20 @@ class ReconnaissanceMixin:
                 if content_fetch_status: filter_desc.append(f"status='{content_fetch_status}'")
                 if used_flaresolverr is not None: filter_desc.append(f"used_flaresolverr={used_flaresolverr}")
                 if status_code: filter_desc.append(f"status_code={status_code}")
+                for asset_name, enabled in asset_flags.items():
+                    if enabled is not None:
+                        filter_desc.append(f"has_{asset_name}={enabled}")
+                if form_method: filter_desc.append(f"form_method='{form_method}'")
+                if form_action_contains: filter_desc.append(f"form_action_contains='{form_action_contains}'")
+                if finding_name_contains: filter_desc.append(f"finding_name_contains='{finding_name_contains}'")
+                if endpoint_path_contains: filter_desc.append(f"endpoint_path_contains='{endpoint_path_contains}'")
+                if endpoint_param_contains: filter_desc.append(f"endpoint_param_contains='{endpoint_param_contains}'")
+                if link_href_contains: filter_desc.append(f"link_href_contains='{link_href_contains}'")
+                if iframe_src_contains: filter_desc.append(f"iframe_src_contains='{iframe_src_contains}'")
+                if comment_contains: filter_desc.append(f"comment_contains='{comment_contains}'")
+                if meta_tag_contains: filter_desc.append(f"meta_tag_contains='{meta_tag_contains}'")
+                if technology_name_contains: filter_desc.append(f"technology_name_contains='{technology_name_contains}'")
+                if vulnerability_severity: filter_desc.append(f"vulnerability_severity='{vulnerability_severity}'")
                 
                 filter_str = ", ".join(filter_desc) if filter_desc else "no filters (all URLs)"
                 return f"No URLs found with filters: {filter_str}"
@@ -466,7 +618,16 @@ class ReconnaissanceMixin:
             summary = f"=== URL Query Results (showing {len(urls)} results) ===\n"
             for u in urls:
                 used_fs_str = "Yes" if u["used_flaresolverr"] else "No"
-                summary += f"- URL ID [{u['id']}]: {u['url']} | Fetch: {u['content_fetch_status']} | FS: {used_fs_str} | Status: {u['status_code']}\n"
+                asset_counts = []
+                for asset_name in asset_relations.keys():
+                    count = u.get(f"{asset_name}_count", 0)
+                    if count:
+                        asset_counts.append(f"{asset_name}={count}")
+                asset_str = f" | Assets: {', '.join(asset_counts)}" if asset_counts else " | Assets: none"
+                summary += f"- URL ID [{u['id']}]: {u['url']} | Fetch: {u['content_fetch_status']} | FS: {used_fs_str} | Status: {u['status_code']}{asset_str}\n"
+
+            if any(enabled is True for enabled in asset_flags.values()):
+                summary += "\nTip: Use get_url_intelligence(url_id=<URL ID>) only for the specific URL you want to inspect deeply.\n"
             
             return summary
         except Exception as e:
