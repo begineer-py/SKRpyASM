@@ -77,8 +77,8 @@ Each app's router is defined in its `api.py` using Django Ninja's `Router` class
 - **scanners**: Unified scanner interface. Sub-apps: `nmap_scanner`, `subfinder`, `nuclei_scanner`, `get_all_url` — each has its own `tasks/` directory with Celery tasks.
 - **flaresolverr**: FlareSolverr/FlareProxyGo integration for anti-bot protected pages. Includes JS/security analysis parsers.
 - **analyze_ai**: AI triage and analysis dispatch to LLM providers via LangChain.
-- **auto**: 3-tier AI agent orchestration (ReconAgent, ExploitAgent, StrategyAgent). Uses LangChain or custom CAI depending on feature flags. See `apps/auto/cai_tool_implementation_guide.md`.
-- **scheduler**: Celery Beat periodic task management (ScheduleDefinition, ScheduleLog).
+- **auto**: 3-tier AI agent orchestration (ReconAgent, ExploitAgent, StrategyAgent). Uses LangChain or custom CAI depending on feature flags. See `apps/auto/cai_tool_implementation_guide.md`. Agent-driven memory compression via `review_chunks → decide_chunk → apply_compression` tools in `apps/auto/tools/memory_tools.py` (MemoryMixin). Configure compression LLM via `compression_agent` in AgentLLMConfig (recommend a cheap model like `mistral-small`).
+- **scheduler**: Celery Beat periodic task management (ScheduleDefinition, ScheduleLog, watchdog, cleanup). `apps/scheduler/tasks/watchdog.py` recovers stalled Overviews; `apps/scheduler/tasks/cleanup.py` removes orphaned assets.
 - **api_keys**: Encrypted storage for external service API keys.
 - **http_sender**: HTTP request helpers and payload fuzzing. See `apps/http_sender/PayloadMapping.md`.
 - **ai_assistant**: Assistant/Thread/Message APIs with LangChain integration. SSE streaming for real-time responses.
@@ -109,6 +109,7 @@ Copy `.env.example` to `.env`. Key variable groups:
 - AI providers: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `MISTRAL_API_KEY`
 - LangChain tracing: `LANGCHAIN_API_KEY`, `LANGCHAIN_PROJECT` (optional LangSmith)
 - Auto app flags: `AUTO_USE_LANGCHAIN`, `AUTO_DEFAULT_LLM_PROVIDER`, `AUTO_*_MODEL`
+- Memory compression: configure `compression_agent` via AgentLLMConfig DB (cheap model recommended for summarization)
 
 Note: `c2_core/settings.py` has hardcoded fallback values for database credentials (`mydb`/`myuser`/`secret`) used in development.
 
@@ -118,3 +119,10 @@ Note: `c2_core/settings.py` has hardcoded fallback values for database credentia
 - **Authentication**: DRF TokenAuthentication is the default (`REST_FRAMEWORK` in settings). CSRF middleware is disabled for dev (commented out in MIDDLEWARE).
 - **Model primary keys**: `BigAutoField` as default.
 - **Docker infrastructure**: `docker/docker-compose.yml` runs PostgreSQL, Redis, Hasura, NocoDB, FlareSolverr, FlareProxyGo.
+- **Agent-Driven Memory Compression**: The agent self-manages context via three tools in `MemoryMixin` (`apps/auto/tools/memory_tools.py`):
+  1. `review_chunks()` — reads all messages, generates GlobalContextOverview via LLM, divides into THINK→ACT→RESULT chunks
+  2. `decide_chunk(chunk_index, strategy)` — agent chooses RETAIN/TEXTUALIZE/DISCARD per chunk (uses `compressed_content` + `compression_applied` on Message, never deletes)
+  3. `apply_compression()` — finalizes decisions, updates ThreadCompressionState
+  - `compression_middleware.py` flags `requires_compression=True` when 40+ new messages since last compress
+  - `assistants.py` `context_check` node warns the agent; `setup` node auto-injects GlobalContextOverview into system prompt
+  - LLM configured via AgentLLMConfig `compression_agent` (recommend cheap model for summarization)

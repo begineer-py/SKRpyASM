@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 _UTILITY_AGENT_IDS: list[str] = [
     "skill_verifier_agent",
     "skill_merger_evaluator_agent",
+    "compression_agent",
 ]
 
 # 要掃描的套件（這些套件下所有模組都會被掃描）

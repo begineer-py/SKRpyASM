@@ -85,9 +85,10 @@ React frontend
 ```text
 .
 ├── apps/
+│   ├── ai_assistant/     # Assistant/thread/message APIs, SSE streaming, LangChain helpers
 │   ├── core/             # Shared asset, scan, URL, vulnerability, and analysis models
 │   ├── targets/          # Target and seed management APIs
-│   ├── scanners/         # Nmap, Subfinder, Amass, Nuclei, and URL discovery workflows
+│   ├── scanners/         # Nmap, Subfinder, Amass, Nuclei, URL discovery, CVE intelligence
 │   ├── flaresolverr/     # Protected page fetching, parsing, JS/security analysis helpers
 │   ├── analyze_ai/       # AI analysis dispatch and readiness checks
 │   ├── scheduler/        # Celery Beat schedules and recurring scan triggers
@@ -95,14 +96,13 @@ React frontend
 │   ├── api_keys/         # External service API key management
 │   └── http_sender/      # HTTP request, fuzzing, and URL ingestion helpers
 ├── c2_core/              # Django project settings, ASGI app, URL routing, Celery app
-├── django_ai_assistant/  # Assistant/thread/message APIs and LangChain helper tooling
 ├── frontend/             # React + TypeScript + Vite frontend
 ├── docker/               # Docker Compose infrastructure
 ├── docs/                 # Module-level documentation
 ├── scripts/              # Operational helper scripts
 ├── requirements.txt      # Minimal backend dependency set
 ├── environment.yml       # Conda environment snapshot
-└── BUILD_GUIDE.md        # Extended build and deployment guide
+└── docs/BUILD_GUIDE.md   # Extended build and deployment guide
 ```
 
 ---
@@ -185,8 +185,10 @@ Open another terminal from the repository root:
 
 ```bash
 conda activate mtc_env
-python scripts/celery_worker_eventlet.py -A c2_core.celery:app worker -P eventlet -c 100 -l info
+celery -A c2_core worker -P prefork -c 8 -l info
 ```
+
+`eventlet` worker mode is deprecated in this repository and the old `scripts/celery_worker_eventlet.py` entrypoint has been removed.
 
 ### 8. Run Celery Beat / 啟動 Celery Beat
 
@@ -194,7 +196,7 @@ Open another terminal from the repository root:
 
 ```bash
 conda activate mtc_env
-celery -A c2_core beat -l info
+celery -A c2_core beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
 ```
 
 ### 9. Run frontend / 啟動前端
@@ -251,8 +253,8 @@ uvicorn c2_core.asgi:application --host 0.0.0.0 --port 8000 --workers 9 --loop u
 ### Celery / 任務隊列
 
 ```bash
-python scripts/celery_worker_eventlet.py -A c2_core.celery:app worker -P eventlet -c 100 -l info
-celery -A c2_core beat -l info
+celery -A c2_core worker -P prefork -c 8 -l info
+celery -A c2_core beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
 celery -A c2_core inspect active
 celery -A c2_core inspect stats
 ```
@@ -284,18 +286,35 @@ The central API is mounted under `/api/` in `c2_core/urls.py`.
 
 | API prefix                | Module                         | Responsibility                            |
 | ------------------------- | ------------------------------ | ----------------------------------------- |
-| `/api/targets`            | `apps.targets`                 | Target and seed CRUD                      |
-| `/api/scanners/nmap`      | `apps.scanners.nmap_scanner`   | Nmap scan dispatch and results            |
-| `/api/scanners/subdomain` | `apps.scanners.subfinder`      | Subfinder and Amass workflows             |
-| `/api/scanners/vuln`      | `apps.scanners.nuclei_scanner` | Nuclei vulnerability and technology scans |
-| `/api/scanners/crawler`   | `apps.scanners.get_all_url`    | URL discovery and ingestion               |
-| `/api/flaresolverr`       | `apps.flaresolverr`            | Protected page retrieval and parsing      |
-| `/api/analyze_ai`         | `apps.analyze_ai`              | AI analysis dispatch                      |
-| `/api/scheduler`          | `apps.scheduler`               | Schedule and trigger management           |
-| `/api/http_sender`        | `apps.http_sender`             | HTTP sender and fuzzing helpers           |
-| `/api/api_keys`           | `apps.api_keys`                | External API key management               |
-| `/api/auto`               | `apps.auto`                    | AI-assisted automation step execution     |
-| `/api/assistant`          | `django_ai_assistant`          | Assistant and thread APIs                 |
+| `/api/targets`            | `apps.targets`            | Target and seed CRUD                                  |
+| `/api/scanners`           | `apps.scanners`           | Unified scanner namespace                              |
+| `/api/flaresolverr`       | `apps.flaresolverr`       | Protected page retrieval and parsing                  |
+| `/api/core`               | `apps.core`               | Core models, steps, overviews, and shared APIs        |
+| `/api/analyze_ai`         | `apps.analyze_ai`         | AI analysis dispatch                                  |
+| `/api/scheduler`          | `apps.scheduler`          | Schedule and trigger management                       |
+| `/api/http_sender`        | `apps.http_sender`        | HTTP sender and fuzzing helpers                       |
+| `/api/api_keys`           | `apps.api_keys`           | External API key management                           |
+| `/api/auto`               | `apps.auto`               | Legacy automation APIs                                |
+| `/api/assistant/`         | `apps.ai_assistant.urls`  | Assistant thread/message APIs and SSE streaming       |
+
+Scanner sub-routes mounted under `/api/scanners`:
+
+| API prefix                   | Module                           | Responsibility                            |
+| ---------------------------- | -------------------------------- | ----------------------------------------- |
+| `/api/scanners/nmap`         | `apps.scanners.nmap_scanner`     | Nmap scan dispatch and results            |
+| `/api/scanners/subdomain`    | `apps.scanners.subfinder`        | Subfinder and Amass workflows             |
+| `/api/scanners/vuln`         | `apps.scanners.nuclei_scanner`   | Nuclei vulnerability and technology scans |
+| `/api/scanners/crawler`      | `apps.scanners.get_all_url`      | URL discovery and ingestion               |
+| `/api/scanners/cve`          | `apps.scanners.cve_intelligence` | CVE intelligence query and enrichment     |
+
+Assistant-specific endpoints include both REST and SSE routes, for example:
+
+| API prefix                                            | Purpose                            |
+| ----------------------------------------------------- | ---------------------------------- |
+| `/api/assistant/threads/`                             | Thread list/create APIs            |
+| `/api/assistant/threads/{thread_id}/messages/`        | Message list/create APIs           |
+| `/api/assistant/threads/{thread_id}/messages/stream/` | SSE token streaming                |
+| `/api/assistant/v1/steps/{step_id}/logs/stream/`      | SSE step log streaming             |
 
 ---
 
@@ -353,26 +372,22 @@ npm run lint
 
 ## Documentation / 文件索引
 
-- [Build Guide](BUILD_GUIDE.md): extended installation, deployment, and operations notes.
-- [Documentation Center](docs/README.md): module-level documentation index.
-- [Internal Workflow](docs/internal_workflow.md): asset discovery, AI triage, planning, and execution loop.
-- [Core Models](docs/core.md): shared model layer and asset structures.
-- [Targets](docs/targets.md): target and seed management.
-- [Subfinder](docs/subfinder.md): subdomain discovery workflows.
-- [Nmap Scanner](docs/nmap_scanner.md): network scan workflows.
-- [Get All URL](docs/get_all_url.md): URL discovery and endpoint mapping.
-- [FlareSolverr](docs/flaresolverr.md): protected content retrieval and parsing.
-- [Nuclei Scanner](docs/nuclei_scanner.md): vulnerability and technology scanning.
-- [Analyze AI](docs/analyze_ai.md): AI analysis pipeline.
-- [Scheduler](docs/scheduler.md): periodic task orchestration.
-- [Auto Tasks](docs/auto_tasks.md): automation and AI planning tasks.
-- [API Keys](docs/api_keys.md): external service key management.
+- [Technical Whitepaper](SKRpyASM_技術白皮書.md): architecture, workflow design, and full API mapping.
+- [Build Guide](docs/BUILD_GUIDE.md): installation, deployment, and operations notes.
+- [Documentation Center](docs/README.md): current document index under `docs/`.
+- [CVE API Guide](docs/CVE_API_GUIDE.md): CVE intelligence REST API usage.
+- [CVE Implementation Summary](docs/CVE_IMPLEMENTATION_SUMMARY.md): CVE system architecture notes.
+- [Technical Details](docs/technical_details.md): implementation-oriented notes.
+- [File References](docs/file_references.md): repository file reference index.
+- [Message Loading Analysis](docs/message_loading_analysis.md): assistant message loading analysis.
+- [Message Loading Index](docs/MESSAGE_LOADING_INDEX.md): message loading topic index.
+- [README Documentation](docs/README_DOCUMENTATION.md): notes about README maintenance.
+- [Delivery Checklist](docs/DELIVERY_CHECKLIST.md): documentation delivery checklist.
 - [HTTP Sender Payload Mapping](apps/http_sender/PayloadMapping.md): HTTP/fuzzing payload reference.
 
 Developer guidance:
 
-- [AGENTS.md](AGENTS.md): English development guide and repository conventions.
-- [AGENTS_ZH.md](AGENTS_ZH.md): Chinese development guide.
+- [CLAUDE.md](CLAUDE.md): repository-specific development guidance for OpenCode and Claude Code.
 
 ---
 
@@ -430,7 +445,7 @@ Some docs predate the current `apps/scanners/` layout. Prefer the route map in t
 - Add `related_name` and `help_text` for Django relationships and fields when adding models.
 - Use Celery for long-running scanning, crawling, and AI analysis tasks.
 - Keep API schemas explicit and validate request/response payloads.
-- Review [AGENTS.md](AGENTS.md) and [AGENTS_ZH.md](AGENTS_ZH.md) before making larger changes.
+- Review [CLAUDE.md](CLAUDE.md) before making larger changes.
 
 ---
 

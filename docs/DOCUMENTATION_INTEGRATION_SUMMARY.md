@@ -1,10 +1,13 @@
 # 文档整合完成总结
 
+> 注意：本文件是一次文档整合的历史记录，不应视为当前系统状态的权威来源。
+> 当前请以 `README.md`、`docs/README.md`、`docs/BUILD_GUIDE.md` 与 `SKRpyASM_技術白皮書.md` 的最新内容为准。
+
 ## ✅ 完成的工作
 
 ### 1. CVE Intelligence 章节整合
 
-已将 CVE Intelligence 系统的完整文档整合到 `SKRpyASM_技術白皮書.md` 第十三章，包括：
+已将 CVE Intelligence 系统文档整合进技术白皮书的后续章节草稿中。后续章节编号与篇幅可能已变动，包括：
 
 - **13.1 系统概述** - CVE Intelligence 核心功能
 - **13.2 资料模型** - CVEIntelligence, TechStackCVEMapping, Vulnerability 扩充
@@ -25,7 +28,7 @@
 
 ```
 C2_Django_AI_git/
-├── SKRpyASM_技術白皮書.md    # 主技术白皮书（204KB，4000+ 行）
+├── SKRpyASM_技術白皮書.md    # 主技术白皮书（大小与行数会持续变化）
 ├── README.md                  # 项目简介（已更新文档导航）
 ├── CLAUDE.md                  # Claude Code 配置
 └── docs/                      # 详细文档目录
@@ -63,14 +66,12 @@ docs/
 ### 4. 技术白皮书更新
 
 #### 新增内容
-- **第十三章：CVE Intelligence 情报系统**（约 500 行）
-- **第十四章：附录：构建与部署指南**（快速启动指南）
+- 白皮书中新增了 CVE Intelligence 相关章节内容
+- 构建与部署说明已迁移至 `docs/BUILD_GUIDE.md`
 - 更新了第十二章的 API 路由映射，添加 `/api/scanners/cve`
 
 #### 文档规模
-- 总行数：4000+ 行
-- 文件大小：204KB
-- 章节数：14 章
+- 总行数、文件大小与章节数会随维护持续变化
 
 ## 📊 文档统计
 
@@ -83,9 +84,7 @@ docs/
 - 总大小：约 3.5MB
 
 ### 技术白皮书
-- 章节：14 章
-- 行数：4000+ 行
-- 大小：204KB
+- 章节、行数与大小请以当前仓库文件实际内容为准
 - 涵盖内容：
   - 系统概述
   - 核心技术特点
@@ -106,9 +105,9 @@ docs/
 
 - **完整技术文档**：[SKRpyASM_技術白皮書.md](../SKRpyASM_技術白皮書.md)
 - **CVE Intelligence 章节**：[SKRpyASM_技術白皮書.md#十三cve-intelligence-情報系統](../SKRpyASM_技術白皮書.md)
-- **CVE API 指南**：[docs/CVE_API_GUIDE.md](../docs/CVE_API_GUIDE.md)
-- **构建指南**：[docs/BUILD_GUIDE.md](../docs/BUILD_GUIDE.md)
-- **文档索引**：[docs/README.md](../docs/README.md)
+- **CVE API 指南**：[CVE_API_GUIDE.md](../docs/CVE_API_GUIDE.md)
+- **构建指南**：[BUILD_GUIDE.md](../docs/BUILD_GUIDE.md)
+- **文档索引**：[README.md](../docs/README.md)
 
 ## ✨ 主要改进
 

@@ -94,7 +94,7 @@ C2_Django_AI_git/
 ### API 使用者
 
 1. **[CVE_API_GUIDE.md](CVE_API_GUIDE.md)** - CVE API 完整指南
-2. **[../SKRpyASM_技術白皮書.md](../SKRpyASM_技術白皮書.md)** - 第十二章：完整 API 路由映射
+2. **[../SKRpyASM_技術白皮書.md](../SKRpyASM_技術白皮書.md)** - 白皮书附录中的完整 API 路由映射
 
 ## 🔍 快速查找
 
@@ -104,11 +104,11 @@ C2_Django_AI_git/
 
 ### 查找架构设计
 - 三层 AI Agent：[../SKRpyASM_技術白皮書.md](../SKRpyASM_技術白皮書.md) 第二章
-- CVE Intelligence：[../SKRpyASM_技術白皮書.md](../SKRpyASM_技術白皮書.md) 第十三章
+- CVE Intelligence：优先参考 [CVE_API_GUIDE.md](CVE_API_GUIDE.md) 与 [CVE_IMPLEMENTATION_SUMMARY.md](CVE_IMPLEMENTATION_SUMMARY.md)
 
 ### 查找部署指南
 - 快速启动：[BUILD_GUIDE.md](BUILD_GUIDE.md)
-- 环境配置：[BUILD_GUIDE.md](BUILD_GUIDE.md) + [../SKRpyASM_技術白皮書.md](../SKRpyASM_技術白皮書.md) 第十四章
+- 环境配置：以 [BUILD_GUIDE.md](BUILD_GUIDE.md) 为准
 
 ## 📝 文档维护
 
@@ -118,4 +118,4 @@ C2_Django_AI_git/
 
 ---
 
-_最后更新：2026-05-19_
+_最后更新：2026-06-06_
