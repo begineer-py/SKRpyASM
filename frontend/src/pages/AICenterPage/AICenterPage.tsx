@@ -23,6 +23,9 @@ const AICenterPage: React.FC = () => {
   // Target binding
   const [boundTargetId, setBoundTargetId] = useState<number | null>(null);
 
+  // Display control for system messages
+  const [showSystemMessages, setShowSystemMessages] = useState(false);
+
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const cleanupStreamRef = useRef<(() => void) | null>(null);
@@ -263,7 +266,25 @@ const AICenterPage: React.FC = () => {
     }
   };
 
-  const displayedMessages = messages.slice(-displayLimit);
+  // 訊息篩選函數：隱藏系統/工具訊息
+  const shouldDisplayMessage = (msg: any): boolean => {
+    if (showSystemMessages) return true; // 全顯示
+    
+    // 隱藏系統和工具訊息
+    const hiddenRoles = ['tool', 'system'];
+    if (hiddenRoles.includes(msg.role)) return false;
+    
+    // 隱藏僅包含工具呼叫摘要的助手訊息
+    if (msg.role === 'assistant' && msg.textContent?.startsWith('[Tool Call:')) {
+      return false;
+    }
+    
+    return true;
+  };
+
+  const displayedMessages = messages
+    .filter(shouldDisplayMessage)
+    .slice(-displayLimit);
 
   return (
     <div className="aicenter-container">
@@ -375,6 +396,20 @@ const AICenterPage: React.FC = () => {
         <div className="chat-container">
           {selectedThreadId ? (
             <>
+              {/* Messages Toolbar */}
+              <div className="messages-toolbar">
+                <button 
+                  className={`toggle-system-messages ${showSystemMessages ? 'active' : ''}`}
+                  onClick={() => setShowSystemMessages(!showSystemMessages)}
+                  title={showSystemMessages ? "Hide system messages" : "Show system messages"}
+                >
+                  {showSystemMessages ? '✓' : '○'} 🔧 System Messages
+                  {!showSystemMessages && messages.filter(m => !shouldDisplayMessage(m)).length > 0 && (
+                    <span className="hidden-count">{messages.filter(m => !shouldDisplayMessage(m)).length}</span>
+                  )}
+                </button>
+              </div>
+
               {/* Messages */}
               <div className="messages-area" onScroll={handleScroll}>
                 {messages.length === 0 && !streamingText && (
