@@ -154,19 +154,20 @@
 
 ## 未完成的功能（可選）
 
-### ⏸️ Phase 7: API 端點（未實作）
+### ✅ Phase 7: API 端點（已實作）
 
-**原計劃：**
-- `POST /api/scanners/cve/query_cve` - 查詢 CVE
-- `POST /api/scanners/cve/search_cves` - 搜尋 CVE
-- `POST /api/scanners/cve/enrich_vulnerability` - 豐富化 Vulnerability
-- `GET /api/scanners/cve/techstack_report/{target_id}` - 技術棧報告
-- `POST /api/scanners/cve/sync_kev` - 手動觸發 KEV 同步
+**当前实际端点：**
+- `POST /api/scanners/cve/query` - 查詢單一 CVE
+- `POST /api/scanners/cve/search` - 根據技術與版本搜尋 CVE
+- `POST /api/scanners/cve/search_by_tags` - 根據 tags 搜尋 CVE
+- `GET /api/scanners/cve/techstack_report/{target_id}` - 技術棧 CVE 報告
+- `POST /api/scanners/cve/enrich_vulnerabilities` - 批次豐富化 Vulnerability
+- `POST /api/scanners/cve/sync_techstack` - 同步目標技術棧與 CVE 對應
+- `POST /api/scanners/cve/sync_kev` - 手動觸發 CISA KEV 同步
 
-**原因：**
-- AI Agent 工具已提供完整功能
-- API 端點主要用於前端整合
-- 可在需要時快速實作
+**補充說明：**
+- 早期規劃文件中的 `query_cve`、`search_cves`、`enrich_vulnerability` 已不是現行路由名稱。
+- 目前以 `apps/scanners/cve_intelligence/api.py` 中的實際 route 為準。
 
 ---
 

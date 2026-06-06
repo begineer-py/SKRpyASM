@@ -286,21 +286,23 @@ def get_thread_messages(
     user: Any,
     request: HttpRequest | None = None,
 ) -> list[BaseMessage]:
-    """Get all messages in a thread.\n
+    """Get all messages in a thread (user-facing messages only).
+    
     Uses `AI_ASSISTANT_CAN_VIEW_THREAD_FN` permission to check if user can view the thread.
+    By default, excludes system and tool messages (include_extra_messages=False).
 
     Args:
         thread (Thread): Thread model instance to get messages from
         user (Any): Current user
         request (HttpRequest | None): Current request, if any
     Returns:
-        list[BaseMessage]: List of message instances
+        list[BaseMessage]: List of message instances (user and assistant messages only)
     """
     # TODO: have more permissions for threads? View thread permission?
     if user != thread.created_by:
         raise AIUserNotAllowedError("User is not allowed to view messages in this thread")
 
-    return thread.get_messages(include_extra_messages=True)
+    return thread.get_messages(include_extra_messages=False)
 
 
 def delete_message(
