@@ -4,55 +4,75 @@ import concurrent.futures
 from openai import OpenAI
 
 # 設定環境變數
-API_KEY = os.getenv("AI_API_KEY", "sk-bkAQ1jYqRmL1HxARU4WYTnQOz6m7TUvadqUSnraSfhafyZXs")
-BASE_URL = os.getenv("AI_API_BASE_URL", "https://api.bluesminds.com/v1")
+API_KEY = os.getenv("AI_API_KEY", "sk-nkC4JJnxHtgI-PM_HFc9QPTcwkVqRUP7MAhh6cafk5pvWaO1D6DXr59puppWzVRc")
+BASE_URL = os.getenv("AI_API_BASE_URL", "https://api.yuhuanstudio.com/v1")
 
 # 初始化 OpenAI 客戶端
 client = OpenAI(
     api_key=API_KEY,
     base_url=BASE_URL
 )
-#useful_list : https://api.clawhud.com/v1 with gpt 5.5
-# 待測試的 26 個模型清單
+
+# 待測試的模型清單（已整理你提供的新清單）
 models_to_test = [
-    # Page 1
-    # "glm-5",
-    # "asdiasflash"
-    "z-ai/glm-5.1"
-    # "openai/gpt-oss-20b",
-    # "gpt-5-nano"
-    # "gpt-5.5",
-    # "z-ai/glm-5.1"
-    # "abacusai/dracarys-llama-3.1-70b-instruct",
-    # "deepseek-ai/deepseek-v4-flash",
-    # "deepseek-ai/deepseek-v4-pro",
-    # "google/gemma-4-31b-it",
-    # "meta/llama-4-maverick-17b-128e-instruct",
-    # "microsoft/phi-4-multimodal-instruct",
-    # "minimaxai/minimax-m2.7",
-    # "mistralai/mistral-large-3-675b-instruct-2512",
-    # "mistralai/mistral-medium-3.5-128b",
-    # "mistralai/mistral-small-4-119b-2603",
-    # "moonshotai/kimi-k2.6",
-    # "nvidia/llama-3.1-nemotron-nano-8b-v1",
-    # "nvidia/llama-3.1-nemotron-nano-vl-8b-v1",
-    # "nvidia/llama-3.3-nemotron-super-49b-v1.5",
-    # "nvidia/nemotron-3-nano-30b-a3b",
-    # "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
-    # "nvidia/nemotron-3-super-120b-a12b",
-    # "nvidia/nemotron-nano-12b-v2-vl",
-    # "nvidia/riva-translate-4b-instruct-v1.1",
-    # "openai/gpt-oss-120b",
-    # # Page 2
-    # "qwen/qwen3-coder-480b-a35b-instruct",
-    # "qwen/qwen3-next-80b-a3b-instruct",
-    # "qwen/qwen3.5-122b-a10b",
-    # "qwen/qwen3.5-397b-a17b",
-    # "stepfun/step-3.5-flash",
-    # "z-ai/glm-5.1",
-    # "FRE-5.4",
-    # "claude-opus-4-7",
-    # "claude-sonnet-4-6"
+    # --- TokenRouter 來源 ---
+    "tokenrouter/deepseek/deepseek-v4-flash",
+    "tokenrouter/deepseek/deepseek-v4-pro",
+    "tokenrouter/moonshotai/kimi-k2.6",
+    "tokenrouter/qwen/qwen3.7-max",
+    "tokenrouter/qwen/qwen3.7-plus",
+    "tokenrouter/seed-2-0-lite-260428",
+    "tokenrouter/seed-2-0-mini-260428",
+    "tokenrouter/seed-2-0-pro-260328",
+    "tokenrouter/xiaomi/mimo-v2.5",
+    "tokenrouter/xiaomi/mimo-v2.5-pro",
+    
+    # --- Z.ai (Zhipu) 來源 ---
+    "zai/glm-4.5",
+    "zai/glm-4.5-air",
+    "zai/glm-4.6",
+    "zai/glm-4.7",
+    "zai/glm-5",
+    "zai/glm-5-turbo",
+    "zai/glm-5.1",
+    "zai/glm-5v-turbo",
+    
+    # --- OpenRouter (免費版) 來源 ---
+    "openrouter/google/gemma-4-26b-a4b-it:free",
+    "openrouter/google/gemma-4-31b-it:free",
+    "openrouter/moonshotai/kimi-k2.6:free",
+    "openrouter/openai/gpt-oss-120b:free",
+    "openrouter/qwen/qwen3-coder:free",
+    "openrouter/qwen/qwen3-next-80b-a3b-instruct:free",
+    "openrouter/z-ai/glm-4.5-air:free",
+    
+    # --- Google 原生 來源 ---
+    "google/gemini-3-flash-preview",
+    "google/gemini-3.1-flash-lite-preview",
+    "google/gemma-4-26b-a4b-it",
+    "google/gemma-4-31b-it",
+    # "google/gemini-embedding-2",  # Embedding模型，chat.completions會報錯，預設註解
+
+    # --- ModelScope 來源 ---
+    # "modelscope/Qwen/Qwen-Image-2512", # 圖片生成，chat.completions會報錯，預設註解
+    # "modelscope/Qwen/Qwen-Image-Edit", # 圖片編輯，chat.completions會報錯，預設註解
+    "modelscope/deepseek-ai/DeepSeek-V4-Flash",
+    "modelscope/deepseek-ai/DeepSeek-V4-Pro",
+    "modelscope/zai-org/GLM-5.1",
+
+    # --- MiniMax 來源 ---
+    "minimax/MiniMax-M2.5",
+    "minimax/MiniMax-M2.5-highspeed",
+    "minimax/MiniMax-M2.7",
+    "minimax/MiniMax-M2.7-highspeed",
+
+    # --- NVIDIA 來源 ---
+    "nvidia/stepfun-ai/step-3.5-flash",
+    "nvidia/z-ai/glm-5.1",
+    "nvidia/z-ai/glm4.7",
+
+    # --- GitHub Models 來源 ---
+    # "github/openai/text-embedding-3-large" # Embedding模型，chat.completions會報錯，預設註解
 ]
 
 def send_single_request(model_name, timeout=15.0):
@@ -86,7 +106,7 @@ def run_phase_1():
     第一階段：快速掃描所有模型（並行 10 個 worker）
     """
     print("=" * 80)
-    print("階段一：開始快速掃描 26 個模型 (並行限制: 10, 超時限制: 15s)...")
+    print(f"階段一：開始快速掃描 {len(models_to_test)} 個模型 (並行限制: 10, 超時限制: 15s)...")
     print("=" * 80)
     
     successful_models = []

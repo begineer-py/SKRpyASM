@@ -4,7 +4,6 @@ import subprocess
 import json
 from typing import Optional
 from celery import shared_task
-from django.db import transaction
 
 from apps.core.models import Subdomain, Seed
 from c2_core.config.logging import log_function_call
@@ -80,36 +79,40 @@ def check_protection_for_seed(
         all_lines = asyncio.run(run_all_chunks())
 
         updates_count = 0
-        
-        with transaction.atomic():
-            for line in all_lines:
-                try:
-                    data = json.loads(line)
-                    host = data.get("input")
-                    if host in subdomain_map:
-                        sub_obj = subdomain_map[host]
-                        is_cdn = data.get("cdn", False)
-                        is_waf = data.get("waf", False)
-                        cdn_name = data.get("cdn_name")
-                        waf_name = data.get("waf_name")
+        to_update = []
 
-                        # Only update if values have changed
-                        if (
-                            sub_obj.is_cdn != is_cdn
-                            or sub_obj.is_waf != is_waf
-                            or sub_obj.cdn_name != cdn_name
-                            or sub_obj.waf_name != waf_name
-                        ):
+        for line in all_lines:
+            try:
+                data = json.loads(line)
+                host = data.get("input")
+                if host in subdomain_map:
+                    sub_obj = subdomain_map[host]
+                    is_cdn = data.get("cdn", False)
+                    is_waf = data.get("waf", False)
+                    cdn_name = data.get("cdn_name")
+                    waf_name = data.get("waf_name")
 
-                            sub_obj.is_cdn, sub_obj.is_waf = is_cdn, is_waf
-                            sub_obj.cdn_name, sub_obj.waf_name = cdn_name, waf_name
-                            sub_obj.last_scan_type = "CdnCheckScan"
-                            sub_obj.last_scan_id = subfinder_scan_id
+                    if (
+                        sub_obj.is_cdn != is_cdn
+                        or sub_obj.is_waf != is_waf
+                        or sub_obj.cdn_name != cdn_name
+                        or sub_obj.waf_name != waf_name
+                    ):
+                        sub_obj.is_cdn, sub_obj.is_waf = is_cdn, is_waf
+                        sub_obj.cdn_name, sub_obj.waf_name = cdn_name, waf_name
+                        sub_obj.last_scan_type = "CdnCheckScan"
+                        sub_obj.last_scan_id = subfinder_scan_id
+                        to_update.append(sub_obj)
+            except (json.JSONDecodeError, KeyError):
+                pass
 
-                            sub_obj.save()
-                            updates_count += 1
-                except (json.JSONDecodeError, KeyError):
-                    pass
+        if to_update:
+            Subdomain.objects.bulk_update(
+                to_update,
+                ['is_cdn', 'is_waf', 'cdn_name', 'waf_name', 'last_scan_type', 'last_scan_id'],
+                batch_size=500,
+            )
+            updates_count = len(to_update)
                     
         logger.info(f"CDN/WAF 檢測完成。共更新 {updates_count} 個子域名的信息。")
         

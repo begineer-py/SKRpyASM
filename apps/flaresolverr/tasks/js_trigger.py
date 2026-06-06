@@ -29,21 +29,22 @@ logger = logging.getLogger(__name__)
 # Model imports
 MODEL_PATH = Config.MODEL_PATH
 AI_TOKENIZER = None
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+DEVICE = "cpu"  # 實際裝置由 worker_process_init 在 fork 後更新，避免 CUDA context 在 parent process 初始化
 AI_MODEL = None
 
 
 # --- 核心：進程啟動時加載模型 ---
 @worker_process_init.connect
 def init_ai_model(**kwargs):
+    global DEVICE, AI_MODEL, AI_TOKENIZER
     cmd_args = " ".join(sys.argv)
     if "ai_queue" not in cmd_args:
         logger.info("[!] 跳過 AI 模型加載 (非 AI Worker)")
         return
 
+    # fork 之後才偵測 CUDA，避免在 parent process 初始化 CUDA context
+    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     logger.info(f"[*] Celery Worker 啟動，正在將 AI 模型加載至 {DEVICE}...")
-    global AI_MODEL
-    global AI_TOKENIZER
     AI_TOKENIZER = AutoTokenizer.from_pretrained(MODEL_PATH)
     AI_MODEL = AutoModelForSequenceClassification.from_pretrained(MODEL_PATH).to(DEVICE)
     AI_MODEL.eval()
@@ -54,7 +55,10 @@ def init_ai_model(**kwargs):
 # tasks.py
 @shared_task(name="tasks.perform_js_scan")
 @log_function_call()
-def perform_js_scan(object_id, source_type):
+def perform_js_scan(object_id=None, source_type=None):
+    if object_id is None or source_type is None:
+        logger.error("perform_js_scan 被呼叫但缺少必要參數，請檢查 django_celery_beat 的 PeriodicTask 設定")
+        return "Error: missing required arguments"
     try:
         target_obj = None
         if source_type == "external":

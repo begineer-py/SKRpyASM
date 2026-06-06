@@ -14,17 +14,21 @@ logger = logging.getLogger(__name__)
 
 
 def get_llm_instance(
-    model_name: Optional[str] = None, 
-    temperature: float = 0, 
-    provider: Optional[str] = None, 
-    agent_id: Optional[str] = None, 
+    model_name: Optional[str] = None,
+    temperature: float = 0,
+    provider: Optional[str] = None,
+    agent_id: Optional[str] = None,
+    _override_api_key: Optional[str] = None,
+    _override_api_base: Optional[str] = None,
     **kwargs
 ) -> BaseChatModel:
     """
     Factory pattern to generate a LangChain Chat Model dynamically.
     Checks environment logs to choose between openai, mistral, deepseek, ollama or proxy.
-    
+
     Can be called with an agent_id to get agent-specific configuration.
+    _override_api_key / _override_api_base: bypass all key resolution (used by test endpoints).
+    Unknown providers are treated as OpenAI-compatible APIs (requires api_base_url).
     """
     # Import here to avoid circular imports
     try:
@@ -32,11 +36,11 @@ def get_llm_instance(
         has_auto_config = True
     except ImportError:
         has_auto_config = False
-    
+
     # Initialize variables
     agent_api_key = None
     agent_api_base_url = None
-    
+
     # Get configuration based on agent_id if provided
     if agent_id and has_auto_config:
         agent_config = auto_config.get_agent_config(agent_id)
@@ -49,42 +53,47 @@ def get_llm_instance(
         # Get agent-specific API configuration
         agent_api_key = agent_config.get("api_key")
         agent_api_base_url = agent_config.get("api_base_url")
-    
+
     # If no agent or no auto config, fall back to env vars
     if not provider:
         provider = os.environ.get("AI_PROVIDER", "mistral").lower()
-    
+
     default_model = os.environ.get("AI_MODEL_NAME")
-    
+
     # AI_MODEL_NAME in env overrides the hardcoded class model
     final_model = model_name or default_model
-    
-    # Get API keys and base URL
-    # Priority: agent-specific > DB/env (via get_ai_provider_key) > global fallback
-    api_key = agent_api_key or os.environ.get("AI_API_KEY")
-    api_base = agent_api_base_url or os.environ.get("AI_API_BASE_URL")
 
-    if not agent_api_key:
-        # 優先從 DB 查詢，DB 無值則自動回退到 env var（DB+env 二合一）
-        try:
-            from apps.api_keys.utils import get_ai_provider_key
-            provider_key = get_ai_provider_key(provider)
-        except Exception:
-            provider_key = None
+    # _override_* 最優先（測試端點直接傳入，跳過 agent_id 查詢路徑）
+    if _override_api_key is not None:
+        api_key = _override_api_key
+        api_base = _override_api_base or os.environ.get("AI_API_BASE_URL")
+    else:
+        # Get API keys and base URL
+        # Priority: agent-specific > DB/env (via get_ai_provider_key) > global fallback
+        api_key = agent_api_key or os.environ.get("AI_API_KEY")
+        api_base = agent_api_base_url or os.environ.get("AI_API_BASE_URL")
 
-        if provider_key:
-            api_key = provider_key
-        else:
-            # 備援：直接讀 env var（保持既有行為，防 api_keys app 不可用）
-            if provider == "openai":
-                api_key = os.environ.get("OPENAI_API_KEY") or api_key
-            elif provider == "mistral":
-                api_key = os.environ.get("MISTRAL_API_KEY") or api_key
-            elif provider == "anthropic":
-                api_key = os.environ.get("ANTHROPIC_API_KEY") or api_key
-            elif provider == "deepseek":
-                api_key = os.environ.get("DEEPSEEK_API_KEY") or api_key
-    
+        if not agent_api_key:
+            # 優先從 DB 查詢，DB 無值則自動回退到 env var（DB+env 二合一）
+            try:
+                from apps.api_keys.utils import get_ai_provider_key
+                provider_key = get_ai_provider_key(provider)
+            except Exception:
+                provider_key = None
+
+            if provider_key:
+                api_key = provider_key
+            else:
+                # 備援：直接讀 env var（保持既有行為，防 api_keys app 不可用）
+                if provider == "openai":
+                    api_key = os.environ.get("OPENAI_API_KEY") or api_key
+                elif provider == "mistral":
+                    api_key = os.environ.get("MISTRAL_API_KEY") or api_key
+                elif provider == "anthropic":
+                    api_key = os.environ.get("ANTHROPIC_API_KEY") or api_key
+                elif provider == "deepseek":
+                    api_key = os.environ.get("DEEPSEEK_API_KEY") or api_key
+
     logger.info(f"Initializing LLM with provider={provider}, model={final_model}, base_url={api_base}, temperature={temperature}, agent_id={agent_id}")
 
     if provider in ["openai", "proxy"]:
@@ -92,9 +101,9 @@ def get_llm_instance(
         if not final_model:
             final_model = "gpt-4o"
         return ChatOpenAI(
-            model=final_model, 
-            temperature=temperature, 
-            api_key=api_key, 
+            model=final_model,
+            temperature=temperature,
+            api_key=api_key,
             base_url=api_base,
             **kwargs,
         )
@@ -124,13 +133,13 @@ def get_llm_instance(
             final_model = "deepseek-chat"
         # DeepSeek uses OpenAI schema
         return ChatOpenAI(
-            model=final_model, 
-            temperature=temperature, 
-            api_key=api_key, 
+            model=final_model,
+            temperature=temperature,
+            api_key=api_key,
             base_url=api_base or "https://api.deepseek.com/v1",
             **kwargs
             )
-    else:  # fallback to mistral
+    elif provider == "mistral":
         from langchain_mistralai import ChatMistralAI
         if not final_model:
             final_model = "mistral-small-2603"
@@ -138,5 +147,18 @@ def get_llm_instance(
             model=final_model,
             temperature=temperature,
             mistral_api_key=api_key,
+            **kwargs
+        )
+    else:
+        # 未知 provider → 視為 OpenAI-compatible API
+        # 適用：Groq、Together AI、vLLM、LM Studio、LocalAI、自建 proxy 等
+        from langchain_openai import ChatOpenAI
+        if not final_model:
+            final_model = provider
+        return ChatOpenAI(
+            model=final_model,
+            temperature=temperature,
+            api_key=api_key,
+            base_url=api_base,
             **kwargs
         )

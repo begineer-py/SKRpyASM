@@ -36,48 +36,59 @@ def watchdog_stalled_overviews():
     2. Overviews in EXECUTING with no active steps for > 30 mins.
     3. Overviews in EXECUTING with stuck active steps for > 30 mins.
     """
+    from apps.core.models.analyze.Step import StepNote
+
     now = timezone.now()
     summary = {"recovered_planning": 0, "recovered_executing": 0}
+    now_time = timezone.now()
 
     # 1. Recover PLANNING overviews
-    stalled_planning = Overview.objects.filter(
+    stalled_planning = list(Overview.objects.filter(
         status="PLANNING",
         updated_at__lt=now - timedelta(minutes=15)
-    )
+    ))
     for ov in stalled_planning:
         logger.warning(f"[Watchdog] Overview#{ov.id} stalled in PLANNING. Sending rescue message.")
         send_rescue_message(ov, f"[SYSTEM Watchdog] 任務中斷或等候超時: Overview #{ov.id} 卡在 PLANNING 超過 15 分鐘。請呼叫 get_target_context 重新確認狀態並繼續行動，或是結束任務。")
-        ov.updated_at = timezone.now()
-        ov.save(update_fields=['updated_at'])
+        ov.updated_at = now_time
         summary["recovered_planning"] += 1
+
+    if stalled_planning:
+        Overview.objects.bulk_update(stalled_planning, ['updated_at'])
 
     # 2. Recover EXECUTING overviews
     stalled_executing = Overview.objects.filter(
         status="EXECUTING",
         updated_at__lt=now - timedelta(minutes=30)
     )
+    executing_to_update = []
     for ov in stalled_executing:
         active_steps = ov.steps.filter(status__in=["PENDING", "RUNNING", "WAITING_FOR_ASYNC"])
         if active_steps.count() == 0:
             logger.warning(f"[Watchdog] Overview#{ov.id} stalled in EXECUTING with no active steps. Sending rescue message.")
             send_rescue_message(ov, f"[SYSTEM Watchdog] 任務中斷: Overview #{ov.id} 正在 EXECUTING 但超過 30 分鐘沒有新的步驟。你是否已經完成滲透？請呼叫 get_target_context 重新檢視狀態，並決定下一步或是呼叫 notify_caller_agent 結束任務。")
-            ov.updated_at = timezone.now()
-            ov.save(update_fields=['updated_at'])
+            ov.updated_at = now_time
+            executing_to_update.append(ov)
             summary["recovered_executing"] += 1
         else:
             # Handle cases where steps are waiting for async for too long
-            stuck_steps = active_steps.filter(updated_at__lt=now - timedelta(minutes=30))
-            if stuck_steps.exists():
+            stuck_steps = list(active_steps.filter(updated_at__lt=now - timedelta(minutes=30)))
+            if stuck_steps:
                 logger.warning(f"[Watchdog] Overview#{ov.id} has stuck steps. Marking FAILED and sending rescue message.")
                 for step in stuck_steps:
                     step.status = "FAILED"
-                    step.save(update_fields=['status'])
-                    from apps.core.models.analyze.Step import StepNote
-                    StepNote.objects.create(step=step, content="[SYSTEM Watchdog] Step timed out (>30m). Forced FAILED.")
+                Step.objects.bulk_update(stuck_steps, ['status'])
+                StepNote.objects.bulk_create([
+                    StepNote(step=step, content="[SYSTEM Watchdog] Step timed out (>30m). Forced FAILED.")
+                    for step in stuck_steps
+                ])
                 send_rescue_message(ov, f"[SYSTEM Watchdog] 任務超時: Overview #{ov.id} 的部分非同步工具執行超過 30 分鐘無回應，已被強制標記為 FAILED。請呼叫 get_target_context 繼續其他未完成的計畫。")
-                ov.updated_at = timezone.now()
-                ov.save(update_fields=['updated_at'])
+                ov.updated_at = now_time
+                executing_to_update.append(ov)
                 summary["recovered_executing"] += 1
+
+    if executing_to_update:
+        Overview.objects.bulk_update(executing_to_update, ['updated_at'])
 
     # 3. Sanitation: Delete orphaned assets
     summary["deleted_orphans"] = {

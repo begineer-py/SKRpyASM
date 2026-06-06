@@ -1,5 +1,7 @@
+import asyncio
 import logging
-import requests
+
+import httpx
 from celery import shared_task
 from django.db.models import Count
 
@@ -11,6 +13,16 @@ logger = logging.getLogger(__name__)
 
 # API Endpoints
 NMAP_API_ENDPOINT = f"{API_BASE_URL}/api/scanners/nmap/start_scan"
+
+
+async def _post_all(url: str, payloads: list, timeout: int = 10) -> int:
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        tasks = [client.post(url, json=p) for p in payloads]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+    return sum(
+        1 for r in results
+        if isinstance(r, httpx.Response) and 200 <= r.status_code < 300
+    )
 
 
 @shared_task(name="scheduler.tasks.scan_ips_without_nmap_results")
@@ -25,25 +37,17 @@ def scan_ips_without_nmap_results(batch_size: int = 10):
             target__isnull=False,
             which_seed__isnull=False
         )
-        .prefetch_related("which_seed")[:batch_size]  # M2M 必須用這個
+        .prefetch_related("which_seed")[:batch_size]
     )
     actual_count = len(ips_to_scan)
     if actual_count == 0:
         return "No new IPs to scan."
 
-    success_count = 0
-    for ip_obj in ips_to_scan:
-        payload = {
-            "seed_ids": [seed.id for seed in ip_obj.which_seed.all()],
-            "ip": ip_obj.address,
-        }
-        try:
-            resp = requests.post(NMAP_API_ENDPOINT, json=payload, timeout=10)
-            if 200 <= resp.status_code < 300:
-                success_count += 1
-            else:
-                logger.error(f"Nmap API Error {ip_obj.address}: {resp.status_code}")
-        except Exception as e:
-            logger.exception(f"Nmap Req Failed: {e}")
+    # 在進入 asyncio 前，在同步環境中取出 M2M 資料，避免 SynchronousOnlyOperation
+    payloads = [
+        {"seed_ids": [s.id for s in ip_obj.which_seed.all()], "ip": ip_obj.address}
+        for ip_obj in ips_to_scan
+    ]
 
+    success_count = asyncio.run(_post_all(NMAP_API_ENDPOINT, payloads))
     return f"Triggered Nmap for {success_count}/{actual_count} IPs."
