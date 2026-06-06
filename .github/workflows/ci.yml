@@ -7,26 +7,42 @@ on:
     branches: [ main, master ]
 
 jobs:
-  test:
+  backend:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:14-bullseye
+        env:
+          POSTGRES_USER: myuser
+          POSTGRES_PASSWORD: secret
+          POSTGRES_DB: mydb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:8.0
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
     - name: 檢出代碼
       uses: actions/checkout@v4
 
-    - name: 啟動所有後勤服務 (Docker Compose)
-      run: |
-        # 假設你的 docker-compose.yml 在根目錄
-        # 如果在 docker/ 目錄，就 cd docker && docker compose up -d
-        cd docker && docker compose up -d
-        # 等待關鍵服務啟動完成 (Postgres 比較慢)
-        echo "Waiting for services to be healthy..."
-        sleep 10
-
-    - name: 設置 Python 3.10
+    - name: 設置 Python 3.12
       uses: actions/setup-python@v5
       with:
-        python-version: '3.10'
+        python-version: '3.12'
 
     - name: 安裝核心依賴
       run: |
@@ -35,30 +51,47 @@ jobs:
 
     - name: 驗證資料庫遷移與應用狀態
       env:
-        # 這裡的連線資訊必須對應 docker-compose.yml 暴露給 localhost 的端口
-        DB_NAME: mydb
-        DB_USER: myuser
-        DB_PASSWORD: secret
-        DB_HOST: localhost
-        REDIS_HOST: localhost
-        # 你的代碼會去掃 8502，Compose 已經幫你 mapping 好了
+        POSTGRES_DB: mydb
+        POSTGRES_USER: myuser
+        POSTGRES_PASSWORD: secret
+        POSTGRES_HOST: localhost
+        DJANGO_SECRET_KEY: ci-test-key-not-for-production
       run: |
         python manage.py check
         python manage.py migrate
 
     - name: 執行單元測試
       env:
-        DB_NAME: mydb
-        DB_USER: myuser
-        DB_PASSWORD: secret
-        DB_HOST: localhost
-        REDIS_HOST: localhost
+        POSTGRES_DB: mydb
+        POSTGRES_USER: myuser
+        POSTGRES_PASSWORD: secret
+        POSTGRES_HOST: localhost
+        DJANGO_SECRET_KEY: ci-test-key-not-for-production
       run: |
         python manage.py test
 
-    - name: 關閉服務
-      if: always()
-      run: |
-        cd docker
-        docker compose down
-        cd ..
+  frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 檢出代碼
+      uses: actions/checkout@v4
+
+    - name: 設置 Node.js 20
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: 安裝前端依賴
+      run: npm ci
+      working-directory: frontend
+
+    - name: 執行 Lint 檢查
+      run: npm run lint
+      working-directory: frontend
+
+    - name: 執行前端建置
+      run: npm run build
+      working-directory: frontend

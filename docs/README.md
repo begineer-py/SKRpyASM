@@ -41,6 +41,12 @@
 
 ### 开发文档
 
+- **[APP_DOC_AUDIT.md](APP_DOC_AUDIT.md)** - 各 app 实作与文档差异稽核
+  - 实际职责
+  - 公开 API 范围
+  - 文档误差与缺口
+  - 后续补写建议
+
 - **[technical_details.md](technical_details.md)** - 技术细节文档
 
 - **[file_references.md](file_references.md)** - 文件引用索引
@@ -64,6 +70,7 @@ C2_Django_AI_git/
 ├── CLAUDE.md                        # Claude Code 配置
 ├── docs/                            # 详细文档目录
 │   ├── README.md                    # 本文件
+│   ├── APP_DOC_AUDIT.md             # app 文档稽核
 │   ├── BUILD_GUIDE.md               # 构建指南
 │   ├── CVE_API_GUIDE.md             # CVE API 指南
 │   ├── CVE_IMPLEMENTATION_SUMMARY.md # CVE 实现总结
@@ -88,8 +95,9 @@ C2_Django_AI_git/
 ### 开发者
 
 1. **[../SKRpyASM_技術白皮書.md](../SKRpyASM_技術白皮書.md)** - 完整技术架构
-2. **[technical_details.md](technical_details.md)** - 技术实现细节
-3. **[CVE_IMPLEMENTATION_SUMMARY.md](CVE_IMPLEMENTATION_SUMMARY.md)** - CVE 系统实现
+2. **[APP_DOC_AUDIT.md](APP_DOC_AUDIT.md)** - 先看 app 与文档的落差
+3. **[technical_details.md](technical_details.md)** - 技术实现细节
+4. **[CVE_IMPLEMENTATION_SUMMARY.md](CVE_IMPLEMENTATION_SUMMARY.md)** - CVE 系统实现
 
 ### API 使用者
 
@@ -104,6 +112,7 @@ C2_Django_AI_git/
 
 ### 查找架构设计
 - 三层 AI Agent：[../SKRpyASM_技術白皮書.md](../SKRpyASM_技術白皮書.md) 第二章
+- App 现况与文档落差：[APP_DOC_AUDIT.md](APP_DOC_AUDIT.md)
 - CVE Intelligence：优先参考 [CVE_API_GUIDE.md](CVE_API_GUIDE.md) 与 [CVE_IMPLEMENTATION_SUMMARY.md](CVE_IMPLEMENTATION_SUMMARY.md)
 
 ### 查找部署指南

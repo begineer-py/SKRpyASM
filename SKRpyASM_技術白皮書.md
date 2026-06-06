@@ -3853,14 +3853,14 @@ Target Dashboard 🤖 Activity 標籤
 /api/scanners/crawler                 — URL 發現（GAU + Crawler）
 /api/scanners/cve                     — CVE Intelligence 情報查詢
 /api/flaresolverr                     — FlareSolverr 反機器人繞過
-/api/core                             — 核心資產模型（IP/Subdomain/URL/Port/Vuln）
+/api/core                             — Core 模型層對外 API（目前主要為 Steps / Overviews）
 /api/core/steps                       — Steps 執行步驟
 /api/core/overviews                   — Overviews 戰略概覽
-/api/analyze_ai                       — AI 分析派遣
+/api/analyze_ai                       — Initial AI 分析入口
 /api/scheduler                        — 定時任務管理 CRUD
-/api/http_sender                      — HTTP 發送器
+/api/http_sender                      — Endpoint fuzzing 入口
 /api/api_keys                         — 外部 API Key 管理
-/api/auto                             — 3-Tier Agent 自動化
+/api/auto                             — 已廢棄的舊公開 API（內部自動化仍由 apps.auto 執行）
 ```
 
 ---
