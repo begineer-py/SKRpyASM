@@ -1,4 +1,5 @@
 import logging
+from django.utils import timezone
 from apps.ai_assistant import method_tool
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,261 @@ class MemoryMixin:
         except Exception as e:
             logger.error(f"Auto-summary generation failed: {e}")
             return f"[Auto-summary failed: {e}]"
+
+    def _get_compression_llm(self):
+        """Get configured LLM for compression tasks (configurable via compression_agent)."""
+        from apps.core.llms import get_llm_instance
+        return get_llm_instance(agent_id="compression_agent", temperature=0)
+
+    def _generate_tool_summary(self, tool_name: str, content: str, guidance: str, llm) -> str:
+        """Generate a concise summary of a tool output for compression."""
+        from langchain_core.messages import HumanMessage
+
+        truncated = str(content)[:5000]
+        prompt = (
+            f"Summarize this {tool_name} tool output concisely (max 300 chars).\n"
+            f"Preserve key technical details (IPs, ports, URLs, findings, error messages).\n"
+        )
+        if guidance:
+            prompt += f"Agent guidance: {guidance}\n"
+        prompt += f"\nOutput:\n{truncated}\n\nSummary:"
+
+        try:
+            resp = llm.invoke([HumanMessage(content=prompt)])
+            summary = resp.content if hasattr(resp, 'content') else str(resp)
+            return summary.strip()[:500]
+        except Exception as e:
+            logger.warning(f"Tool summary failed for {tool_name}: {e}")
+            return f"{tool_name}: {truncated[:150]}..."
+
+    @method_tool
+    def review_chunks(self) -> str:
+        """
+        [Memory Management] 檢視對話歷史並產生概覽與可壓縮區塊。
+
+        系統會：
+        1. 閱讀所有 Messages 並產生戰略性概覽（GlobalContextOverview）
+        2. 將對話劃分為邏輯區塊（每個 THINK→ACT→RESULT 循環為一組）
+        3. 顯示每個區塊的摘要資訊
+
+        檢視後，對每個你想處理的區塊呼叫 decide_chunk(chunk_index, strategy)，
+        最後呼叫 apply_compression() 套用所有決定。
+        """
+        thread = getattr(self, '_thread', None)
+        if not thread:
+            return "錯誤：無法取得當前 Thread。"
+
+        msg_count = thread.messages.count()
+        if msg_count < 5:
+            return f"對話僅 {msg_count} 條訊息，尚無需壓縮。"
+
+        llm = self._get_compression_llm()
+
+        # Step 1: Generate GlobalContextOverview (reading all messages first)
+        from apps.auto.compression.overview_generator import GlobalOverviewGenerator
+
+        generator = GlobalOverviewGenerator(thread, llm)
+        overview = generator.generate(force=True)
+
+        # Step 2: Clear old chunks, re-divide
+        thread.compression_chunks.all().delete()
+
+        from apps.auto.compression.chunk_divider import ChunkDivider
+
+        divider = ChunkDivider(thread)
+        chunks = divider.divide()
+        saved_chunks = divider.save_chunks(chunks)
+
+        # Step 3: Format output
+        lines = []
+        lines.append("=== GLOBAL CONTEXT OVERVIEW ===")
+        lines.append(f"Mission: {overview.mission}")
+        lines.append(f"Phase: {overview.current_phase}")
+        if overview.confirmed_vulnerabilities:
+            lines.append(f"Confirmed Vulns: {len(overview.confirmed_vulnerabilities)}")
+            for v in overview.confirmed_vulnerabilities[:5]:
+                title = v.get('title', v) if isinstance(v, dict) else v
+                lines.append(f"  - {title}")
+        if overview.critical_artifacts:
+            lines.append(f"Critical Artifacts: {len(overview.critical_artifacts)}")
+        if overview.metrics:
+            lines.append(f"Metrics: {overview.metrics}")
+        lines.append("")
+
+        lines.append("=== COMPRESSIBLE CHUNKS ===")
+        lines.append(f"{'Index':<6} {'Messages':<14} {'Tools':<22} {'Size':<10} Strategy")
+        lines.append("-" * 80)
+
+        for c in saved_chunks:
+            tool_list = c.tool_calls or []
+            tools_str = ", ".join(str(t) for t in tool_list[:3])
+            if len(tool_list) > 3:
+                tools_str += f" +{len(tool_list)-3}"
+            size = len(str(c.original_content)) if c.original_content else 0
+            size_str = f"{size:,}" if size >= 1000 else str(size)
+            lines.append(
+                f"{c.chunk_index:<6} #{c.start_message_id}-#{c.end_message_id:<9} "
+                f"{tools_str:<22} {size_str:<10} PENDING"
+            )
+
+        lines.append("")
+        lines.append(
+            "Call decide_chunk(chunk_index=N, strategy='RETAIN|TEXTUALIZE|DISCARD') "
+            "for each chunk you want to process."
+        )
+        lines.append("Then call apply_compression() to finalize.")
+
+        return "\n".join(lines)
+
+    @method_tool
+    def decide_chunk(self, chunk_index: int, strategy: str, guidance: str = "") -> str:
+        """
+        [Memory Management] 決定某個區塊的保留策略。
+
+        Args:
+            chunk_index: review_chunks() 回傳的區塊編號
+            strategy: 保留策略
+                RETAIN - 完整保留（重要發現/漏洞資訊）
+                TEXTUALIZE - 壓縮為摘要（已記錄在 overview 中的掃描結果）
+                DISCARD - 捨棄工具輸出（不相關或已過時的內容）
+            guidance: (選填) 對壓縮助手的提示，例如「保留 SQL 語句和錯誤訊息」
+        """
+        thread = getattr(self, '_thread', None)
+        if not thread:
+            return "錯誤：無法取得當前 Thread。"
+
+        strategy = strategy.upper()
+        if strategy not in ('RETAIN', 'TEXTUALIZE', 'DISCARD'):
+            return f"不支援的策略 '{strategy}'。請使用 RETAIN / TEXTUALIZE / DISCARD。"
+
+        try:
+            chunk = thread.compression_chunks.get(chunk_index=chunk_index)
+        except Exception:
+            return f"找不到 chunk #{chunk_index}。請先呼叫 review_chunks()。"
+
+        from apps.core.models.ai_models import Message
+
+        if strategy == 'RETAIN':
+            chunk.strategy = 'RETAIN'
+            chunk.save(update_fields=['strategy'])
+            return f"Chunk#{chunk_index} 策略設為 RETAIN — 完整保留。"
+
+        if strategy == 'DISCARD':
+            messages = Message.objects.filter(
+                thread=thread,
+                id__gte=chunk.start_message_id,
+                id__lte=chunk.end_message_id,
+                is_tool_output=True
+            )
+            discarded = 0
+            for msg in messages:
+                msg_data = msg.message
+                tool_name = msg_data.get('name', 'unknown')
+                msg.compressed_content = {
+                    'type': 'tool',
+                    'name': tool_name,
+                    'content': f'[Agent discarded this tool output]',
+                }
+                msg.compression_applied = True
+                msg.save(update_fields=['compressed_content', 'compression_applied'])
+                discarded += 1
+
+            chunk.strategy = 'DISCARD'
+            chunk.save(update_fields=['strategy'])
+            return f"Chunk#{chunk_index} 設為 DISCARD — 已捨棄 {discarded} 個工具輸出。"
+
+        if strategy == 'TEXTUALIZE':
+            llm = self._get_compression_llm()
+
+            messages = Message.objects.filter(
+                thread=thread,
+                id__gte=chunk.start_message_id,
+                id__lte=chunk.end_message_id,
+                is_tool_output=True
+            )
+            textualized = 0
+            total_size = 0
+            compressed_size = 0
+
+            for msg in messages:
+                msg_data = msg.message
+                tool_name = msg_data.get('name', 'unknown')
+                output_content = str(msg_data.get('content', ''))
+                output_size = len(output_content)
+                total_size += output_size
+
+                summary = self._generate_tool_summary(tool_name, output_content, guidance, llm)
+
+                msg.compressed_content = {
+                    'type': 'tool',
+                    'name': tool_name,
+                    'content': (
+                        f'[Agent compressed - original: {output_size} chars]\n'
+                        f'Summary: {summary}'
+                    ),
+                }
+                msg.compression_applied = True
+                msg.save(update_fields=['compressed_content', 'compression_applied'])
+                compressed_size += len(summary)
+                textualized += 1
+
+            chunk.strategy = 'TEXTUALIZE'
+            chunk.save(update_fields=['strategy'])
+
+            saved = total_size - compressed_size
+            return (
+                f"Chunk#{chunk_index} 設為 TEXTUALIZE — "
+                f"已壓縮 {textualized} 個工具輸出 "
+                f"({total_size:,} → {compressed_size:,} chars, -{saved:,} chars)"
+            )
+
+        return f"未知錯誤。"
+
+    @method_tool
+    def apply_compression(self) -> str:
+        """
+        [Memory Management] 套用所有區塊決定，更新壓縮狀態。
+
+        在所有 decide_chunk() 呼叫完成後執行此工具。
+        下次對話載入時，GlobalContextOverview 會自動注入 system prompt。
+        """
+        thread = getattr(self, '_thread', None)
+        if not thread:
+            return "錯誤：無法取得當前 Thread。"
+
+        from apps.core.models import ThreadCompressionState
+
+        chunks = thread.compression_chunks.filter(strategy__in=['RETAIN', 'TEXTUALIZE', 'DISCARD'])
+        pending = thread.compression_chunks.filter(strategy='PENDING')
+
+        if not chunks.exists():
+            return "沒有已決定的區塊。請先呼叫 decide_chunk()。"
+
+        state, _ = ThreadCompressionState.objects.get_or_create(thread=thread)
+        state.total_message_count = thread.messages.count()
+        state.requires_compression = False
+        state.last_compressed_at = timezone.now()
+
+        summary = state.compression_summary or {}
+        summary['last_compression'] = {
+            'timestamp': state.last_compressed_at.isoformat(),
+            'chunks_decided': chunks.count(),
+            'chunks_pending': pending.count(),
+        }
+        state.compression_summary = summary
+        state.save()
+
+        lines = []
+        lines.append(f"=== 壓縮完成 ===")
+        lines.append(f"已處理 {chunks.count()} 個區塊（{pending.count()} 個待決定）")
+        lines.append("")
+        for c in chunks:
+            lines.append(f"  Chunk#{c.chunk_index}: {c.strategy}")
+        lines.append("")
+        lines.append("GlobalContextOverview 已更新。下次對話時自動載入。")
+        lines.append("Tip: 若仍有 PENDING 區塊，可繼續呼叫 decide_chunk()。")
+
+        return "\n".join(lines)
 
     @method_tool
     def save_long_content(self, content: str, source_type: str = "other", source_url: str = None, step_id: int = None) -> str:

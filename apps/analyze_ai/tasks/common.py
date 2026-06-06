@@ -40,6 +40,80 @@ def load_initial_prompt_template() -> str:
         raise
 
 
+def _safe_text_preview(value: str | None, limit: int = 500) -> str:
+    if not value:
+        return ""
+    compact = " ".join(value.split())
+    return compact[:limit]
+
+
+def _summarize_headers(headers: Any) -> Dict[str, Any]:
+    if not isinstance(headers, dict):
+        return {}
+
+    normalized = {str(k).lower(): v for k, v in headers.items()}
+    summary = {
+        "server": normalized.get("server"),
+        "content_type": normalized.get("content-type"),
+        "location": normalized.get("location"),
+        "x_powered_by": normalized.get("x-powered-by"),
+        "www_authenticate": normalized.get("www-authenticate"),
+        "set_cookie_present": "set-cookie" in normalized,
+    }
+    return {k: v for k, v in summary.items() if v not in [None, "", False]}
+
+
+def _summarize_technologies(technologies) -> List[Dict[str, Any]]:
+    return [
+        {
+            "name": tech.name,
+            "version": tech.version,
+            "categories": tech.categories[:3] if tech.categories else [],
+        }
+        for tech in technologies[:10]
+    ]
+
+
+def _summarize_forms(forms) -> Dict[str, Any]:
+    summarized_forms = []
+    for form in forms[:5]:
+        parameters = form.parameters if isinstance(form.parameters, dict) else {}
+        field_names = list(parameters.keys())[:20]
+        lowered_names = [str(name).lower() for name in field_names]
+        summarized_forms.append(
+            {
+                "action": form.action,
+                "method": form.method,
+                "field_names": field_names,
+                "has_password_field": any("pass" in name for name in lowered_names),
+                "has_file_upload": any(
+                    isinstance(meta, dict) and str(meta.get("type", "")).lower() == "file"
+                    for meta in parameters.values()
+                ),
+                "has_csrf_like_field": any(
+                    any(token in name for token in ["csrf", "token", "authenticity"])
+                    for name in lowered_names
+                ),
+            }
+        )
+
+    return {
+        "form_count": len(forms),
+        "forms": summarized_forms,
+    }
+
+
+def _summarize_dns_records(records) -> List[Dict[str, Any]]:
+    return [
+        {
+            "record_type": record.record_type,
+            "value": record.value,
+            "ttl": record.ttl,
+        }
+        for record in records[:10]
+    ]
+
+
 def fetch_initial_data_for_batch(analysis_ids: List[int]) -> Dict[str, Any]:
     from apps.core.models import InitialAIAnalysis, IP, Subdomain
     from apps.core.models.url_assets import URLResult
@@ -58,46 +132,74 @@ def fetch_initial_data_for_batch(analysis_ids: List[int]) -> Dict[str, Any]:
         if r.url_result_id: record_map[('url', r.url_result_id)] = r.id
 
     if ip_ids:
-        ips = IP.objects.filter(id__in=ip_ids).prefetch_related('ports').values(
-            "id", "address", "version"
+        ip_objects = list(
+            IP.objects.filter(id__in=ip_ids).prefetch_related('ports', 'subdomains')
         )
-        ports_qs = dict(IP.objects.filter(id__in=ip_ids).prefetch_related('ports'))
-        for ip in ips:
-            ip_obj = ports_qs.get(ip['id'])
-            ports = list(ip_obj.ports.filter(state="open").values("port_number", "protocol", "service_name", "service_version")) if ip_obj else []
+        for ip in ip_objects:
+            ports = list(
+                ip.ports.filter(state="open").values(
+                    "port_number", "protocol", "service_name", "service_version"
+                )
+            )
             all_assets.append({
-                "correlation_id": record_map.get(('ip', ip['id'])),
+                "correlation_id": record_map.get(('ip', ip.id)),
                 "asset_data": {
-                    "ip_address": ip['address'],
-                    "ip_version": ip['version'],
+                    "ip_address": ip.address,
+                    "ip_version": ip.version,
                     "ports": ports,
+                    "related_subdomains": [sub.name for sub in ip.subdomains.all()[:10]],
                 },
             })
 
     if sub_ids:
-        subs = Subdomain.objects.filter(id__in=sub_ids).values(
-            "id", "name", "is_resolvable", "cdn_name", "waf_name"
+        sub_objects = list(
+            Subdomain.objects.filter(id__in=sub_ids).prefetch_related(
+                'ips', 'dns_records', 'technologies', 'related_urls'
+            )
         )
-        for s in subs:
+        for sub in sub_objects:
             all_assets.append({
-                "correlation_id": record_map.get(('subdomain', s['id'])),
+                "correlation_id": record_map.get(('subdomain', sub.id)),
                 "asset_data": {
-                    "name": s['name'],
-                    "is_resolvable": s['is_resolvable'],
+                    "name": sub.name,
+                    "is_resolvable": sub.is_resolvable,
+                    "is_active": sub.is_active,
+                    "is_cdn": sub.is_cdn,
+                    "cdn_name": sub.cdn_name,
+                    "is_waf": sub.is_waf,
+                    "waf_name": sub.waf_name,
+                    "resolved_ips": [ip.address for ip in sub.ips.all()[:10] if ip.address],
+                    "dns_records": _summarize_dns_records(list(sub.dns_records.all()[:10])),
+                    "technologies": _summarize_technologies(list(sub.technologies.all()[:10])),
+                    "related_url_count": sub.related_urls.count(),
                 },
             })
 
     if url_ids:
-        urls = URLResult.objects.filter(id__in=url_ids).values(
-            "id", "url", "status_code", "title"
+        url_objects = list(
+            URLResult.objects.filter(id__in=url_ids).prefetch_related(
+                'related_subdomains', 'forms', 'technologies'
+            )
         )
-        for u in urls:
+        for url in url_objects:
+            forms = list(url.forms.all()[:5])
             all_assets.append({
-                "correlation_id": record_map.get(('url', u['id'])),
+                "correlation_id": record_map.get(('url', url.id)),
                 "asset_data": {
-                    "url": u['url'],
-                    "status_code": u['status_code'],
-                    "title": u['title'],
+                    "url": url.url,
+                    "method": url.method,
+                    "status_code": url.status_code,
+                    "title": url.title,
+                    "content_fetch_status": url.content_fetch_status,
+                    "content_length": url.content_length,
+                    "used_flaresolverr": url.used_flaresolverr,
+                    "is_external_redirect": url.is_external_redirect,
+                    "final_url": url.final_url,
+                    "related_subdomains": [sub.name for sub in url.related_subdomains.all()[:10]],
+                    "response_header_summary": _summarize_headers(url.headers),
+                    "technologies": _summarize_technologies(list(url.technologies.all()[:10])),
+                    "forms_summary": _summarize_forms(forms),
+                    "text_preview": _safe_text_preview(url.text or url.cleaned_html),
                 },
             })
 

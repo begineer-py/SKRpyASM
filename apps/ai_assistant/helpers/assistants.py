@@ -622,6 +622,30 @@ class AIAssistant(abc.ABC):  # noqa: F821
             system_prompt = self.get_instructions()
             if thread:
                 system_prompt += f"\n\n[SYSTEM INFO]\nYour current Thread ID is: {thread.id}\nIf you delegate long tasks asynchronously to another agent, explicitly pass your Thread ID via their `caller_thread_id` tool parameter so they can wake you up when done."
+
+                # Inject GlobalContextOverview into system prompt if available
+                try:
+                    overview = thread.global_overview
+                    if overview.mission:
+                        overview_block = (
+                            f"\n\n[GLOBAL CONTEXT OVERVIEW]\n"
+                            f"Mission: {overview.mission}\n"
+                            f"Phase: {overview.current_phase}\n"
+                        )
+                        if overview.confirmed_vulnerabilities:
+                            overview_block += (
+                                f"Confirmed Vulnerabilities: "
+                                f"{len(overview.confirmed_vulnerabilities)} items\n"
+                            )
+                        if overview.critical_artifacts:
+                            overview_block += (
+                                f"Critical Artifacts: "
+                                f"{len(overview.critical_artifacts)} items\n"
+                            )
+                        system_prompt += overview_block
+                except Exception:
+                    pass
+
             return {"messages": [SystemMessage(content=system_prompt)]}
 
         def history(state: AgentState):
@@ -630,6 +654,23 @@ class AIAssistant(abc.ABC):  # noqa: F821
                 messages.append(HumanMessage(content=state["input"]))
 
             return {"messages": messages}
+
+        def context_check(state: AgentState):
+            """Check if thread needs compression and warn the agent."""
+            if not thread:
+                return {"messages": []}
+            try:
+                state_obj = thread.compression_state
+                if state_obj.requires_compression:
+                    msg_count = thread.messages.count()
+                    warning = (
+                        f"[SYSTEM] Your conversation has {msg_count} messages. "
+                        f"Consider calling review_chunks() to manage context if it feels full."
+                    )
+                    return {"messages": [HumanMessage(content=warning)]}
+            except Exception:
+                pass
+            return {"messages": []}
 
         def retriever(state: AgentState):
             if not self.has_rag:
@@ -754,6 +795,7 @@ class AIAssistant(abc.ABC):  # noqa: F821
 
         workflow.add_node("setup", setup)
         workflow.add_node("history", history)
+        workflow.add_node("context_check", context_check)
         workflow.add_node("retriever", retriever)
         workflow.add_node("agent", agent)
         workflow.add_node("tools", ToolNode(tools=tools))
@@ -762,7 +804,8 @@ class AIAssistant(abc.ABC):  # noqa: F821
 
         workflow.set_entry_point("setup")
         workflow.add_edge("setup", "history")
-        workflow.add_edge("history", "retriever")
+        workflow.add_edge("history", "context_check")
+        workflow.add_edge("context_check", "retriever")
         workflow.add_edge("retriever", "agent")
         workflow.add_conditional_edges(
             "agent",
