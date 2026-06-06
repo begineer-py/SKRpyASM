@@ -41,6 +41,14 @@ interface SubdomainAsset {
   ips: { id: number; address: string }[];
 }
 
+interface InitialAIAnalysis {
+  id: number;
+  risk_score: number;
+  summary: string;
+  worth_deep_analysis: boolean;
+  status: string;
+}
+
 interface URLAsset {
   id: number;
   url: string;
@@ -50,6 +58,7 @@ interface URLAsset {
   discovery_source: string;
   content_fetch_status: string;
   created_at: string;
+  core_initialaianalysis_set?: InitialAIAnalysis[];
 }
 
 interface AIOverview {
@@ -140,6 +149,12 @@ function TargetDashboard() {
   // Expanded IP rows
   const [expandedIp, setExpandedIp] = useState<number | null>(null);
 
+  // URL pagination & sorting
+  const [urlsOffset, setUrlsOffset] = useState(0);
+  const [urlsTotalCount, setUrlsTotalCount] = useState(0);
+  const [urlsSortBy, setUrlsSortBy] = useState<"created_at_desc" | "created_at_asc" | "status_code_asc" | "preliminary_score_desc" | "preliminary_score_asc">("created_at_desc");
+  const URLS_PAGE_SIZE = 50;
+
   // ── Fetch base target data ──
   const fetchBase = useCallback(async () => {
     if (!numericId || isNaN(numericId)) return;
@@ -156,7 +171,7 @@ function TargetDashboard() {
   }, [numericId]);
 
   // ── Fetch tab data ──
-  const fetchTabData = useCallback(async (tab: TabId) => {
+  const fetchTabData = useCallback(async (tab: TabId, offset: number = 0) => {
     if (!numericId || isNaN(numericId)) return;
     setTabLoading(true);
     try {
@@ -181,10 +196,41 @@ function TargetDashboard() {
         }));
         setIps(mapped);
       } else if (tab === "urls") {
-        const d = await gqlFetcher<{ core_urlresult: URLAsset[] }>(
-          GET_TARGET_URLS_QUERY, { targetId: numericId }
+        // 構建排序參數
+        const orderByMap: Record<string, any> = {
+          "created_at_desc": { created_at: "desc" },
+          "created_at_asc": { created_at: "asc" },
+          "status_code_asc": { status_code: "asc" }
+        };
+        const orderBy = orderByMap[urlsSortBy] || { created_at: "desc" };
+        
+        const d = await gqlFetcher<{ 
+          core_urlresult: URLAsset[],
+          core_urlresult_aggregate: { aggregate: { count: number } }
+        }>(
+          GET_TARGET_URLS_QUERY, 
+          { 
+            targetId: numericId,
+            limit: URLS_PAGE_SIZE,
+            offset: offset,
+            orderBy: orderBy
+          }
         );
-        setUrls(d.core_urlresult || []);
+        
+        let urls = d.core_urlresult || [];
+        
+        // 前端排序（用於初步分析分數排序）
+        if (urlsSortBy === "preliminary_score_desc" || urlsSortBy === "preliminary_score_asc") {
+          urls.sort((a, b) => {
+            const scoreA = a.core_initialaianalysis_set?.[0]?.risk_score ?? -1;
+            const scoreB = b.core_initialaianalysis_set?.[0]?.risk_score ?? -1;
+            return urlsSortBy === "preliminary_score_desc" ? scoreB - scoreA : scoreA - scoreB;
+          });
+        }
+        
+        setUrls(urls);
+        setUrlsOffset(offset);
+        setUrlsTotalCount(d.core_urlresult_aggregate?.aggregate?.count || 0);
       } else if (tab === "ai") {
         const d = await gqlFetcher<{ core_overview: AIOverview[] }>(
           GET_TARGET_OVERVIEWS_QUERY, { targetId: numericId }
@@ -193,13 +239,19 @@ function TargetDashboard() {
       }
     } catch (e: unknown) { console.error("Tab fetch error:", e); }
     finally { setTabLoading(false); }
-  }, [numericId]);
+  }, [numericId, urlsSortBy]);
 
   useEffect(() => { fetchBase(); }, [fetchBase]);
 
   const handleTabChange = (tab: TabId) => {
     setActiveTab(tab);
-    if (tab !== "seeds") fetchTabData(tab);
+    if (tab === "urls") {
+      // 重置 URL 分頁狀態
+      setUrlsOffset(0);
+      fetchTabData(tab, 0);
+    } else if (tab !== "seeds") {
+      fetchTabData(tab);
+    }
   };
 
   const handleAddSeed = async () => {
@@ -231,7 +283,7 @@ function TargetDashboard() {
     { id: "activity",   label: "🤖 AI Activity", count: undefined },
     { id: "subdomains", label: "Subdomains", count: subdomains.length || undefined },
     { id: "ips",        label: "IPs / Ports", count: ips.length || undefined },
-    { id: "urls",       label: "URLs",       count: urls.length || undefined },
+    { id: "urls",       label: "URLs",       count: urlsTotalCount || undefined },
     { id: "cve",        label: "CVE Report", count: undefined },
     { id: "ai",         label: "AI Overview",count: overviews.length || undefined },
   ];
@@ -506,45 +558,119 @@ function TargetDashboard() {
         {activeTab === "urls" && !tabLoading && (
           <>
             <div className="c2-section-header">
-              <span className="c2-section-title">URL ASSETS <span>({urls.length})</span></span>
-              <button className="c2-btn c2-btn--ghost" onClick={() => fetchTabData("urls")} style={{ fontSize: "0.7rem" }}>↻ REFRESH</button>
+              <div style={{ display: "flex", alignItems: "center", gap: 16, flex: 1 }}>
+                <span className="c2-section-title">URL ASSETS <span>({urlsTotalCount})</span></span>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <label style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>SORT BY:</label>
+                  <select 
+                    value={urlsSortBy} 
+                    onChange={(e) => {
+                      setUrlsSortBy(e.target.value as any);
+                      setUrlsOffset(0);
+                      fetchTabData("urls", 0);
+                    }}
+                    style={{ 
+                      fontSize: "0.75rem", 
+                      padding: "4px 8px", 
+                      borderRadius: 4, 
+                      border: "1px solid var(--border-subtle)",
+                      background: "var(--bg-secondary)",
+                      color: "var(--text-primary)",
+                      fontFamily: "var(--font-mono)",
+                      cursor: "pointer"
+                    }}
+                  >
+                    <option value="created_at_desc">最新優先 (newest)</option>
+                    <option value="created_at_asc">最舊優先 (oldest)</option>
+                    <option value="status_code_asc">狀態碼 (asc)</option>
+                    <option value="preliminary_score_desc">初步分數 (high→low)</option>
+                    <option value="preliminary_score_asc">初步分數 (low→high)</option>
+                  </select>
+                </div>
+              </div>
+              <button className="c2-btn c2-btn--ghost" onClick={() => fetchTabData("urls", urlsOffset)} style={{ fontSize: "0.7rem" }}>↻ REFRESH</button>
             </div>
-            {urls.length === 0 ? (
+            {urlsTotalCount === 0 ? (
               <div className="c2-empty">No URLs found.<br />Run URL scanning on subdomains to discover endpoints.</div>
             ) : (
-              <div className="c2-card" style={{ overflow: "hidden" }}>
-                <table className="c2-table">
-                  <thead><tr>
-                    <th>#ID</th><th>URL</th><th>STATUS</th><th>TITLE</th><th>SOURCE</th><th>FETCH STATUS</th><th>FOUND</th><th>DETAIL</th>
-                  </tr></thead>
-                  <tbody>
-                    {urls.map(url => (
-                      <tr key={url.id}>
-                        <td className="td-mono">#{url.id}</td>
-                        <td className="td-mono" style={{ color: "var(--cyan)", maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          <a href={url.url} target="_blank" rel="noopener noreferrer">{url.url}</a>
-                        </td>
-                        <td>
-                          <span className={`c2-badge ${url.status_code >= 200 && url.status_code < 300 ? "c2-badge--green" : url.status_code >= 300 && url.status_code < 400 ? "c2-badge--amber" : url.status_code >= 400 ? "c2-badge--red" : "c2-badge--muted"}`}>
-                            {url.status_code || "—"}
-                          </span>
-                        </td>
-                        <td style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "0.78rem" }}>{url.title || "—"}</td>
-                        <td className="td-muted">{url.discovery_source}</td>
-                        <td><StatusBadge status={url.content_fetch_status} /></td>
-                        <td className="td-muted">{new Date(url.created_at).toLocaleDateString()}</td>
-                        <td>
-                          <a
-                            href={`/target/${numericId}/url/${url.id}`}
-                            style={{ color: "var(--cyan)", fontSize: "0.72rem", textDecoration: "none", fontFamily: "var(--font-mono)" }}
-                          >
-                            DETAIL →
-                          </a>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div className="c2-card" style={{ overflow: "hidden" }}>
+                  <table className="c2-table">
+                    <thead><tr>
+                      <th>#ID</th><th>URL</th><th>STATUS</th><th>PRELIMINARY SCORE</th><th>TITLE</th><th>SOURCE</th><th>FETCH STATUS</th><th>FOUND</th><th>DETAIL</th>
+                    </tr></thead>
+                    <tbody>
+                      {urls.map(url => {
+                        const preliminaryScore = url.core_initialaianalysis_set?.[0]?.risk_score;
+                        return (
+                          <tr key={url.id}>
+                            <td className="td-mono">#{url.id}</td>
+                            <td className="td-mono" style={{ color: "var(--cyan)", maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              <a href={url.url} target="_blank" rel="noopener noreferrer">{url.url}</a>
+                            </td>
+                            <td>
+                              <span className={`c2-badge ${url.status_code >= 200 && url.status_code < 300 ? "c2-badge--green" : url.status_code >= 300 && url.status_code < 400 ? "c2-badge--amber" : url.status_code >= 400 ? "c2-badge--red" : "c2-badge--muted"}`}>
+                                {url.status_code || "—"}
+                              </span>
+                            </td>
+                            <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.8rem", textAlign: "center" }}>
+                              {preliminaryScore !== undefined ? (
+                                <span style={{ 
+                                  color: preliminaryScore >= 70 ? "#ef4444" : preliminaryScore >= 40 ? "#f59e0b" : "#22C55E"
+                                }}>
+                                  {preliminaryScore.toFixed(1)}
+                                </span>
+                              ) : (
+                                <span style={{ color: "var(--text-muted)" }}>—</span>
+                              )}
+                            </td>
+                            <td style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "0.78rem" }}>{url.title || "—"}</td>
+                            <td className="td-muted">{url.discovery_source}</td>
+                            <td><StatusBadge status={url.content_fetch_status} /></td>
+                            <td className="td-muted">{new Date(url.created_at).toLocaleDateString()}</td>
+                            <td>
+                              <a
+                                href={`/target/${numericId}/url/${url.id}`}
+                                style={{ color: "var(--cyan)", fontSize: "0.72rem", textDecoration: "none", fontFamily: "var(--font-mono)" }}
+                              >
+                                DETAIL →
+                              </a>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                
+                {/* 分頁控制 */}
+                <div style={{ display: "flex", justifyContent: "center", gap: 8, padding: "12px 0" }}>
+                  <button 
+                    className="c2-btn c2-btn--ghost"
+                    onClick={() => fetchTabData("urls", Math.max(0, urlsOffset - URLS_PAGE_SIZE))}
+                    disabled={urlsOffset === 0}
+                    style={{ fontSize: "0.75rem" }}
+                  >
+                    ← PREVIOUS
+                  </button>
+                  <span style={{ 
+                    fontSize: "0.75rem", 
+                    color: "var(--text-muted)", 
+                    fontFamily: "var(--font-mono)",
+                    display: "flex",
+                    alignItems: "center"
+                  }}>
+                    {urlsOffset + 1} — {Math.min(urlsOffset + URLS_PAGE_SIZE, urlsTotalCount)} / {urlsTotalCount}
+                  </span>
+                  <button 
+                    className="c2-btn c2-btn--ghost"
+                    onClick={() => fetchTabData("urls", urlsOffset + URLS_PAGE_SIZE)}
+                    disabled={urlsOffset + URLS_PAGE_SIZE >= urlsTotalCount}
+                    style={{ fontSize: "0.75rem" }}
+                  >
+                    NEXT →
+                  </button>
+                </div>
               </div>
             )}
           </>

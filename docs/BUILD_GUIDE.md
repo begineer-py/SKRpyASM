@@ -23,7 +23,7 @@
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   React Frontend │    │  Django Backend  │    │  Celery Workers  │
-│   (Port 3000)   │◄──►│   (Port 8000)   │◄──►│   (Async Tasks)  │
+│   (Port 5173)   │◄──►│   (Port 8000)   │◄──►│   (Async Tasks)  │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
                                 │
                                 ▼
@@ -332,7 +332,7 @@ GEMINI_API_KEY=your_gemini_api_key_here
 MISTRAL_API_KEY=your_mistral_api_key_here
 
 # Security Configuration
-CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 EOF
 ```
 
@@ -474,11 +474,9 @@ uvicorn c2_core.asgi:application \
 ```bash
 # Terminal 2: Start Celery Worker
 conda activate mtc_env
-python scripts/celery_worker_eventlet.py \
-    -A c2_core.celery:app \
-    worker \
-    -P eventlet \
-    -c 100 \
+celery -A c2_core worker \
+    -P prefork \
+    -c 8 \
     -l info
 ```
 
@@ -487,7 +485,7 @@ python scripts/celery_worker_eventlet.py \
 ```bash
 # Terminal 3: Start Celery Beat
 conda activate mtc_env
-celery -A c2_core beat -l info
+celery -A c2_core beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
 ```
 
 #### 6.4 Start Frontend (Optional)
@@ -537,7 +535,7 @@ MISTRAL_API_KEY=your_mistral_api_key_here
 OPENAI_API_KEY=your_openai_api_key_here
 
 # === Security Configuration ===
-CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,https://your-domain.com
+CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,https://your-domain.com
 SECURE_SSL_REDIRECT=true
 SECURE_HSTS_SECONDS=31536000
 SECURE_HSTS_INCLUDE_SUBDOMAINS=true
@@ -1279,7 +1277,7 @@ grafana:
   image: grafana/grafana:latest
   container_name: grafana
   ports:
-    - "127.0.0.1:3001:3000"
+    - "127.0.0.1:3001:3000"  # Grafana service port mapping, unrelated to the Vite frontend
   environment:
     - GF_SECURITY_ADMIN_PASSWORD=CHANGE_THIS_PASSWORD
   volumes:

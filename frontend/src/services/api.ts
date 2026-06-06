@@ -159,14 +159,16 @@ export const GET_TARGET_OVERVIEWS_QUERY = `
   }
 `;
 
-// 查詢目標的 URL 資產
+// 查詢目標的 URL 資產 (支持分頁、排序、初步分析分數)
 // NOTE: URLResult has no `content_type` field. Use title, status_code, created_at
+// 新增: core_initialaianalysis_set relationship 取得初步分析分數
 export const GET_TARGET_URLS_QUERY = `
-  query GetTargetURLs($targetId: bigint!) {
+  query GetTargetURLs($targetId: bigint!, $limit: Int = 50, $offset: Int = 0, $orderBy: [core_urlresult_order_by!] = {created_at: desc}) {
     core_urlresult(
       where: { target_id: { _eq: $targetId } }
-      order_by: { created_at: desc }
-      limit: 200
+      order_by: $orderBy
+      limit: $limit
+      offset: $offset
     ) {
       id
       url
@@ -176,6 +178,25 @@ export const GET_TARGET_URLS_QUERY = `
       discovery_source
       content_fetch_status
       created_at
+      # 初步分析分數 (最新一筆)
+      core_initialaianalysis_set(
+        order_by: { created_at: desc }
+        limit: 1
+      ) {
+        id
+        risk_score
+        summary
+        worth_deep_analysis
+        status
+      }
+    }
+    # 新增: 統計總數，用於前端判斷是否還有更多資料
+    core_urlresult_aggregate(
+      where: { target_id: { _eq: $targetId } }
+    ) {
+      aggregate {
+        count
+      }
     }
   }
 `;
