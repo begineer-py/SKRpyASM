@@ -84,3 +84,23 @@ class AgentEffectiveConfigOut(Schema):
     has_db_config: bool      # 是否在 DB 中有記錄
     has_env_override: bool   # 是否有 env var 覆蓋（非 None）
     db_config: Optional[AgentLLMConfigOut] = None
+
+
+# ── LLM 連線測試 schemas ──────────────────────────────────────────────────────
+
+class TestLLMIn(Schema):
+    """測試 LLM 連線的請求 body（表單臨時值，不需已存 DB 記錄）。"""
+    provider: str
+    model_name: Optional[str] = None
+    api_key_id: Optional[int] = None     # 指定 APIKey 記錄 id
+    api_base_url: Optional[str] = None
+    temperature: float = 0.0
+
+
+class TestLLMOut(Schema):
+    """LLM 連線測試結果。"""
+    success: bool
+    message: str                         # 回應內容或錯誤描述
+    latency_ms: Optional[int] = None
+    model_used: Optional[str] = None
+    provider_used: str

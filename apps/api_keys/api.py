@@ -13,6 +13,8 @@ from .schemas import (
     AgentLLMConfigOut,
     AgentLLMConfigUpdate,
     AgentEffectiveConfigOut,
+    TestLLMIn,
+    TestLLMOut,
 )
 from .utils import (
     get_active_api_keys,
@@ -252,3 +254,94 @@ def delete_agent_config(request, agent_id: str):
     cfg = get_object_or_404(AgentLLMConfig, agent_id=agent_id)
     cfg.delete()
     return {"success": True, "message": f"Agent '{agent_id}' config deleted; reverted to env/default."}
+
+
+# ── LLM 連線測試端點 ──────────────────────────────────────────────────────────
+
+@router.post("/test-llm", response=TestLLMOut)
+def test_llm_connection(request, data: TestLLMIn):
+    """
+    測試任意 LLM 配置的連線（不需已存 DB 記錄）。
+    用於 Edit Modal 儲存前先驗證配置是否有效。
+    """
+    import time
+    from apps.core.llms import get_llm_instance
+    from langchain_core.messages import HumanMessage
+
+    api_key_val = None
+    if data.api_key_id is not None:
+        key_obj = get_object_or_404(APIKey, id=data.api_key_id)
+        api_key_val = key_obj.key_value
+    else:
+        try:
+            from apps.api_keys.utils import get_ai_provider_key
+            api_key_val = get_ai_provider_key(data.provider)
+        except Exception:
+            pass
+
+    try:
+        llm = get_llm_instance(
+            model_name=data.model_name or None,
+            temperature=data.temperature,
+            provider=data.provider,
+            _override_api_key=api_key_val,
+            _override_api_base=data.api_base_url or None,
+        )
+        start = time.monotonic()
+        response = llm.invoke([HumanMessage(content="Reply with exactly one word: OK")])
+        latency = int((time.monotonic() - start) * 1000)
+        return TestLLMOut(
+            success=True,
+            message=str(response.content)[:200],
+            latency_ms=latency,
+            model_used=data.model_name,
+            provider_used=data.provider,
+        )
+    except Exception as e:
+        return TestLLMOut(
+            success=False,
+            message=str(e)[:500],
+            latency_ms=None,
+            model_used=data.model_name,
+            provider_used=data.provider,
+        )
+
+
+@router.post("/agent-configs/{agent_id}/test", response=TestLLMOut)
+def test_agent_config(request, agent_id: str):
+    """
+    使用 Agent 的當前有效配置（DB > env > 默認）進行連線測試。
+    用於 Agent 卡片上的快速測試。
+    """
+    import time
+    from apps.auto.settings import AutoAppConfig
+    from apps.core.llms import get_llm_instance
+    from langchain_core.messages import HumanMessage
+
+    cfg = AutoAppConfig.get_agent_config(agent_id)
+    try:
+        llm = get_llm_instance(
+            model_name=cfg["model"],
+            temperature=cfg["temperature"],
+            provider=cfg["provider"],
+            _override_api_key=cfg.get("api_key"),
+            _override_api_base=cfg.get("api_base_url"),
+        )
+        start = time.monotonic()
+        response = llm.invoke([HumanMessage(content="Reply with exactly one word: OK")])
+        latency = int((time.monotonic() - start) * 1000)
+        return TestLLMOut(
+            success=True,
+            message=str(response.content)[:200],
+            latency_ms=latency,
+            model_used=cfg["model"],
+            provider_used=cfg["provider"],
+        )
+    except Exception as e:
+        return TestLLMOut(
+            success=False,
+            message=str(e)[:500],
+            latency_ms=None,
+            model_used=cfg.get("model"),
+            provider_used=cfg["provider"],
+        )
