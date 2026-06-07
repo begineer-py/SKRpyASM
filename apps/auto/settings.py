@@ -13,8 +13,11 @@ Phase 0 - Foundation Setup
 from __future__ import annotations
 
 import os
+import logging
 from typing import List, Dict, Any, Optional
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
 
 
 class AutoAppConfig:
@@ -74,7 +77,7 @@ class AutoAppConfig:
     # Default model for each provider
     DEFAULT_MODELS: Dict[str, str] = {
         "openai": os.getenv("AUTO_OPENAI_MODEL", "gpt-4-turbo-preview"),
-        "anthropic": os.getenv("AUTO_ANTHROPIC_MODEL", "claude-3-opus-20240229"),
+        "anthropic": os.getenv("AUTO_ANTHROPIC_MODEL", "claude-sonnet-4-6"),
         "litellm": os.getenv("AUTO_LITELLM_MODEL", "gpt-4-turbo-preview"),
         "mistral": os.getenv("AUTO_MISTRAL_MODEL", "mistral-small-2603"),
         "deepseek": os.getenv("AUTO_DEEPSEEK_MODEL", "deepseek-chat"),
@@ -119,12 +122,52 @@ class AutoAppConfig:
                 db_api_base_url = db_cfg.api_base_url or None
                 if db_cfg.api_key_ref and db_cfg.api_key_ref.is_active:
                     db_api_key = db_cfg.api_key_ref.key_value
-        except Exception:
-            pass
+                    if db_api_key:
+                        logger.debug(
+                            "get_agent_config: agent='%s' using api_key_ref (id=%s) with non-empty key",
+                            agent_id, db_cfg.api_key_ref.pk,
+                        )
+                    else:
+                        logger.warning(
+                            "get_agent_config: agent='%s' api_key_ref (id=%s) exists but key_value is empty",
+                            agent_id, db_cfg.api_key_ref.pk,
+                        )
+                else:
+                    logger.debug(
+                        "get_agent_config: agent='%s' has no api_key_ref, will fall back to global key",
+                        agent_id,
+                    )
+            else:
+                logger.debug(
+                    "get_agent_config: No AgentLLMConfig row for agent='%s', using class defaults",
+                    agent_id,
+                )
+        except Exception as e:
+            logger.warning(f"get_agent_config: DB 查詢失敗 agent_id='{agent_id}': {e}")
 
         provider = db_provider or cls.DEFAULT_LLM_PROVIDER
         model = db_model or cls.DEFAULT_MODELS.get(provider)
         temperature = db_temperature if db_temperature is not None else cls.DEFAULT_TEMPERATURE
+
+        # 若 agent 未直接綁定 APIKey（api_key_ref=None），從全域 provider key store 補齊
+        if not db_api_key:
+            try:
+                from apps.api_keys.utils import get_ai_provider_key
+                provider_key = get_ai_provider_key(provider)
+                db_api_key = provider_key or None
+                if db_api_key:
+                    logger.debug(
+                        "get_agent_config: agent='%s' resolved global key for provider='%s'",
+                        agent_id, provider,
+                    )
+                else:
+                    logger.warning(
+                        "get_agent_config: agent='%s' no global key for provider='%s'",
+                        agent_id, provider,
+                    )
+            except Exception as e:
+                logger.warning(f"get_agent_config: 全域金鑰查詢失敗 provider='{provider}': {e}")
+
         return {
             "model": model,
             "provider": provider,

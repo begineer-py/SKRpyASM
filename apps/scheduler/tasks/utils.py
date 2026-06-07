@@ -1,8 +1,35 @@
+import asyncio
 import logging
 from django.db.models import Q
 from apps.core.models import URLResult
+import httpx
 
 logger = logging.getLogger(__name__)
+
+
+async def async_post_batch(url: str, payloads: list, timeout: int = 5) -> int:
+    """
+    並發 POST 到 url，每個 payload 為獨立請求。
+    回傳 2xx 成功數量。每個請求獨立記錄錯誤，不拋出例外。
+    """
+    if not payloads:
+        return 0
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        results = await asyncio.gather(
+            *[client.post(url, json=p) for p in payloads],
+            return_exceptions=True,
+        )
+    success = 0
+    for i, r in enumerate(results):
+        if isinstance(r, Exception):
+            logger.error(f"async_post_batch: 連線失敗 (index {i}, url={url}): {r}")
+        elif isinstance(r, httpx.Response) and 200 <= r.status_code < 300:
+            success += 1
+        else:
+            status = getattr(r, "status_code", "?")
+            logger.warning(f"async_post_batch: 非 2xx (index {i}, status={status}, url={url})")
+    return success
+
 
 
 def is_content_already_analyzed(url_obj, analysis_type="AI"):

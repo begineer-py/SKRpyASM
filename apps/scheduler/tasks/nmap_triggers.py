@@ -8,22 +8,12 @@ from django.db.models import Count
 from c2_core.config.logging import log_function_call
 from c2_core.settings import API_BASE_URL
 from apps.core.models import IP
+from .utils import async_post_batch
 
 logger = logging.getLogger(__name__)
 
 # API Endpoints
 NMAP_API_ENDPOINT = f"{API_BASE_URL}/api/scanners/nmap/start_scan"
-
-
-async def _post_all(url: str, payloads: list, timeout: int = 10) -> int:
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        tasks = [client.post(url, json=p) for p in payloads]
-        import asyncio
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-    return sum(
-        1 for r in results
-        if isinstance(r, httpx.Response) and 200 <= r.status_code < 300
-    )
 
 
 @shared_task(name="scheduler.tasks.scan_ips_without_nmap_results")
@@ -54,5 +44,5 @@ async def scan_ips_without_nmap_results(batch_size: int = 10):
         return "No new IPs to scan."
 
     payloads = await sync_to_async(_build_payloads)(ips_to_scan)
-    success_count = await _post_all(NMAP_API_ENDPOINT, payloads)
+    success_count = await async_post_batch(NMAP_API_ENDPOINT, payloads, timeout=10)
     return f"Triggered Nmap for {success_count}/{actual_count} IPs."

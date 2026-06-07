@@ -249,6 +249,9 @@ def _execute_ai_batch(asset_type: str, asset_ids: List[int], task_self) -> None:
     from django.db import transaction
     from .asset_configs import get_asset_registry
 
+    analysis_qs = None
+    last_exception = None
+
     registry = get_asset_registry()
     if asset_type not in registry:
         raise KeyError(
@@ -309,7 +312,8 @@ def _execute_ai_batch(asset_type: str, asset_ids: List[int], task_self) -> None:
         thread = create_thread(
             name=f"{asset_type.upper()} Analysis Batch - {len(asset_ids)} assets",
             user=system_user,
-            assistant_id=assistant.id
+            assistant_id=assistant.id,
+            is_hidden=True,
         )
 
         logger.info(f"[{asset_type}] 已建立 Thread #{thread.id}，呼叫 Agent: {assistant.name}")
@@ -331,7 +335,7 @@ def _execute_ai_batch(asset_type: str, asset_ids: List[int], task_self) -> None:
             Model.objects.filter(id__in=analysis_ids).update(
                 status="FAILED", error_message=error_msg
             )
-            if hasattr(locals(), 'last_exception') and last_exception:
+            if last_exception is not None:
                 task_self.retry(exc=last_exception)
             return
 
@@ -391,5 +395,6 @@ def _execute_ai_batch(asset_type: str, asset_ids: List[int], task_self) -> None:
     except Exception as e:
         error_msg = f"[{asset_type}] 批次處理發生未知錯誤: {e}"
         logger.exception(error_msg)
-        analysis_qs.update(status="FAILED", error_message=str(e))
+        if analysis_qs is not None:
+            analysis_qs.update(status="FAILED", error_message=str(e)[:2000])
         task_self.retry(exc=e)

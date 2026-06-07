@@ -20,6 +20,7 @@ from apps.flaresolverr.orchestrators.recon_orchestrator import ReconOrchestrator
 from c2_core.config.utils import sanitize_for_db
 from c2_core.config.config import Config
 from apps.flaresolverr.spider_utils.send_flaresolverr import call_flaresolverr_api
+from apps.core.header_injection import get_tagged_headers
 
 # Logger setup
 logger = logging.getLogger(__name__)
@@ -127,7 +128,7 @@ class Myfuzz:
         logger.info(f"正在透過 FlareSolverr 獲取 {self.base_url} 的通關憑證...")
         try:
             payload = {"cmd": "request.get", "url": self.base_url, "maxTimeout": 60000}
-            res = requests.post(f"{self.flaresolverr_url}/v1", json=payload, timeout=65)
+            res = requests.post(f"{self.flaresolverr_url}/v1", json=payload, timeout=65, headers=get_tagged_headers())
             res_data = res.json()
 
             if res_data.get("status") == "ok":
@@ -204,6 +205,7 @@ class Myfuzz:
         params_string = self._build_fuzz_params()
 
         # 基礎指令
+        tagged = get_tagged_headers({"User-Agent": self.cf_user_agent})
         cmd = [
             "ffuf",
             "-w",
@@ -211,19 +213,18 @@ class Myfuzz:
             "-X",
             self.method,
             "-H",
-            f"User-Agent: {self.cf_user_agent}",
+            f"User-Agent: {tagged.get('User-Agent', self.cf_user_agent)}",
             "-o",
             output_path,
             "-of",
             "json",
-            "-t",
-            "10",
-            "-p",
-            "0.5",
-            "-ac",  # 自動校準 (Auto-Calibration)
+            "-ac",
             "-fc",
-            "403,404",  # 這裡要補上 "-", Filter Code: 排除 403 和 404
+            "403,404",
         ]
+
+        from apps.core.header_injection import build_rate_limit_args
+        cmd.extend(build_rate_limit_args("ffuf"))
         if final_cookies:
             cmd.extend(["-H", f"Cookie: {final_cookies}"])
 
@@ -234,6 +235,12 @@ class Myfuzz:
         else:
             full_url_with_fuzz = f"{self.base_url}/{self.path}?{params_string}"
             cmd.extend(["-u", full_url_with_fuzz])
+
+        # 注入額外請求標籤（跳過已處理的 User-Agent 和 Cookie）
+        for h_key, h_val in tagged.items():
+            if h_key.lower() in ("user-agent", "cookie"):
+                continue
+            cmd.extend(["-H", f"{h_key}: {h_val}"])
 
         logger.info(f"🚀 執行 ffuf 指令: {' '.join(cmd)}")
 
@@ -390,4 +397,4 @@ def fuzz_endpoint(endpoint_id: int, cookies: Union[dict, str, None] = None):
     else:
         logger.info("🏁 Fuzzing 完成，所有參數均未發現匹配結果。")
 
-    return all_fuzz_resultss
+    return all_fuzz_results

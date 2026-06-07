@@ -53,6 +53,11 @@ def get_llm_instance(
         # Get agent-specific API configuration
         agent_api_key = agent_config.get("api_key")
         agent_api_base_url = agent_config.get("api_base_url")
+        logger.debug(
+            "get_llm_instance: agent='%s' resolved config: provider=%s model=%s "
+            "has_api_key=%s has_api_base=%s",
+            agent_id, provider, model_name, bool(agent_api_key), bool(agent_api_base_url),
+        )
 
     # If no agent or no auto config, fall back to env vars
     if not provider:
@@ -72,29 +77,78 @@ def get_llm_instance(
         # Priority: agent-specific > DB/env (via get_ai_provider_key) > global fallback
         api_key = agent_api_key or os.environ.get("AI_API_KEY")
         api_base = agent_api_base_url or os.environ.get("AI_API_BASE_URL")
+        logger.debug(
+            "get_llm_instance: Step 1 (agent_key || AI_API_KEY): api_key=%s",
+            "***set***" if api_key else None,
+        )
 
         if not agent_api_key:
             # 優先從 DB 查詢，DB 無值則自動回退到 env var（DB+env 二合一）
             try:
                 from apps.api_keys.utils import get_ai_provider_key
                 provider_key = get_ai_provider_key(provider)
-            except Exception:
+            except Exception as e:
+                logger.warning(f"get_ai_provider_key 查詢失敗 provider='{provider}': {e}")
                 provider_key = None
 
             if provider_key:
                 api_key = provider_key
+                logger.debug(
+                    "get_llm_instance: Step 2 (get_ai_provider_key): key resolved for '%s'",
+                    provider,
+                )
             else:
+                logger.debug(
+                    "get_llm_instance: Step 2 (get_ai_provider_key): no key for '%s', "
+                    "trying per-provider env fallback",
+                    provider,
+                )
                 # 備援：直接讀 env var（保持既有行為，防 api_keys app 不可用）
                 if provider == "openai":
                     api_key = os.environ.get("OPENAI_API_KEY") or api_key
+                    logger.debug(
+                        "get_llm_instance: Step 3 (OPENAI_API_KEY): %s",
+                        "***set***" if os.environ.get("OPENAI_API_KEY") else "not set",
+                    )
                 elif provider == "mistral":
                     api_key = os.environ.get("MISTRAL_API_KEY") or api_key
+                    logger.debug(
+                        "get_llm_instance: Step 3 (MISTRAL_API_KEY): %s",
+                        "***set***" if os.environ.get("MISTRAL_API_KEY") else "not set",
+                    )
                 elif provider == "anthropic":
                     api_key = os.environ.get("ANTHROPIC_API_KEY") or api_key
+                    logger.debug(
+                        "get_llm_instance: Step 3 (ANTHROPIC_API_KEY): %s",
+                        "***set***" if os.environ.get("ANTHROPIC_API_KEY") else "not set",
+                    )
                 elif provider == "deepseek":
                     api_key = os.environ.get("DEEPSEEK_API_KEY") or api_key
+                    logger.debug(
+                        "get_llm_instance: Step 3 (DEEPSEEK_API_KEY): %s",
+                        "***set***" if os.environ.get("DEEPSEEK_API_KEY") else "not set",
+                    )
 
     logger.info(f"Initializing LLM with provider={provider}, model={final_model}, base_url={api_base}, temperature={temperature}, agent_id={agent_id}")
+
+    if api_key is None and provider not in ("ollama",):
+        _env_map = {
+            "openai": "OPENAI_API_KEY",
+            "anthropic": "ANTHROPIC_API_KEY",
+            "mistral": "MISTRAL_API_KEY",
+            "deepseek": "DEEPSEEK_API_KEY",
+        }
+        logger.warning(
+            "api_key 仍為 None，provider=%s, agent_id=%s。\n"
+            "請檢查：\n"
+            "  1. APIKey DB 表是否有 service_name='%s' 且 is_active=True 的紀錄\n"
+            "  2. 該紀錄的 key_value 是否為空字串（非 null 但為空）\n"
+            "  3. 環境變數 %s 是否已設定（或 AI_API_KEY）\n"
+            "  4. AgentLLMConfig.api_key_ref（若有設定）是否指向有效的 APIKey",
+            provider, agent_id,
+            provider,
+            _env_map.get(provider, "<no env mapping>"),
+        )
 
     if provider in ["openai", "proxy"]:
         from langchain_openai import ChatOpenAI
@@ -110,7 +164,7 @@ def get_llm_instance(
     elif provider == "anthropic":
         from langchain_anthropic import ChatAnthropic
         if not final_model:
-            final_model = "claude-3-opus-20240229"
+            final_model = "claude-sonnet-4-6"
         return ChatAnthropic(
             model=final_model,
             temperature=temperature,

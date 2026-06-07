@@ -72,13 +72,13 @@ Each app's router is defined in its `api.py` using Django Ninja's `Router` class
 
 ### App Responsibilities
 
-- **core**: Central models (Target, Seed, Subdomain, Port, Vulnerability, URLResult, NmapScan, SubfinderScan, NucleiScan, Overview, Step, AttackVector, SkillTemplate). Heavily interconnected — check `apps/core/models/__init__.py` for exports.
+- **core**: Central models (Target, Seed, Subdomain, Port, Vulnerability, URLResult, NmapScan, SubfinderScan, NucleiScan, Overview, Step, AttackVector, SkillTemplate). Heavily interconnected — check `apps/core/models/__init__.py` for exports. All scan record models (`NmapScan`, `SubfinderScan`, `NucleiScan`, `URLScan`, `AmassScan`, `SubBrute`) inherit from `ScanRecord` abstract base (`apps/core/models/scans_record_models.py`), which provides `status`, `started_at`, `completed_at`, `error_message`, `created_at`. Canonical `ErrorSchema` (field: `detail`) lives in `apps/core/schemas.py` — do not redeclare it in other apps.
 - **targets**: Target/Seed CRUD APIs.
 - **scanners**: Unified scanner interface. Sub-apps: `nmap_scanner`, `subfinder`, `nuclei_scanner`, `get_all_url` — each has its own `tasks/` directory with Celery tasks.
 - **flaresolverr**: FlareSolverr/FlareProxyGo integration for anti-bot protected pages. Includes JS/security analysis parsers.
 - **analyze_ai**: AI triage and analysis dispatch to LLM providers via LangChain.
-- **auto**: 3-tier AI agent orchestration (ReconAgent, ExploitAgent, StrategyAgent). Uses LangChain or custom CAI depending on feature flags. See `apps/auto/cai_tool_implementation_guide.md`. Agent-driven memory compression via `review_chunks → decide_chunk → apply_compression` tools in `apps/auto/tools/memory_tools.py` (MemoryMixin). Configure compression LLM via `compression_agent` in AgentLLMConfig (recommend a cheap model like `mistral-small`).
-- **scheduler**: Celery Beat periodic task management (ScheduleDefinition, ScheduleLog, watchdog, cleanup). `apps/scheduler/tasks/watchdog.py` recovers stalled Overviews; `apps/scheduler/tasks/cleanup.py` removes orphaned assets.
+- **auto**: 3-tier AI agent orchestration (ReconAgent, ExploitAgent, StrategyAgent). Uses LangChain or custom CAI depending on feature flags. See `apps/auto/cai_tool_implementation_guide.md`. Agent-driven memory compression via `review_chunks → decide_chunk → apply_compression` tools in `apps/auto/tools/memory_tools.py` (MemoryMixin). Configure compression LLM via `compression_agent` in AgentLLMConfig (recommend a cheap model like `mistral-small`). Default Anthropic model: `claude-sonnet-4-6` (env: `AUTO_ANTHROPIC_MODEL`).
+- **scheduler**: Celery Beat periodic task management (ScheduleDefinition, ScheduleLog, watchdog, cleanup). `apps/scheduler/tasks/watchdog.py` recovers stalled Overviews; `apps/scheduler/tasks/cleanup.py` removes orphaned assets. Shared `async_post_batch(url, payloads, timeout)` helper in `apps/scheduler/tasks/utils.py` — use this for all concurrent HTTP fan-out in scheduler tasks instead of local `_post_all` copies.
 - **api_keys**: Encrypted storage for external service API keys.
 - **http_sender**: HTTP request helpers and payload fuzzing. See `apps/http_sender/PayloadMapping.md`.
 - **ai_assistant**: Assistant/Thread/Message APIs with LangChain integration. SSE streaming for real-time responses.
@@ -115,7 +115,9 @@ Note: `c2_core/settings.py` has hardcoded fallback values for database credentia
 
 ## Key Patterns
 
-- **API schemas**: Django Ninja uses Pydantic-based schemas for request/response validation (defined in each app's `schemas.py`).
+- **API schemas**: Django Ninja uses Pydantic-based schemas for request/response validation (defined in each app's `schemas.py`). Always use `.model_dump()` / `.model_dump(exclude_unset=True)` (Pydantic v2) — never `.dict()`.
+- **ErrorSchema**: Canonical definition is `apps/core/schemas.py` (`detail: str`). Import from there; do not redeclare in sub-apps.
+- **ScanRecord base model**: All scan record models inherit from `ScanRecord` (abstract, `apps/core/models/scans_record_models.py`). It provides `status` (PENDING/RUNNING/COMPLETED/FAILED with `db_index=True`), `started_at`, `completed_at`, `error_message`, `created_at`. `URLScan` overrides `status` with English labels. `ScannerLifecycle` context manager (`apps/scanners/base_task.py`) uses these fields for the PENDING→RUNNING→COMPLETED/FAILED state machine.
 - **Authentication**: DRF TokenAuthentication is the default (`REST_FRAMEWORK` in settings). CSRF middleware is disabled for dev (commented out in MIDDLEWARE).
 - **Model primary keys**: `BigAutoField` as default.
 - **Docker infrastructure**: `docker/docker-compose.yml` runs PostgreSQL, Redis, Hasura, NocoDB, FlareSolverr, FlareProxyGo.
