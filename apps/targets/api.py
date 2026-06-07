@@ -37,7 +37,7 @@ async def create_target(request, payload: CreateTargetSchema):
     """創建一個新目標"""
     try:
         # 使用 acreate 異步創建
-        target = await Target.objects.acreate(**payload.dict())
+        target = await Target.objects.acreate(**payload.model_dump())
         return target
     except Exception as e:
         logger.error(f"創建目標失敗: {e}")
@@ -58,7 +58,7 @@ async def update_target(request, target_id: int, payload: UpdateTargetSchema):
     """更新目標資訊"""
     try:
         target = await Target.objects.aget(id=target_id)
-        for attr, value in payload.dict(exclude_unset=True).items():
+        for attr, value in payload.model_dump(exclude_unset=True).items():
             setattr(target, attr, value)
         await target.asave()
         return target
@@ -92,7 +92,7 @@ async def add_seed_to_target(request, target_id: int, payload: AddSeedSchema):
         target = await Target.objects.aget(id=target_id)
 
         # 2. 創建種子 (注意：Seed 有 unique_together 約束，需處理重複)
-        seed = await Seed.objects.acreate(target=target, **payload.dict())
+        seed = await Seed.objects.acreate(target=target, **payload.model_dump())
 
         # 3. 同步建立對應的核心資產 (URLResult, Subdomain, IP)
         if seed.type == "URL":

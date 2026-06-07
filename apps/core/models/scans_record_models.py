@@ -1,8 +1,16 @@
-# .apps/core/models/scans_record_modles.py
+# apps/core/models/scans_record_models.py
 from django.db import models
 
 
-class AmassScan(models.Model):
+class ScanRecord(models.Model):
+    """
+    抽象基底 Model：所有掃描記錄共用的生命週期欄位。
+    繼承此類的 Model 自動獲得：
+      - STATUS_CHOICES (PENDING/RUNNING/COMPLETED/FAILED)
+      - status, started_at, completed_at, error_message, created_at
+    子類別可覆寫 STATUS_CHOICES 或 status 欄位以自訂標籤/索引。
+    """
+
     STATUS_CHOICES = [
         ("PENDING", "待處理"),
         ("RUNNING", "運行中"),
@@ -10,96 +18,71 @@ class AmassScan(models.Model):
         ("FAILED", "失敗"),
     ]
 
+    status = models.CharField(
+        max_length=10, choices=STATUS_CHOICES, default="PENDING", db_index=True
+    )
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    error_message = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        abstract = True
+        app_label = "core"
+
+
+class AmassScan(ScanRecord):
     which_seed = models.ForeignKey(
         "core.Seed", on_delete=models.CASCADE, related_name="amass_scans"
     )
     which_target = models.ForeignKey(
         "core.target", on_delete=models.CASCADE, related_name="amass_scans"
     )
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="PENDING")
-
-    # 統計數據
     added_count = models.IntegerField(default=0, help_text="新發現數量")
-
-    started_at = models.DateTimeField(null=True, blank=True)
-    completed_at = models.DateTimeField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         app_label = "core"
         ordering = ["-created_at"]
 
 
-class SubfinderScan(models.Model):
-    """
-    記錄一次子域名枚舉任務。
-    """
-
-    STATUS_CHOICES = [
-        ("PENDING", "待處理"),
-        ("RUNNING", "運行中"),
-        ("COMPLETED", "已完成"),
-        ("FAILED", "失敗"),
-    ]
+class SubfinderScan(ScanRecord):
+    """記錄一次子域名枚舉任務。"""
 
     which_seed = models.ForeignKey(
         "core.Seed", on_delete=models.CASCADE, related_name="subfinder_scans"
     )
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="PENDING")
-
-    # 統計數據
     added_count = models.IntegerField(default=0, help_text="新發現數量")
-
-    started_at = models.DateTimeField(null=True, blank=True)
-    completed_at = models.DateTimeField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         app_label = "core"
         ordering = ["-created_at"]
 
 
-class NmapScan(models.Model):
-    """
-    記錄一次端口掃描任務。
-    注意：Nmap 通常是針對 IP 掃描的，但歸屬權還是在 Target。
-    """
-
-    STATUS_CHOICES = [
-        ("PENDING", "待處理"),
-        ("RUNNING", "運行中"),
-        ("COMPLETED", "已完成"),
-        ("FAILED", "失敗"),
-    ]
+class NmapScan(ScanRecord):
+    """記錄一次端口掃描任務。"""
 
     which_seed = models.ManyToManyField(
         "core.Seed", related_name="nmap_scans", blank=True
     )
-
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="PENDING")
     nmap_args = models.TextField()
     nmap_output = models.TextField(null=True, blank=True)
-    started_at = models.DateTimeField(null=True, blank=True)
-    completed_at = models.DateTimeField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    error_message = models.TextField(null=True, blank=True)
 
     class Meta:
         app_label = "core"
 
 
-# apps/core/models.py
-
-
-class URLScan(models.Model):
+class URLScan(ScanRecord):
+    # URLScan 使用英文標籤，語義上 COMPLETED/FAILED 有特殊含義，故覆寫
     STATUS_CHOICES = [
         ("PENDING", "Pending"),
         ("RUNNING", "Running"),
         ("COMPLETED", "Completed"),  # 即使內容抓取失敗，但程式執行完畢，也算 COMPLETED
         ("FAILED", "System Failed"),  # 僅用於程式崩潰或不可控異常
     ]
+    status = models.CharField(
+        max_length=10, choices=STATUS_CHOICES, default="PENDING", db_index=True
+    )
 
-    # 輸入目標：子域名或單一 URL
     target_subdomain = models.ForeignKey(
         "core.Subdomain",
         on_delete=models.CASCADE,
@@ -114,25 +97,8 @@ class URLScan(models.Model):
         null=True,
         blank=True,
     )
-
-    tool = models.CharField(
-        max_length=50,
-        default="unknown",
-        db_index=True,
-    )
-
-    status = models.CharField(
-        max_length=10, choices=STATUS_CHOICES, default="PENDING", db_index=True
-    )
-
+    tool = models.CharField(max_length=50, default="unknown", db_index=True)
     urls_found_count = models.IntegerField(default=0)
-    error_message = models.TextField(
-        null=True, blank=True
-    )  # 用於存放 FAILED_DNS_ERROR 等詳細資訊
-
-    started_at = models.DateTimeField(null=True, blank=True)
-    completed_at = models.DateTimeField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         indexes = [
@@ -149,16 +115,7 @@ class URLScan(models.Model):
         return f"[{self.tool}] {self.status} on {target}"
 
 
-class NucleiScan(models.Model):
-    STATUS_CHOICES = [
-        ("PENDING", "Pending"),
-        ("RUNNING", "Running"),
-        ("COMPLETED", "Completed"),
-        ("FAILED", "Failed"),
-    ]
-    status = models.CharField(
-        max_length=10, choices=STATUS_CHOICES, default="PENDING", db_index=True
-    )
+class NucleiScan(ScanRecord):
     ip_asset = models.ForeignKey(
         "core.IP",
         on_delete=models.CASCADE,
@@ -183,37 +140,18 @@ class NucleiScan(models.Model):
     template_ids = models.JSONField(default=list, blank=True)
     severity_filter = models.CharField(max_length=10, blank=True)
     output_file = models.CharField(max_length=255, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    completed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         app_label = "core"
 
 
-# 新增
-class SubBrute(models.Model):
-    """
-    記錄一次子域名枚舉任務。
-    """
-
-    STATUS_CHOICES = [
-        ("PENDING", "待處理"),
-        ("RUNNING", "運行中"),
-        ("COMPLETED", "已完成"),
-        ("FAILED", "失敗"),
-    ]
+class SubBrute(ScanRecord):
+    """記錄一次子域名暴力枚舉任務。"""
 
     which_sub = models.ForeignKey(
         "core.Subdomain", on_delete=models.CASCADE, related_name="SubBrute"
     )
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="PENDING")
-
-    # 統計數據
     added_count = models.IntegerField(default=0, help_text="新發現數量")
-
-    started_at = models.DateTimeField(null=True, blank=True)
-    completed_at = models.DateTimeField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         app_label = "core"

@@ -82,7 +82,15 @@ def watchdog_stalled_overviews():
             summary["recovered_executing"] += 1
         else:
             # Handle cases where steps are waiting for async for too long
-            stuck_steps = list(active_steps.filter(updated_at__lt=now - timedelta(minutes=30)))
+            stuck_async = list(active_steps.filter(
+                status="WAITING_FOR_ASYNC",
+                updated_at__lt=now - timedelta(minutes=30)
+            ))
+            stuck_running = list(active_steps.filter(
+                status="RUNNING",
+                updated_at__lt=now - timedelta(minutes=60)
+            ))
+            stuck_steps = stuck_async + stuck_running
             if stuck_steps:
                 logger.warning(f"[Watchdog] Overview#{ov.id} has stuck steps. Marking FAILED and sending rescue message.")
                 for step in stuck_steps:

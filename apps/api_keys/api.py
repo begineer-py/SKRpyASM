@@ -2,12 +2,14 @@ from ninja import Router
 from typing import List
 from django.shortcuts import get_object_or_404
 from django.http import FileResponse
+import logging
 import os
 from apps.core.models.api_key import APIKey
 from .models import AgentLLMConfig
 from .schemas import (
     APIKeyIn,
     APIKeyOut,
+    APIKeyBriefOut,
     APIKeyUpdate,
     AgentLLMConfigIn,
     AgentLLMConfigOut,
@@ -60,6 +62,7 @@ SUPPORTED_SERVICES = [
 ]
 
 router = Router(tags=["API Keys"])
+logger = logging.getLogger(__name__)
 
 
 # ── APIKey CRUD ────────────────────────────────────────────────────────────────
@@ -71,7 +74,7 @@ def list_supported_services(request):
 
 @router.post("/", response=APIKeyOut)
 def create_api_key(request, data: APIKeyIn):
-    api_key = APIKey.objects.create(**data.dict())
+    api_key = APIKey.objects.create(**data.model_dump())
     return api_key
 
 @router.get("/", response=List[APIKeyOut])
@@ -83,7 +86,7 @@ def bulk_create_api_keys(request, data_list: List[APIKeyIn]):
     """批量匯入多個 API 金鑰 (支援同 service 多個 key)。"""
     created = []
     for data in data_list:
-        api_key = APIKey.objects.create(**data.dict())
+        api_key = APIKey.objects.create(**data.model_dump())
         created.append(api_key)
     return created
 
@@ -138,8 +141,11 @@ def _build_effective_config(agent_id: str, db_cfg) -> AgentEffectiveConfigOut:
                     service_name=kr.service_name,
                     description=kr.description,
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(
+                    "_build_effective_config: api_key_ref_id=%s 解析失敗 agent='%s': %s",
+                    db_cfg.api_key_ref_id, agent_id, e,
+                )
         db_out = AgentLLMConfigOut(
             id=db_cfg.id,
             agent_id=db_cfg.agent_id,
@@ -357,7 +363,7 @@ def get_api_key(request, api_key_id: int):
 @router.patch("/{api_key_id}", response=APIKeyOut)
 def update_api_key(request, api_key_id: int, data: APIKeyUpdate):
     api_key = get_object_or_404(APIKey, id=api_key_id)
-    for attr, value in data.dict(exclude_unset=True).items():
+    for attr, value in data.model_dump(exclude_unset=True).items():
         setattr(api_key, attr, value)
     api_key.save()
     return api_key

@@ -16,7 +16,6 @@ from apps.core.models import NmapScan
 from .schemas import (
     NmapScanTriggerSchema,
     NmapScanSchema,
-    ErrorSchema,
 )
 from .tasks import perform_nmap_scan
 from c2_core.config.logging import log_function_call

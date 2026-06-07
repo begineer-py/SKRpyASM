@@ -41,5 +41,3 @@ class NmapScanSchema(Schema):
     error_message: Optional[str] = None  # 錯誤訊息通常也是空的
 
 
-class ErrorSchema(Schema):
-    message: str
