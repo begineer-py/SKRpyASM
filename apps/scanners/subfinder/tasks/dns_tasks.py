@@ -14,7 +14,14 @@ logger = logging.getLogger(__name__)
 
 @shared_task(bind=True, ignore_result=True)
 @log_function_call()
-def resolve_dns_for_seed(self, seed_id: int, subfinder_scan_id: Optional[int] = None, source: Optional[str] = None, callback_step_id: Optional[int] = None):
+def resolve_dns_for_seed(
+    self,
+    seed_id: int,
+    subfinder_scan_id: Optional[int] = None,
+    source: Optional[str] = None,
+    execution_graph_id: Optional[int] = None,
+    execution_node_id: Optional[int] = None,
+):
     """Resolve DNS for all subdomains associated with a seed."""
     try:
         seed = Seed.objects.get(id=seed_id)
@@ -38,7 +45,12 @@ def resolve_dns_for_seed(self, seed_id: int, subfinder_scan_id: Optional[int] = 
         if process.returncode != 0:
             logger.error(f"dnsx 失敗: {process.stderr}")
             from .protection_tasks import check_protection_for_seed
-            check_protection_for_seed.delay(seed_id, subfinder_scan_id, callback_step_id=callback_step_id)
+            check_protection_for_seed.delay(
+                seed_id,
+                subfinder_scan_id,
+                execution_graph_id=execution_graph_id,
+                execution_node_id=execution_node_id,
+            )
             return
 
         raw_output = process.stdout.strip()
@@ -88,5 +100,8 @@ def resolve_dns_for_seed(self, seed_id: int, subfinder_scan_id: Optional[int] = 
     finally:
         from .protection_tasks import check_protection_for_seed
         check_protection_for_seed.delay(
-            seed_id=seed_id, subfinder_scan_id=subfinder_scan_id, callback_step_id=callback_step_id
+            seed_id=seed_id,
+            subfinder_scan_id=subfinder_scan_id,
+            execution_graph_id=execution_graph_id,
+            execution_node_id=execution_node_id,
         )

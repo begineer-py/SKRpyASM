@@ -58,7 +58,7 @@ class ReconnaissanceMixin:
                     f"Target Name: {target.name}\n"
                     f"Target ID: {target.id}\n"
                     f"Active Overview: NONE - No PLANNING/EXECUTING/COMPLETED overview found.\n"
-                    f"  ⚠ DO NOT call create_step or update_overview_status.\n"
+                    f"  ⚠ DO NOT call create_step.\n"
                     f"  👉 You MUST call `create_overview` with target_id={target.id} to initialize a new overview, then call `get_target_context` again.\n"
                     f"Real Seeds: {seeds}\n"
                     f"Real Subdomains: {subdomains}\n"
@@ -102,19 +102,31 @@ class ReconnaissanceMixin:
             is_completed = active_overview.status == "COMPLETED"
             context_prefix = "RECENTLY COMPLETED" if is_completed else "ACTIVE"
 
-            steps_info = ""
-            steps = active_overview.steps.all().prefetch_related('discovered_vectors', 'note_detail').order_by('id')
-            if steps.exists():
-                lines = []
-                for s in steps:
-                    av = s.discovered_vectors.first()
-                    tool = av.name if av else "Unknown Vector"
-                    desc = av.description if av else "No description"
-                    note = s.note_detail.content if hasattr(s, 'note_detail') and s.note_detail else ""
-                    lines.append(f"- Step[{s.id}] Status:{s.status} | Tool/Vector:{tool} | Desc:{desc} | Note:{note}")
-                steps_info = "\n  " + "\n  ".join(lines)
+            executions_info = ""
+            thread_ids = [value for value in [active_overview.thread_id, active_overview.parent_thread_id] if value]
+            if thread_ids:
+                from apps.core.models import ExecutionGraph
+
+                executions = list(
+                    ExecutionGraph.objects.filter(thread_id__in=thread_ids)
+                    .prefetch_related("nodes")
+                    .order_by("-started_at")[:5]
+                )
             else:
-                steps_info = "\n  No Steps created yet."
+                executions = []
+            if executions:
+                lines = []
+                for graph in executions:
+                    node_summary = ", ".join(
+                        f"{node.name}:{node.status}" for node in graph.nodes.order_by("sequence")[:5]
+                    )
+                    lines.append(
+                        f"- ExecutionGraph[{graph.id}] Status:{graph.status} | "
+                        f"Title:{graph.title or graph.assistant_id} | Nodes:{node_summary or 'None'}"
+                    )
+                executions_info = "\n  " + "\n  ".join(lines)
+            else:
+                executions_info = "\n  No ExecutionGraphs created yet."
 
             bound_ips = list(active_overview.ips.values("id", "address")[:20])
             bound_subdomains = list(active_overview.subdomains.values("id", "name")[:20])
@@ -136,7 +148,7 @@ class ReconnaissanceMixin:
                 f"Overview Parent Thread ID: {active_overview.parent_thread_id or '—'}  ← Parent/caller thread\n"
                 f"Overview Knowledge: {active_overview.knowledge}\n"
                 f"Overview Plan: {active_overview.plan}\n"
-                f"Overview Active Steps:{steps_info}\n"
+                f"Overview Active Executions:{executions_info}\n"
                 f"Overview Bound Asset Counts: {bound_asset_counts}\n"
                 f"Overview Bound IPs (high-value/current scope): {bound_ips}\n"
                 f"Overview Bound Subdomains (high-value/current scope): {bound_subdomains}\n"

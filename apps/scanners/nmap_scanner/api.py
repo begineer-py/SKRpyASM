@@ -108,7 +108,6 @@ async def start_nmap_scan(request, trigger_data: NmapScanTriggerSchema):
         scan_id=scan_record.id,
         ip_address=ip_str,
         nmap_args=final_nmap_args,
-        callback_step_id=trigger_data.callback_step_id,
         execution_graph_id=trigger_data.execution_graph_id,
         execution_node_id=trigger_data.execution_node_id,
     )

@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 @shared_task(bind=True, max_retries=3, default_retry_delay=300)
 @log_function_call()
 def perform_nuclei_scans_for_ip_batch(
-    self, ip_ids: List[int], custom_tags: Optional[List[str]] = None, callback_step_id: Optional[int] = None, target_id: Optional[int] = None, execution_graph_id: Optional[int] = None, execution_node_id: Optional[int] = None
+    self, ip_ids: List[int], custom_tags: Optional[List[str]] = None, target_id: Optional[int] = None, execution_graph_id: Optional[int] = None, execution_node_id: Optional[int] = None
 ):
     """IP 掃描：側重基礎設施與開放服務"""
-    return _execute_nuclei_batch("ip", ip_ids, custom_tags, task_self=self, callback_step_id=callback_step_id, target_id=target_id, execution_graph_id=execution_graph_id, execution_node_id=execution_node_id)
+    return _execute_nuclei_batch("ip", ip_ids, custom_tags, task_self=self, target_id=target_id, execution_graph_id=execution_graph_id, execution_node_id=execution_node_id)

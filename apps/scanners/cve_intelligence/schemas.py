@@ -36,18 +36,16 @@ class CVESearchByTagsSchema(Schema):
 class EnrichVulnerabilitiesSchema(Schema):
     """批次豐富化 Vulnerability 的請求 schema"""
     vulnerability_ids: List[int]
-    callback_step_id: Optional[int] = None
 
 
 class SyncTechStackSchema(Schema):
     """同步目標 TechStack CVE 的請求 schema"""
     target_id: int
-    callback_step_id: Optional[int] = None
 
 
 class SyncKEVSchema(Schema):
     """手動觸發 CISA KEV 同步的請求 schema"""
-    callback_step_id: Optional[int] = None
+    pass
 
 
 # === Response Schemas ===

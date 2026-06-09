@@ -29,6 +29,7 @@ class BS4Handler:
             "meta_tags": [],
             "iframes": [],
             "cleaned_html": "",
+            "dom_snapshot": "",
             "extracted_js": "",
             "text": "",
         }
@@ -171,6 +172,65 @@ class BS4Handler:
         logger.info(f"成功提取純文字，長度: {len(pure_text)}")
         return pure_text
 
+    def _build_dom_snapshot(
+        self,
+        soup: BeautifulSoup,
+        max_depth: int = 5,
+        max_nodes: int = 300,
+        max_chars: int = 12000,
+    ) -> str:
+        logger.info("--- 開始生成 DOM 樹摘要 ---")
+        allowed_attrs = {"id", "class", "name", "type", "role", "href", "src", "action", "method"}
+        snapshot_lines: List[str] = []
+        node_count = 0
+
+        def format_attrs(tag) -> str:
+            attrs = []
+            for key in allowed_attrs:
+                if key not in tag.attrs:
+                    continue
+                value = tag.attrs.get(key)
+                if isinstance(value, list):
+                    value = " ".join(str(item) for item in value[:5])
+                value = " ".join(str(value).split())[:120]
+                if value:
+                    attrs.append(f'{key}="{value}"')
+            return " " + " ".join(attrs) if attrs else ""
+
+        def walk(tag, depth: int) -> None:
+            nonlocal node_count
+            if node_count >= max_nodes or depth > max_depth:
+                return
+
+            if not getattr(tag, "name", None):
+                return
+
+            node_count += 1
+            indent = "  " * depth
+            direct_text = " ".join(
+                text.strip()
+                for text in tag.find_all(string=True, recursive=False)
+                if text and text.strip()
+            )[:120]
+            text_suffix = f" :: {direct_text}" if direct_text else ""
+            snapshot_lines.append(f"{indent}<{tag.name}{format_attrs(tag)}>{text_suffix}")
+
+            if sum(len(line) + 1 for line in snapshot_lines) >= max_chars:
+                return
+
+            for child in tag.find_all(recursive=False):
+                walk(child, depth + 1)
+                if node_count >= max_nodes or sum(len(line) + 1 for line in snapshot_lines) >= max_chars:
+                    return
+
+        root = soup.body or soup
+        walk(root, 0)
+        snapshot = "\n".join(snapshot_lines)
+        if len(snapshot) > max_chars:
+            snapshot = snapshot[:max_chars]
+        logger.info(f"DOM 樹摘要生成完成，節點數: {node_count}, 長度: {len(snapshot)}")
+        return snapshot
+
     # @log_function_call()
     def script_parse(self, scripts: List[Dict[str, Any]], base_url: str) -> str:
         """
@@ -250,6 +310,7 @@ class BS4Handler:
             for junk in soup.find_all(["script", "style"]):
                 junk.decompose()
             cleaned_html: str = soup.prettify()
+            dom_snapshot: str = self._build_dom_snapshot(soup)
 
             # 4. 回傳封裝
             result: Dict[str, Any] = {
@@ -261,6 +322,7 @@ class BS4Handler:
                 "meta_tags": meta_tags,
                 "iframes": iframes,
                 "cleaned_html": cleaned_html,
+                "dom_snapshot": dom_snapshot,
                 "extracted_js": extracted_js,
                 "text": pure_text,
             }

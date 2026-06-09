@@ -38,7 +38,6 @@ def perform_flaresolverr_request(
     host_header: str | None = None,
     session_key: str | None = None,
     refresh_session: bool = False,
-    callback_step_id: int | None = None,
     execution_graph_id: int | None = None,
     execution_node_id: int | None = None,
 ):
@@ -93,7 +92,6 @@ def perform_flaresolverr_request(
             }
 
         log_http_exchange(
-            step_id=callback_step_id,
             execution_graph_id=execution_graph_id,
             execution_node_id=execution_node_id,
             tool="flaresolverr",

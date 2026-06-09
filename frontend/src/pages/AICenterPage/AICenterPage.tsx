@@ -3,7 +3,9 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { assistantApi } from '../../services/assistantApi';
 import { useHasuraSubscription } from '../../hooks/useHasuraSubscription';
-import StepLogViewer from '../../components/StepLogViewer';
+import ExecutionTimelineViewer from '../../components/ExecutionTimelineViewer';
+import { executionApi } from '../../services/executionApi';
+import type { ExecutionGraph } from '../../services/executionApi';
 import { GET_AGENT_TREE_SUBSCRIPTION } from '../../queries';
 import './AICenter.css';
 
@@ -25,23 +27,7 @@ const STATUS_CLASS: Record<string, string> = {
 const riskClass = (score: number) =>
   score > 66 ? 'high' : score > 33 ? 'medium' : 'low';
 
-const STEP_STATUS_COLOR: Record<string, string> = {
-  RUNNING:           '#4ade80',
-  COMPLETED:         '#60a5fa',
-  FAILED:            '#f87171',
-  PENDING:           '#fbbf24',
-  WAITING_FOR_ASYNC: '#a78bfa',
-};
-
 // ── Types ─────────────────────────────────────────────────────────────────
-
-interface AgentStep {
-  id: number;
-  status: string;
-  operation_type: string | null;
-  created_at: string;
-  completed_at: string | null;
-}
 
 interface TreeNode {
   thread_id: number;
@@ -55,7 +41,6 @@ interface TreeNode {
   overview_risk_score: number | null;
   target_name: string | null;
   created_at: string;
-  steps: AgentStep[];
 }
 
 // ── Tree node component ───────────────────────────────────────────────────
@@ -74,10 +59,8 @@ function TreeNodeItem({
   onSelect: (node: TreeNode) => void;
 }) {
   const isActive = activeNodeThreadId === String(node.thread_id);
-  const icon = node.assistant_id === 'hacker_assistant_agent' ? '🧑‍💻' : '🤖';
+  const icon = node.assistant_id === 'hacker_assistant_agent' ? 'HA' : 'AI';
   const children = allNodes.filter(n => n.parent_thread_id === node.thread_id);
-
-  const runningStep = node.steps.find(s => s.status === 'RUNNING');
 
   return (
     <div className="tree-node-group">
@@ -93,7 +76,6 @@ function TreeNodeItem({
           <span className="tree-node-name">
             {node.target_name && depth > 0 ? node.target_name : node.thread_name}
           </span>
-          {runningStep && <span className="tree-running-dot" title="Running" />}
         </div>
         <div className="tree-node-meta">
           {node.overview_status && (
@@ -103,12 +85,7 @@ function TreeNodeItem({
           )}
           {node.overview_risk_score !== null && (
             <span className={`tree-badge tree-badge--risk ${riskClass(node.overview_risk_score)}`}>
-              ⚡{node.overview_risk_score}
-            </span>
-          )}
-          {node.steps.length > 0 && (
-            <span className="tree-badge tree-badge--steps">
-              {node.steps.length} step{node.steps.length > 1 ? 's' : ''}
+              Risk {node.overview_risk_score}
             </span>
           )}
         </div>
@@ -128,16 +105,6 @@ function TreeNodeItem({
 }
 
 // ── Helper: build flat TreeNode[] from GQL subscription data ─────────────
-
-function toSteps(raw: any[]): AgentStep[] {
-  return (raw || []).map(s => ({
-    id: Number(s.id),
-    status: s.status,
-    operation_type: s.operation_type || null,
-    created_at: s.created_at,
-    completed_at: s.completed_at || null,
-  }));
-}
 
 // Push a thread node from an overview's aiAssistantThreadByThreadId relationship.
 // Also recurse into that thread's own overviews to discover grandchildren.
@@ -163,7 +130,6 @@ function _ingestThreadFromOv(
     overview_risk_score: ov.risk_score,
     target_name: ov.core_target?.name ?? null,
     created_at: t.created_at,
-    steps: toSteps(ov.core_steps),
   });
   // Recurse into this thread's own overviews (grandchildren)
   for (const childOv of t.core_overviews ?? []) {
@@ -191,7 +157,6 @@ function buildTreeNodes(rawData: any, rootThreadId: string): TreeNode[] {
     overview_risk_score: null,
     target_name: null,
     created_at: root.created_at,
-    steps: [],
   });
   seen.add(Number(root.id));
 
@@ -225,7 +190,6 @@ function buildTreeNodes(rawData: any, rootThreadId: string): TreeNode[] {
       overview_risk_score: latestOv?.risk_score ?? null,
       target_name: latestOv?.core_target?.name ?? null,
       created_at: t.created_at,
-      steps: toSteps(latestOv?.core_steps),
     });
     // Recurse into this direct child's own sub-threads
     for (const childOv of t.core_overviews ?? []) {
@@ -254,7 +218,6 @@ function buildTreeNodes(rawData: any, rootThreadId: string): TreeNode[] {
         overview_risk_score: ov.risk_score,
         target_name: ov.core_target?.name ?? null,
         created_at: '',
-        steps: toSteps(ov.core_steps),
       });
     }
   }
@@ -294,9 +257,9 @@ const AICenterPage: React.FC = () => {
   const [showTreePanel, setShowTreePanel] = useState(true);
   const [activeNodeThreadId, setActiveNodeThreadId] = useState<string | null>(null);
 
-  // Tool-call logs panel state
-  const [selectedStepId, setSelectedStepId] = useState<number | null>(null);
-  const [activeNodeSteps, setActiveNodeSteps] = useState<AgentStep[]>([]);
+  // Execution graph panel state
+  const [selectedGraphId, setSelectedGraphId] = useState<number | null>(null);
+  const [activeThreadGraphs, setActiveThreadGraphs] = useState<ExecutionGraph[]>([]);
   const [showLogsPanel, setShowLogsPanel] = useState(false);
 
   // Refs
@@ -333,21 +296,33 @@ const AICenterPage: React.FC = () => {
     setAgentTree(nodes);
   }, [treeRawData, rootThreadId]);
 
-  // Auto-follow RUNNING step when tree updates
   useEffect(() => {
-    if (!activeNodeThreadId) return;
-    const activeNode = agentTree.find(n => String(n.thread_id) === activeNodeThreadId);
-    if (!activeNode || activeNode.steps.length === 0) return;
-
-    setActiveNodeSteps(activeNode.steps);
-
-    // Follow new RUNNING step automatically
-    const runningStep = activeNode.steps.find(s => s.status === 'RUNNING');
-    if (runningStep && runningStep.id !== selectedStepId) {
-      setSelectedStepId(runningStep.id);
-      setShowLogsPanel(true);
+    let cancelled = false;
+    if (!activeNodeThreadId) {
+      setActiveThreadGraphs([]);
+      setSelectedGraphId(null);
+      return;
     }
-  }, [agentTree, activeNodeThreadId]);
+
+    void executionApi.listGraphs({ thread_id: Number(activeNodeThreadId), limit: 20 })
+      .then((graphs) => {
+        if (cancelled) return;
+        setActiveThreadGraphs(graphs);
+        const running = graphs.find((graph) => graph.status === 'RUNNING' || graph.status === 'WAITING');
+        setSelectedGraphId((current) => current ?? running?.id ?? graphs[0]?.id ?? null);
+        setShowLogsPanel(graphs.length > 0);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setActiveThreadGraphs([]);
+          setSelectedGraphId(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeNodeThreadId]);
 
   // ── Scroll helpers ────────────────────────────────────────────────────
 
@@ -438,10 +413,9 @@ const AICenterPage: React.FC = () => {
     setActiveNodeThreadId(String(thread.id));
     setBoundTargetId(thread.bound_target_id ?? null);
     setRootThreadId(thread.assistant_id === 'hacker_assistant_agent' ? String(thread.id) : null);
-    // Root thread has no steps to monitor
     setShowLogsPanel(false);
-    setSelectedStepId(null);
-    setActiveNodeSteps([]);
+    setSelectedGraphId(null);
+    setActiveThreadGraphs([]);
   };
 
   const handleSelectTreeNode = useCallback((node: TreeNode) => {
@@ -457,17 +431,9 @@ const AICenterPage: React.FC = () => {
     setActiveNodeThreadId(String(node.thread_id));
     if (node.bound_target_id) setBoundTargetId(node.bound_target_id);
 
-    // Logs panel: only for automation_agent nodes with steps
-    const steps = node.steps || [];
-    setActiveNodeSteps(steps);
-    if (steps.length > 0 && node.assistant_id !== 'hacker_assistant_agent') {
-      const runningStep = steps.find(s => s.status === 'RUNNING') ?? steps[0];
-      setSelectedStepId(runningStep.id);
-      setShowLogsPanel(true);
-    } else {
-      setSelectedStepId(null);
-      setShowLogsPanel(false);
-    }
+    setSelectedGraphId(null);
+    setActiveThreadGraphs([]);
+    setShowLogsPanel(node.assistant_id !== 'hacker_assistant_agent');
   }, []);
 
   // ── Create / delete ───────────────────────────────────────────────────
@@ -536,7 +502,7 @@ const AICenterPage: React.FC = () => {
         setStreamingText(null);
         setIsSending(false);
         cleanupStreamRef.current = null;
-        setMessages(prev => [...prev, { role: 'assistant', textContent: `⚠️ Error: ${errMsg}`, isError: true }]);
+        setMessages(prev => [...prev, { role: 'assistant', textContent: `Error: ${errMsg}`, isError: true }]);
         await loadMessagesForThread(selectedThreadId);
       },
       () => { /* onStats noop */ }
@@ -561,12 +527,10 @@ const AICenterPage: React.FC = () => {
 
   const activeNodeData = agentTree.find(n => String(n.thread_id) === activeNodeThreadId);
   const chatTargetLabel = activeNodeData
-    ? `🤖 ${activeNodeData.assistant_id}${activeNodeData.target_name ? ` — ${activeNodeData.target_name}` : ''}`
+    ? `AI ${activeNodeData.assistant_id}${activeNodeData.target_name ? ` — ${activeNodeData.target_name}` : ''}`
     : selectedThreadData
-      ? `🧑‍💻 ${selectedThreadData.name || 'Hacker AI'}`
+      ? `${selectedThreadData.name || 'Hacker AI'}`
       : null;
-
-  const selectedStep = activeNodeSteps.find(s => s.id === selectedStepId);
 
   // ── Render ────────────────────────────────────────────────────────────
 
@@ -586,7 +550,7 @@ const AICenterPage: React.FC = () => {
         <div className="sidebar-filter">
           <input
             type="text"
-            placeholder="🔍 Filter by Target ID..."
+            placeholder="Filter by Target ID..."
             value={targetSearchId}
             onChange={e => setTargetSearchId(e.target.value)}
           />
@@ -601,12 +565,12 @@ const AICenterPage: React.FC = () => {
             onClick={() => { const next = !showInternal; setShowInternal(next); localStorage.setItem('aiCenter_showInternal', String(next)); }}
             style={{ width: '100%', justifyContent: 'center', fontSize: '0.7rem' }}
           >
-            {showInternal ? '👁 顯示系統 Thread' : '👤 僅使用者對話'}
+            {showInternal ? 'Show system threads' : 'User conversations only'}
           </button>
         </div>
 
         {threadsLoading && <div className="sidebar-loading"><span className="pulse">●</span> Loading...</div>}
-        {threadsError && <div className="sidebar-error">⚠️ {threadsError}</div>}
+        {threadsError && <div className="sidebar-error">Error: {threadsError}</div>}
 
         <div className="threads-list">
           {allThreads.length === 0 && !threadsLoading && (
@@ -625,7 +589,7 @@ const AICenterPage: React.FC = () => {
                   onClick={e => { e.stopPropagation(); handleDeleteThread(String(thread.id)); }}
                   title="Delete conversation"
                 >
-                  🗑️
+                  Delete
                 </button>
               )}
             </div>
@@ -635,7 +599,7 @@ const AICenterPage: React.FC = () => {
         {boundTargetId && (
           <div className="sidebar-footer">
             <div className="target-badge">
-              <span>🎯 Target: {boundTargetId}</span>
+              <span>Target: {boundTargetId}</span>
               <button
                 onClick={async () => { if (!selectedThreadId) return; await assistantApi.unbindTarget(selectedThreadId); setBoundTargetId(null); }}
                 title="Release target"
@@ -658,13 +622,13 @@ const AICenterPage: React.FC = () => {
               <div className="chat-header-bar">
                 <div className="chat-header-label">{chatTargetLabel}</div>
                 <div className="chat-header-actions">
-                  {activeNodeSteps.length > 0 && (
+                  {activeThreadGraphs.length > 0 && (
                     <button
                       className={`tool-log-toggle-btn ${showLogsPanel ? 'active' : ''}`}
                       onClick={() => setShowLogsPanel(v => !v)}
-                      title="Toggle tool call logs"
+                      title="Toggle execution timeline"
                     >
-                      🔧 {activeNodeSteps.length} step{activeNodeSteps.length > 1 ? 's' : ''}
+                      {activeThreadGraphs.length} graph{activeThreadGraphs.length > 1 ? 's' : ''}
                     </button>
                   )}
                   {rootThreadId && (
@@ -673,7 +637,7 @@ const AICenterPage: React.FC = () => {
                       onClick={() => setShowTreePanel(v => !v)}
                       title="Toggle Agent Tree"
                     >
-                      🌲 {agentTree.length > 1 ? `${agentTree.length - 1} agent${agentTree.length > 2 ? 's' : ''}` : 'Tree'}
+                      {agentTree.length > 1 ? `${agentTree.length - 1} agent${agentTree.length > 2 ? 's' : ''}` : 'Tree'}
                     </button>
                   )}
                 </div>
@@ -684,7 +648,7 @@ const AICenterPage: React.FC = () => {
                 <div className="messages-area" onScroll={handleScroll}>
                   {messages.length === 0 && !streamingText && (
                     <div className="empty-chat">
-                      <div className="empty-icon">💬</div>
+                      <div className="empty-icon">AI</div>
                       <div className="empty-text">Start a conversation</div>
                     </div>
                   )}
@@ -734,33 +698,25 @@ const AICenterPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* ── Tool call logs panel ─────────────────────────────── */}
+              {/* ── Execution timeline panel ─────────────────────────── */}
               {showLogsPanel && (
                 <div className="logs-panel">
                   <div className="logs-panel-header">
                     <div className="logs-panel-title">
-                      <span>🔧 TOOL CALLS</span>
-                      {selectedStep && (
-                        <span
-                          className="logs-step-status"
-                          style={{ color: STEP_STATUS_COLOR[selectedStep.status] || '#94a3b8' }}
-                        >
-                          {selectedStep.status}
-                        </span>
-                      )}
+                      <span>EXECUTION GRAPH</span>
+                      {selectedGraphId && <span className="logs-step-status">Graph #{selectedGraphId}</span>}
                     </div>
 
                     <div className="logs-panel-controls">
-                      {/* Step picker */}
-                      {activeNodeSteps.length > 1 && (
+                      {activeThreadGraphs.length > 1 && (
                         <select
                           className="step-picker"
-                          value={selectedStepId ?? ''}
-                          onChange={e => setSelectedStepId(Number(e.target.value))}
+                          value={selectedGraphId ?? ''}
+                          onChange={e => setSelectedGraphId(Number(e.target.value))}
                         >
-                          {activeNodeSteps.map(s => (
-                            <option key={s.id} value={s.id}>
-                              #{s.id} [{s.status}]{s.operation_type ? ` · ${s.operation_type}` : ''}
+                          {activeThreadGraphs.map(graph => (
+                            <option key={graph.id} value={graph.id}>
+                              #{graph.id} [{graph.status}] {graph.title || graph.assistant_id}
                             </option>
                           ))}
                         </select>
@@ -774,10 +730,10 @@ const AICenterPage: React.FC = () => {
                   </div>
 
                   <div className="logs-panel-body">
-                    {selectedStepId ? (
-                      <StepLogViewer stepId={selectedStepId} compact autoScroll />
+                    {selectedGraphId ? (
+                      <ExecutionTimelineViewer graphId={selectedGraphId} compact autoScroll />
                     ) : (
-                      <div className="logs-empty">No step selected</div>
+                      <div className="logs-empty">No execution graph selected</div>
                     )}
                   </div>
                 </div>
@@ -785,7 +741,7 @@ const AICenterPage: React.FC = () => {
             </>
           ) : (
             <div className="no-thread">
-              <div className="no-thread-icon">🤖</div>
+              <div className="no-thread-icon">AI</div>
               <div className="no-thread-text">
                 {allThreads.length === 0 ? 'Create a new conversation to get started' : 'Select a conversation'}
               </div>

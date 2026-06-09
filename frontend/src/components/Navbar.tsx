@@ -3,82 +3,54 @@ import { NavLink, useNavigate } from 'react-router-dom';
 function Navbar() {
   const navigate = useNavigate();
 
+  const linkClass = ({ isActive }: { isActive: boolean }) => `c2-navbar__link${isActive ? ' active' : ''}`;
+
   return (
     <nav className="c2-navbar">
-      {/* Logo */}
       <button
         className="c2-navbar__logo"
         onClick={() => navigate('/')}
         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
       >
-        &gt;_ C2 PLATFORM
+        <span className="c2-navbar__mark">ASM</span>
+        SKRpyASM
       </button>
 
-      {/* Nav Links */}
       <div className="c2-navbar__links">
-        <NavLink
-          to="/"
-          end
-          className={({ isActive }) => `c2-navbar__link${isActive ? ' active' : ''}`}
-        >
+        <NavLink to="/" end className={linkClass}>
           Targets
         </NavLink>
-        <NavLink
-          to="/execution-monitor"
-          className={({ isActive }) => `c2-navbar__link${isActive ? ' active' : ''}`}
-        >
+        <NavLink to="/execution-monitor" className={linkClass}>
           Monitor
         </NavLink>
-        <NavLink
-          to="/aicenter"
-          className={({ isActive }) => `c2-navbar__link${isActive ? ' active' : ''}`}
-        >
-          AI Center
-        </NavLink>
-        <NavLink
-          to="/cve-intelligence"
-          className={({ isActive }) => `c2-navbar__link${isActive ? ' active' : ''}`}
-        >
-          CVE Intel
-        </NavLink>
-        <NavLink
-          to="/scheduler"
-          className={({ isActive }) => `c2-navbar__link${isActive ? ' active' : ''}`}
-        >
+        <NavLink to="/scheduler" className={linkClass}>
           Scheduler
         </NavLink>
-        <NavLink
-          to="/skills"
-          className={({ isActive }) => `c2-navbar__link${isActive ? ' active' : ''}`}
-        >
+        <span className="c2-navbar__divider" aria-hidden="true" />
+        <NavLink to="/cve-intelligence" className={linkClass}>
+          CVE Intel
+        </NavLink>
+        <NavLink to="/aicenter" className={linkClass}>
+          AI Workbench
+        </NavLink>
+        <NavLink to="/skills" className={linkClass}>
           Skills
         </NavLink>
-        <NavLink
-          to="/agent-config"
-          className={({ isActive }) => `c2-navbar__link${isActive ? ' active' : ''}`}
-        >
+        <span className="c2-navbar__divider" aria-hidden="true" />
+        <NavLink to="/agent-config" className={linkClass}>
           Agents
         </NavLink>
-        <NavLink
-          to="/api-keys"
-          className={({ isActive }) => `c2-navbar__link${isActive ? ' active' : ''}`}
-        >
+        <NavLink to="/api-keys" className={linkClass}>
           Keys
         </NavLink>
-        <NavLink
-          to="/pentest-config"
-          className={({ isActive }) => `c2-navbar__link${isActive ? ' active' : ''}`}
-        >
-          Headers
+        <NavLink to="/pentest-config" className={linkClass}>
+          Request Policy
         </NavLink>
       </div>
 
-      {/* Status indicator */}
-      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div className="c2-navbar__status" aria-label="System status online">
         <span className="c2-pulse" />
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-          Online
-        </span>
+        Online
       </div>
     </nav>
   );

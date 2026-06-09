@@ -11,7 +11,6 @@ class DomainReconTriggerSchema(Schema):
     """觸發 DOMAIN 偵察鏈的請求體"""
 
     seed_id: int
-    callback_step_id: Optional[int] = None
     execution_graph_id: Optional[int] = None
     execution_node_id: Optional[int] = None
     # timeout: Optional[int] = 900 # 如果需要，可以保留 timeout

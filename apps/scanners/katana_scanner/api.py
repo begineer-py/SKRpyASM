@@ -5,7 +5,7 @@ from asgiref.sync import sync_to_async
 from ninja import Router
 from ninja.errors import HttpError
 
-from apps.core.models import Step, Subdomain
+from apps.core.models import Subdomain
 from apps.core.schemas import ErrorSchema
 from c2_core.config.logging import log_function_call
 
@@ -41,21 +41,7 @@ async def run_katana_scan(request, payload: KatanaScanSchema):
 
     if not subdomain:
         subdomains = Subdomain.objects.filter(name=clean_name)
-
-        if payload.callback_step_id:
-            try:
-                step = await Step.objects.select_related("overview__target").aget(
-                    id=payload.callback_step_id
-                )
-                if step.overview and step.overview.target:
-                    subdomain = await subdomains.filter(
-                        target=step.overview.target
-                    ).afirst()
-            except Exception as e:
-                logger.debug(f"無法透過 callback_step_id 確定 Target: {e}")
-
-        if not subdomain:
-            subdomain = await subdomains.afirst()
+        subdomain = await subdomains.afirst()
 
     if not subdomain:
         raise HttpError(404, f"Subdomain '{clean_name}' does not exist.")
@@ -70,7 +56,6 @@ async def run_katana_scan(request, payload: KatanaScanSchema):
             subdomain.id,
             depth=payload.depth,
             js_crawl=payload.js_crawl,
-            callback_step_id=payload.callback_step_id,
             execution_graph_id=payload.execution_graph_id,
             execution_node_id=payload.execution_node_id,
         )
@@ -80,7 +65,7 @@ async def run_katana_scan(request, payload: KatanaScanSchema):
             await sync_to_async(ExecutionService.set_node_external_task_id)(payload.execution_node_id, task.id)
         logger.info(
             f"Katana 任務已派發: Task ID {task.id} -> Subdomain {subdomain.id} "
-            f"(depth={payload.depth}, ExecutionNode: {payload.execution_node_id}, Step: {payload.callback_step_id})"
+            f"(depth={payload.depth}, ExecutionNode: {payload.execution_node_id})"
         )
     except Exception as e:
         logger.error(f"Celery 任務派發失敗: {e}")

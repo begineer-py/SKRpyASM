@@ -121,7 +121,7 @@ class AutoAppConfig:
                 db_temperature = db_cfg.temperature
                 db_api_base_url = db_cfg.api_base_url or None
                 if db_cfg.api_key_ref and db_cfg.api_key_ref.is_active:
-                    db_api_key = db_cfg.api_key_ref.key_value
+                    db_api_key = db_cfg.api_key_ref.get_key()
                     if db_api_key:
                         logger.debug(
                             "get_agent_config: agent='%s' using api_key_ref (id=%s) with non-empty key",

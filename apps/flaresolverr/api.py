@@ -74,7 +74,6 @@ async def start_crawl(request, trigger_data: FlaresolverrTriggerSchema):
         seed_id=seed_id,
         auto_create=auto_create,
         target_id=target_id,
-        callback_step_id=trigger_data.callback_step_id,
         execution_graph_id=trigger_data.execution_graph_id,
         execution_node_id=trigger_data.execution_node_id,
         body=trigger_data.body,
@@ -147,8 +146,8 @@ async def json_analyze(request, data: JSAnalyzeRequest):
 async def send_request(request, payload: FlareSolverrSendRequestSchema):
     """Send an arbitrary HTTP request via FlareSolverr with session reuse.
 
-    This endpoint is designed for the AI workflow: it accepts callback_step_id so
-    the hook can persist the request/response trace under the Step.
+    This endpoint is designed for the AI workflow; it persists request/response
+    traces under the ExecutionNode.
     """
 
     # Keep the same asset ownership gate as the crawler: require target mapping.
@@ -188,7 +187,6 @@ async def send_request(request, payload: FlareSolverrSendRequestSchema):
         host_header=payload.host_header,
         session_key=payload.session_key,
         refresh_session=payload.refresh_session,
-        callback_step_id=payload.callback_step_id,
         execution_graph_id=payload.execution_graph_id,
         execution_node_id=payload.execution_node_id,
     )

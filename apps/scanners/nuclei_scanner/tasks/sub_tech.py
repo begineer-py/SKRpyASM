@@ -11,7 +11,7 @@ from apps.core.header_injection import get_tagged_headers
 
 @shared_task(name="nuclei_scanner.tasks.sub_tech.scan_subdomain_tech")
 @log_function_call()
-def scan_subdomain_tech(subdomain_ids: list[int], callback_step_id: int = None, target_id: int = None, execution_graph_id: int | None = None, execution_node_id: int | None = None):
+def scan_subdomain_tech(subdomain_ids: list[int], target_id: int = None, execution_graph_id: int | None = None, execution_node_id: int | None = None):
     """
     掃描子域名的技術堆疊並解析結果
     """

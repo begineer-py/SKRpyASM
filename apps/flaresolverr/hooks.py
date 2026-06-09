@@ -3,7 +3,6 @@ from typing import Any, Optional
 
 def log_http_exchange(
     *,
-    step_id: Optional[int],
     execution_graph_id: Optional[int] = None,
     execution_node_id: Optional[int] = None,
     tool: str,
@@ -11,10 +10,7 @@ def log_http_exchange(
     response: dict[str, Any],
     level: str = "INFO",
 ) -> None:
-    """Persist HTTP request/response as execution graph telemetry.
-
-    step_id is accepted for transitional callers but no longer writes StepLog.
-    """
+    """Persist HTTP request/response as execution graph telemetry."""
 
     if not execution_graph_id:
         return
@@ -54,7 +50,6 @@ def log_http_exchange(
             "level": level,
             "status_code": status_code,
             "response_url": response.get("response_url"),
-            "step_id": step_id,
         },
     )
 

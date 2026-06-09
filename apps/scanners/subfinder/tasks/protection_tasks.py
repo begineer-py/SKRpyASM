@@ -8,7 +8,6 @@ from asgiref.sync import sync_to_async
 from celery import shared_task
 
 from apps.core.models import Subdomain, Seed
-from apps.core.utils import with_auto_callback
 from c2_core.config.logging import log_function_call
 
 logger = logging.getLogger(__name__)
@@ -42,14 +41,14 @@ async def _run_all_chunks(chunks: list[list[str]]) -> list[str]:
 
 
 @shared_task(bind=True, ignore_result=True)
-@with_auto_callback
 async def check_protection_for_seed(
     self,
     seed_id: int,
     subfinder_scan_id: int,
     chunk_size: int = 100,
     greenpool_size: int = 20,
-    callback_step_id: Optional[int] = None,
+    execution_graph_id: Optional[int] = None,
+    execution_node_id: Optional[int] = None,
 ):
     """Check CDN/WAF protection for all resolvable subdomains of a seed."""
     seed = None
@@ -64,10 +63,15 @@ async def check_protection_for_seed(
             return s, subs
 
         seed, subdomains_to_check = await sync_to_async(_fetch_seed_and_subdomains)()
-        logger.info(f"開始 CDN/WAF 檢測 for Seed: '{seed.value}' (Step: {callback_step_id})")
+        logger.info(f"開始 CDN/WAF 檢測 for Seed: '{seed.value}' (ExecutionNode: {execution_node_id})")
 
         if not subdomains_to_check:
             logger.info("沒有需要檢測 CDN/WAF 的子域名。")
+            await _complete_execution_node(
+                execution_node_id,
+                content=f"Subfinder 偵察鏈完成。種子: {seed.value}（無 CDN/WAF 檢測目標）",
+                output={"updated_count": 0},
+            )
             return
 
         subdomain_map = {sub.name: sub for sub in subdomains_to_check}
@@ -117,8 +121,34 @@ async def check_protection_for_seed(
 
         updates_count = len(to_update)
         logger.info(f"CDN/WAF 檢測完成。共更新 {updates_count} 個子域名的信息。")
+        await _complete_execution_node(
+            execution_node_id,
+            content=f"Subfinder 偵察鏈完成。種子: {seed.value}，CDN/WAF 更新 {updates_count} 筆。",
+            output={"updated_count": updates_count, "checked_count": len(subdomains_to_check)},
+        )
 
     except Exception as e:
         logger.exception(f"CDN/WAF 檢測任務 for Seed ID {seed_id} 失敗: {e}")
+        await _fail_execution_node(
+            execution_node_id,
+            content=f"Subfinder CDN/WAF 檢測失敗。Seed ID: {seed_id}: {e}",
+            error={"error_type": type(e).__name__, "message": str(e)},
+        )
     finally:
         return f"Subfinder 偵察鏈完成。種子: {seed.value if seed else 'Unknown'}"
+
+
+async def _complete_execution_node(execution_node_id: Optional[int], *, content: str, output: dict | None = None) -> None:
+    if not execution_node_id:
+        return
+    from apps.core.services import ExecutionService
+
+    await sync_to_async(ExecutionService.complete_node_by_id)(execution_node_id, output=output, content=content)
+
+
+async def _fail_execution_node(execution_node_id: Optional[int], *, content: str, error: dict | None = None) -> None:
+    if not execution_node_id:
+        return
+    from apps.core.services import ExecutionService
+
+    await sync_to_async(ExecutionService.fail_node_by_id)(execution_node_id, content=content, error=error)

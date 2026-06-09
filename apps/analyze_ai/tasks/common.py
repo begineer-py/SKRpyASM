@@ -47,6 +47,12 @@ def _safe_text_preview(value: str | None, limit: int = 500) -> str:
     return compact[:limit]
 
 
+def _safe_dom_preview(value: str | None, limit: int = 2000) -> str:
+    if not value:
+        return ""
+    return value[:limit]
+
+
 def _summarize_headers(headers: Any) -> Dict[str, Any]:
     if not isinstance(headers, dict):
         return {}
@@ -200,6 +206,7 @@ def fetch_initial_data_for_batch(analysis_ids: List[int]) -> Dict[str, Any]:
                     "technologies": _summarize_technologies(list(url.technologies.all()[:10])),
                     "forms_summary": _summarize_forms(forms),
                     "text_preview": _safe_text_preview(url.text or url.cleaned_html),
+                    "dom_snapshot_preview": _safe_dom_preview(url.dom_snapshot),
                 },
             })
 
@@ -215,31 +222,34 @@ def _build_strategic_context(record) -> Dict[str, Any]:
         "overview_knowledge": record.overview.knowledge,
         "overview_techs": record.overview.techs,
         "overview_plan": record.overview.plan,
-        "recent_steps_execution": []
+        "recent_executions": []
     }
 
-    from apps.core.models import Step
-    recent_steps = Step.objects.filter(overview=record.overview, status__in=["COMPLETED", "FAILED"]).order_by('-id')[:3]
+    thread_ids = [value for value in [record.overview.thread_id, record.overview.parent_thread_id] if value]
+    if thread_ids:
+        from apps.core.models import ExecutionGraph
 
-    for st in reversed(list(recent_steps)):
-        step_data = {
-            "step_id": st.id,
-            "command_template": st.command_template,
-            "note": st.note,
-        }
-        verifications = []
-        for v in st.verifications.all():
-            out = v.execution_output or ""
-            verifications.append({
-                "verdict": v.verdict,
-                "strategy": v.observation_prompt,
-                "output_preview": out[:1000]
+        recent_graphs = list(
+            ExecutionGraph.objects.filter(thread_id__in=thread_ids, status__in=["SUCCEEDED", "FAILED"])
+            .prefetch_related("nodes", "events")
+            .order_by("-started_at")[:3]
+        )
+        for graph in reversed(recent_graphs):
+            latest_event = graph.events.order_by("-sequence").first()
+            context["recent_executions"].append({
+                "execution_graph_id": graph.id,
+                "status": graph.status,
+                "title": graph.title,
+                "nodes": [
+                    {"id": node.id, "name": node.name, "status": node.status}
+                    for node in graph.nodes.order_by("sequence")[:10]
+                ],
+                "latest_event": {
+                    "event_type": latest_event.event_type,
+                    "status": latest_event.status,
+                    "content_preview": latest_event.content[:1000],
+                } if latest_event else None,
             })
-        step_data["verifications"] = verifications
-        context["recent_steps_execution"].append(step_data)
-
-    if record.triggered_by_step:
-        context["triggered_by_step_id"] = record.triggered_by_step.id
 
     return context
 

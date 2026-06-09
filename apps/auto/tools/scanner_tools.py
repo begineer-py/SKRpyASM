@@ -11,8 +11,8 @@ API_BASE_URL = getattr(settings, "INTERNAL_API_BASE_URL", "http://127.0.0.1:8000
 class ScannerToolsMixin:
     """
     Manual wrappers for core scanner endpoints.
-    These tools completely abstract away the Step creation, status management, and 
-    callback_step_id injection from the AI to prevent schema or lifecycle hallucinations.
+    These tools abstract away ExecutionNode lifecycle management from the AI to
+    prevent schema or lifecycle hallucinations.
     """
 
     def _dispatch_scanner(self, overview_id: int, tool_name: str, endpoint: str, payload: dict, description: str = "") -> str:
@@ -148,7 +148,7 @@ class ScannerToolsMixin:
         """Send a single HTTP request via FlareSolverr with session reuse.
 
         This is designed for AI-driven form submission / API probing under CF/WAF.
-        The platform will log request/response under the created Step.
+        The platform will log request/response under the active ExecutionNode.
 
         Use host_header to override the HTTP Host header (e.g. for vhost routing).
 

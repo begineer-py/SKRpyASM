@@ -86,10 +86,13 @@ function IndexPage() {
 
   return (
     <div className="c2-page dashboard-container">
-      {/* 頁面標頭 */}
       <header className="dashboard-header">
-        <h1>C2 Overwatch <span style={{fontSize: '0.5em', color: '#666'}}>// Target Command</span></h1>
-        <div className="status-badge">SYSTEM ONLINE</div>
+        <div>
+          <div className="eyebrow">Operations</div>
+          <h1>Attack Surface Control</h1>
+          <p>Manage authorized targets, scope, and reconnaissance state from one operations view.</p>
+        </div>
+        <div className="status-badge">Live telemetry</div>
       </header>
       
       {/* 錯誤橫幅 */}
@@ -104,9 +107,9 @@ function IndexPage() {
         {/* 左側：目標列表區域 */}
         <div className="target-list-section">
           <div className="section-header">
-            <h2 style={{ margin: 0 }}>Active Targets ({targets.length})</h2>
+            <h2 style={{ margin: 0 }}>Active Targets <span>{targets.length}</span></h2>
             <button className="btn btn-ghost btn-sm" onClick={fetchTargets} disabled={loading}>
-              {loading ? 'SYNCING...' : 'REFRESH DATA'}
+              {loading ? 'Syncing...' : 'Refresh'}
             </button>
           </div>
           
@@ -137,14 +140,14 @@ function IndexPage() {
                       className="btn btn-primary" 
                       onClick={() => navigate(`/target/${t.id}`)}
                     >
-                      ENTER DASHBOARD
+                      Open Operation
                     </button>
                     
                     <button 
                       className="btn btn-warning btn-sm" 
                       onClick={() => startEdit(t)}
                     >
-                      EDIT
+                      Edit
                     </button>
                     
                     <button 
@@ -152,7 +155,7 @@ function IndexPage() {
                       style={{marginLeft: 'auto'}}
                       onClick={() => handleDelete(t.id)}
                     >
-                      DELETE
+                      Delete
                     </button>
                   </div>
                 </li>
@@ -166,10 +169,10 @@ function IndexPage() {
           {editingId ? (
             // === 編輯模式 ===
             <>
-              <h3 className="panel-title editing">EDITING: {editingId}</h3>
+              <h3 className="panel-title editing">Editing Target #{editingId}</h3>
               
               <div className="form-group">
-                <label style={{color: '#888', fontSize: '0.8rem'}}>PROJECT NAME</label>
+                <label>Project Name</label>
                 <input 
                   className="input-field" 
                   value={editName} 
@@ -178,7 +181,7 @@ function IndexPage() {
               </div>
               
               <div className="form-group">
-                <label style={{color: '#888', fontSize: '0.8rem'}}>DESCRIPTION</label>
+                <label>Description</label>
                 <textarea 
                   className="input-field" 
                   rows={3} 
@@ -188,14 +191,14 @@ function IndexPage() {
               </div>
               
               <div style={{display: 'flex', gap: '10px'}}>
-                <button className="btn btn-warning btn-block" onClick={handleUpdate}>SAVE CHANGES</button>
-                <button className="btn btn-ghost btn-block" onClick={() => setEditingId(null)}>CANCEL</button>
+                <button className="btn btn-warning btn-block" onClick={handleUpdate}>Save Changes</button>
+                <button className="btn btn-ghost btn-block" onClick={() => setEditingId(null)}>Cancel</button>
               </div>
             </>
           ) : (
             // === 新增模式 ===
             <>
-              <h3 className="panel-title">NEW OPERATION</h3>
+              <h3 className="panel-title">New Operation</h3>
               
               <div className="form-group">
                 <input 
@@ -218,13 +221,13 @@ function IndexPage() {
               </div>
               
               <button className="btn btn-success btn-block" onClick={handleAdd}>
-                INITIALIZE TARGET
+                Create Target
               </button>
               
               <div style={{marginTop: '20px', fontSize: '0.8rem', color: '#666', borderTop: '1px solid #333', paddingTop: '10px'}}>
-                <p><strong>INSTRUCTIONS:</strong></p>
+                <p><strong>Workflow:</strong></p>
                 1. Create a container here.<br/>
-                2. Click "ENTER DASHBOARD".<br/>
+                2. Open the operation dashboard.<br/>
                 3. Add Seeds (Domains/IPs) inside.
               </div>
             </>

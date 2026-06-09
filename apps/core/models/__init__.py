@@ -16,8 +16,7 @@ from .analyze.analyze_ai_models import (
 )
 from .analyze.overview import Overview
 from .analyze.AttackVector import AttackVector, Payload
-from .analyze.Step import Step, Verification
-from .analyze.StepLog import StepLog
+from .analyze.Verification import Verification
 from .analyze.SkillTemplate import SkillTemplate
 from .analyze.SkillVerification import SkillVerification
 from .analyze.SkillMergeEvaluation import SkillMergeEvaluation

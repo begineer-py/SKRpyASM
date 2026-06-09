@@ -1,6 +1,5 @@
 import logging
 import asyncio
-from typing import Optional
 from celery import shared_task
 from django.utils import timezone
 from apps.core.models import CVEIntelligence, TechStackCVEMapping
@@ -11,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 @shared_task(bind=True)
-def sync_cisa_kev_database(self, callback_step_id: Optional[int] = None):
+def sync_cisa_kev_database(self):
     """
     每日同步 CISA KEV (Known Exploited Vulnerabilities) 目錄
 
@@ -21,8 +20,6 @@ def sync_cisa_kev_database(self, callback_step_id: Optional[int] = None):
     3. 對於本地不存在的 KEV CVE，觸發 NVD 查詢補充詳情
     4. 檢查是否有新的 KEV CVE 影響現有的 TechStack
 
-    Args:
-        callback_step_id: Step ID for callback
     """
     logger.info("Starting CISA KEV database sync")
 

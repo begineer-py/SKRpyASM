@@ -7,20 +7,22 @@ class SkillMergeEvaluation(models.Model):
     
     由 SkillMergeEvaluator Agent 定期評估 tag 重疊的技能對。
     若判定不可合併，記錄原因，後續不再重複檢查同一對技能。
+    
+    去重策略：一律以 (較小ID, 較大ID) 存儲，確保 A↔B 與 B↔A 只佔一條記錄。
     """
 
     skill_a = models.ForeignKey(
         "core.SkillTemplate",
         on_delete=models.CASCADE,
         related_name="merge_evals_as_a",
-        help_text="技能 A（評估對中的第一個）",
+        help_text="技能 A（ID 較小者）",
     )
 
     skill_b = models.ForeignKey(
         "core.SkillTemplate",
         on_delete=models.CASCADE,
         related_name="merge_evals_as_b",
-        help_text="技能 B（評估對中的第二個）",
+        help_text="技能 B（ID 較大者）",
     )
 
     MERGE_STRATEGY_CHOICES = [
@@ -72,9 +74,20 @@ class SkillMergeEvaluation(models.Model):
         unique_together = ("skill_a", "skill_b")
         ordering = ["-evaluated_at"]
         indexes = [
-            models.Index(fields=["skill_a", "skill_b"]),
             models.Index(fields=["is_mergeable"]),
         ]
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.skill_a_id and self.skill_b_id:
+            if self.skill_a_id == self.skill_b_id:
+                raise ValidationError("skill_a and skill_b must be different skills.")
+            if self.skill_a_id > self.skill_b_id:
+                self.skill_a_id, self.skill_b_id = self.skill_b_id, self.skill_a_id
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"MergeEval({self.skill_a.name} ↔ {self.skill_b.name}) [{self.is_mergeable}]"

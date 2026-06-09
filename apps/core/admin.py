@@ -15,7 +15,6 @@ from apps.core.models import (
     Port,
     SubfinderScan,
     Overview,
-    Step,
     Payload,
     Verification,
 )
@@ -35,6 +34,5 @@ admin.site.register(NmapScan)
 admin.site.register(Port)
 admin.site.register(SubfinderScan)
 admin.site.register(Overview)
-admin.site.register(Step)
 admin.site.register(Payload)
 admin.site.register(Verification)

@@ -81,9 +81,6 @@ def build_rate_limit_args(tool: str, target_id: Optional[int] = None) -> list[st
     mc = cfg.max_concurrency if cfg.max_concurrency is not None else _RATE_LIMIT_DEFAULTS["max_concurrency"]
     to = cfg.timeout if cfg.timeout is not None else _RATE_LIMIT_DEFAULTS["timeout"]
 
-    if cfg.rps is None and cfg.max_concurrency is None and cfg.timeout is None:
-        return []
-
     args: list[str] = []
 
     if tool == "nuclei":

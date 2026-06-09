@@ -289,7 +289,7 @@ class MemoryMixin:
         return "\n".join(lines)
 
     @method_tool
-    def save_long_content(self, content: str, source_type: str = "other", source_url: str = None, step_id: int = None) -> str:
+    def save_long_content(self, content: str, source_type: str = "other", source_url: str = None) -> str:
         """
         [Context Compression] 當你獲取到超長的輸出（> 2000 字的 HTML/Stack Trace/報告）時，
         呼叫此工具將它存入長期記憶庫 (ContentBlob)。系統會自動產生 AI 摘要，你只需要記住 blob_id。
@@ -299,7 +299,7 @@ class MemoryMixin:
             content: 要儲存的超長原始內容
             source_type: 來源類型 ('curl', 'crawler', 'nuclei', 'other')
             source_url: 來源網址 (選填)
-            step_id: 關聯的 Step ID (選填)
+            source_url: 來源網址 (選填)
         """
         from apps.core.models.analyze.ContentBlob import ContentBlob
 
@@ -312,8 +312,31 @@ class MemoryMixin:
             ai_summary=ai_summary,
             source_type=source_type,
             source_url=source_url,
-            step_id=step_id
         )
+        try:
+            from apps.core.models import ExecutionGraph, ExecutionNode
+            from apps.core.services import ExecutionService
+
+            graph = getattr(self, "_execution_graph", None)
+            node = getattr(self, "_current_execution_node", None)
+            if graph is None:
+                graph_id = getattr(self, "_current_execution_graph_id", None)
+                graph = ExecutionGraph.objects.filter(id=graph_id).first() if graph_id else None
+            if node is None:
+                node_id = getattr(self, "_current_execution_node_id", None)
+                node = ExecutionNode.objects.filter(id=node_id).first() if node_id else None
+            if graph is not None:
+                ExecutionService.attach_artifact(
+                    graph=graph,
+                    node=node,
+                    artifact_type="content_blob",
+                    name=f"ContentBlob #{blob.id}",
+                    content=ai_summary,
+                    data={"blob_id": blob.id, "source_type": source_type, "source_url": source_url},
+                    content_blob=blob,
+                )
+        except Exception as artifact_error:
+            logger.warning("Failed to attach ContentBlob #%s to execution graph: %s", blob.id, artifact_error)
         return (
             f"[Long Output Saved] blob_id={blob.id} | Size: {blob.content_size} chars\n"
             f"Summary: {ai_summary}\n\n"
@@ -367,7 +390,7 @@ class MemoryMixin:
     @method_tool
     def write_recon_note(self, overview_id: int = None, title: str = "", content: str = "") -> str:
         """
-        快速將偵察發現（例如 curl 的回應、表單結構、注入測試結果）儲存為一個新的 Step + StepNote。
+        快速將偵察發現（例如 curl 的回應、表單結構、注入測試結果）儲存為 execution artifact。
         在完成任何手動操作（如 run_command 執行 curl）後，立刻呼叫此工具保存結果。
 
         Args:
@@ -376,25 +399,49 @@ class MemoryMixin:
             content: 詳細的發現內容（可包含 curl 回應、觀察到的行為、評估等）。
         """
         try:
-            from apps.core.models.analyze.Step import Step, StepNote
+            from apps.core.models import ExecutionGraph
+            from apps.core.services import ExecutionService
             from apps.core.models.analyze.AttackVector import AttackVector
             from apps.core.models.analyze.overview import Overview
             if not Overview.objects.filter(id=overview_id).exists():
                 return f"❌ 錯誤: Overview ID {overview_id} 不存在。請確認你使用 get_target_context 拿到的 Active Overview ID。"
-            
-            step = Step.create_next(overview_id=overview_id, status="COMPLETED")
-            StepNote.objects.create(step=step, content=f"[{title}]\n\n{content}")
+
+            graph = getattr(self, "_execution_graph", None)
+            node = getattr(self, "_current_execution_node", None)
+            if graph is None:
+                graph_id = getattr(self, "_current_execution_graph_id", None)
+                graph = ExecutionGraph.objects.filter(id=graph_id).first() if graph_id else None
+
+            if graph is not None:
+                ExecutionService.emit_event(
+                    graph=graph,
+                    node=node,
+                    event_type="recon_note_recorded",
+                    status="completed",
+                    content=title or "Recon note recorded",
+                    payload={"overview_id": overview_id, "title": title, "content_preview": content[:1000]},
+                )
+                artifact = ExecutionService.attach_artifact(
+                    graph=graph,
+                    node=node,
+                    artifact_type="recon_note",
+                    name=title[:255] or "Recon Note",
+                    content=content,
+                    data={"overview_id": overview_id, "title": title},
+                )
+            else:
+                artifact = None
+
             # Auto-create AttackVector so the step is findable by get_target_context,
             # get_exhausted_attack_vectors, and visible in the frontend as purple tags.
-            AttackVector.objects.create(
+            vector = AttackVector.objects.create(
                 overview_id=overview_id,
-                discovery_step=step,
                 name=title[:500],
                 description=content[:5000],
                 status="IDENTIFIED",
                 vector_type="OTHER",
             )
-            return f"✅ 已記錄偵察發現至 Step#{step.id} (AttackVector auto-created)。"
+            return f"✅ 已記錄偵察發現至 ExecutionArtifact#{getattr(artifact, 'id', 'N/A')} (AttackVector#{vector.id} auto-created)。"
         except Exception as e:
             logger.error(f"Failed to write recon note for overview {overview_id}: {e}")
             return f"記錄偵察筆記失敗: {e}"
