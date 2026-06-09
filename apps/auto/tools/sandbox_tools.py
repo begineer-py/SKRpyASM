@@ -19,6 +19,14 @@ class SandboxMixin:
         """
         import docker
         try:
+            if hasattr(self, "emit_thread_event"):
+                self.emit_thread_event(
+                    "sandbox_command_started",
+                    status="started",
+                    content=command,
+                    payload={"command": command},
+                    tool_name="run_command",
+                )
             client = docker.from_env()
             container = client.containers.get('c2_kali_sandbox')
             
@@ -31,8 +39,32 @@ class SandboxMixin:
             res = f"Execution Environment: Kali Docker Sandbox\n"
             res += f"Exit Code: {exit_code}\n"
             res += f"Output:\n{output_bytes.decode('utf-8', errors='replace')}"
+            if hasattr(self, "emit_thread_event"):
+                self.emit_thread_event(
+                    "sandbox_command_finished",
+                    status="success" if exit_code == 0 else "failed",
+                    content=f"Exit Code: {exit_code}",
+                    payload={"command": command, "exit_code": exit_code},
+                    tool_name="run_command",
+                )
             return res
         except docker.errors.NotFound:
+            if hasattr(self, "emit_thread_event"):
+                self.emit_thread_event(
+                    "sandbox_command_error",
+                    status="failed",
+                    content="Sandbox container c2_kali_sandbox not found",
+                    payload={"command": command, "error_type": "NotFound"},
+                    tool_name="run_command",
+                )
             return "錯誤：找不到 Sandbox 容器 (c2_kali_sandbox)。請先透過 start_sandbox.sh 啟動。"
         except Exception as e:
+            if hasattr(self, "emit_thread_event"):
+                self.emit_thread_event(
+                    "sandbox_command_error",
+                    status="failed",
+                    content=str(e),
+                    payload={"command": command, "error_type": type(e).__name__},
+                    tool_name="run_command",
+                )
             return f"Sandbox Command Failed: {e}"

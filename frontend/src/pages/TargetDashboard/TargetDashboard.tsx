@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   gqlFetcher,
@@ -9,8 +9,10 @@ import {
   GET_TARGET_URLS_QUERY,
 } from "../../services/api";
 import { SeedService } from "../../services/api_seed";
+import { GLOBAL_CONFIG } from "../../config";
 import TargetActivityMonitor from "../../components/TargetActivityMonitor";
 import TechStackCVEReport from "../../components/TechStackCVEReport";
+import { SkeletonTable, SkeletonCards } from "../../components/SkeletonLoader";
 import type { Target, Seed } from "../../type";
 import "./TargetDashboard.css";
 
@@ -37,6 +39,8 @@ interface SubdomainAsset {
   name: string;
   is_active: boolean;
   is_resolvable: boolean;
+  is_cdn: boolean;
+  is_waf: boolean;
   created_at: string;
   ips: { id: number; address: string }[];
 }
@@ -88,6 +92,8 @@ interface SubdomainRaw {
   name: string;
   is_active: boolean;
   is_resolvable: boolean;
+  is_cdn: boolean;
+  is_waf: boolean;
   created_at: string;
   core_subdomain_ips?: { core_ip: { id: number; address: string } }[];
 }
@@ -99,7 +105,14 @@ interface IPRaw {
   core_ports?: Port[];
 }
 
-type TabId = "seeds" | "activity" | "subdomains" | "ips" | "urls" | "cve" | "ai";
+type TabId = "seeds" | "activity" | "subdomains" | "ips" | "urls" | "cve" | "ai" | "requestConfig";
+type SubSortKey = "created_at_desc" | "created_at_asc" | "name_asc" | "name_desc";
+type IPSortKey = "id_desc" | "address_asc" | "address_desc";
+type URLSortKey = "created_at_desc" | "created_at_asc" | "status_code_asc" | "preliminary_score_desc" | "preliminary_score_asc";
+
+const SUB_PAGE_SIZE = 100;
+const IP_PAGE_SIZE = 50;
+const URLS_PAGE_SIZE = 50;
 
 // ─── Helper Components ─────────────────────────────────────────
 const StatusBadge = ({ status }: { status: string }) => {
@@ -149,11 +162,41 @@ function TargetDashboard() {
   // Expanded IP rows
   const [expandedIp, setExpandedIp] = useState<number | null>(null);
 
-  // URL pagination & sorting
+  // Subdomains sort / filter / pagination
+  const [subSortBy, setSubSortBy] = useState<SubSortKey>("created_at_desc");
+  const [subSearch, setSubSearch] = useState("");
+  const [subFilterCdn, setSubFilterCdn] = useState<boolean | null>(null);
+  const [subFilterWaf, setSubFilterWaf] = useState<boolean | null>(null);
+  const [subPage, setSubPage] = useState(0);
+  const [subTotalCount, setSubTotalCount] = useState(0);
+  const subSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // IPs sort / filter / pagination
+  const [ipSortBy, setIpSortBy] = useState<IPSortKey>("id_desc");
+  const [ipPortFilter, setIpPortFilter] = useState("");
+  const [ipPage, setIpPage] = useState(0);
+  const [ipTotalCount, setIpTotalCount] = useState(0);
+
+  // URL sort / filter / pagination
   const [urlsOffset, setUrlsOffset] = useState(0);
   const [urlsTotalCount, setUrlsTotalCount] = useState(0);
-  const [urlsSortBy, setUrlsSortBy] = useState<"created_at_desc" | "created_at_asc" | "status_code_asc" | "preliminary_score_desc" | "preliminary_score_asc">("created_at_desc");
-  const URLS_PAGE_SIZE = 50;
+  const [urlsSortBy, setUrlsSortBy] = useState<URLSortKey>("created_at_desc");
+  const [urlSearch, setUrlSearch] = useState("");
+  const [urlStatusFilter, setUrlStatusFilter] = useState("");
+  const urlSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Per-target request config
+  const [reqConfig, setReqConfig] = useState<{
+    header_enabled: boolean | null;
+    header_username: string | null;
+    header_prefix: string | null;
+    custom_headers: Record<string, string>;
+    rps: number | null;
+    max_concurrency: number | null;
+    timeout: number | null;
+  }>({ header_enabled: null, header_username: null, header_prefix: null, custom_headers: {}, rps: null, max_concurrency: null, timeout: null });
+  const [reqConfigSaving, setReqConfigSaving] = useState(false);
+  const [reqConfigMsg, setReqConfigMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
   // ── Fetch base target data ──
   const fetchBase = useCallback(async () => {
@@ -170,87 +213,223 @@ function TargetDashboard() {
     finally { setLoading(false); }
   }, [numericId]);
 
-  // ── Fetch tab data ──
-  const fetchTabData = useCallback(async (tab: TabId, offset: number = 0) => {
+  // ── Fetch Subdomains ──
+  const fetchSubdomains = useCallback(async (
+    page: number,
+    sortBy: SubSortKey,
+    search: string,
+    filterCdn: boolean | null,
+    filterWaf: boolean | null,
+  ) => {
     if (!numericId || isNaN(numericId)) return;
     setTabLoading(true);
     try {
-      if (tab === "subdomains") {
-        const d = await gqlFetcher<{ core_subdomain: SubdomainRaw[] }>(
-          GET_TARGET_SUBDOMAINS_QUERY, { targetId: numericId }
-        );
-        const mapped: SubdomainAsset[] = (d.core_subdomain || []).map(sub => ({
-          ...sub,
-          ips: (sub.core_subdomain_ips || []).map(item => item.core_ip)
-        }));
-        setSubdomains(mapped);
-      } else if (tab === "ips") {
-        const d = await gqlFetcher<{ core_ip: IPRaw[] }>(
-          GET_TARGET_IPS_QUERY, { targetId: numericId }
-        );
-        const mapped: IPAsset[] = (d.core_ip || []).map(ip => ({
-          id: ip.id,
-          address: ip.address,
-          version: ip.version,
-          ports: ip.core_ports || [],
-        }));
-        setIps(mapped);
-      } else if (tab === "urls") {
-        // 構建排序參數
-        const orderByMap: Record<string, any> = {
-          "created_at_desc": { created_at: "desc" },
-          "created_at_asc": { created_at: "asc" },
-          "status_code_asc": { status_code: "asc" }
-        };
-        const orderBy = orderByMap[urlsSortBy] || { created_at: "desc" };
-        
-        const d = await gqlFetcher<{ 
-          core_urlresult: URLAsset[],
-          core_urlresult_aggregate: { aggregate: { count: number } }
-        }>(
-          GET_TARGET_URLS_QUERY, 
-          { 
-            targetId: numericId,
-            limit: URLS_PAGE_SIZE,
-            offset: offset,
-            orderBy: orderBy
-          }
-        );
-        
-        let urls = d.core_urlresult || [];
-        
-        // 前端排序（用於初步分析分數排序）
-        if (urlsSortBy === "preliminary_score_desc" || urlsSortBy === "preliminary_score_asc") {
-          urls.sort((a, b) => {
-            const scoreA = a.core_initialaianalysis_set?.[0]?.risk_score ?? -1;
-            const scoreB = b.core_initialaianalysis_set?.[0]?.risk_score ?? -1;
-            return urlsSortBy === "preliminary_score_desc" ? scoreB - scoreA : scoreA - scoreB;
-          });
-        }
-        
-        setUrls(urls);
-        setUrlsOffset(offset);
-        setUrlsTotalCount(d.core_urlresult_aggregate?.aggregate?.count || 0);
-      } else if (tab === "ai") {
-        const d = await gqlFetcher<{ core_overview: AIOverview[] }>(
-          GET_TARGET_OVERVIEWS_QUERY, { targetId: numericId }
-        );
-        setOverviews(d.core_overview || []);
-      }
-    } catch (e: unknown) { console.error("Tab fetch error:", e); }
+      const where: Record<string, unknown> = { target_id: { _eq: numericId } };
+      if (search.trim()) where.name = { _ilike: `%${search.trim()}%` };
+      if (filterCdn !== null) where.is_cdn = { _eq: filterCdn };
+      if (filterWaf !== null) where.is_waf = { _eq: filterWaf };
+
+      const sortMap: Record<SubSortKey, Record<string, string>> = {
+        created_at_desc: { created_at: "desc" },
+        created_at_asc:  { created_at: "asc" },
+        name_asc:        { name: "asc" },
+        name_desc:       { name: "desc" },
+      };
+
+      const d = await gqlFetcher<{
+        core_subdomain: SubdomainRaw[];
+        core_subdomain_aggregate: { aggregate: { count: number } };
+      }>(GET_TARGET_SUBDOMAINS_QUERY, {
+        where,
+        orderBy: sortMap[sortBy],
+        limit: SUB_PAGE_SIZE,
+        offset: page * SUB_PAGE_SIZE,
+      });
+
+      setSubdomains((d.core_subdomain || []).map(sub => ({
+        ...sub,
+        ips: (sub.core_subdomain_ips || []).map(item => item.core_ip),
+      })));
+      setSubTotalCount(d.core_subdomain_aggregate?.aggregate?.count ?? 0);
+      setSubPage(page);
+    } catch (e) { console.error("Subdomain fetch error:", e); }
     finally { setTabLoading(false); }
-  }, [numericId, urlsSortBy]);
+  }, [numericId]);
+
+  // ── Fetch IPs ──
+  const fetchIPs = useCallback(async (
+    page: number,
+    sortBy: IPSortKey,
+    portFilter: string,
+  ) => {
+    if (!numericId || isNaN(numericId)) return;
+    setTabLoading(true);
+    try {
+      const where: Record<string, unknown> = { target_id: { _eq: numericId } };
+      const portNum = parseInt(portFilter);
+      if (portFilter && !isNaN(portNum)) {
+        where.core_ports = { port_number: { _eq: portNum } };
+      }
+
+      const sortMap: Record<IPSortKey, Record<string, string>> = {
+        id_desc:      { id: "desc" },
+        address_asc:  { address: "asc" },
+        address_desc: { address: "desc" },
+      };
+
+      const d = await gqlFetcher<{
+        core_ip: IPRaw[];
+        core_ip_aggregate: { aggregate: { count: number } };
+      }>(GET_TARGET_IPS_QUERY, {
+        where,
+        orderBy: sortMap[sortBy],
+        limit: IP_PAGE_SIZE,
+        offset: page * IP_PAGE_SIZE,
+      });
+
+      setIps((d.core_ip || []).map(ip => ({
+        id: ip.id,
+        address: ip.address,
+        version: ip.version,
+        ports: ip.core_ports || [],
+      })));
+      setIpTotalCount(d.core_ip_aggregate?.aggregate?.count ?? 0);
+      setIpPage(page);
+    } catch (e) { console.error("IP fetch error:", e); }
+    finally { setTabLoading(false); }
+  }, [numericId]);
+
+  // ── Fetch URLs ──
+  const fetchURLs = useCallback(async (
+    offset: number,
+    sortBy: URLSortKey,
+    search: string,
+    statusFilter: string,
+  ) => {
+    if (!numericId || isNaN(numericId)) return;
+    setTabLoading(true);
+    try {
+      const where: Record<string, unknown> = { target_id: { _eq: numericId } };
+      if (search.trim()) where.url = { _ilike: `%${search.trim()}%` };
+      const statusNum = parseInt(statusFilter);
+      if (statusFilter && !isNaN(statusNum)) where.status_code = { _eq: statusNum };
+
+      const orderByMap: Record<string, Record<string, string>> = {
+        created_at_desc: { created_at: "desc" },
+        created_at_asc:  { created_at: "asc" },
+        status_code_asc: { status_code: "asc" },
+      };
+      const orderBy = orderByMap[sortBy] ?? { created_at: "desc" };
+
+      const d = await gqlFetcher<{
+        core_urlresult: URLAsset[];
+        core_urlresult_aggregate: { aggregate: { count: number } };
+      }>(GET_TARGET_URLS_QUERY, {
+        where,
+        limit: URLS_PAGE_SIZE,
+        offset,
+        orderBy,
+      });
+
+      let fetched = d.core_urlresult || [];
+      if (sortBy === "preliminary_score_desc" || sortBy === "preliminary_score_asc") {
+        fetched = [...fetched].sort((a, b) => {
+          const sA = a.core_initialaianalysis_set?.[0]?.risk_score ?? -1;
+          const sB = b.core_initialaianalysis_set?.[0]?.risk_score ?? -1;
+          return sortBy === "preliminary_score_desc" ? sB - sA : sA - sB;
+        });
+      }
+
+      setUrls(fetched);
+      setUrlsOffset(offset);
+      setUrlsTotalCount(d.core_urlresult_aggregate?.aggregate?.count ?? 0);
+    } catch (e) { console.error("URL fetch error:", e); }
+    finally { setTabLoading(false); }
+  }, [numericId]);
+
+  // ── Fetch AI Overviews ──
+  const fetchOverviews = useCallback(async () => {
+    if (!numericId || isNaN(numericId)) return;
+    setTabLoading(true);
+    try {
+      const d = await gqlFetcher<{ core_overview: AIOverview[] }>(
+        GET_TARGET_OVERVIEWS_QUERY, { targetId: numericId }
+      );
+      setOverviews(d.core_overview || []);
+    } catch (e) { console.error("Overview fetch error:", e); }
+    finally { setTabLoading(false); }
+  }, [numericId]);
+
+  const apiBase = GLOBAL_CONFIG.DJANGO_API_BASE;
+
+  const fetchReqConfig = useCallback(async () => {
+    if (!numericId || isNaN(numericId)) return;
+    setTabLoading(true);
+    try {
+      const res = await fetch(`${apiBase}/core/target-request-config/${numericId}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setReqConfig({
+        header_enabled: data.header_enabled ?? null,
+        header_username: data.header_username ?? null,
+        header_prefix: data.header_prefix ?? null,
+        custom_headers: data.custom_headers ?? {},
+        rps: data.rps ?? null,
+        max_concurrency: data.max_concurrency ?? null,
+        timeout: data.timeout ?? null,
+      });
+    } catch (e) { console.error("ReqConfig fetch error:", e); }
+    finally { setTabLoading(false); }
+  }, [numericId, apiBase]);
+
+  const saveReqConfig = async () => {
+    if (!numericId) return;
+    setReqConfigSaving(true);
+    setReqConfigMsg(null);
+    try {
+      const res = await fetch(`${apiBase}/core/target-request-config/${numericId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reqConfig),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setReqConfigMsg({ type: 'ok', text: 'Saved' });
+      setTimeout(() => setReqConfigMsg(null), 3000);
+    } catch (e) {
+      setReqConfigMsg({ type: 'err', text: e instanceof Error ? e.message : 'Unknown error' });
+    } finally { setReqConfigSaving(false); }
+  };
+
+  const resetReqConfig = async () => {
+    if (!numericId) return;
+    try {
+      const res = await fetch(`${apiBase}/core/target-request-config/${numericId}`, { method: 'DELETE' });
+      if (!res.ok && res.status !== 404) throw new Error(`HTTP ${res.status}`);
+      setReqConfig({ header_enabled: null, header_username: null, header_prefix: null, custom_headers: {}, rps: null, max_concurrency: null, timeout: null });
+      setReqConfigMsg({ type: 'ok', text: 'Reset to global defaults' });
+      setTimeout(() => setReqConfigMsg(null), 3000);
+    } catch (e) {
+      setReqConfigMsg({ type: 'err', text: e instanceof Error ? e.message : 'Unknown error' });
+    }
+  };
 
   useEffect(() => { fetchBase(); }, [fetchBase]);
 
   const handleTabChange = (tab: TabId) => {
     setActiveTab(tab);
-    if (tab === "urls") {
-      // 重置 URL 分頁狀態
+    if (tab === "subdomains") {
+      setSubPage(0);
+      fetchSubdomains(0, subSortBy, subSearch, subFilterCdn, subFilterWaf);
+    } else if (tab === "ips") {
+      setIpPage(0);
+      fetchIPs(0, ipSortBy, ipPortFilter);
+    } else if (tab === "urls") {
       setUrlsOffset(0);
-      fetchTabData(tab, 0);
-    } else if (tab !== "seeds") {
-      fetchTabData(tab);
+      fetchURLs(0, urlsSortBy, urlSearch, urlStatusFilter);
+    } else if (tab === "ai") {
+      fetchOverviews();
+    } else if (tab === "requestConfig") {
+      fetchReqConfig();
     }
   };
 
@@ -279,13 +458,14 @@ function TargetDashboard() {
   if (!target) return null;
 
   const TABS: { id: TabId; label: string; count?: number }[] = [
-    { id: "seeds",      label: "Seeds",      count: seeds.length },
-    { id: "activity",   label: "🤖 AI Activity", count: undefined },
-    { id: "subdomains", label: "Subdomains", count: subdomains.length || undefined },
-    { id: "ips",        label: "IPs / Ports", count: ips.length || undefined },
-    { id: "urls",       label: "URLs",       count: urlsTotalCount || undefined },
-    { id: "cve",        label: "CVE Report", count: undefined },
-    { id: "ai",         label: "AI Overview",count: overviews.length || undefined },
+    { id: "seeds",      label: "Seeds",         count: seeds.length },
+    { id: "activity",   label: "🤖 AI Activity" },
+    { id: "subdomains", label: "Subdomains",    count: subTotalCount || undefined },
+    { id: "ips",        label: "IPs / Ports",   count: ipTotalCount || undefined },
+    { id: "urls",       label: "URLs",          count: urlsTotalCount || undefined },
+    { id: "cve",        label: "CVE Report" },
+    { id: "ai",         label: "AI Overview",   count: overviews.length || undefined },
+    { id: "requestConfig", label: "Req Config" },
   ];
 
   return (
@@ -339,9 +519,6 @@ function TargetDashboard() {
 
       {/* ── Tab Content ── */}
       <div className="td-content">
-        {tabLoading && activeTab !== "seeds" && (
-          <div className="c2-loading">LOADING DATA...</div>
-        )}
 
         {/* SEEDS TAB */}
         {activeTab === "seeds" && (
@@ -446,26 +623,98 @@ function TargetDashboard() {
         )}
 
         {/* SUBDOMAINS TAB */}
-        {activeTab === "subdomains" && !tabLoading && (
+        {activeTab === "subdomains" && (
           <>
-            <div className="c2-section-header">
-              <span className="c2-section-title">SUBDOMAINS <span>({subdomains.length})</span></span>
-              <button className="c2-btn c2-btn--ghost" onClick={() => fetchTabData("subdomains")} style={{ fontSize: "0.7rem" }}>↻ REFRESH</button>
+            {/* Toolbar */}
+            <div className="c2-section-header" style={{ flexWrap: "wrap", gap: 8 }}>
+              <span className="c2-section-title">
+                SUBDOMAINS <span>({subTotalCount})</span>
+              </span>
+              <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                {/* Search */}
+                <input
+                  className="c2-input"
+                  placeholder="Search subdomain..."
+                  value={subSearch}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setSubSearch(val);
+                    if (subSearchTimer.current) clearTimeout(subSearchTimer.current);
+                    subSearchTimer.current = setTimeout(() => {
+                      fetchSubdomains(0, subSortBy, val, subFilterCdn, subFilterWaf);
+                    }, 350);
+                  }}
+                  style={{ width: 190, fontSize: "0.78rem" }}
+                />
+                {/* CDN toggle */}
+                <button
+                  className={`c2-btn c2-btn--sm ${subFilterCdn === true ? "c2-btn--primary" : "c2-btn--ghost"}`}
+                  title="Filter: CDN only"
+                  onClick={() => {
+                    const next = subFilterCdn === true ? null : true;
+                    setSubFilterCdn(next);
+                    fetchSubdomains(0, subSortBy, subSearch, next, subFilterWaf);
+                  }}
+                >CDN</button>
+                {/* WAF toggle */}
+                <button
+                  className={`c2-btn c2-btn--sm ${subFilterWaf === true ? "c2-btn--primary" : "c2-btn--ghost"}`}
+                  title="Filter: WAF only"
+                  onClick={() => {
+                    const next = subFilterWaf === true ? null : true;
+                    setSubFilterWaf(next);
+                    fetchSubdomains(0, subSortBy, subSearch, subFilterCdn, next);
+                  }}
+                >WAF</button>
+                {/* Sort */}
+                <select
+                  className="c2-input"
+                  value={subSortBy}
+                  onChange={e => {
+                    const val = e.target.value as SubSortKey;
+                    setSubSortBy(val);
+                    fetchSubdomains(0, val, subSearch, subFilterCdn, subFilterWaf);
+                  }}
+                  style={{ width: 155, fontSize: "0.78rem" }}
+                >
+                  <option value="created_at_desc">最新優先</option>
+                  <option value="created_at_asc">最舊優先</option>
+                  <option value="name_asc">名稱 A→Z</option>
+                  <option value="name_desc">名稱 Z→A</option>
+                </select>
+                <button className="c2-btn c2-btn--ghost"
+                  onClick={() => fetchSubdomains(subPage, subSortBy, subSearch, subFilterCdn, subFilterWaf)}
+                  style={{ fontSize: "0.7rem" }}>↻</button>
+              </div>
             </div>
-            {subdomains.length === 0 ? (
+
+            {/* Content */}
+            {tabLoading ? (
+              <SkeletonTable rows={8} cols={7} />
+            ) : subdomains.length === 0 ? (
               <div className="c2-empty">No subdomains found.<br />Run Subfinder on a DOMAIN seed to discover subdomains.</div>
             ) : (
               <div className="c2-card" style={{ overflow: "hidden" }}>
                 <table className="c2-table">
                   <thead><tr>
-                    <th>#ID</th><th>SUBDOMAIN</th><th>RESOLVABLE</th><th>STATUS</th>
-                    <th>LINKED IPs</th><th>URLs</th><th>DISCOVERED</th><th></th>
+                    <th>#ID</th><th>SUBDOMAIN</th><th>CDN</th><th>WAF</th>
+                    <th>RESOLVABLE</th><th>STATUS</th><th>LINKED IPs</th><th>DISCOVERED</th><th></th>
                   </tr></thead>
                   <tbody>
                     {subdomains.map(sub => (
                       <tr key={sub.id} onClick={() => navigate(`/target/${numericId}/subdomain/${sub.id}`)}>
                         <td className="td-mono">#{sub.id}</td>
                         <td className="td-mono" style={{ color: "var(--cyan)" }}>{sub.name}</td>
+                        <td>
+                          {sub.is_cdn
+                            ? <span className="c2-badge c2-badge--amber">CDN</span>
+                            : <span className="td-muted">—</span>}
+                        </td>
+                        <td>
+                          {sub.is_waf
+                            ? <span className="c2-badge c2-badge--red">WAF</span>
+                            : <span className="td-muted">—</span>}
+                        </td>
                         <td>
                           <span className={`c2-badge ${sub.is_resolvable ? "c2-badge--green" : "c2-badge--red"}`}>
                             {sub.is_resolvable ? "YES" : "NO"}
@@ -484,32 +733,97 @@ function TargetDashboard() {
                           </div>
                         </td>
                         <td className="td-muted">{new Date(sub.created_at).toLocaleDateString()}</td>
-                        <td>
-                          <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>→</span>
-                        </td>
+                        <td><span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>→</span></td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             )}
+
+            {/* Subdomain Pagination */}
+            {!tabLoading && subTotalCount > SUB_PAGE_SIZE && (
+              <div style={{ display: "flex", justifyContent: "center", gap: 8, padding: "12px 0" }}>
+                <button
+                  className="c2-btn c2-btn--ghost"
+                  onClick={() => fetchSubdomains(subPage - 1, subSortBy, subSearch, subFilterCdn, subFilterWaf)}
+                  disabled={subPage === 0}
+                  style={{ fontSize: "0.75rem" }}
+                >← PREVIOUS</button>
+                <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontFamily: "var(--font-mono)", display: "flex", alignItems: "center" }}>
+                  {subPage * SUB_PAGE_SIZE + 1} — {Math.min((subPage + 1) * SUB_PAGE_SIZE, subTotalCount)} / {subTotalCount}
+                </span>
+                <button
+                  className="c2-btn c2-btn--ghost"
+                  onClick={() => fetchSubdomains(subPage + 1, subSortBy, subSearch, subFilterCdn, subFilterWaf)}
+                  disabled={(subPage + 1) * SUB_PAGE_SIZE >= subTotalCount}
+                  style={{ fontSize: "0.75rem" }}
+                >NEXT →</button>
+              </div>
+            )}
           </>
         )}
 
         {/* IPs / PORTS TAB */}
-        {activeTab === "ips" && !tabLoading && (
+        {activeTab === "ips" && (
           <>
-            <div className="c2-section-header">
-              <span className="c2-section-title">IP ASSETS <span>({ips.length})</span></span>
-              <button className="c2-btn c2-btn--ghost" onClick={() => fetchTabData("ips")} style={{ fontSize: "0.7rem" }}>↻ REFRESH</button>
+            {/* Toolbar */}
+            <div className="c2-section-header" style={{ flexWrap: "wrap", gap: 8 }}>
+              <span className="c2-section-title">IP ASSETS <span>({ipTotalCount})</span></span>
+              <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                {/* Port filter */}
+                <input
+                  className="c2-input"
+                  placeholder="Filter by port (e.g. 443)"
+                  value={ipPortFilter}
+                  onChange={e => setIpPortFilter(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === "Enter") fetchIPs(0, ipSortBy, ipPortFilter);
+                  }}
+                  style={{ width: 190, fontSize: "0.78rem" }}
+                />
+                <button
+                  className="c2-btn c2-btn--ghost"
+                  onClick={() => fetchIPs(0, ipSortBy, ipPortFilter)}
+                  style={{ fontSize: "0.7rem" }}
+                >FILTER</button>
+                {ipPortFilter && (
+                  <button
+                    className="c2-btn c2-btn--ghost"
+                    onClick={() => { setIpPortFilter(""); fetchIPs(0, ipSortBy, ""); }}
+                    style={{ fontSize: "0.7rem" }}
+                  >✕</button>
+                )}
+                {/* Sort */}
+                <select
+                  className="c2-input"
+                  value={ipSortBy}
+                  onChange={e => {
+                    const val = e.target.value as IPSortKey;
+                    setIpSortBy(val);
+                    fetchIPs(0, val, ipPortFilter);
+                  }}
+                  style={{ width: 155, fontSize: "0.78rem" }}
+                >
+                  <option value="id_desc">最新新增</option>
+                  <option value="address_asc">IP 位址 A→Z</option>
+                  <option value="address_desc">IP 位址 Z→A</option>
+                </select>
+                <button className="c2-btn c2-btn--ghost"
+                  onClick={() => fetchIPs(ipPage, ipSortBy, ipPortFilter)}
+                  style={{ fontSize: "0.7rem" }}>↻</button>
+              </div>
             </div>
-            {ips.length === 0 ? (
+
+            {/* Content */}
+            {tabLoading ? (
+              <SkeletonCards count={6} height={52} />
+            ) : ips.length === 0 ? (
               <div className="c2-empty">No IP assets found.<br />Run Nmap on seeds to discover IP addresses and open ports.</div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {ips.map(ip => (
                   <div key={ip.id} className="c2-card" style={{ overflow: "hidden" }}>
-                    {/* IP Header Row */}
                     <div
                       style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: 16, cursor: "pointer" }}
                       onClick={() => setExpandedIp(expandedIp === ip.id ? null : ip.id)}
@@ -520,7 +834,6 @@ function TargetDashboard() {
                       <span className="c2-badge c2-badge--green">{ip.ports.length} PORT{ip.ports.length !== 1 ? "S" : ""}</span>
                       <span style={{ color: "var(--text-muted)", fontSize: "0.8rem", transition: "transform 0.2s", display: "inline-block", transform: expandedIp === ip.id ? "rotate(90deg)" : "none" }}>▶</span>
                     </div>
-                    {/* Ports Table (expanded) */}
                     {expandedIp === ip.id && ip.ports.length > 0 && (
                       <div style={{ borderTop: "1px solid var(--border-subtle)" }}>
                         <table className="c2-table" style={{ fontSize: "0.75rem" }}>
@@ -551,46 +864,101 @@ function TargetDashboard() {
                 ))}
               </div>
             )}
+
+            {/* IP Pagination */}
+            {!tabLoading && ipTotalCount > IP_PAGE_SIZE && (
+              <div style={{ display: "flex", justifyContent: "center", gap: 8, padding: "12px 0" }}>
+                <button
+                  className="c2-btn c2-btn--ghost"
+                  onClick={() => fetchIPs(ipPage - 1, ipSortBy, ipPortFilter)}
+                  disabled={ipPage === 0}
+                  style={{ fontSize: "0.75rem" }}
+                >← PREVIOUS</button>
+                <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontFamily: "var(--font-mono)", display: "flex", alignItems: "center" }}>
+                  {ipPage * IP_PAGE_SIZE + 1} — {Math.min((ipPage + 1) * IP_PAGE_SIZE, ipTotalCount)} / {ipTotalCount}
+                </span>
+                <button
+                  className="c2-btn c2-btn--ghost"
+                  onClick={() => fetchIPs(ipPage + 1, ipSortBy, ipPortFilter)}
+                  disabled={(ipPage + 1) * IP_PAGE_SIZE >= ipTotalCount}
+                  style={{ fontSize: "0.75rem" }}
+                >NEXT →</button>
+              </div>
+            )}
           </>
         )}
 
         {/* URLs TAB */}
-        {activeTab === "urls" && !tabLoading && (
+        {activeTab === "urls" && (
           <>
-            <div className="c2-section-header">
-              <div style={{ display: "flex", alignItems: "center", gap: 16, flex: 1 }}>
-                <span className="c2-section-title">URL ASSETS <span>({urlsTotalCount})</span></span>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <label style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>SORT BY:</label>
-                  <select 
-                    value={urlsSortBy} 
-                    onChange={(e) => {
-                      setUrlsSortBy(e.target.value as any);
-                      setUrlsOffset(0);
-                      fetchTabData("urls", 0);
+            {/* Toolbar */}
+            <div className="c2-section-header" style={{ flexWrap: "wrap", gap: 8 }}>
+              <span className="c2-section-title">URL ASSETS <span>({urlsTotalCount})</span></span>
+              <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                {/* URL search */}
+                <input
+                  className="c2-input"
+                  placeholder="Search URL..."
+                  value={urlSearch}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setUrlSearch(val);
+                    if (urlSearchTimer.current) clearTimeout(urlSearchTimer.current);
+                    urlSearchTimer.current = setTimeout(() => {
+                      fetchURLs(0, urlsSortBy, val, urlStatusFilter);
+                    }, 350);
+                  }}
+                  style={{ width: 200, fontSize: "0.78rem" }}
+                />
+                {/* Status code filter */}
+                <input
+                  className="c2-input"
+                  placeholder="Status (e.g. 200)"
+                  value={urlStatusFilter}
+                  onChange={e => setUrlStatusFilter(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === "Enter") fetchURLs(0, urlsSortBy, urlSearch, urlStatusFilter);
+                  }}
+                  style={{ width: 130, fontSize: "0.78rem" }}
+                />
+                {(urlSearch || urlStatusFilter) && (
+                  <button
+                    className="c2-btn c2-btn--ghost"
+                    onClick={() => {
+                      setUrlSearch("");
+                      setUrlStatusFilter("");
+                      fetchURLs(0, urlsSortBy, "", "");
                     }}
-                    style={{ 
-                      fontSize: "0.75rem", 
-                      padding: "4px 8px", 
-                      borderRadius: 4, 
-                      border: "1px solid var(--border-subtle)",
-                      background: "var(--bg-secondary)",
-                      color: "var(--text-primary)",
-                      fontFamily: "var(--font-mono)",
-                      cursor: "pointer"
-                    }}
-                  >
-                    <option value="created_at_desc">最新優先 (newest)</option>
-                    <option value="created_at_asc">最舊優先 (oldest)</option>
-                    <option value="status_code_asc">狀態碼 (asc)</option>
-                    <option value="preliminary_score_desc">初步分數 (high→low)</option>
-                    <option value="preliminary_score_asc">初步分數 (low→high)</option>
-                  </select>
-                </div>
+                    style={{ fontSize: "0.7rem" }}
+                  >✕ 清除</button>
+                )}
+                {/* Sort */}
+                <select
+                  className="c2-input"
+                  value={urlsSortBy}
+                  onChange={e => {
+                    const val = e.target.value as URLSortKey;
+                    setUrlsSortBy(val);
+                    fetchURLs(0, val, urlSearch, urlStatusFilter);
+                  }}
+                  style={{ width: 175, fontSize: "0.78rem" }}
+                >
+                  <option value="created_at_desc">最新優先 (newest)</option>
+                  <option value="created_at_asc">最舊優先 (oldest)</option>
+                  <option value="status_code_asc">狀態碼 (asc)</option>
+                  <option value="preliminary_score_desc">初步分數 (high→low)</option>
+                  <option value="preliminary_score_asc">初步分數 (low→high)</option>
+                </select>
+                <button className="c2-btn c2-btn--ghost"
+                  onClick={() => fetchURLs(urlsOffset, urlsSortBy, urlSearch, urlStatusFilter)}
+                  style={{ fontSize: "0.7rem" }}>↻</button>
               </div>
-              <button className="c2-btn c2-btn--ghost" onClick={() => fetchTabData("urls", urlsOffset)} style={{ fontSize: "0.7rem" }}>↻ REFRESH</button>
             </div>
-            {urlsTotalCount === 0 ? (
+
+            {/* Content */}
+            {tabLoading ? (
+              <SkeletonTable rows={10} cols={8} />
+            ) : urlsTotalCount === 0 ? (
               <div className="c2-empty">No URLs found.<br />Run URL scanning on subdomains to discover endpoints.</div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -615,9 +983,7 @@ function TargetDashboard() {
                             </td>
                             <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.8rem", textAlign: "center" }}>
                               {preliminaryScore !== undefined ? (
-                                <span style={{ 
-                                  color: preliminaryScore >= 70 ? "#ef4444" : preliminaryScore >= 40 ? "#f59e0b" : "#22C55E"
-                                }}>
+                                <span style={{ color: preliminaryScore >= 70 ? "#ef4444" : preliminaryScore >= 40 ? "#f59e0b" : "#22C55E" }}>
                                   {preliminaryScore.toFixed(1)}
                                 </span>
                               ) : (
@@ -629,10 +995,7 @@ function TargetDashboard() {
                             <td><StatusBadge status={url.content_fetch_status} /></td>
                             <td className="td-muted">{new Date(url.created_at).toLocaleDateString()}</td>
                             <td>
-                              <a
-                                href={`/target/${numericId}/url/${url.id}`}
-                                style={{ color: "var(--cyan)", fontSize: "0.72rem", textDecoration: "none", fontFamily: "var(--font-mono)" }}
-                              >
+                              <a href={`/target/${numericId}/url/${url.id}`} style={{ color: "var(--cyan)", fontSize: "0.72rem", textDecoration: "none", fontFamily: "var(--font-mono)" }}>
                                 DETAIL →
                               </a>
                             </td>
@@ -642,34 +1005,24 @@ function TargetDashboard() {
                     </tbody>
                   </table>
                 </div>
-                
-                {/* 分頁控制 */}
+
+                {/* URL Pagination */}
                 <div style={{ display: "flex", justifyContent: "center", gap: 8, padding: "12px 0" }}>
-                  <button 
+                  <button
                     className="c2-btn c2-btn--ghost"
-                    onClick={() => fetchTabData("urls", Math.max(0, urlsOffset - URLS_PAGE_SIZE))}
+                    onClick={() => fetchURLs(Math.max(0, urlsOffset - URLS_PAGE_SIZE), urlsSortBy, urlSearch, urlStatusFilter)}
                     disabled={urlsOffset === 0}
                     style={{ fontSize: "0.75rem" }}
-                  >
-                    ← PREVIOUS
-                  </button>
-                  <span style={{ 
-                    fontSize: "0.75rem", 
-                    color: "var(--text-muted)", 
-                    fontFamily: "var(--font-mono)",
-                    display: "flex",
-                    alignItems: "center"
-                  }}>
+                  >← PREVIOUS</button>
+                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontFamily: "var(--font-mono)", display: "flex", alignItems: "center" }}>
                     {urlsOffset + 1} — {Math.min(urlsOffset + URLS_PAGE_SIZE, urlsTotalCount)} / {urlsTotalCount}
                   </span>
-                  <button 
+                  <button
                     className="c2-btn c2-btn--ghost"
-                    onClick={() => fetchTabData("urls", urlsOffset + URLS_PAGE_SIZE)}
+                    onClick={() => fetchURLs(urlsOffset + URLS_PAGE_SIZE, urlsSortBy, urlSearch, urlStatusFilter)}
                     disabled={urlsOffset + URLS_PAGE_SIZE >= urlsTotalCount}
                     style={{ fontSize: "0.75rem" }}
-                  >
-                    NEXT →
-                  </button>
+                  >NEXT →</button>
                 </div>
               </div>
             )}
@@ -684,13 +1037,15 @@ function TargetDashboard() {
         )}
 
         {/* AI OVERVIEW TAB */}
-        {activeTab === "ai" && !tabLoading && (
+        {activeTab === "ai" && (
           <>
             <div className="c2-section-header">
               <span className="c2-section-title">AI STRATEGIC OVERVIEW <span>({overviews.length})</span></span>
-              <button className="c2-btn c2-btn--ghost" onClick={() => fetchTabData("ai")} style={{ fontSize: "0.7rem" }}>↻ REFRESH</button>
+              <button className="c2-btn c2-btn--ghost" onClick={fetchOverviews} style={{ fontSize: "0.7rem" }}>↻ REFRESH</button>
             </div>
-            {overviews.length === 0 ? (
+            {tabLoading ? (
+              <SkeletonCards count={3} height={120} />
+            ) : overviews.length === 0 ? (
               <div className="c2-empty">No AI analysis found.<br />The Celery beat task will generate overviews automatically. Check back after 30 minutes.</div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -724,7 +1079,7 @@ function TargetDashboard() {
                         )}
                         {ov.plan.objectives && Array.isArray(ov.plan.objectives) && (
                           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                            {ov.plan.objectives.map((obj) => (
+                            {ov.plan.objectives.map(obj => (
                               <div key={obj.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "6px 10px", background: "rgba(15,23,42,0.6)", borderRadius: 4, border: "1px solid var(--border-subtle)" }}>
                                 <StatusBadge status={obj.status || "PENDING"} />
                                 {obj.priority && <span className="c2-badge c2-badge--amber">{obj.priority}</span>}
@@ -749,6 +1104,127 @@ function TargetDashboard() {
               </div>
             )}
           </>
+        )}
+
+        {/* REQUEST CONFIG TAB */}
+        {activeTab === "requestConfig" && (
+          <div style={{ padding: 20, maxWidth: 700 }}>
+            <div className="c2-section-header">
+              <span className="c2-section-title">REQUEST CONFIG OVERRIDE</span>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="c2-btn c2-btn--ghost" onClick={() => fetchReqConfig()} style={{ fontSize: "0.7rem" }}>↻ REFRESH</button>
+              </div>
+            </div>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 16 }}>
+              留空的欄位會自動繼承全域設定（Pentest Config 頁面）。設定值會覆蓋全域預設。
+            </p>
+
+            <div style={{ background: 'rgba(15,23,42,0.6)', border: '1px solid var(--border-subtle)', borderRadius: 6, padding: 20, marginBottom: 16 }}>
+              <div style={{ fontSize: '0.72rem', color: 'var(--green)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>Header Injection</div>
+              <div style={{ display: 'flex', gap: 16, marginBottom: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase' }}>Enabled</label>
+                  <select
+                    value={reqConfig.header_enabled === null ? 'inherit' : reqConfig.header_enabled ? 'true' : 'false'}
+                    onChange={(e) => setReqConfig({ ...reqConfig, header_enabled: e.target.value === 'inherit' ? null : e.target.value === 'true' })}
+                    style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 4, color: 'var(--text-primary)', fontSize: '0.78rem', fontFamily: 'var(--font-mono)' }}
+                  >
+                    <option value="inherit">繼承全域</option>
+                    <option value="true">啟用</option>
+                    <option value="false">停用</option>
+                  </select>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 16, marginBottom: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase' }}>Username</label>
+                  <input
+                    className="pentest-config-input"
+                    type="text"
+                    value={reqConfig.header_username || ''}
+                    onChange={(e) => setReqConfig({ ...reqConfig, header_username: e.target.value || null })}
+                    placeholder="繼承全域設定"
+                    style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 4, color: 'var(--text-primary)', fontSize: '0.78rem', fontFamily: 'var(--font-mono)' }}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase' }}>Header Prefix</label>
+                  <input
+                    type="text"
+                    value={reqConfig.header_prefix || ''}
+                    onChange={(e) => setReqConfig({ ...reqConfig, header_prefix: e.target.value || null })}
+                    placeholder="繼承全域設定"
+                    style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 4, color: 'var(--text-primary)', fontSize: '0.78rem', fontFamily: 'var(--font-mono)' }}
+                  />
+                </div>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase' }}>Custom Headers (JSON)</label>
+                <textarea
+                  value={JSON.stringify(reqConfig.custom_headers, null, 2)}
+                  onChange={(e) => {
+                    try { setReqConfig({ ...reqConfig, custom_headers: JSON.parse(e.target.value) }); } catch { /* ignore invalid JSON while typing */ }
+                  }}
+                  placeholder='{"X-Custom": "value"}'
+                  rows={3}
+                  style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 4, color: 'var(--text-primary)', fontSize: '0.78rem', fontFamily: 'var(--font-mono)', resize: 'vertical', boxSizing: 'border-box' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ background: 'rgba(15,23,42,0.6)', border: '1px solid var(--border-subtle)', borderRadius: 6, padding: 20, marginBottom: 16 }}>
+              <div style={{ fontSize: '0.72rem', color: 'var(--green)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>Rate Limiting</div>
+              <div style={{ display: 'flex', gap: 16, marginBottom: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase' }}>RPS (Requests/sec)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={reqConfig.rps ?? ''}
+                    onChange={(e) => setReqConfig({ ...reqConfig, rps: e.target.value ? Number(e.target.value) : null })}
+                    placeholder="繼承全域設定"
+                    style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 4, color: 'var(--text-primary)', fontSize: '0.78rem', fontFamily: 'var(--font-mono)' }}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase' }}>Max Concurrency</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={reqConfig.max_concurrency ?? ''}
+                    onChange={(e) => setReqConfig({ ...reqConfig, max_concurrency: e.target.value ? Number(e.target.value) : null })}
+                    placeholder="繼承全域設定"
+                    style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 4, color: 'var(--text-primary)', fontSize: '0.78rem', fontFamily: 'var(--font-mono)' }}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase' }}>Timeout (sec)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={reqConfig.timeout ?? ''}
+                    onChange={(e) => setReqConfig({ ...reqConfig, timeout: e.target.value ? Number(e.target.value) : null })}
+                    placeholder="繼承全域設定"
+                    style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 4, color: 'var(--text-primary)', fontSize: '0.78rem', fontFamily: 'var(--font-mono)' }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button className="c2-btn c2-btn--ghost" onClick={saveReqConfig} disabled={reqConfigSaving} style={{ fontSize: "0.72rem", padding: "8px 16px" }}>
+                {reqConfigSaving ? 'Saving...' : 'Save'}
+              </button>
+              <button className="c2-btn c2-btn--ghost" onClick={resetReqConfig} style={{ fontSize: "0.72rem", padding: "8px 16px" }}>
+                Reset to Global
+              </button>
+              {reqConfigMsg && (
+                <span style={{ fontSize: '0.72rem', color: reqConfigMsg.type === 'ok' ? 'var(--green)' : 'var(--red)' }}>
+                  {reqConfigMsg.text}
+                </span>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </div>

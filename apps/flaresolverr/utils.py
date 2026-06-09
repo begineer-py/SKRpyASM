@@ -8,6 +8,7 @@ from urllib.parse import urlparse, parse_qsl
 
 from fake_useragent import UserAgent
 from c2_core.config.config import Config
+from apps.core.header_injection import get_tagged_headers
 
 # 導入 Django Models (根據你的代碼合併)
 from apps.core.models import (
@@ -136,7 +137,7 @@ def downloader(js_url) -> str | None:
     1. 嘗試使用 requests 直接下載。
     2. 如果失敗，調用 FlareSolverr 進行繞過下載。
     """
-    headers = get_random_headers()
+    headers = get_tagged_headers(get_random_headers())
 
     # --- 階段 1：直接抓取 ---
     logger.info(f"嘗試直接抓取: {js_url}")

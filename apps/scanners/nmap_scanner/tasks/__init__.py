@@ -9,20 +9,20 @@ from django.db.models import Q
 from typing import Optional
 
 from apps.core.models import NmapScan, Port, IP
-from apps.core.utils import with_auto_callback
 from apps.scanners.base_task import ScannerLifecycle
 
 logger = logging.getLogger(__name__)
 
 
 @shared_task(bind=True, name="nmap_scanner.tasks.perform_nmap_scan")
-@with_auto_callback
 def perform_nmap_scan(
     self,
     scan_id: int,
     ip_address: str,
     nmap_args: str,
     callback_step_id: Optional[int] = None,
+    execution_graph_id: Optional[int] = None,
+    execution_node_id: Optional[int] = None,
 ):
     """
     執行 Nmap 掃描，解析結果，並將情報存入資料庫。
@@ -30,45 +30,72 @@ def perform_nmap_scan(
     """
     logger.info(
         f"任務 [{self.request.id}] 領取命令：開始處理 NmapScan ID: {scan_id} "
-        f"for IP: {ip_address} (Step: {callback_step_id})"
+        f"for IP: {ip_address} (ExecutionNode: {execution_node_id}, Step: {callback_step_id})"
     )
 
     try:
         scan_record = NmapScan.objects.get(id=scan_id)
     except NmapScan.DoesNotExist:
         logger.error(f"找不到 NmapScan 記錄，ID: {scan_id}")
+        _fail_execution_node(execution_node_id, content=f"Nmap 掃描中止：找不到 NmapScan ID {scan_id}")
         return f"Nmap 掃描中止：找不到 NmapScan ID {scan_id}"
 
     if scan_record.status != "PENDING":
         logger.warning(
             f"Scan ID {scan_id} 狀態為 {scan_record.status}，非 PENDING。任務終止。"
         )
+        _fail_execution_node(execution_node_id, content=f"Scan ID {scan_id} not in PENDING state.")
         return f"Scan ID {scan_id} not in PENDING state."
 
     command = f"nice -n 19 nmap {nmap_args} {ip_address}"
     logger.info(f"準備執行命令: {command}")
 
-    with ScannerLifecycle(scan_record, logger, output_field="nmap_output") as lc:
-        process = subprocess.run(
-            shlex.split(command),
-            capture_output=True,
-            text=True,
-            timeout=1800,  # 30 minutes
-        )
-
-        if process.returncode != 0:
-            raise RuntimeError(
-                f"Nmap 執行失敗，返回碼: {process.returncode}. "
-                f"Stderr: {process.stderr[:500]}"
+    try:
+        with ScannerLifecycle(scan_record, logger, output_field="nmap_output") as lc:
+            process = subprocess.run(
+                shlex.split(command),
+                capture_output=True,
+                text=True,
+                timeout=1800,  # 30 minutes
             )
 
-        xml_output = process.stdout
-        lc.set_output(xml_output)  # 存入 nmap_output 欄位
-        logger.info(f"NmapScan ID {scan_id} 執行完畢，準備解析 XML 結果。")
-        parse_and_save_nmap_results(scan_record, xml_output, ip_address)
+            if process.returncode != 0:
+                raise RuntimeError(
+                    f"Nmap 執行失敗，返回碼: {process.returncode}. "
+                    f"Stderr: {process.stderr[:500]}"
+                )
+
+            xml_output = process.stdout
+            lc.set_output(xml_output)  # 存入 nmap_output 欄位
+            logger.info(f"NmapScan ID {scan_id} 執行完畢，準備解析 XML 結果。")
+            parse_and_save_nmap_results(scan_record, xml_output, ip_address)
+    except Exception as exc:
+        _fail_execution_node(
+            execution_node_id,
+            content=f"Nmap 掃描失敗。IP: {ip_address}: {exc}",
+            error={"error_type": type(exc).__name__, "message": str(exc)},
+        )
+        raise
 
     logger.info(f"NmapScan ID {scan_id} 最終狀態: {scan_record.status}")
+    _complete_execution_node(execution_node_id, content=f"Nmap 掃描完成。IP: {ip_address}")
     return f"Nmap 掃描完成。IP: {ip_address}"
+
+
+def _complete_execution_node(execution_node_id: Optional[int], *, content: str) -> None:
+    if not execution_node_id:
+        return
+    from apps.core.services import ExecutionService
+
+    ExecutionService.complete_node_by_id(execution_node_id, content=content)
+
+
+def _fail_execution_node(execution_node_id: Optional[int], *, content: str, error: dict | None = None) -> None:
+    if not execution_node_id:
+        return
+    from apps.core.services import ExecutionService
+
+    ExecutionService.fail_node_by_id(execution_node_id, content=content, error=error)
 
 
 def parse_and_save_nmap_results(

@@ -17,26 +17,38 @@ class ScannerToolsMixin:
 
     def _dispatch_scanner(self, overview_id: int, tool_name: str, endpoint: str, payload: dict, description: str = "") -> str:
         try:
-            from apps.core.models import Step
-            from apps.core.models.analyze.Step import StepNote
-            from django.utils import timezone
-            
-            # 1. 僅建立 Step (設定為 WAITING_FOR_ASYNC)
-            # 偵察階段 (Reconnaissance) 不應強制綁定 AttackVector，因為此時尚無具體的攻擊向量點
-            step = Step.create_next(
-                overview_id=overview_id,
-                status="WAITING_FOR_ASYNC"
-            )
-            
-            # Human-facing StepNote: keep the first line as a readable summary.
-            # Detailed logs should be appended on later lines.
-            if description:
-                StepNote.objects.create(step=step, content=description.strip())
+            from apps.core.models import ExecutionGraph, ExecutionNode
+            from apps.core.services import ExecutionService
 
-            # 2. 自動注入 callback_step_id
-            payload['callback_step_id'] = step.id
-            
-            # 3. 發送本地 API 請求
+            graph = getattr(self, "_execution_graph", None)
+            node = getattr(self, "_current_execution_node", None)
+            if graph is None:
+                graph_id = getattr(self, "_current_execution_graph_id", None)
+                graph = ExecutionGraph.objects.filter(id=graph_id).first() if graph_id else None
+            if node is None:
+                node_id = getattr(self, "_current_execution_node_id", None)
+                node = ExecutionNode.objects.filter(id=node_id).first() if node_id else None
+
+            if graph is not None:
+                payload["execution_graph_id"] = graph.id
+            if node is not None:
+                payload["execution_node_id"] = node.id
+            if hasattr(self, "emit_thread_event"):
+                self.emit_thread_event(
+                    "scanner_dispatch_started",
+                    status="started",
+                    content=description or tool_name,
+                    payload={
+                        "overview_id": overview_id,
+                        "endpoint": endpoint,
+                        "payload": payload,
+                        "execution_graph_id": getattr(graph, "id", None),
+                        "execution_node_id": getattr(node, "id", None),
+                    },
+                    tool_name=tool_name,
+                )
+
+            # 發送本地 API 請求
             # Defensive normalization: avoid accidental double '/api/api' prefixes.
             if endpoint.startswith("/api/"):
                 endpoint = endpoint[len("/api") :]
@@ -44,26 +56,63 @@ class ScannerToolsMixin:
             resp = requests.post(url, json=payload)
             
             if resp.status_code >= 400:
-                step.status = "FAILED"
-                # 📍 P0 FIX: 設置 completed_at 時間戳
-                step.completed_at = timezone.now()
-                step.save(update_fields=['status', 'completed_at'])
-                # Preserve summary as the first line, append failure details below.
-                note, _ = StepNote.objects.get_or_create(step=step)
                 summary = (description or "Scanner dispatch failed").strip()
                 details = f"[FAILED] API responded with {resp.status_code}: {resp.text}"
-                if note.content:
-                    # Ensure the first line remains the summary.
-                    first_line = (note.content.split("\n")[0] or summary).strip()
-                    note.content = first_line + "\n\n" + details
-                else:
-                    note.content = summary + "\n\n" + details
-                note.save(update_fields=["content"])
+                if node is not None:
+                    ExecutionService.fail_node(
+                        node,
+                        error={"status_code": resp.status_code, "response": resp.text[:4000]},
+                        content=details,
+                        payload={"overview_id": overview_id, "endpoint": endpoint},
+                    )
+                if hasattr(self, "emit_thread_event"):
+                    self.emit_thread_event(
+                        "scanner_dispatch_error",
+                        status="failed",
+                        content=details,
+                        payload={
+                            "overview_id": overview_id,
+                            "endpoint": endpoint,
+                            "status_code": resp.status_code,
+                            "execution_graph_id": getattr(graph, "id", None),
+                            "execution_node_id": getattr(node, "id", None),
+                        },
+                        tool_name=tool_name,
+                    )
                 return f"CRITICAL_FAILURE: API ({endpoint}) 失敗 (HTTP {resp.status_code}): {resp.text}"
-                
-            return f"✅ 工具 {tool_name} 已成功發送！(自動管理 Step ID: {step.id} 狀態為 WAITING_FOR_ASYNC)。請等待任務回調或進行其他動作。"
+
+            if node is not None:
+                ExecutionService.wait_node(
+                    node,
+                    wait_reason="ASYNC_CALLBACK",
+                    content=f"{tool_name} dispatched and waiting for async callback",
+                    payload={"overview_id": overview_id, "endpoint": endpoint, "response": resp.text[:2000]},
+                )
+            if hasattr(self, "emit_thread_event"):
+                self.emit_thread_event(
+                    "scanner_dispatched",
+                    status="waiting_for_async",
+                    content=f"{tool_name} dispatched with execution node #{getattr(node, 'id', None)}",
+                    payload={
+                        "overview_id": overview_id,
+                        "endpoint": endpoint,
+                        "response": resp.text[:2000],
+                        "execution_graph_id": getattr(graph, "id", None),
+                        "execution_node_id": getattr(node, "id", None),
+                    },
+                    tool_name=tool_name,
+                )
+            return f"工具 {tool_name} 已成功發送，ExecutionNode #{getattr(node, 'id', 'N/A')} 已進入 WAITING。請等待任務回調或進行其他動作。"
         except Exception as e:
             logger.error(f"Scanner dispatch failed: {e}")
+            if hasattr(self, "emit_thread_event"):
+                self.emit_thread_event(
+                    "scanner_dispatch_error",
+                    status="failed",
+                    content=str(e),
+                    payload={"overview_id": overview_id, "endpoint": endpoint},
+                    tool_name=tool_name,
+                )
             return f"CRITICAL_FAILURE: 內部執行例外錯誤: {e}"
 
     @method_tool
@@ -145,14 +194,31 @@ class ScannerToolsMixin:
     def run_gau_url_discovery(self, overview_id: int = None, subdomain_name: str = "") -> str:
         """
         [Phase C - Deep Discovery] 呼叫 GAU 被動收集網域的歷史 URL。
-        
+
         Args:
             overview_id: (Optional) 目標目前的 Overview ID。自動注入。
             subdomain_name: 目標子域名「字串」(e.g., 'vuln-f9wi.onrender.com')，這『不是』ID！
         """
         return self._dispatch_scanner(
-            overview_id, "gau", "/scanners/crawler/get_all_url", 
+            overview_id, "gau", "/scanners/crawler/get_all_url",
             {"name": subdomain_name, "scan_type": "passive"}, "GAU Historical URL Scan"
+        )
+
+    @method_tool
+    def run_katana_crawl(self, overview_id: int = None, subdomain_name: str = "", depth: int = 3) -> str:
+        """
+        [Phase C - Active URL Discovery] 使用 Katana 主動爬取子域名，發現當前存活的 URL。
+        補充 GAU 被動歷史資料的不足（GAU 可能已過時）。
+        建議在 GAU 之後、Flaresolverr 深度分析之前執行。
+
+        Args:
+            overview_id: (Optional) 目標目前的 Overview ID。自動注入。
+            subdomain_name: 目標子域名「字串」(e.g., 'example.com')，這『不是』ID！
+            depth: 爬取深度 (預設 3)
+        """
+        return self._dispatch_scanner(
+            overview_id, "katana", "/scanners/crawler/katana",
+            {"name": subdomain_name, "depth": depth}, f"Katana Active Crawl: {subdomain_name}"
         )
 
     @method_tool

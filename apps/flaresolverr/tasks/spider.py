@@ -7,7 +7,6 @@ from django.db import transaction
 
 # c2_core imports
 from c2_core.config.logging import log_function_call
-from apps.core.utils import with_auto_callback
 from apps.flaresolverr.orchestrators.recon_orchestrator import ReconOrchestrator
 from c2_core.config.utils import sanitize_for_db
 from c2_core.config.config import Config
@@ -25,7 +24,6 @@ logger = logging.getLogger(__name__)
 
 
 @shared_task(bind=True)
-@with_auto_callback
 @log_function_call()
 def perform_scan_for_url(
     self,
@@ -35,6 +33,8 @@ def perform_scan_for_url(
     auto_create: bool = False,
     target_id: int = None,
     callback_step_id: int = None,
+    execution_graph_id: int | None = None,
+    execution_node_id: int | None = None,
     body: str | None = None,
     content_type: str | None = None,
     host_header: str | None = None,
@@ -125,7 +125,7 @@ def perform_scan_for_url(
             logger.info(f"掃描初始化完成。Task ID: {scan_task.id}, Target: {url}")
 
         # 【步驟 3：執行核心掃描邏輯 (Orchestrator)】
-        orchestrator = ReconOrchestrator(url=url, method=method, body=body, content_type=content_type, host_header=host_header)
+        orchestrator = ReconOrchestrator(url=url, method=method, body=body, content_type=content_type, host_header=host_header, target_id=target_id)
         result = orchestrator.run()
 
         # 獲取關鍵狀態位
@@ -188,6 +188,7 @@ def perform_scan_for_url(
                 )
                 scan_task.completed_at = timezone.now()
                 scan_task.save()
+            _complete_execution_node(execution_node_id, content=f"FlareSolverr 掃描結束: {url} ({fetch_status})", output={"success": False, "status": fetch_status})
             return
 
         # 【步驟 6：資產膨脹 - 處理發現的連結 (事務 3)】
@@ -331,6 +332,7 @@ def perform_scan_for_url(
             scan_task.save()
 
         logger.info(f"任務完成: {url} (狀態: {fetch_status})")
+        _complete_execution_node(execution_node_id, content=f"FlareSolverr 掃描完成: {url}", output={"success": True, "status": fetch_status})
 
     except ValueError as e:
         # 專門處理參數或格式錯誤
@@ -339,6 +341,11 @@ def perform_scan_for_url(
             URLScan.objects.filter(id=scan_task.id).update(
                 status="FAILED", error_message=str(e), completed_at=timezone.now()
             )
+        _fail_execution_node(
+            execution_node_id,
+            content=f"FlareSolverr 掃描參數錯誤: {url}: {e}",
+            error={"error_type": type(e).__name__, "message": str(e)},
+        )
 
     except Exception as e:
         # 處理任何未預期的系統程式錯誤
@@ -353,3 +360,24 @@ def perform_scan_for_url(
             URLResult.objects.filter(id=url_result.id).update(
                 content_fetch_status="FAILED_SYSTEM_ERROR"
             )
+        _fail_execution_node(
+            execution_node_id,
+            content=f"FlareSolverr 掃描失敗: {url}: {e}",
+            error={"error_type": type(e).__name__, "message": str(e)},
+        )
+
+
+def _complete_execution_node(execution_node_id: int | None, *, content: str, output: dict | None = None) -> None:
+    if not execution_node_id:
+        return
+    from apps.core.services import ExecutionService
+
+    ExecutionService.complete_node_by_id(execution_node_id, output=output, content=content)
+
+
+def _fail_execution_node(execution_node_id: int | None, *, content: str, error: dict | None = None) -> None:
+    if not execution_node_id:
+        return
+    from apps.core.services import ExecutionService
+
+    ExecutionService.fail_node_by_id(execution_node_id, content=content, error=error)

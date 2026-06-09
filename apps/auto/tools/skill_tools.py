@@ -145,7 +145,8 @@ Use the `create_skill` tool to create this skill. Make sure to carefully analyze
         thread = create_thread(
             name=thread_name,
             user=system_user,
-            assistant_id=SkillCreatorAgent.id
+            assistant_id=SkillCreatorAgent.id,
+            is_hidden=True,
         )
 
         # 使用 SkillCreatorAgent 處理這個請求
@@ -326,8 +327,7 @@ Use the `create_skill` tool to create this skill. Make sure to carefully analyze
                     execution_duration_ms=execution_duration
                 )
                 
-                # 建立 StepLog 記錄
-                self._log_script_execution(current_step, skill, script_execution)
+                self._emit_script_execution_event(skill, script_execution)
             
             # === 步驟 5：回傳結果 ===
             result = f"Executed Skill: {name} (Usage Count now {skill.usage_count})\n"
@@ -376,6 +376,7 @@ Use the `create_skill` tool to create this skill. Make sure to carefully analyze
                     validation_error=input_validation_error,
                     completed_at=datetime.now(timezone.utc)
                 )
+                self._emit_script_execution_event(skill, script_execution)
             
             return "錯誤：找不到 Sandbox 容器 (c2_kali_sandbox)。請手動啟動 sandbox。"
         
@@ -399,6 +400,7 @@ Use the `create_skill` tool to create this skill. Make sure to carefully analyze
                     validation_error=input_validation_error,
                     completed_at=datetime.now(timezone.utc)
                 )
+                self._emit_script_execution_event(skill, script_execution)
             
             return f"[ERROR] Kali Sandbox 執行發生系統異常: {e}"
 
@@ -449,35 +451,27 @@ Use the `create_skill` tool to create this skill. Make sure to carefully analyze
                 return None
         return None
     
-    def _log_script_execution(self, step, skill, script_execution):
-        """建立 StepLog 記錄腳本執行"""
-        from apps.core.models.analyze.StepLog import StepLog
-        
-        if not step or not skill or not script_execution:
+    def _emit_script_execution_event(self, skill, script_execution):
+        """Emit graph-native realtime event for skill execution."""
+        if not skill or not script_execution or not hasattr(self, "emit_thread_event"):
             return
-        
-        # 決定日誌等級和標籤
-        level = "INFO" if script_execution.status == "SUCCESS" else "ERROR"
-        tag = "SKILL_EXEC"
-        
-        # 構建日誌訊息
-        message = f"Executed skill: {skill.name}\n"
-        message += f"Args: {script_execution.args_string}\n"
-        message += f"Exit Code: {script_execution.exit_code}\n"
-        
-        if script_execution.validation_status != "NOT_VALIDATED":
-            message += f"Validation: {script_execution.validation_status}\n"
-        
-        try:
-            StepLog.objects.create(
-                step=step,
-                level=level,
-                tag=tag,
-                message=message,
-                action_status="SUCCESS" if script_execution.status == "SUCCESS" else "FAILED"
-            )
-        except Exception as e:
-            logger.warning(f"Failed to create StepLog for skill execution: {e}")
+
+        event_type = "skill_execution_finished" if script_execution.status == "SUCCESS" else "skill_execution_error"
+        self.emit_thread_event(
+            event_type,
+            status="success" if script_execution.status == "SUCCESS" else "failed",
+            content=f"Executed skill: {skill.name} (exit={script_execution.exit_code})",
+            payload={
+                "skill_id": skill.id,
+                "skill_name": skill.name,
+                "script_execution_id": script_execution.id,
+                "step_id": script_execution.step_id,
+                "exit_code": script_execution.exit_code,
+                "validation_status": script_execution.validation_status,
+                "execution_duration_ms": script_execution.execution_duration_ms,
+            },
+            tool_name="execute_skill_script",
+        )
     
     @method_tool
     def promote_successful_script(
@@ -596,4 +590,3 @@ Use the `create_skill` tool to create this skill. Make sure to carefully analyze
             )
         
         return "\n".join(result)
-

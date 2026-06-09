@@ -154,6 +154,13 @@ class EndpointMixin:
         - TechStack：已偵測的技術
         - Vulnerabilities：已記錄的漏洞
 
+        【歷史快取直接派發】若 content_fetch_status=SUCCESS_FETCHED，
+        表示已有完整爬取記錄，系統直接返回快取情報，無需重新爬取。
+        請勿對已有情報的 URL 再次呼叫 run_flaresolverr_crawler。
+
+        【意圖觸發掃描】若 content_fetch_status=PENDING，代表尚未爬取。
+        系統會自動靜默觸發爬蟲任務，同時在回傳中提示。你無需再手動下達掃描指令。
+
         當你想了解一個 URL 的完整情況時，優先呼叫此工具，不要猜測。
 
         Args:
@@ -246,9 +253,51 @@ class EndpointMixin:
             content = url_obj.cleaned_html or url_obj.text or ""
             if content:
                 sections.append(f"\n[Content Preview (2000 chars)]\n{content[:2000]}")
+                sections.append("\n✅ CACHED: This URL has existing crawl data — no need to re-crawl with run_flaresolverr_crawler.")
             else:
                 if url_obj.content_fetch_status == "PENDING":
-                    sections.append("\n[Content] No HTML content stored yet – may need Flaresolverr crawl.")
+                    # ═══ Intent-to-Scan Auto-Trigger ═══
+                    # AI 查詢 PENDING URL 等於表達「想掃描它」的意圖，後端靜默觸發爬蟲
+                    triggered = False
+                    try:
+                        from django.conf import settings
+                        import requests as _req
+                        api_base = getattr(settings, "INTERNAL_API_BASE_URL", "http://127.0.0.1:8000/api")
+                        # Find overview for this URL's target to create step
+                        from apps.core.models.analyze.overview import Overview
+                        overview_qs = Overview.objects.filter(
+                            target=url_obj.target,
+                            status__in=["PLANNING", "EXECUTING"]
+                        ).order_by("-id")
+                        active_ov = overview_qs.first()
+                        if active_ov:
+                            from apps.core.models.analyze.Step import Step, StepNote
+                            from django.utils import timezone
+                            step = Step.create_next(
+                                overview_id=active_ov.id,
+                                status="WAITING_FOR_ASYNC"
+                            )
+                            StepNote.objects.create(
+                                step=step,
+                                content=f"[Auto-Intent Crawl] AI queried PENDING URL {url_obj.url} — auto-triggering Flaresolverr crawl"
+                            )
+                            payload = {"url": url_obj.url, "method": "GET", "callback_step_id": step.id}
+                            _req.post(f"{api_base.rstrip('/')}/flaresolverr/start_scanner", json=payload, timeout=5)
+                            triggered = True
+                    except Exception as trig_err:
+                        logger.warning(f"[Intent-to-scan] Auto-trigger failed for url_id={url_id}: {trig_err}")
+
+                    if triggered:
+                        sections.append(
+                            "\n[Content] ⏳ PENDING — no content yet. "
+                            "🔫 INTENT-TO-SCAN: System has auto-triggered a Flaresolverr crawl for this URL. "
+                            "Continue with other work and check back after the crawl callback."
+                        )
+                    else:
+                        sections.append(
+                            "\n[Content] ⏳ PENDING — no content yet. "
+                            "Use run_flaresolverr_crawler(target_url=...) to fetch it."
+                        )
                 else:
                     sections.append(f"\n[Content] No parseable HTML content (status={url_obj.content_fetch_status}). Already attempted crawl — skip this URL and move on.")
 

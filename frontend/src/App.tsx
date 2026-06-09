@@ -20,6 +20,7 @@ import AgentLLMConfigPage from "./pages/AgentLLMConfigPage/AgentLLMConfigPage.ts
 import OverviewDetailPage from "./pages/OverviewDetailPage/OverviewDetailPage.tsx";
 import CVEIntelligencePage from "./pages/CVEIntelligencePage/CVEIntelligencePage.tsx";
 import SchedulerPage from "./pages/SchedulerPage/SchedulerPage.tsx";
+import PentestConfigPage from "./pages/PentestConfigPage/PentestConfigPage.tsx";
 function App() {
   return (
     <BrowserRouter>
@@ -41,6 +42,7 @@ function App() {
           <Route path="/skills" element={<SkillLibraryPage />} />
           <Route path="/api-keys" element={<APIKeyManagerPage />} />
           <Route path="/agent-config" element={<AgentLLMConfigPage />} />
+          <Route path="/pentest-config" element={<PentestConfigPage />} />
         </Routes>
       </main>
     </BrowserRouter>

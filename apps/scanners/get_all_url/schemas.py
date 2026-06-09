@@ -10,6 +10,8 @@ class ScanAllUrlSchema(Schema):
     subdomain_id: Optional[int] = Field(None, description="子域名 ID (優先使用)")
     scan_type: Optional[Literal["passive", "initiative"]] = None
     callback_step_id: Optional[int] = Field(None, description="回調用的 Step ID (必填，來自 create_step)")
+    execution_graph_id: Optional[int] = Field(None, description="ExecutionGraph ID for async lifecycle tracking")
+    execution_node_id: Optional[int] = Field(None, description="ExecutionNode ID for async lifecycle tracking")
 
 
 class SuccessScanAllUrlSchema(Schema):

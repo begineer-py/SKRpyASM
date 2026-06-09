@@ -1,6 +1,7 @@
 import subprocess
 import logging
 from c2_core.config.logging import log_function_call
+from apps.core.header_injection import get_tagged_headers, build_rate_limit_args
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,13 @@ def _run_cmd(url, headless=False):
         "-irr",
         "-follow-redirects",
     ]
+
+    # 注入請求標籤
+    tagged_headers = get_tagged_headers()
+    for h_key, h_val in tagged_headers.items():
+        cmd.extend(["-H", f"{h_key}: {h_val}"])
+
+    cmd.extend(build_rate_limit_args("httpx"))
 
     # 2. 只有在 headless 且確信 Docker 鏡像支持時才加 (但官方鏡像通常不支持)
     if headless:

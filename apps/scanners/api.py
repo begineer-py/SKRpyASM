@@ -9,6 +9,7 @@ from apps.scanners.subfinder.api import router as subfinder_router
 from apps.scanners.nuclei_scanner.api import router as nuclei_router
 from apps.scanners.get_all_url.api import router as get_all_url_router
 from apps.scanners.cve_intelligence.api import router as cve_router
+from apps.scanners.katana_scanner.api import router as katana_router
 
 router = Router()
 
@@ -17,4 +18,5 @@ router.add_router("/nmap", nmap_router, tags=["Scanners - Nmap"])
 router.add_router("/subdomain", subfinder_router, tags=["Scanners - Subdomain"])
 router.add_router("/vuln", nuclei_router, tags=["Scanners - Nuclei Vuln"])
 router.add_router("/crawler", get_all_url_router, tags=["Scanners - Web Crawler"])
+router.add_router("/crawler", katana_router, tags=["Scanners - Katana Active Crawler"])
 router.add_router("/cve", cve_router, tags=["Scanners - CVE Intelligence"])

@@ -1,8 +1,13 @@
 from ninja import Schema, ModelSchema, Field
 from typing import List, Optional
+from datetime import datetime
 
 from .models import IP
 from apps.core.models import (
+    ExecutionArtifact,
+    ExecutionEvent,
+    ExecutionGraph,
+    ExecutionNode,
     URLResult,
     Form,
     JavaScriptFile,
@@ -111,6 +116,91 @@ class ErrorSchema(Schema):
     detail: str
 
 
+class ExecutionGraphSchema(ModelSchema):
+    thread_id: Optional[int] = None
+
+    class Meta:
+        model = ExecutionGraph
+        fields = [
+            "id",
+            "assistant_id",
+            "run_id",
+            "title",
+            "status",
+            "metadata",
+            "started_at",
+            "updated_at",
+            "completed_at",
+        ]
+
+
+class ExecutionNodeSchema(ModelSchema):
+    graph_id: int
+    parent_id: Optional[int] = None
+
+    class Meta:
+        model = ExecutionNode
+        fields = [
+            "id",
+            "name",
+            "kind",
+            "status",
+            "tool_call_id",
+            "external_task_id",
+            "wait_reason",
+            "input",
+            "output",
+            "error",
+            "metadata",
+            "sequence",
+            "started_at",
+            "completed_at",
+            "created_at",
+            "updated_at",
+        ]
+
+
+class ExecutionEventSchema(ModelSchema):
+    graph_id: int
+    node_id: Optional[int] = None
+
+    class Meta:
+        model = ExecutionEvent
+        fields = [
+            "id",
+            "event_type",
+            "status",
+            "content",
+            "payload",
+            "sequence",
+            "created_at",
+        ]
+
+
+class ExecutionArtifactSchema(ModelSchema):
+    graph_id: int
+    node_id: Optional[int] = None
+    content_blob_id: Optional[int] = None
+
+    class Meta:
+        model = ExecutionArtifact
+        fields = [
+            "id",
+            "artifact_type",
+            "name",
+            "content",
+            "data",
+            "metadata",
+            "created_at",
+        ]
+
+
+class ExecutionGraphDetailSchema(ExecutionGraphSchema):
+    nodes: List[ExecutionNodeSchema]
+    events: List[ExecutionEventSchema]
+    artifacts: List[ExecutionArtifactSchema]
+
+
 # 1. 單個 IP 的 Schema
 class IPSchema(ModelSchema):
     class Meta:
@@ -132,6 +222,51 @@ class get_ip_by_subdomains(Schema):
     ip: IPSchema
 
 
+class PentestHeaderConfigOut(Schema):
+    enabled: bool
+    username: str
+    header_prefix: str
+    updated_at: datetime
+
+
+class PentestHeaderConfigUpdate(Schema):
+    enabled: Optional[bool] = None
+    username: Optional[str] = None
+    header_prefix: Optional[str] = None
+
+
+class TargetRequestConfigOut(Schema):
+    target_id: int
+    header_enabled: Optional[bool] = None
+    header_username: Optional[str] = None
+    header_prefix: Optional[str] = None
+    custom_headers: dict = {}
+    rps: Optional[int] = None
+    max_concurrency: Optional[int] = None
+    timeout: Optional[int] = None
+    updated_at: datetime
+
+
+class TargetRequestConfigUpdate(Schema):
+    header_enabled: Optional[bool] = None
+    header_username: Optional[str] = None
+    header_prefix: Optional[str] = None
+    custom_headers: Optional[dict] = None
+    rps: Optional[int] = None
+    max_concurrency: Optional[int] = None
+    timeout: Optional[int] = None
+
+
+class ResolvedRequestConfigOut(Schema):
+    enabled: bool
+    username: str
+    header_prefix: str
+    custom_headers: dict
+    rps: Optional[int] = None
+    max_concurrency: Optional[int] = None
+    timeout: Optional[int] = None
+
+
 class SuccessSendToAISchema(Schema):
     detail: str
 
@@ -143,6 +278,8 @@ class NucleiScanIPByIdsSchema(Schema):
     ids: List[int] = Field(..., description="IP ID 陣列 (必須是 List[int], 例如 [123])", min_length=1, max_length=10)
     tags: List[str] = Field(default=[], description="Nuclei 標籤陣列 (字串陣列)")
     callback_step_id: Optional[int] = Field(None, description="回調用的 Step ID")
+    execution_graph_id: Optional[int] = Field(None, description="ExecutionGraph ID")
+    execution_node_id: Optional[int] = Field(None, description="ExecutionNode ID")
 
 
 class NucleiScanSubdomainByIdsSchema(Schema):
@@ -151,12 +288,16 @@ class NucleiScanSubdomainByIdsSchema(Schema):
     )
     tags: List[str] = Field(default=[], description="Nuclei 標籤陣列 (字串陣列)")
     callback_step_id: Optional[int] = Field(None, description="回調用的 Step ID")
+    execution_graph_id: Optional[int] = Field(None, description="ExecutionGraph ID")
+    execution_node_id: Optional[int] = Field(None, description="ExecutionNode ID")
 
 
 class NucleiScanURLByIdsSchema(Schema):
     ids: List[int] = Field(..., description="URL ID 陣列 (必須是 List[int], 例如 [123])", min_length=1, max_length=10)
     tags: Optional[List[str]] = Field(default=None, description="Nuclei 標籤陣列 (字串陣列)")
     callback_step_id: Optional[int] = Field(None, description="回調用的 Step ID")
+    execution_graph_id: Optional[int] = Field(None, description="ExecutionGraph ID")
+    execution_node_id: Optional[int] = Field(None, description="ExecutionNode ID")
 
 
 class ScanIdsSchema(Schema):
@@ -181,6 +322,8 @@ class FlaresolverrTriggerSchema(Schema):  # <--- 繼承 Schema
     target_id: int | None = None
     auto_create: bool = False
     callback_step_id: int | None = Field(None, description="回調用的 Step ID (必填，來自 create_step)")
+    execution_graph_id: int | None = Field(None, description="ExecutionGraph ID")
+    execution_node_id: int | None = Field(None, description="ExecutionNode ID")
     body: str | None = Field(None, description="Raw request body (for POST/PUT)")
     content_type: str | None = Field(None, description="Content-Type override")
     host_header: str | None = Field(None, description="Override the Host header (vhost routing)")

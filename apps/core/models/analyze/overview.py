@@ -38,6 +38,7 @@ class Overview(models.Model):
         ("EXECUTING", "執行任務中"),
         ("STALLED", "受阻/待人工"),
         ("COMPLETED", "已達成階段目標"),
+        ("NEEDS_GUIDANCE", "待指導/升級"),
     ]
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default="PLANNING")
     risk_score = models.PositiveSmallIntegerField(default=0, help_text="綜合風險評分 (0-100)")

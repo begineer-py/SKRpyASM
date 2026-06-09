@@ -19,7 +19,13 @@ from apps.scanners.base_task import ScannerLifecycle
 logger = logging.getLogger(__name__)
 
 
-def _run_subdomain_enum(tool_key: str, scan_id: int, callback_step_id: Optional[int] = None):
+def _run_subdomain_enum(
+    tool_key: str,
+    scan_id: int,
+    callback_step_id: Optional[int] = None,
+    execution_graph_id: Optional[int] = None,
+    execution_node_id: Optional[int] = None,
+):
     """
     【通用子域名發現任務核心】
 
@@ -33,6 +39,7 @@ def _run_subdomain_enum(tool_key: str, scan_id: int, callback_step_id: Optional[
     registry = get_enum_tool_registry()
     if tool_key not in registry:
         logger.error(f"未知的工具型別: {tool_key}")
+        _fail_execution_node(execution_node_id, content=f"未知的工具型別: {tool_key}")
         return
 
     cfg = registry[tool_key]
@@ -44,6 +51,7 @@ def _run_subdomain_enum(tool_key: str, scan_id: int, callback_step_id: Optional[
         scan = Model.objects.select_related("which_seed").get(id=scan_id)
     except Model.DoesNotExist:
         logger.error(f"找不到 {cfg.tool_name}Scan 紀錄，ID: {scan_id}")
+        _fail_execution_node(execution_node_id, content=f"找不到 {cfg.tool_name}Scan 紀錄，ID: {scan_id}")
         return
 
     seed = scan.which_seed
@@ -103,7 +111,18 @@ def _run_subdomain_enum(tool_key: str, scan_id: int, callback_step_id: Optional[
                 source=tool_key,
                 callback_step_id=callback_step_id,
             )
-
+            _complete_execution_node(
+                execution_node_id,
+                content=f"[{cfg.tool_name}] 子域名發現完成，新增 {update_results['new_count']} 筆。",
+                output={"new_count": update_results["new_count"], "reactivated_count": update_results["reactivated_count"]},
+            )
+    except Exception as exc:
+        _fail_execution_node(
+            execution_node_id,
+            content=f"[{cfg.tool_name}] 子域名發現失敗: {exc}",
+            error={"error_type": type(exc).__name__, "message": str(exc)},
+        )
+        raise
     finally:
         # 清理臨時檔案（無論成功或失敗）
         if config_file and os.path.exists(config_file):
@@ -112,3 +131,19 @@ def _run_subdomain_enum(tool_key: str, scan_id: int, callback_step_id: Optional[
         if output_file and os.path.exists(output_file):
             os.remove(output_file)
             logger.debug(f"[{cfg.tool_name}] 已清理臨時輸出文件: {output_file}")
+
+
+def _complete_execution_node(execution_node_id: Optional[int], *, content: str, output: dict | None = None) -> None:
+    if not execution_node_id:
+        return
+    from apps.core.services import ExecutionService
+
+    ExecutionService.complete_node_by_id(execution_node_id, output=output, content=content)
+
+
+def _fail_execution_node(execution_node_id: Optional[int], *, content: str, error: dict | None = None) -> None:
+    if not execution_node_id:
+        return
+    from apps.core.services import ExecutionService
+
+    ExecutionService.fail_node_by_id(execution_node_id, content=content, error=error)

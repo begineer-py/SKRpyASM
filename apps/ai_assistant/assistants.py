@@ -136,7 +136,6 @@ class HackerAssistantAgent(MemoryMixin, AIAssistant):
         from langchain_community.tools.sql_database.tool import QuerySQLDataBaseTool
         from django.conf import settings
         from apps.auto.assistants.planning_agent import AutomationAgent
-        from apps.analyze_ai.assistants import InitialAnalyzerAgent
 
         db_settings = settings.DATABASES["default"]
         db_uri = (
@@ -151,9 +150,6 @@ class HackerAssistantAgent(MemoryMixin, AIAssistant):
             QuerySQLDataBaseTool(db=db),
             AutomationAgent().as_tool(
                 description="Delegates tasks to the Automation Agent (Layer 3). Use this for pentest loops, complex script execution, or analyzing large data/blobs discovered during recon."
-            ),
-            InitialAnalyzerAgent().as_tool(
-                description="Delegates initial analysis of assets to the Initial Analyzer Agent."
             ),
         ]
         tools = super().get_tools()
@@ -219,6 +215,7 @@ class HackerAssistantAgent(MemoryMixin, AIAssistant):
         import subprocess
         import requests
         from apps.core.models import Subdomain, IP
+        from apps.core.header_injection import get_tagged_headers
 
         results = []
 
@@ -235,6 +232,7 @@ class HackerAssistantAgent(MemoryMixin, AIAssistant):
                         timeout=5,
                         allow_redirects=True,
                         verify=False,
+                        headers=get_tagged_headers(target_id=target_id),
                     )
                     status = f"✅ ALIVE ({scheme.upper()}) — HTTP {resp.status_code}"
                     break

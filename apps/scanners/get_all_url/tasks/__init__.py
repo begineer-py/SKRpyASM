@@ -12,7 +12,6 @@ from django.db import transaction
 from c2_core.config.logging import log_function_call
 from apps.core.models import Subdomain, URLScan, URLResult
 from apps.api_keys.utils import get_active_api_keys, generate_gau_config
-from apps.core.utils import with_auto_callback
 from apps.scanners.base_task import ScannerLifecycle
 
 logger = logging.getLogger(__name__)
@@ -22,8 +21,14 @@ BLACKLIST_EXTS = "png,jpg,jpeg,gif,webp,svg,ico,css,js,woff,woff2,ttf,eot,mp4,mp
 
 @shared_task(bind=True)
 @log_function_call()
-@with_auto_callback
-def scan_all_url(self, subdomain_id: int, threads: int = 50, callback_step_id: Optional[int] = None):
+def scan_all_url(
+    self,
+    subdomain_id: int,
+    threads: int = 50,
+    callback_step_id: Optional[int] = None,
+    execution_graph_id: Optional[int] = None,
+    execution_node_id: Optional[int] = None,
+):
     """
     對指定子域名執行被動 URL 掃描（使用 gau）。
     使用 ScannerLifecycle 管理 URLScan 記錄的狀態機。
@@ -73,6 +78,7 @@ def scan_all_url(self, subdomain_id: int, threads: int = 50, callback_step_id: O
             if not valid_urls:
                 logger.info(f"Gau 未發現任何有效 URL for {subdomain.name}。")
                 # 正常結束（0 results），lifecycle 仍會更新為 COMPLETED
+                _complete_execution_node(execution_node_id, content=f"GAU URL 掃描完成。子域名: {subdomain.name}（無結果）")
                 return f"GAU URL 掃描完成。子域名: {subdomain.name}（無結果）"
 
             logger.info(f"Gau 發現 {len(valid_urls)} 個有效 URL，開始入庫處理...")
@@ -101,11 +107,22 @@ def scan_all_url(self, subdomain_id: int, threads: int = 50, callback_step_id: O
             logger.info(
                 f"被動 URL 掃描完成 for {subdomain.name}。共處理 {len(valid_urls)} 條 URL。"
             )
+            _complete_execution_node(
+                execution_node_id,
+                content=f"GAU URL 掃描完成。子域名: {subdomain.name}",
+                output={"urls_found_count": len(valid_urls)},
+            )
 
     except Subdomain.DoesNotExist:
         logger.error(f"任務中止：找不到 Subdomain ID: {subdomain_id}")
+        _fail_execution_node(execution_node_id, content=f"GAU URL 掃描中止：找不到 Subdomain ID {subdomain_id}")
     except Exception as e:
         logger.error(f"被動 URL 掃描失敗 for subdomain ID {subdomain_id}: {e}")
+        _fail_execution_node(
+            execution_node_id,
+            content=f"GAU URL 掃描失敗。Subdomain ID: {subdomain_id}: {e}",
+            error={"error_type": type(e).__name__, "message": str(e)},
+        )
     finally:
         # 清理臨時配置文件
         if config_file and os.path.exists(config_file):
@@ -113,3 +130,19 @@ def scan_all_url(self, subdomain_id: int, threads: int = 50, callback_step_id: O
             logger.debug(f"已清理 gau 臨時配置文件: {config_file}")
 
     return f"GAU URL 掃描完成。子域名: {subdomain.name if 'subdomain' in locals() else 'Unknown'}"
+
+
+def _complete_execution_node(execution_node_id: Optional[int], *, content: str, output: dict | None = None) -> None:
+    if not execution_node_id:
+        return
+    from apps.core.services import ExecutionService
+
+    ExecutionService.complete_node_by_id(execution_node_id, output=output, content=content)
+
+
+def _fail_execution_node(execution_node_id: Optional[int], *, content: str, error: dict | None = None) -> None:
+    if not execution_node_id:
+        return
+    from apps.core.services import ExecutionService
+
+    ExecutionService.fail_node_by_id(execution_node_id, content=content, error=error)

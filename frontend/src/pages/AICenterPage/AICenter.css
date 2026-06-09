@@ -662,3 +662,422 @@
     font-size: 0.8rem;
   }
 }
+
+/* ===== CHAT HEADER BAR ===== */
+
+.chat-header-bar {
+  padding: 8px 16px;
+  border-bottom: 1px solid #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 40px;
+  background: rgba(15, 23, 42, 0.8);
+  flex-shrink: 0;
+}
+
+.chat-header-label {
+  font-size: 0.78rem;
+  color: #64748b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.chat-header-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.tool-log-toggle-btn {
+  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid rgba(251, 191, 36, 0.2);
+  color: #fbbf24;
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.tool-log-toggle-btn:hover,
+.tool-log-toggle-btn.active {
+  background: rgba(251, 191, 36, 0.18);
+  border-color: #f59e0b;
+}
+
+.tree-toggle-btn {
+  background: rgba(34, 197, 94, 0.08);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.tree-toggle-btn:hover,
+.tree-toggle-btn.active {
+  background: rgba(34, 197, 94, 0.18);
+  border-color: #22c55e;
+}
+
+/* ===== CHAT UPPER (messages + input) ===== */
+
+.chat-upper {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ===== TOOL CALL LOGS PANEL ===== */
+
+.logs-panel {
+  flex-shrink: 0;
+  height: 320px;
+  border-top: 2px solid #1e3a5f;
+  display: flex;
+  flex-direction: column;
+  background: #060c1a;
+  overflow: hidden;
+  animation: slideInUp 0.2s ease-out;
+}
+
+@keyframes slideInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.logs-panel-header {
+  padding: 6px 12px;
+  border-bottom: 1px solid #0f2a40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+  background: #080e1e;
+}
+
+.logs-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #fbbf24;
+}
+
+.logs-step-status {
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+}
+
+.logs-panel-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.step-picker {
+  background: #0f172a;
+  border: 1px solid #1e3a5f;
+  color: #94a3b8;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.7rem;
+  cursor: pointer;
+  max-width: 220px;
+  outline: none;
+}
+
+.step-picker:hover {
+  border-color: #fbbf24;
+  color: #f1f5f9;
+}
+
+.logs-close-btn {
+  background: none;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 2px 6px;
+  border-radius: 3px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.logs-close-btn:hover {
+  color: #f87171;
+  background: rgba(248,113,113,0.08);
+}
+
+.logs-panel-body {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.logs-panel-body .step-log-viewer {
+  height: 100%;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.logs-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #334155;
+  font-size: 0.85rem;
+}
+
+/* ===== AGENT TREE PANEL ===== */
+
+.agent-tree-panel {
+  width: 260px;
+  min-width: 220px;
+  flex-shrink: 0;
+  background: #080e1e;
+  border-left: 1px solid #1e293b;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: slideInRight 0.2s ease-out;
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.tree-panel-header {
+  padding: 10px 12px;
+  border-bottom: 1px solid #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.tree-panel-header h4 {
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #22c55e;
+}
+
+.tree-panel-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.tree-action-btn {
+  background: none;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 2px 6px;
+  border-radius: 3px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.tree-action-btn:hover:not(:disabled) {
+  color: #cbd5e1;
+  background: rgba(255,255,255,0.05);
+}
+
+.tree-action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.tree-live-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 2px;
+  flex-shrink: 0;
+}
+
+.tree-live-dot.connected {
+  background: #22c55e;
+  box-shadow: 0 0 4px #22c55e;
+  animation: pulse 2s infinite;
+}
+
+.tree-live-dot.disconnected {
+  background: #64748b;
+}
+
+.tree-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+
+.tree-empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: #334155;
+  font-size: 0.8rem;
+}
+
+/* ── Tree nodes ─────────────────────────────────────────────────────── */
+
+.tree-node-group {
+  position: relative;
+}
+
+.tree-node {
+  position: relative;
+  padding: 8px 10px;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.tree-node:hover {
+  background: rgba(30, 41, 59, 0.6);
+}
+
+.tree-node--active {
+  background: rgba(34, 197, 94, 0.07);
+  border-left-color: #22c55e;
+}
+
+.tree-connector {
+  position: absolute;
+  left: 8px;
+  top: -8px;
+  height: calc(50% + 8px);
+  width: 10px;
+  border-left: 1px solid #1e3a5f;
+  border-bottom: 1px solid #1e3a5f;
+  border-bottom-left-radius: 3px;
+  pointer-events: none;
+}
+
+.tree-node-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.tree-node-icon {
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.tree-node-name {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.tree-node--active .tree-node-name {
+  color: #4ade80;
+  font-weight: 500;
+}
+
+.tree-node-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+/* ── Status / risk badges ──────────────────────────────────────────── */
+
+.tree-badge {
+  display: inline-block;
+  font-size: 0.6rem;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.tree-badge--executing      { background: rgba(34,197,94,0.12);  color: #4ade80; }
+.tree-badge--planning       { background: rgba(234,179,8,0.12);  color: #fbbf24; }
+.tree-badge--completed      { background: rgba(59,130,246,0.12); color: #60a5fa; }
+.tree-badge--failed         { background: rgba(239,68,68,0.12);  color: #f87171; }
+.tree-badge--needs-guidance { background: rgba(249,115,22,0.12); color: #fb923c; }
+.tree-badge--waiting        { background: rgba(139,92,246,0.12); color: #a78bfa; }
+.tree-badge--default        { background: rgba(100,116,139,0.12); color: #94a3b8; }
+
+.tree-badge--risk {
+  background: rgba(100,116,139,0.12);
+  color: #94a3b8;
+}
+.tree-badge--risk.low    { background: rgba(34,197,94,0.1);   color: #4ade80; }
+.tree-badge--risk.medium { background: rgba(234,179,8,0.1);   color: #fbbf24; }
+.tree-badge--risk.high   { background: rgba(239,68,68,0.1);   color: #f87171; }
+
+.tree-badge--steps { background: rgba(251,191,36,0.1); color: #fbbf24; }
+
+.tree-running-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 5px #4ade80;
+  animation: pulse 1.2s infinite;
+  flex-shrink: 0;
+  margin-left: 2px;
+}
+
+/* ── Tree scrollbar ────────────────────────────────────────────────── */
+
+.tree-body::-webkit-scrollbar { width: 5px; }
+.tree-body::-webkit-scrollbar-track { background: transparent; }
+.tree-body::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 3px;
+}
+
+/* ── Loading older messages ─────────────────────────────────────────── */
+
+.loading-older {
+  text-align: center;
+  padding: 10px;
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+/* ── Responsive: hide tree panel on small screens ───────────────────── */
+
+@media (max-width: 900px) {
+  .agent-tree-panel {
+    display: none;
+  }
+  .tree-toggle-btn {
+    display: none;
+  }
+}

@@ -1,4 +1,5 @@
 import logging
+from asgiref.sync import sync_to_async
 from os import name
 from shutil import which
 from django.contrib.messages import success
@@ -52,8 +53,6 @@ async def get_all_url(
     if clean_name.startswith("http"):
         clean_name = urlparse(clean_name).hostname or clean_name
         
-    from apps.core.models import Step
-    
     subdomain = None
     
     # 優先使用 subdomain_id
@@ -63,16 +62,7 @@ async def get_all_url(
     if not subdomain:
         subdomains = Subdomain.objects.filter(name=clean_name)
 
-        # 如果有 callback_step_id，優先找該 Step 所屬 Target 的 Subdomain
-        if payloads.callback_step_id:
-            try:
-                step = await Step.objects.select_related('overview__target').aget(id=payloads.callback_step_id)
-                if step.overview and step.overview.target:
-                    subdomain = await subdomains.filter(target=step.overview.target).afirst()
-            except Exception as e:
-                logger.debug(f"無法透過 callback_step_id 確定 Target: {e}")
-
-        # 如果沒找到（或沒帶 step_id），就取第一個
+        # 如果沒找到，就取第一個
         if not subdomain:
             subdomain = await subdomains.afirst()
 
@@ -95,8 +85,17 @@ async def get_all_url(
 
     try:
         # 使用 .delay() 或 .apply_async() 觸發
-        task = scan_all_url.delay(subdomain.id, callback_step_id=payloads.callback_step_id)
-        logger.info(f"GAU 任務已派發: Task ID {task.id} -> Subdomain {subdomain.id} (Step: {payloads.callback_step_id})")
+        task = scan_all_url.delay(
+            subdomain.id,
+            callback_step_id=payloads.callback_step_id,
+            execution_graph_id=payloads.execution_graph_id,
+            execution_node_id=payloads.execution_node_id,
+        )
+        if payloads.execution_node_id:
+            from apps.core.services import ExecutionService
+
+            await sync_to_async(ExecutionService.set_node_external_task_id)(payloads.execution_node_id, task.id)
+        logger.info(f"GAU 任務已派發: Task ID {task.id} -> Subdomain {subdomain.id} (ExecutionNode: {payloads.execution_node_id})")
     except Exception as e:
         logger.error(f"Celery 任務派發失敗: {e}")
         raise HttpError(500, "Failed to schedule scanning task.")

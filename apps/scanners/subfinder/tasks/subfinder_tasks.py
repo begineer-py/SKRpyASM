@@ -19,6 +19,6 @@ logger = logging.getLogger(__name__)
 
 @shared_task(bind=True, ignore_result=True)
 @log_function_call()
-def start_subfinder(self, scan_id: int, callback_step_id: Optional[int] = None):
+def start_subfinder(self, scan_id: int, callback_step_id: Optional[int] = None, execution_graph_id: Optional[int] = None, execution_node_id: Optional[int] = None):
     """啟動 Subfinder 掃描任務。"""
-    _run_subdomain_enum("subfinder", scan_id, callback_step_id=callback_step_id)
+    _run_subdomain_enum("subfinder", scan_id, callback_step_id=callback_step_id, execution_graph_id=execution_graph_id, execution_node_id=execution_node_id)
