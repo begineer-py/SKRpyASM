@@ -20,6 +20,6 @@ from typing import Optional
 
 @shared_task(bind=True, ignore_result=True)
 @log_function_call()
-def start_amass_scan(self, scan_id: int = None, seed_id: int = None, callback_step_id: Optional[int] = None):
+def start_amass_scan(self, scan_id: int = None, seed_id: int = None, callback_step_id: Optional[int] = None, execution_graph_id: Optional[int] = None, execution_node_id: Optional[int] = None):
     """啟動 Amass 掃描任務 (重裝坦克)。"""
-    _run_subdomain_enum("amass", scan_id, callback_step_id=callback_step_id)
+    _run_subdomain_enum("amass", scan_id, callback_step_id=callback_step_id, execution_graph_id=execution_graph_id, execution_node_id=execution_node_id)

@@ -153,3 +153,37 @@ class Message(models.Model):
 
     def __repr__(self) -> str:
         return f"<Message {self.id} at {self.thread_id}>"
+
+
+class ThreadEvent(models.Model):
+    """Durable realtime event log for a thread-level AI run."""
+
+    id: Any  # noqa: A003
+    thread = models.ForeignKey(Thread, on_delete=models.CASCADE, related_name="events")
+    thread_id: Any
+    run_id = models.CharField(max_length=128, db_index=True)
+    parent_run_id = models.CharField(max_length=128, blank=True, null=True, db_index=True)
+    event_type = models.CharField(max_length=64, db_index=True)
+    node_name = models.CharField(max_length=128, blank=True, null=True)
+    tool_name = models.CharField(max_length=128, blank=True, null=True)
+    status = models.CharField(max_length=32, blank=True, null=True)
+    content = models.TextField(blank=True)
+    payload = models.JSONField(default=dict, blank=True)
+    sequence = models.BigIntegerField(db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        app_label = "core"
+        db_table = "ai_assistant_thread_event"
+        verbose_name = "Thread Event"
+        verbose_name_plural = "Thread Events"
+        ordering = ("sequence",)
+        indexes = (
+            Index(fields=["thread", "sequence"], name="thread_event_thread_seq"),
+            Index(fields=["thread", "created_at"], name="thread_event_thread_created"),
+            Index(fields=["event_type"], name="thread_event_type"),
+            Index(fields=["run_id"], name="thread_event_run"),
+        )
+
+    def __str__(self) -> str:
+        return f"{self.sequence}:{self.event_type}:{self.status or ''}"

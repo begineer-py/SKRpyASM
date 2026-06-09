@@ -83,6 +83,16 @@ class JavaScriptFile(models.Model):
         default=False,
         help_text="是否已完成靜態分析/抽取（endpoint/param/json 等）。",
     )
+    is_source_map = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="此檔案是否為 JavaScript Source Map (.map)。",
+    )
+    source_map_sources = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Source Map 的 sources[] 欄位，記錄原始檔案路徑列表。",
+    )
 
     class Meta:
         app_label = "core"

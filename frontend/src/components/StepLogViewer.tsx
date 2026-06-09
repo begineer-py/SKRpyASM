@@ -6,7 +6,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react';
-import { useStepLogStream } from '../hooks/useStepLogStream';
+import { useStepLogGql } from '../hooks/useStepLogGql';
 import type { StepLog } from '../hooks/useStepLogStream';
 import './StepLogViewer.css';
 
@@ -62,7 +62,7 @@ export function StepLogViewer({
   compact = false,
   onLogsUpdate,
 }: StepLogViewerProps) {
-  const { logs, isConnected, error, lastSequence } = useStepLogStream(stepId);
+  const { logs, isConnected, error, lastSequence } = useStepLogGql(stepId);
   const [filter, setFilter] = useState<string>('');
   const [hiddenLevels, setHiddenLevels] = useState<string[]>([]);
   const [expandedLogId, setExpandedLogId] = useState<number | null>(null);

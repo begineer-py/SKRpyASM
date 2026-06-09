@@ -3,6 +3,7 @@ import httpx
 import time
 import logging
 from .utils import translate_response_to_json
+from apps.core.header_injection import get_tagged_headers
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,8 @@ def call_flaresolverr_api(
     cookies_dict = _get_cookies_dict(cookie_string)
     for fs_retry_count in range(flaresolverr_max_retries + 1):
         try:
-            custom_headers_list = [{"name": k, "value": v} for k, v in headers.items()]
+            injected_headers = get_tagged_headers(headers)
+            custom_headers_list = [{"name": k, "value": v} for k, v in injected_headers.items()]
             flaresolverr_payload = {
                 "cmd": f"request.{method.lower()}",
                 "url": url,

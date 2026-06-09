@@ -33,6 +33,7 @@ from apps.analyze_ai.api import router as analyze_ai_router
 from apps.http_sender.api import router as http_sender_router
 from apps.api_keys.api import router as api_keys_router
 from apps.auto.api import router as auto_router
+from apps.core.execution_stream_views import stream_execution_events
 
 # 建立 NinjaAPI 實例
 api = NinjaAPI(
@@ -57,6 +58,11 @@ urlpatterns = [  # 定義 URL 模式列表
     path("admin/", admin.site.urls),  # 將 /admin/ 路徑映射到 Django 管理後台的 URL
     # apps.ai_assistant 原生接口
     path("api/assistant/", include("apps.ai_assistant.urls")),
+    path(
+        "api/core/executions/<int:graph_id>/events/stream/",
+        stream_execution_events,
+        name="stream_execution_events",
+    ),
     # 操！把所有 API 的總入口都設在 /api/
     # 這樣最乾淨，以後要加新功能也好管理
     path("api/", api.urls),  # 將 /api/ 路徑映射到 NinjaAPI 實例 api 的所有路由

@@ -103,6 +103,11 @@ def _save_scan_artifacts(url_result_final, result):
     if tech_stack_data:
         save_tech_stack_to_db(url_result_final, tech_stack_data)
 
+    # Source Map Results
+    source_map_result = result.get("source_map_result", {})
+    if source_map_result:
+        _save_source_map_artifacts(url_result_final, source_map_result)
+
     # Extracted JS
     extracted_js_content = result.get("extracted_js", "")
 
@@ -139,3 +144,50 @@ def _save_scan_artifacts(url_result_final, result):
         if hasattr(url_result_final, "extracted_js_blocks"):
             url_result_final.extracted_js_blocks.delete()
             logger.info(f"已清理 URL {url_result_final.url} 的舊 ExtractedJS 數據")
+
+
+def _save_source_map_artifacts(url_result_final, source_map_result: dict):
+    """儲存 source map 挖掘結果：map 檔紀錄、路徑洩漏 finding、API endpoint。"""
+    from apps.flaresolverr.utils import save_params_to_db
+
+    # 1. Source map 檔案 → JavaScriptFile (is_source_map=True)
+    for map_file in source_map_result.get("map_files", []):
+        map_url = map_file.get("url")
+        sources = map_file.get("sources", [])
+        if not map_url:
+            continue
+        js_obj, created = JavaScriptFile.objects.get_or_create(
+            src=map_url,
+            defaults={
+                "is_source_map": True,
+                "source_map_sources": sources,
+                "status": "ANALYZED",
+            },
+        )
+        if not created and not js_obj.is_source_map:
+            js_obj.is_source_map = True
+            js_obj.source_map_sources = sources
+            js_obj.save(update_fields=["is_source_map", "source_map_sources"])
+        js_obj.related_pages.add(url_result_final)
+
+    # 2. Findings → AnalysisFinding (路徑洩漏 + gf 機密命中)
+    sm_findings = source_map_result.get("findings", [])
+    if sm_findings:
+        finding_objs = []
+        for finding in sm_findings:
+            finding_objs.append(
+                AnalysisFinding(
+                    which_url_result=url_result_final,
+                    pattern_name=finding.get("pattern", "source_map_unknown")[:100],
+                    line_number=finding.get("line", 0),
+                    match_content=str(finding.get("match", ""))[:2000],
+                )
+            )
+        AnalysisFinding.objects.bulk_create(finding_objs, ignore_conflicts=True)
+        logger.info(f"[SourceMap] 儲存 {len(finding_objs)} 個 finding")
+
+    # 3. Endpoints → Endpoint + URLParameter
+    sm_endpoints = source_map_result.get("endpoints", [])
+    if sm_endpoints and url_result_final.target:
+        total = save_params_to_db(sm_endpoints, url_result_final.target, url_result_final)
+        logger.info(f"[SourceMap] 儲存 {total} 個參數")

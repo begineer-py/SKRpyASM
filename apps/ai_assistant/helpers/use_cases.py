@@ -3,12 +3,14 @@ from typing import Any
 from django.http import HttpRequest
 
 from langchain_core.messages import BaseMessage
+from langchain_core.messages import HumanMessage
 
 from apps.ai_assistant.exceptions import (
     AIAssistantNotDefinedError,
     AIUserNotAllowedError,
 )
 from apps.ai_assistant.helpers.assistants import AIAssistant
+from apps.ai_assistant.helpers.django_messages import save_django_messages
 from apps.core.models import Message, Thread
 from apps.ai_assistant.permissions import (
     can_create_message,
@@ -129,7 +131,9 @@ def create_message(
     if not can_create_message(thread=thread, user=user, request=request):
         raise AIUserNotAllowedError("User is not allowed to create messages in this thread")
 
-    # TODO: Check if we can separate the message creation from the invoke
+    # Store the user's input before graph execution so failed runs remain visible.
+    save_django_messages([HumanMessage(content=content)], thread=thread)
+
     assistant = assistant_cls(user=user, request=request)
     assistant_message = assistant.invoke(
         {"input": content},
@@ -143,6 +147,7 @@ def create_thread(
     user: Any,
     assistant_id: str | None = None,
     request: HttpRequest | None = None,
+    is_hidden: bool = False,
 ) -> Thread:
     """Create a thread.\n
     Uses `AI_ASSISTANT_CAN_CREATE_THREAD_FN` permission to check if user can create a thread.
@@ -153,6 +158,7 @@ def create_thread(
             If empty or None, the thread is not associated with any assistant.
         user (Any): Current user
         request (HttpRequest | None): Current request, if any
+        is_hidden (bool): Whether this thread is an internal/system thread hidden from the UI by default
     Returns:
         Thread: Created thread model instance
     Raises:
@@ -161,7 +167,7 @@ def create_thread(
     if not can_create_thread(user=user, request=request):
         raise AIUserNotAllowedError("User is not allowed to create threads")
 
-    thread = Thread.objects.create(name=name, created_by=user, assistant_id=assistant_id or "")
+    thread = Thread.objects.create(name=name, created_by=user, assistant_id=assistant_id or "", is_hidden=is_hidden)
     return thread
 
 

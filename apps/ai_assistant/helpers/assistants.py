@@ -26,6 +26,7 @@ from langchain_core.messages import (
     BaseMessage,
     HumanMessage,
     SystemMessage,
+    ToolMessage,
 )
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import (
@@ -41,10 +42,10 @@ from langchain_core.retrievers import (
 from langchain_core.runnables import (
     Runnable,
     RunnableBranch,
+    RunnableConfig,
 )
 from langchain_core.tools import BaseTool, StructuredTool
 from langgraph.graph import END, StateGraph, add_messages
-from langgraph.prebuilt import ToolNode
 from pydantic import BaseModel
 
 from apps.ai_assistant.decorators import with_cast_id
@@ -115,6 +116,12 @@ class AIAssistant(abc.ABC):  # noqa: F821
     """Maximum number of tools to run concurrently / in parallel.\nDefaults to `1` (no concurrency)."""
     recursion_limit: int = 150
     """LangGraph recursion limit. Defaults to `150` to allow for longer workflows."""
+    stop_on_waiting_async: bool = False
+    """When True, forces the agent loop to end after 2+ WAITING_FOR_ASYNC tool results,
+    preventing infinite polling loops for async scanner tasks."""
+    max_consecutive_same_tool: int = 0
+    """When > 0, forces the agent loop to end if the same tool is called this many
+    times in a row with no other tool calls in between. 0 = no limit."""
     has_rag: bool = False
     """Whether the assistant uses RAG (Retrieval-Augmented Generation) or not.\n
     Defaults to `False`.
@@ -406,27 +413,26 @@ class AIAssistant(abc.ABC):  # noqa: F821
         """
         return self._method_tools
 
-    def _internal_generate_summary(self, content: str) -> str:
-        """Internal helper to generate summary for large tool outputs using a cheap LLM."""
+    def _internal_generate_summary(self, content: str, tool_name: str = "tool") -> str:
+        """使用 compression_agent 輕量 LLM 產生工具輸出摘要（比主模型快且便宜）。"""
         try:
-            # Try to use a faster/cheaper model if possible, otherwise use the default
-            llm = self.get_llm()
+            from apps.core.llms import get_llm_instance
             from langchain_core.messages import HumanMessage
-            
+            # compression_agent 優先（便宜），fallback 到主模型
+            try:
+                llm = get_llm_instance(agent_id="compression_agent", temperature=0)
+            except Exception:
+                llm = self.get_llm()
             prompt = (
-                "You are a professional security analyst. The following is a very large tool output (HTML, report, or log).\n"
-                "Please provide a concise summary (max 500 words) in Traditional Chinese, focusing on:\n"
-                "1. Core tech stack or frameworks identified\n"
-                "2. Error messages, exceptions, or security vulnerability clues\n"
-                "3. Forms, endpoints, or sensitive paths\n"
-                "4. Other actionable intelligence\n\n"
-                f"=== RAW CONTENT (First 30k chars) ===\n{content[:30000]}"
+                f"Summarize this {tool_name} tool output in max 300 chars. "
+                "Preserve: IPs, ports, URLs, findings, error messages, CVEs.\n\n"
+                f"Output:\n{content[:5000]}\n\nSummary:"
             )
             resp = llm.invoke([HumanMessage(content=prompt)])
-            return resp.content[:1000] if hasattr(resp, 'content') else str(resp)[:1000]
+            return (resp.content if hasattr(resp, 'content') else str(resp))[:400]
         except Exception as e:
             logger.error(f"Internal summary generation failed: {e}")
-            return f"[Summary generation failed: {e}]"
+            return f"[{tool_name}: {str(content)[:150]}...]"
 
     def get_callbacks(self) -> Sequence[BaseCallbackHandler]:
         """Get the list of callback handlers for monitoring and logging assistant execution.
@@ -453,6 +459,52 @@ class AIAssistant(abc.ABC):  # noqa: F821
                     return [MyCustomHandler()]
         """
         return []
+
+    def _get_event_thread(self):
+        from apps.core.models import Thread
+
+        thread = getattr(self, "_thread", None)
+        if thread is not None:
+            return thread
+        thread_id = getattr(self, "_current_invoke_thread_id", None)
+        if not thread_id:
+            return None
+        return Thread.objects.filter(id=thread_id).first()
+
+    def emit_thread_event(
+        self,
+        event_type: str,
+        *,
+        status: str | None = None,
+        content: Any = "",
+        payload: dict[str, Any] | None = None,
+        node_name: str | None = None,
+        tool_name: str | None = None,
+    ) -> Any | None:
+        """Allow tools to emit durable execution events."""
+        from apps.core.services import ExecutionService
+
+        graph = self._get_execution_graph()
+        if graph is None:
+            return None
+        return ExecutionService.emit_event(
+            graph=graph,
+            event_type=event_type,
+            status=status,
+            content=content,
+            payload=payload,
+        )
+
+    def _get_execution_graph(self):
+        from apps.core.models import ExecutionGraph
+
+        graph = getattr(self, "_execution_graph", None)
+        if graph is not None:
+            return graph
+        graph_id = getattr(self, "_current_execution_graph_id", None)
+        if not graph_id:
+            return None
+        return ExecutionGraph.objects.filter(id=graph_id).first()
 
     def get_document_separator(self) -> str:
         """Get the RAG document separator to use in the prompt. Only used when `has_rag=True`.\n
@@ -617,6 +669,7 @@ class AIAssistant(abc.ABC):  # noqa: F821
             messages: Annotated[list[AnyMessage], add_messages]
             input: str | None  # noqa: A003
             output: Any
+            pending_tool_calls: list[dict[str, Any]]
 
         def setup(state: AgentState):
             system_prompt = self.get_instructions()
@@ -710,13 +763,133 @@ class AIAssistant(abc.ABC):  # noqa: F821
         def tool_selector(state: AgentState):
             last_message = state["messages"][-1]
 
-            if isinstance(last_message, AIMessage) and last_message.tool_calls:
-                return "call_tool"
+            if not (isinstance(last_message, AIMessage) and last_message.tool_calls):
+                return "continue"
 
-            return "continue"
+            # Guard A: stop after multiple WAITING_FOR_ASYNC results to prevent polling loops
+            if self.stop_on_waiting_async:
+                recent_tool_msgs = [
+                    m for m in state["messages"][-10:]
+                    if getattr(m, "type", None) == "tool"
+                ]
+                waiting_count = sum(
+                    1 for m in recent_tool_msgs
+                    if "WAITING_FOR_ASYNC" in str(m.content)
+                )
+                if waiting_count >= 2:
+                    return "continue"
 
-        def post_tool_hook(state: AgentState):
-            """Hook to intercept and compress large tool outputs before they reach the LLM."""
+            # Guard B: stop if the same tool is called repeatedly with no variation
+            if self.max_consecutive_same_tool > 0:
+                recent_ai_msgs = [
+                    m for m in state["messages"][-( self.max_consecutive_same_tool * 2 + 2):]
+                    if isinstance(m, AIMessage) and getattr(m, "tool_calls", None)
+                ]
+                if len(recent_ai_msgs) >= self.max_consecutive_same_tool:
+                    all_tool_names = [
+                        tc["name"]
+                        for m in recent_ai_msgs
+                        for tc in (m.tool_calls or [])
+                    ]
+                    if (
+                        len(all_tool_names) >= self.max_consecutive_same_tool
+                        and len(set(all_tool_names[-self.max_consecutive_same_tool:])) == 1
+                    ):
+                        return "continue"
+
+            return "call_tool"
+
+        tools_by_name = {tool.name: tool for tool in tools}
+
+        def prepare_tool_runs(state: AgentState):
+            last_message = state["messages"][-1]
+            if not isinstance(last_message, AIMessage):
+                return {"pending_tool_calls": []}
+            return {"pending_tool_calls": list(last_message.tool_calls or [])}
+
+        def execute_tools(state: AgentState, config: RunnableConfig | None = None):
+            """Execute pending tool calls as an explicit graph node with durable events."""
+            from apps.core.services import ExecutionService
+
+            tool_messages: list[ToolMessage] = []
+            run_config = config or {}
+            graph_run_id = str(run_config.get("run_id") or "")
+            graph = self._get_execution_graph()
+            for tool_call in state.get("pending_tool_calls", []):
+                tool_name = tool_call.get("name") or "unknown_tool"
+                tool_args = tool_call.get("args") or {}
+                tool_call_id = tool_call.get("id") or f"{tool_name}_call"
+                node = None
+                if graph is not None:
+                    node = ExecutionService.start_node(
+                        graph=graph,
+                        name=tool_name,
+                        kind="TOOL",
+                        tool_call_id=tool_call_id,
+                        input=tool_args,
+                        metadata={"run_id": graph_run_id, "langgraph_node": "execute_tools"},
+                    )
+
+                tool = tools_by_name.get(tool_name)
+                if tool is None:
+                    error_message = f"Tool {tool_name!r} is not available."
+                    if node is not None:
+                        ExecutionService.fail_node(
+                            node,
+                            error={"error_type": "ToolNotFound"},
+                            content=error_message,
+                            payload={"tool_call_id": tool_call_id, "error_type": "ToolNotFound"},
+                        )
+                    tool_messages.append(
+                        ToolMessage(content=error_message, tool_call_id=tool_call_id)
+                    )
+                    continue
+
+                try:
+                    self._current_execution_node = node
+                    self._current_execution_node_id = node.id if node is not None else None
+                    output = tool.invoke(tool_args, config=run_config)
+                    if node is not None:
+                        node.refresh_from_db()
+                    if node is not None and node.status == "WAITING":
+                        ExecutionService.emit_event(
+                            graph=graph,
+                            node=node,
+                            event_type="tool_dispatched",
+                            status="WAITING",
+                            content=str(output),
+                            payload={"tool_call_id": tool_call_id, "output_preview": str(output)[:4000]},
+                        )
+                    elif node is not None:
+                        ExecutionService.complete_node(
+                            node,
+                            output={"preview": str(output)[:4000]},
+                            content=str(output),
+                            payload={"tool_call_id": tool_call_id, "output_preview": str(output)[:4000]},
+                        )
+                    tool_messages.append(
+                        ToolMessage(content=str(output), tool_call_id=tool_call_id)
+                    )
+                except Exception as exc:
+                    error_message = f"{type(exc).__name__}: {exc}"
+                    if node is not None:
+                        ExecutionService.fail_node(
+                            node,
+                            error={"error_type": type(exc).__name__, "message": str(exc)},
+                            content=error_message,
+                            payload={"tool_call_id": tool_call_id, "error_type": type(exc).__name__},
+                        )
+                    tool_messages.append(
+                        ToolMessage(content=error_message, tool_call_id=tool_call_id)
+                    )
+                finally:
+                    self._current_execution_node = None
+                    self._current_execution_node_id = None
+
+            return {"messages": tool_messages, "pending_tool_calls": []}
+
+        def compress_tool_outputs(state: AgentState):
+            """Compress large tool outputs before they reach the LLM."""
             messages = state["messages"]
             last_tool_messages = []
             
@@ -761,10 +934,40 @@ class AIAssistant(abc.ABC):  # noqa: F821
                 else:
                     updated_messages.append(msg)
             
+            # ── 截斷大型 ToolMessage，釋放 LLM context window ────────
+            # 使用 compression_agent 輕量 LLM 產生摘要替換完整 tool output。
+            # 保留 id（讓 add_messages reducer 替換舊訊息）和 tool_call_id（維持 tool_call→result 配對）。
+            if thread:
+                truncated_list = []
+                for msg in updated_messages:
+                    if (
+                        isinstance(msg, ToolMessage)
+                        and len(str(msg.content)) > 300
+                    ):
+                        _tool_name = getattr(msg, 'name', None) or 'tool'
+                        try:
+                            _summary = self._internal_generate_summary(
+                                str(msg.content), tool_name=_tool_name
+                            )
+                        except Exception:
+                            _summary = str(msg.content)[:150] + "..."
+                        truncated_list.append(
+                            ToolMessage(
+                                content=f"[{_tool_name}] {_summary}",
+                                tool_call_id=msg.tool_call_id,
+                                id=msg.id,
+                            )
+                        )
+                    else:
+                        truncated_list.append(msg)
+                updated_messages = truncated_list
+
             # Return updated messages with same IDs to update state
             return {"messages": updated_messages}
 
         def record_response(state: AgentState):
+            from apps.core.services import ExecutionService
+
             # Structured output must happen in the end, to avoid disabling tool calling.
             # Tool calling + structured output is not supported by OpenAI:
             if self.structured_output:
@@ -789,6 +992,9 @@ class AIAssistant(abc.ABC):  # noqa: F821
                 # Save all messages, except the initial system message:
                 thread_messages = [m for m in state["messages"] if not isinstance(m, SystemMessage)]
                 save_django_messages(cast(list[BaseMessage], thread_messages), thread=thread)
+            graph = self._get_execution_graph()
+            if graph is not None and graph.status == "RUNNING":
+                ExecutionService.complete_graph(graph, content=response)
             return {"output": response}
 
         workflow = StateGraph(AgentState)
@@ -798,8 +1004,9 @@ class AIAssistant(abc.ABC):  # noqa: F821
         workflow.add_node("context_check", context_check)
         workflow.add_node("retriever", retriever)
         workflow.add_node("agent", agent)
-        workflow.add_node("tools", ToolNode(tools=tools))
-        workflow.add_node("post_tool_hook", post_tool_hook)
+        workflow.add_node("prepare_tool_runs", prepare_tool_runs)
+        workflow.add_node("execute_tools", execute_tools)
+        workflow.add_node("compress_tool_outputs", compress_tool_outputs)
         workflow.add_node("respond", record_response)
 
         workflow.set_entry_point("setup")
@@ -811,12 +1018,13 @@ class AIAssistant(abc.ABC):  # noqa: F821
             "agent",
             tool_selector,
             {
-                "call_tool": "tools",
+                "call_tool": "prepare_tool_runs",
                 "continue": "respond",
             },
         )
-        workflow.add_edge("tools", "post_tool_hook")
-        workflow.add_edge("post_tool_hook", "agent")
+        workflow.add_edge("prepare_tool_runs", "execute_tools")
+        workflow.add_edge("execute_tools", "compress_tool_outputs")
+        workflow.add_edge("compress_tool_outputs", "agent")
         workflow.add_edge("respond", END)
 
         return workflow.compile()
@@ -871,12 +1079,29 @@ class AIAssistant(abc.ABC):  # noqa: F821
             dict: The output of the assistant graph,
                  structured like `{"output": "assistant response", "history": ...}`.
         """
-        graph = self.as_graph(thread_id=thread_id, thread=thread)
         config = kwargs.pop("config", {})
+        from apps.core.services import ExecutionService
+
         config["max_concurrency"] = config.pop("max_concurrency", self.tool_max_concurrency)
         config["recursion_limit"] = config.pop("recursion_limit", getattr(self, "recursion_limit", 150))
+        if thread is None and thread_id is not None:
+            from apps.core.models import Thread
+
+            thread = Thread.objects.filter(id=thread_id).first()
+        execution_graph = ExecutionService.start_graph(
+            thread=thread,
+            assistant_id=getattr(self, "id", ""),
+            title=getattr(self, "name", ""),
+            metadata={"mode": mode},
+        ) if thread is not None else None
+        if execution_graph is not None:
+            self._execution_graph = execution_graph
+            self._current_execution_graph_id = execution_graph.id
+            config.setdefault("configurable", {})["execution_graph_id"] = execution_graph.id
+        graph = self.as_graph(thread_id=thread_id, thread=thread)
         
-        # Automatically inject callbacks from get_callbacks()
+        # Tool lifecycle persistence is graph-native. Callbacks remain available
+        # for explicit opt-in integrations, but are no longer the primary event path.
         callbacks = self.get_callbacks()
         if callbacks:
             config.setdefault("callbacks", []).extend(callbacks)
@@ -884,9 +1109,26 @@ class AIAssistant(abc.ABC):  # noqa: F821
         # Inject thread_id into configurable so nested agent tools can read caller_thread_id
         if thread_id is not None:
             config.setdefault("configurable", {})["thread_id"] = thread_id
+        # Keep an instance fallback for non-LangGraph tool invocation paths where
+        # RunnableConfig may not be propagated into the wrapped tool function.
+        self._current_invoke_thread_id = thread_id
+        _logger = logging.getLogger("ai_assistant.agent")
+        _logger.info(
+            f"[INVOKE] agent={getattr(self, 'id', '?')} | thread_id={thread_id} | "
+            f"configurable.thread_id={config.get('configurable', {}).get('thread_id')} | mode={mode}"
+        )
         if mode not in ("invoke", "astream"):
             raise NotImplementedError(f"mode={mode!r}")
-        return getattr(graph, mode)(*args, config=config, **kwargs)
+        try:
+            return getattr(graph, mode)(*args, config=config, **kwargs)
+        except Exception as exc:
+            if execution_graph is not None:
+                ExecutionService.fail_graph(
+                    execution_graph,
+                    error=f"{type(exc).__name__}: {exc}",
+                    payload={"error_type": type(exc).__name__},
+                )
+            raise
 
     @with_cast_id
     def run(self, message: str, thread_id: Any | None = None, **kwargs: Any) -> Any:
@@ -926,15 +1168,21 @@ class AIAssistant(abc.ABC):  # noqa: F821
         Yields:
             Any: The assistant response to the user message.
         """
-        async for output, metadata in self.invoke(
+        from asgiref.sync import sync_to_async
+
+        # as_graph() 和 get_llm() 內部包含同步 ORM 查詢（AgentLLMConfig / APIKey / Thread），
+        # 在 async 上下文中必須先在同步執行緒中建好 graph，再接回 async 串流。
+        graph = await sync_to_async(self.invoke)(
             {
                 "input": message,
             },
             thread=thread,
+            thread_id=thread.id if thread else None,
             mode="astream",
             stream_mode="messages",
             **kwargs,
-        ):
+        )
+        async for output, metadata in graph:
             if metadata.get("langgraph_node") == "agent" and (content := output.content):
                 yield content
 
@@ -950,7 +1198,7 @@ class AIAssistant(abc.ABC):  # noqa: F821
                 # 決定 Thread 名稱與隱藏屬性
                 if persistent:
                     sub_thread_name = f"subagent_{self.id}_for_thread_{caller_thread_id}"
-                    is_hidden = False
+                    is_hidden = True
                 else:
                     # 一次性調用也建立 DB 記錄以保證可靠性，但標記為隱藏
                     import uuid
@@ -982,6 +1230,11 @@ class AIAssistant(abc.ABC):  # noqa: F821
                     sub_thread.save(update_fields=['created_by', 'is_hidden'])
 
                 target_thread_id = sub_thread.id
+                # ── 同步更新 self._thread 以供 spawn_*_agent / get_callbacks 使用 ──
+                # 沒有這行，AutomationAgent._thread 會一直是 None，
+                # 導致 _get_caller_thread_id() 回傳 None，spawn 工具無法追蹤。
+                if not getattr(self, '_thread', None):
+                    self._thread = sub_thread
                 _logger.info(f"[{self.id}] Binding to DB thread {sub_thread.id} (hidden={is_hidden}) for reliability.")
             except Exception as e:
                 _logger.error(f"Failed to manage sub-thread: {e}")
@@ -1013,6 +1266,9 @@ class AIAssistant(abc.ABC):  # noqa: F821
             thread_id = None
             if config and "configurable" in config:
                 thread_id = config["configurable"].get("thread_id")
+            # Fallback for non-LangGraph tool invocation paths where config is absent.
+            if not thread_id:
+                thread_id = getattr(self, '_current_invoke_thread_id', None)
             return self._run_as_tool(message, caller_thread_id=thread_id, persistent=persistent)
 
         return StructuredTool.from_function(

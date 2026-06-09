@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import models, transaction
 from django.utils import timezone
 
 
@@ -114,11 +114,12 @@ class StepLog(models.Model):
         return f"Log#{self.id} (Step#{self.step_id}) [{self.level}] {self.message[:50]}"
     
     def save(self, *args, **kwargs):
-        # 自動分配序列號
+        # 使用 select_for_update 防止並發下序列號重複
         if not self.sequence:
-            last_seq = StepLog.objects.filter(step=self.step).aggregate(
-                models.Max('sequence')
-            )['sequence__max'] or 0
-            self.sequence = last_seq + 1
-        
+            with transaction.atomic():
+                last_seq = StepLog.objects.select_for_update().filter(
+                    step=self.step
+                ).aggregate(models.Max('sequence'))['sequence__max'] or 0
+                self.sequence = last_seq + 1
+
         super().save(*args, **kwargs)

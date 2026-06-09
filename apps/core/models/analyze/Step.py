@@ -51,6 +51,12 @@ class Step(models.Model):
         help_text="When this step transitioned to COMPLETED or FAILED. Used for execution timing."
     )
 
+    token_usage = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Accumulated LLM token usage for this step: {prompt_tokens, completion_tokens, total_tokens}",
+    )
+
     @classmethod
     def create_next(cls, *, overview=None, overview_id=None, **kwargs):
         oid = overview_id or (overview.id if overview else None)

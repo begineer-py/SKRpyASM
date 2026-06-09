@@ -104,12 +104,18 @@ async def start_nmap_scan(request, trigger_data: NmapScanTriggerSchema):
     )
 
     # 7. 觸發任務
-    perform_nmap_scan.delay(
+    task = perform_nmap_scan.delay(
         scan_id=scan_record.id,
         ip_address=ip_str,
         nmap_args=final_nmap_args,
         callback_step_id=trigger_data.callback_step_id,
+        execution_graph_id=trigger_data.execution_graph_id,
+        execution_node_id=trigger_data.execution_node_id,
     )
+    if trigger_data.execution_node_id:
+        from apps.core.services import ExecutionService
+
+        await sync_to_async(ExecutionService.set_node_external_task_id)(trigger_data.execution_node_id, task.id)
 
     # 8. 回傳
     return NmapScanSchema(

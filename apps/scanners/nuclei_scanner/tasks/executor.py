@@ -6,6 +6,7 @@ from django.utils import timezone
 from apps.core.models import NucleiScan
 from .database import save_nuclei_result_to_db
 from apps.api_keys.utils import get_active_api_keys, generate_nuclei_secrets
+from apps.core.header_injection import get_tagged_headers
 import os
 
 logger = logging.getLogger(__name__)
@@ -17,6 +18,7 @@ def execute_nuclei_command(
     asset_type: str,
     scan_record_ids: List[int],
     callback_step_id: Optional[int] = None,
+    execution_node_id: Optional[int] = None,
 ):
     """
     封裝 Nuclei 執行邏輯，實現實時流處理與關鍵漏洞告警
@@ -113,6 +115,7 @@ def execute_nuclei_command(
         NucleiScan.objects.filter(id__in=scan_record_ids).update(
             status="COMPLETED", completed_at=timezone.now()
         )
+        _complete_execution_node(execution_node_id, content=f"{asset_type} Nuclei 掃描完成", output={"scan_record_ids": scan_record_ids})
 
         # === CVE 豐富化：自動觸發 ===
         if callback_step_id:
@@ -136,6 +139,11 @@ def execute_nuclei_command(
         NucleiScan.objects.filter(id__in=scan_record_ids).update(
             status="FAILED", completed_at=timezone.now()
         )
+        _fail_execution_node(
+            execution_node_id,
+            content=f"{asset_type} Nuclei 掃描失敗: {e}",
+            error={"error_type": type(e).__name__, "message": str(e)},
+        )
     finally:
         # 清理臨時配置文件
         if 'secrets_file' in locals() and secrets_file and os.path.exists(secrets_file):
@@ -151,7 +159,7 @@ def execute_nuclei_command(
 # =============================================================================
 
 def _execute_nuclei_batch(
-    asset_type: str, ids: List[int], custom_tags: Optional[List[str]] = None, task_self=None, callback_step_id: Optional[int] = None
+    asset_type: str, ids: List[int], custom_tags: Optional[List[str]] = None, task_self=None, callback_step_id: Optional[int] = None, target_id: Optional[int] = None, execution_graph_id: Optional[int] = None, execution_node_id: Optional[int] = None
 ) -> str:
     """
     【通用 Nuclei 執行助手】
@@ -192,6 +200,15 @@ def _execute_nuclei_batch(
     if asset_type == "url":
         command.extend(["-severity", "low,medium,high,critical"])
 
+    # 注入請求標籤
+    tagged_headers = get_tagged_headers(target_id=target_id)
+    for h_key, h_val in tagged_headers.items():
+        command.extend(["-H", f"{h_key}: {h_val}"])
+
+    # 注入速率限制
+    from apps.core.header_injection import build_rate_limit_args
+    command.extend(build_rate_limit_args("nuclei", target_id))
+
     # 3. 呼叫核心執行器
     return execute_nuclei_command(
         command=command,
@@ -199,4 +216,21 @@ def _execute_nuclei_batch(
         asset_type=cfg.asset_name,
         scan_record_ids=scan_record_ids,
         callback_step_id=callback_step_id,
+        execution_node_id=execution_node_id,
     )
+
+
+def _complete_execution_node(execution_node_id: Optional[int], *, content: str, output: dict | None = None) -> None:
+    if not execution_node_id:
+        return
+    from apps.core.services import ExecutionService
+
+    ExecutionService.complete_node_by_id(execution_node_id, output=output, content=content)
+
+
+def _fail_execution_node(execution_node_id: Optional[int], *, content: str, error: dict | None = None) -> None:
+    if not execution_node_id:
+        return
+    from apps.core.services import ExecutionService
+
+    ExecutionService.fail_node_by_id(execution_node_id, content=content, error=error)

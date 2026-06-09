@@ -489,3 +489,23 @@ a:hover { color: var(--cyan); }
 .text-muted  { color: var(--text-muted); }
 .text-secondary { color: var(--text-secondary); }
 .glow-green { text-shadow: var(--glow-green); }
+
+/* ─── Skeleton Loader ─── */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.35; }
+  50%       { opacity: 0.7; }
+}
+
+.skeleton-bar {
+  height: 0.72em;
+  border-radius: 3px;
+  background: var(--border-subtle);
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+.skeleton-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}

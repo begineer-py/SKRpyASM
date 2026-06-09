@@ -21,6 +21,8 @@ class FlareSolverrSendRequestSchema(Schema):
     target_id: int | None = None
     seed_id: int | None = None
     callback_step_id: int | None = Field(None, description="Step ID for async callback/logging")
+    execution_graph_id: int | None = Field(None, description="ExecutionGraph ID for async lifecycle tracking")
+    execution_node_id: int | None = Field(None, description="ExecutionNode ID for async lifecycle tracking")
 
 
 class FlareSolverrSendRequestResponse(Schema):

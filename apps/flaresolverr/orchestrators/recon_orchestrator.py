@@ -14,6 +14,8 @@ from apps.flaresolverr.url_scanner.html_scanner import XurlsScanner
 from apps.flaresolverr.url_scanner.jsluice import jsluice
 from .utils import process_all_discovered_links
 from apps.flaresolverr.security_parser import SecurityAnalyzer
+from apps.flaresolverr.source_map.detector import SourceMapDetector
+from apps.flaresolverr.source_map.parser import SourceMapParser
 
 
 logger = logging.getLogger(__name__)
@@ -25,13 +27,14 @@ class ReconOrchestrator:
     具備錯誤感知能力，根據 Spider 的回傳狀態動態決定執行哪些分析模組。
     """
 
-    def __init__(self, url: str, method: str = "GET", cookie_string: str = "", body: str | None = None, content_type: str | None = None, host_header: str | None = None):
+    def __init__(self, url: str, method: str = "GET", cookie_string: str = "", body: str | None = None, content_type: str | None = None, host_header: str | None = None, target_id: int | None = None):
         self.url = url
         self.method = method
         self.cookie_string = cookie_string
         self.body = body
         self.content_type = content_type
         self.host_header = host_header
+        self.target_id = target_id
         self.spider = MySpider(
             url=self.url,
             method=self.method,
@@ -40,6 +43,7 @@ class ReconOrchestrator:
             body=self.body,
             content_type=self.content_type,
             host_header=self.host_header,
+            target_id=self.target_id,
         )
         self.analyzer = PatternAnalyzer()
         self.tech_scanner = TechScanner()
@@ -77,6 +81,7 @@ class ReconOrchestrator:
             "extracted_js": "",
             "processed_links": {"internal": [], "external": []},
             "text": "",
+            "source_map_result": {"findings": [], "endpoints": [], "map_files": []},
         }
 
     @log_function_call()
@@ -212,6 +217,15 @@ class ReconOrchestrator:
             )
             result["processed_links"] = processed_links
 
+            # --- G. Source Map 挖掘 ---
+            response_headers = response_data.get("response_headers", {})
+            source_map_result = self._run_source_map_scan(
+                result.get("scripts_result", []),
+                response_headers,
+                result.get("extracted_js", ""),
+            )
+            result["source_map_result"] = source_map_result
+
             # 補充雜項
             result["raw_response_hash"] = response_data.get("md5", "")
             result["success"] = True
@@ -333,3 +347,60 @@ class ReconOrchestrator:
                 logger.error(f"XurlsScanner 分析失敗: {e}")
 
         return links
+
+    def _run_source_map_scan(
+        self,
+        scripts_result: list,
+        response_headers: dict,
+        extracted_js: str,
+    ) -> dict:
+        """偵測並解析所有 JavaScript Source Map，提取路徑洩漏、機密與 API endpoint。"""
+        detector = SourceMapDetector()
+        parser = SourceMapParser()
+        map_urls_seen: set = set()
+
+        # 1. Response headers (SourceMap / X-SourceMap)
+        for url in detector.from_response_headers(response_headers):
+            map_urls_seen.add(url)
+
+        # 2. Inline JS 中的 sourceMappingURL 註解
+        if extracted_js:
+            for url in detector.from_js_content(extracted_js, self.url):
+                map_urls_seen.add(url)
+
+        # 3. 外部 JS 檔案：先用已有 content，否則下載再掃描
+        from apps.flaresolverr.utils import downloader
+        for script in scripts_result:
+            src_url = script.get("src")
+            if not src_url:
+                continue
+            content = script.get("content") or downloader(src_url)
+            if content:
+                found = detector.from_js_content(content, src_url)
+                if found:
+                    map_urls_seen.update(found)
+                    continue
+            # 無明確 sourceMappingURL → 探測 <url>.map
+            map_urls_seen.update(detector.probe_common_paths(src_url))
+
+        all_findings: list = []
+        all_endpoints: list = []
+        map_files: list = []
+
+        for map_url in map_urls_seen:
+            data = parser.fetch_and_parse(map_url)
+            if not data:
+                continue
+            map_files.append({"url": map_url, "sources": data.sources})
+            all_findings.extend(parser.extract_findings(data))
+            all_endpoints.extend(parser.extract_endpoints(data, self.url))
+            logger.info(
+                f"[SourceMap] 解析完成: {map_url[:60]} "
+                f"({len(data.sources)} 個來源檔, {len(data.sources_content)} 個 content)"
+            )
+
+        logger.info(
+            f"[SourceMap] 共 {len(map_files)} 個 map, "
+            f"{len(all_findings)} 個 finding, {len(all_endpoints)} 個 endpoint"
+        )
+        return {"findings": all_findings, "endpoints": all_endpoints, "map_files": map_files}

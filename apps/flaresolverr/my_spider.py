@@ -13,6 +13,7 @@ from .spider_utils.send_flaresolverr import (
 from .session_store import FlareSolverrSessionStore
 from .spider_utils.utils import check_if_blocked, translate_response_to_json, if_spa
 from c2_core.config.logging import log_function_call
+from apps.core.header_injection import get_tagged_headers
 
 
 def _binary_url_detector(url: str) -> bool:
@@ -48,10 +49,12 @@ class MySpider:
         body: str | None = None,
         content_type: str | None = None,
         host_header: str | None = None,
+        target_id: int | None = None,
         **kwargs: Any,
     ) -> None:
         self.url: str = url
-        self.headers: Dict[str, str] = headers or {}
+        self.target_id: Optional[int] = target_id
+        self.headers: Dict[str, str] = get_tagged_headers(headers or {}, target_id=self.target_id)
         self.method: str = method
         self.cookie_string: str = cookie_string
         self.flaresolverr_url: Optional[str] = flaresolverr_url

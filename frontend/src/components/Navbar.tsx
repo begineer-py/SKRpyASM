@@ -65,6 +65,12 @@ function Navbar() {
         >
           Keys
         </NavLink>
+        <NavLink
+          to="/pentest-config"
+          className={({ isActive }) => `c2-navbar__link${isActive ? ' active' : ''}`}
+        >
+          Headers
+        </NavLink>
       </div>
 
       {/* Status indicator */}

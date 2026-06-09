@@ -72,7 +72,12 @@ _NUCLEI_API_CONFIG = {
 # =============================================================================
 
 async def _trigger_nuclei_scan(
-    asset_type: str, requested_ids: List[int], tags: Optional[List[str]] = None, callback_step_id: Optional[int] = None
+    asset_type: str,
+    requested_ids: List[int],
+    tags: Optional[List[str]] = None,
+    callback_step_id: Optional[int] = None,
+    execution_graph_id: Optional[int] = None,
+    execution_node_id: Optional[int] = None,
 ) -> int:
     """通用 Nuclei 掃描觸發器"""
     cfg = _NUCLEI_API_CONFIG[asset_type]
@@ -83,7 +88,11 @@ async def _trigger_nuclei_scan(
     if cfg["readiness_check"]:
         valid_ids = await cfg["readiness_check"](valid_ids)
 
-    cfg["trigger_task"].delay(valid_ids, tags, callback_step_id=callback_step_id)
+    task = cfg["trigger_task"].delay(valid_ids, tags, callback_step_id=callback_step_id, execution_graph_id=execution_graph_id, execution_node_id=execution_node_id)
+    if execution_node_id:
+        from apps.core.services import ExecutionService
+
+        await sync_to_async(ExecutionService.set_node_external_task_id)(execution_node_id, task.id)
     return len(valid_ids)
 
 
@@ -94,14 +103,14 @@ async def _trigger_nuclei_scan(
 @router.post("/ips", response={202: SuccessSendToAISchema, 404: ErrorSchema})
 async def scan_ips(request, payload: NucleiScanIPByIdsSchema):
     """IP 掃描"""
-    count = await _trigger_nuclei_scan("ip", payload.ids, payload.tags, callback_step_id=payload.callback_step_id)
+    count = await _trigger_nuclei_scan("ip", payload.ids, payload.tags, callback_step_id=payload.callback_step_id, execution_graph_id=payload.execution_graph_id, execution_node_id=payload.execution_node_id)
     return 202, SuccessSendToAISchema(detail=f"成功派發 {count} 個 IP 的掃描任務")
 
 
 @router.post("/subdomains", response={202: SuccessSendToAISchema, 404: ErrorSchema})
 async def scan_subdomains(request, payload: NucleiScanSubdomainByIdsSchema):
     """子域名掃描"""
-    count = await _trigger_nuclei_scan("subdomain", payload.ids, payload.tags, callback_step_id=payload.callback_step_id)
+    count = await _trigger_nuclei_scan("subdomain", payload.ids, payload.tags, callback_step_id=payload.callback_step_id, execution_graph_id=payload.execution_graph_id, execution_node_id=payload.execution_node_id)
     return 202, SuccessSendToAISchema(detail=f"成功派發 {count} 個子域名的掃描任務")
 
 
@@ -110,7 +119,7 @@ async def scan_subdomains(request, payload: NucleiScanSubdomainByIdsSchema):
 )
 async def scan_urls(request, payload: NucleiScanURLByIdsSchema):
     """URL 掃描"""
-    count = await _trigger_nuclei_scan("url", payload.ids, payload.tags, callback_step_id=payload.callback_step_id)
+    count = await _trigger_nuclei_scan("url", payload.ids, payload.tags, callback_step_id=payload.callback_step_id, execution_graph_id=payload.execution_graph_id, execution_node_id=payload.execution_node_id)
     return 202, SuccessSendToAISchema(detail=f"成功派發 {count} 個 URL 的掃描任務")
 
 
@@ -123,7 +132,11 @@ async def post_sub_tech(request, payload: NucleiScanSubdomainByIdsSchema):
     """子域名技術辨識"""
     logger.info(f"接收到子域名技術辨識請求: {payload.ids}")
     valid_ids = await validate_ids_exist(Subdomain, payload.ids, "Subdomain")
-    scan_subdomain_tech.delay(valid_ids, callback_step_id=payload.callback_step_id)
+    task = scan_subdomain_tech.delay(valid_ids, callback_step_id=payload.callback_step_id, execution_graph_id=payload.execution_graph_id, execution_node_id=payload.execution_node_id)
+    if payload.execution_node_id:
+        from apps.core.services import ExecutionService
+
+        await sync_to_async(ExecutionService.set_node_external_task_id)(payload.execution_node_id, task.id)
     return 202, SuccessSendToAISchema(detail=f"成功派發 {len(valid_ids)} 個子域名的技術辨識任務")
 
 
@@ -139,5 +152,9 @@ async def post_url_tech(request, payload: NucleiScanURLByIdsSchema):
     # 校驗任務狀態
     valid_ids = await _check_url_readiness(valid_ids)
 
-    scan_url_tech_stack.delay(valid_ids, callback_step_id=payload.callback_step_id)
+    task = scan_url_tech_stack.delay(valid_ids, callback_step_id=payload.callback_step_id, execution_graph_id=payload.execution_graph_id, execution_node_id=payload.execution_node_id)
+    if payload.execution_node_id:
+        from apps.core.services import ExecutionService
+
+        await sync_to_async(ExecutionService.set_node_external_task_id)(payload.execution_node_id, task.id)
     return 202, SuccessSendToAISchema(detail=f"成功派發 {len(valid_ids)} 個 URL 的技術辨識任務")

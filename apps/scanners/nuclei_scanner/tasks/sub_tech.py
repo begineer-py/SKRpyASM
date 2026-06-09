@@ -6,22 +6,25 @@ import logging
 logger = logging.getLogger(__name__)
 from apps.core.models import Subdomain
 from .utils import process_nuclei_tech_line
-from apps.core.utils import with_auto_callback
+from apps.core.header_injection import get_tagged_headers
 
 
 @shared_task(name="nuclei_scanner.tasks.sub_tech.scan_subdomain_tech")
 @log_function_call()
-@with_auto_callback
-def scan_subdomain_tech(subdomain_ids: list[int], callback_step_id: int = None):
+def scan_subdomain_tech(subdomain_ids: list[int], callback_step_id: int = None, target_id: int = None, execution_graph_id: int | None = None, execution_node_id: int | None = None):
     """
     掃描子域名的技術堆疊並解析結果
     """
     subdomains = Subdomain.objects.filter(id__in=subdomain_ids)
 
+    if not target_id and subdomains.exists():
+        resolved_target_id = subdomains.first().target_id
+    else:
+        resolved_target_id = target_id
+
     for subdomain in subdomains:
         logger.info(f"開始掃描子域名技術: {subdomain.name}")
 
-        # 構建 Nuclei 指令 (輸出格式為 JSONL)
         target_url = f"https://{subdomain.name}"
         command = [
             "nice",
@@ -33,6 +36,13 @@ def scan_subdomain_tech(subdomain_ids: list[int], callback_step_id: int = None):
             "-jsonl",
             "-silent",
         ]
+
+        tagged_headers = get_tagged_headers(target_id=resolved_target_id)
+        for h_key, h_val in tagged_headers.items():
+            command.extend(["-H", f"{h_key}: {h_val}"])
+
+        from apps.core.header_injection import build_rate_limit_args
+        command.extend(build_rate_limit_args("nuclei", resolved_target_id))
 
         try:
             # 執行掃描
@@ -50,4 +60,14 @@ def scan_subdomain_tech(subdomain_ids: list[int], callback_step_id: int = None):
         except Exception as e:
             logger.error(f"執行 Nuclei 掃描失敗 ({subdomain.name}): {str(e)}")
 
-    return f"已完成 {len(subdomains)} 個子域名的技術掃描"
+    result = f"已完成 {len(subdomains)} 個子域名的技術掃描"
+    _complete_execution_node(execution_node_id, content=result)
+    return result
+
+
+def _complete_execution_node(execution_node_id: int | None, *, content: str) -> None:
+    if not execution_node_id:
+        return
+    from apps.core.services import ExecutionService
+
+    ExecutionService.complete_node_by_id(execution_node_id, content=content)

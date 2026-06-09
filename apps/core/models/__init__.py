@@ -2,7 +2,8 @@ from .base import Target, Seed
 from .network import IP, Port
 from .domain import Subdomain, SubdomainSeed
 from . import signals
-from .ai_models import Thread, Message
+from .ai_models import Thread, Message, ThreadEvent
+from .execution import ExecutionGraph, ExecutionNode, ExecutionEvent, ExecutionArtifact
 from .compression import (
     ThreadCompressionState,
     GlobalContextOverview,
@@ -45,3 +46,5 @@ from .url_assets import (
 )
 from .techstack import TechStack
 from .js_files import JavaScriptFile, ExtractedJS
+from .pentest_config import PentestHeaderConfig
+from .target_request_config import TargetRequestConfig

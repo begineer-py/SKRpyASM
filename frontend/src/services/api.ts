@@ -87,19 +87,21 @@ export const GET_TARGET_DETAIL_QUERY = `
   }
 `;
 
-// 查詢目標的子域名 (含IP關聯和狀態)
-// NOTE: Subdomain has direct target FK, so filter by target_id directly
+// 查詢目標的子域名 (含IP關聯和狀態)，支援動態 where/orderBy/分頁
 export const GET_TARGET_SUBDOMAINS_QUERY = `
-  query GetTargetSubdomains($targetId: bigint!) {
+  query GetTargetSubdomains($where: core_subdomain_bool_exp!, $orderBy: [core_subdomain_order_by!]!, $limit: Int!, $offset: Int!) {
     core_subdomain(
-      where: { target_id: { _eq: $targetId } }
-      order_by: { created_at: desc }
-      limit: 200
+      where: $where
+      order_by: $orderBy
+      limit: $limit
+      offset: $offset
     ) {
       id
       name
       is_active
       is_resolvable
+      is_cdn
+      is_waf
       created_at
       core_subdomain_ips(limit: 3) {
         core_ip {
@@ -108,18 +110,21 @@ export const GET_TARGET_SUBDOMAINS_QUERY = `
         }
       }
     }
+    core_subdomain_aggregate(where: $where) {
+      aggregate { count }
+    }
   }
 `;
 
 
-// 查詢目標的 IP 資產 (含埠號詳情)
-// NOTE: IP model has no `created_at`, sort by id. Ports related_name is 'ports'
+// 查詢目標的 IP 資產 (含埠號詳情)，支援動態 where/orderBy/分頁
 export const GET_TARGET_IPS_QUERY = `
-  query GetTargetIPs($targetId: bigint!) {
+  query GetTargetIPs($where: core_ip_bool_exp!, $orderBy: [core_ip_order_by!]!, $limit: Int!, $offset: Int!) {
     core_ip(
-      where: { target_id: { _eq: $targetId } }
-      order_by: { id: desc }
-      limit: 200
+      where: $where
+      order_by: $orderBy
+      limit: $limit
+      offset: $offset
     ) {
       id
       address
@@ -133,6 +138,9 @@ export const GET_TARGET_IPS_QUERY = `
         state
         first_seen
       }
+    }
+    core_ip_aggregate(where: $where) {
+      aggregate { count }
     }
   }
 `;
@@ -159,13 +167,11 @@ export const GET_TARGET_OVERVIEWS_QUERY = `
   }
 `;
 
-// 查詢目標的 URL 資產 (支持分頁、排序、初步分析分數)
-// NOTE: URLResult has no `content_type` field. Use title, status_code, created_at
-// 新增: core_initialaianalysis_set relationship 取得初步分析分數
+// 查詢目標的 URL 資產 (支持分頁、排序、動態篩選、初步分析分數)
 export const GET_TARGET_URLS_QUERY = `
-  query GetTargetURLs($targetId: bigint!, $limit: Int = 50, $offset: Int = 0, $orderBy: [core_urlresult_order_by!] = {created_at: desc}) {
+  query GetTargetURLs($where: core_urlresult_bool_exp!, $limit: Int = 50, $offset: Int = 0, $orderBy: [core_urlresult_order_by!] = {created_at: desc}) {
     core_urlresult(
-      where: { target_id: { _eq: $targetId } }
+      where: $where
       order_by: $orderBy
       limit: $limit
       offset: $offset
@@ -179,7 +185,7 @@ export const GET_TARGET_URLS_QUERY = `
       content_fetch_status
       created_at
       # 初步分析分數 (最新一筆)
-      core_initialaianalysis_set(
+      core_initialaianalyses(
         order_by: { created_at: desc }
         limit: 1
       ) {
@@ -190,10 +196,8 @@ export const GET_TARGET_URLS_QUERY = `
         status
       }
     }
-    # 新增: 統計總數，用於前端判斷是否還有更多資料
-    core_urlresult_aggregate(
-      where: { target_id: { _eq: $targetId } }
-    ) {
+    # 統計總數，用於前端判斷是否還有更多資料
+    core_urlresult_aggregate(where: $where) {
       aggregate {
         count
       }

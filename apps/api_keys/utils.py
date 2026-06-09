@@ -67,8 +67,20 @@ def get_ai_provider_key(provider: str) -> str | None:
         record = APIKey.objects.filter(
             service_name__iexact=provider, is_active=True
         ).first()
-        if record:
+        if record and record.key_value:
+            logger.debug("get_ai_provider_key: Found active DB key for '%s'", provider)
             return record.key_value
+        if record:
+            logger.warning(
+                "get_ai_provider_key: DB record for '%s' exists but key_value is empty. "
+                "Falling back to environment variable.",
+                provider,
+            )
+        else:
+            logger.debug(
+                "get_ai_provider_key: No active DB record for '%s'. Checking env var.",
+                provider,
+            )
     except Exception as exc:
         logger.warning(f"get_ai_provider_key: DB lookup failed for '{provider}': {exc}")
 
@@ -77,8 +89,21 @@ def get_ai_provider_key(provider: str) -> str | None:
     if env_var:
         value = os.environ.get(env_var)
         if value:
+            logger.debug(
+                "get_ai_provider_key: Using env var '%s' for '%s'", env_var, provider
+            )
             return value
+        logger.debug(
+            "get_ai_provider_key: Env var '%s' not set for '%s'", env_var, provider
+        )
+    else:
+        logger.debug(
+            "get_ai_provider_key: Provider '%s' has no env var mapping "
+            "(local service, e.g. ollama)",
+            provider,
+        )
 
+    logger.warning("get_ai_provider_key: No API key found for '%s' via any source", provider)
     return None
 
 

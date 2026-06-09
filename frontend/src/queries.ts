@@ -99,6 +99,167 @@ export const GET_ALL_EXECUTION_STEPS = `
 `;
 
 /**
+ * AI Agent Tree Subscription
+ * 根 thread (hacker_assistant_agent) 以及所有它召喚的 automation_agent sub-threads，
+ * 包含每個 sub-thread 關聯的 Overview 狀態/風險/目標。
+ * 使用兩個來源取聯集：
+ *   1. core_overview.parent_thread_id = rootThreadId  → aiAssistantThreadByThreadId
+ *   2. ai_assistant_thread.name = 命名慣例
+ */
+export const GET_AGENT_TREE_SUBSCRIPTION = `
+  subscription GetAgentTree($rootThreadId: bigint!, $childPattern: String!) {
+    ai_assistant_thread_by_pk(id: $rootThreadId) {
+      id
+      name
+      assistant_id
+      is_hidden
+      bound_target_id
+      created_at
+      core_overviews {
+        id
+        status
+        risk_score
+        thread_id
+        parent_thread_id
+        core_target { name }
+        core_steps(order_by: { id: desc }, limit: 20) {
+          id
+          status
+          operation_type
+          created_at
+          completed_at
+        }
+        aiAssistantThreadByThreadId {
+          id
+          name
+          assistant_id
+          is_hidden
+          bound_target_id
+          created_at
+          core_overviews {
+            id
+            status
+            risk_score
+            thread_id
+            parent_thread_id
+            core_target { name }
+            core_steps(order_by: { id: desc }, limit: 20) {
+              id
+              status
+              operation_type
+              created_at
+              completed_at
+            }
+            aiAssistantThreadByThreadId {
+              id
+              name
+              assistant_id
+              is_hidden
+              bound_target_id
+              created_at
+            }
+          }
+        }
+      }
+    }
+    directChildren: ai_assistant_thread(where: { name: { _ilike: $childPattern } }) {
+      id
+      name
+      assistant_id
+      is_hidden
+      bound_target_id
+      created_at
+      coreOverviewsByThreadId(limit: 1, order_by: { id: desc }) {
+        id
+        status
+        risk_score
+        parent_thread_id
+        core_target { name }
+        core_steps(order_by: { id: desc }, limit: 20) {
+          id
+          status
+          operation_type
+          created_at
+          completed_at
+        }
+      }
+      core_overviews {
+        id
+        status
+        risk_score
+        thread_id
+        parent_thread_id
+        core_target { name }
+        core_steps(order_by: { id: desc }, limit: 20) {
+          id
+          status
+          operation_type
+          created_at
+          completed_at
+        }
+        aiAssistantThreadByThreadId {
+          id
+          name
+          assistant_id
+          is_hidden
+          bound_target_id
+          created_at
+        }
+      }
+    }
+    childOverviews: core_overview(
+      where: { parent_thread_id: { _eq: $rootThreadId } }
+      order_by: { id: desc }
+    ) {
+      id
+      status
+      risk_score
+      thread_id
+      parent_thread_id
+      core_target { name }
+      core_steps(order_by: { id: desc }, limit: 20) {
+        id
+        status
+        operation_type
+        created_at
+        completed_at
+      }
+      aiAssistantThreadByThreadId {
+        id
+        name
+        assistant_id
+        is_hidden
+        bound_target_id
+        created_at
+        core_overviews {
+          id
+          status
+          risk_score
+          thread_id
+          parent_thread_id
+          core_target { name }
+          core_steps(order_by: { id: desc }, limit: 20) {
+            id
+            status
+            operation_type
+            created_at
+            completed_at
+          }
+          aiAssistantThreadByThreadId {
+            id
+            name
+            assistant_id
+            is_hidden
+            bound_target_id
+            created_at
+          }
+        }
+      }
+    }
+  }
+`;
+
+/**
  * Script Executions for a specific Step
  * 用途：在 ExecutionMonitorPage 顯示某個 Step 執行過的所有腳本
  */
@@ -248,6 +409,30 @@ export const GET_SINGLE_OVERVIEW = `
         name
         description
       }
+    }
+  }
+`;
+
+/**
+ * Step Log Real-time Subscription (via Hasura GQL, replaces SSE)
+ * 用途：即時訂閱單一 Step 的所有工具調用日誌，取代 SSE EventSource
+ * 需要 Hasura 追蹤 core_steplog 表
+ */
+export const SUBSCRIBE_STEP_LOGS = `
+  subscription SubscribeStepLogs($stepId: bigint!) {
+    core_steplog(
+      where: { step_id: { _eq: $stepId } }
+      order_by: { sequence: asc }
+    ) {
+      id
+      step_id
+      sequence
+      level
+      tag
+      message
+      action_status
+      execution_time_ms
+      created_at
     }
   }
 `;

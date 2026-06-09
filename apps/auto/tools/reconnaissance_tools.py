@@ -209,7 +209,7 @@ class ReconnaissanceMixin:
                     if _caller_id and not existing.parent_thread_id and not parent_thread_id:
                         existing.parent_thread_id = _caller_id
                         existing.save(update_fields=['parent_thread_id'])
-                    if hasattr(self, '_agent_overview_id') is not None:
+                    if hasattr(self, '_agent_overview_id'):
                         self._agent_overview_id = existing.id
                     logger.warning(
                         f"create_overview called but active overview already exists "
@@ -229,7 +229,7 @@ class ReconnaissanceMixin:
                     thread_id=thread_id,
                     parent_thread_id=parent_thread_id,
                 )
-            if hasattr(self, '_agent_overview_id') is not None:
+            if hasattr(self, '_agent_overview_id'):
                 self._agent_overview_id = overview.id
             return f"成功為 Target {target.name} (ID: {target.id}) 建立新的 Overview (ID: {overview.id})。請重新呼叫 get_target_context。"
         except Exception as e:
@@ -241,30 +241,32 @@ class ReconnaissanceMixin:
         """
         如果在長期的非同步自動化任務結束拉！如果 Overview 中存有 parent_thread_id (調用你的上層 Agent)，
         利用此工具將最後的分析結果或是達成目標的消息傳回給上層 Agent 吧。
-        
+
         Args:
             overview_id: (Optional) 當前 Overview 的 ID。自動注入。
             message: 要傳回給上層 Agent 的消息內容。
         """
         try:
             from apps.core.models import Overview
-            from apps.core.models.ai_models import Thread
-            from apps.ai_assistant.helpers.use_cases import create_message
-            from django.contrib.auth import get_user_model
-            
+            from apps.core.models.ai_models import Thread as AIThread
+            from apps.core.models import Message as DjangoMessage
+            from langchain_core.messages import HumanMessage, message_to_dict
+
             overview = Overview.objects.get(id=overview_id)
             if not overview.parent_thread_id:
                 return "此 Overview 沒有紀錄 parent_thread_id，無法進行回調通知。"
-            
-            thread_obj = Thread.objects.get(id=overview.parent_thread_id)
-            User = get_user_model()
-            system_user = thread_obj.created_by or User.objects.filter(is_superuser=True).first()
-            
-            create_message(
-                assistant_id=thread_obj.assistant_id or "hacker_assistant_agent",
-                thread=thread_obj,
-                user=system_user,
-                content=f"[SYSTEM: Layer 3 Async Completion Report For Overview {overview_id}]\n{message}",
+
+            parent_thread = AIThread.objects.get(id=overview.parent_thread_id)
+
+            # 直接注入訊息到父層 Thread，不觸發 LLM 避免無限迴圈
+            # 上層 HackerAssistant 在使用者下次發訊息時，會自動從 Thread 歷史中讀到此通知並回應
+            notification = HumanMessage(
+                content=f"[SYSTEM: Layer 3 Async Completion Report For Overview {overview_id}]\n{message}"
+            )
+            DjangoMessage.objects.create(
+                thread=parent_thread,
+                role="human",
+                message=message_to_dict(notification),
             )
             return f"成功回調通知 Parent Thread {overview.parent_thread_id}。"
         except Exception as e:
@@ -446,43 +448,64 @@ class ReconnaissanceMixin:
         limit: int = 20
     ) -> str:
         """
-        【灵活查询】根据多个条件组合查询 URLResult 记录。
-        支持按 Target、Hostname、URL 关键词、状态、以及 URL 底下已发现资产进行筛选。
-        例如：用 target_id + has_forms=True 找出目标下所有含 HTML Form 的 URL，
-        或用 has_findings=True / has_vulnerabilities=True 找出高价值 URL。
-        AutomationAgent 不需要先记住单一 url_id 再逐笔查询。
-        避免一次性获取大量不相关的 URL，提高查询效率。
-        
+        【批量篩選工具】根據多個條件組合查詢 URLResult 記錄，適合「先找到候選 URL 清單」。
+        找到目標後，再用 get_url_intelligence(url_id=X) 對單個 URL 做深度情報讀取。
+
+        ═══ 使用場景 ═══
+        - 想找「有 Form 的 URL」: has_forms=True
+        - 想找「URL 路徑含 /admin」: url_contains='/admin'
+        - 想找「hostname 含 api.example.com」: hostname_contains='api.example'
+        - 想知道哪些 URL 有漏洞: has_vulnerabilities=True
+        - 想過濾尚未抓取的: content_fetch_status='PENDING'
+
+        ═══ 分頁 (Pagination) ═══
+        當目標有大量 URL 時，limit 預設 20。
+        若結果顯示尚有更多，請遞增 offset 翻頁：
+          第 1 頁: limit=20, offset=0
+          第 2 頁: limit=20, offset=20
+          第 3 頁: limit=20, offset=40
+        不要一次 limit=1000 拉所有資料，浪費 context token。
+
+        ═══ 子字串匹配 (Substring Match) ═══
+        url_contains 和 hostname_contains 都是「包含」匹配（icontains），不是完整 URL 匹配：
+          url_contains='/login'  → 匹配所有含 /login 的 URL（/login, /login/, /api/login 等）
+          hostname_contains='api' → 匹配 api.example.com、myapi.net 等
+        當你想找「某個路徑下的 URL」時，用 url_contains 即可，不必猜完整 URL。
+
+        ═══ 查無結果時的處理 ═══
+        若 url_contains 或 hostname_contains 查無結果，代表該 URL 尚未被系統爬取。
+        系統會自動暗示應使用哪個爬蟲工具觸發掃描，無需 AI 手動發起兩次請求。
+
         Args:
-            target_id: (可选) 筛选指定 Target 下的 URL
-            hostname_contains: (可选) 筛选 Hostname 包含特定字符串的 URL
-            url_contains: (可选) 筛选 URL 包含特定字符串的记录
-            content_fetch_status: (可选) 按抓取状态筛选 (e.g., 'SUCCESS_FETCHED', 'FAILED_BLOCKED')
-            used_flaresolverr: (可选) 按是否使用过 Flaresolverr 筛选
-            status_code: (可选) 按 HTTP 状态码筛选
-            has_forms: (可选) True 只返回有 HTML Form 的 URL；False 只返回没有 Form 的 URL
-            has_links: (可选) 筛选是否有 Link 资产
-            has_meta_tags: (可选) 筛选是否有 MetaTag 资产
-            has_iframes: (可选) 筛选是否有 Iframe 资产
-            has_comments: (可选) 筛选是否有 HTML Comment 资产
-            has_findings: (可选) 筛选是否有 AnalysisFinding 敏感发现
-            has_endpoints: (可选) 筛选是否有关联 Endpoint
-            has_javascript_files: (可选) 筛选是否有关联外部 JavaScriptFile
-            has_inline_js: (可选) 筛选是否有 ExtractedJS inline block
-            has_technologies: (可选) 筛选是否有 TechStack
-            has_vulnerabilities: (可选) 筛选是否有关联漏洞
-            form_method: (可选) 筛选表单 method (e.g., 'GET', 'POST')，会自动启用 has_forms=True
-            form_action_contains: (可选) 筛选 form action 包含特定字符串，会自动启用 has_forms=True
-            finding_name_contains: (可选) 筛选 finding pattern_name 包含特定字符串，会自动启用 has_findings=True
-            endpoint_path_contains: (可选) 筛选 endpoint path 包含特定字符串，会自动启用 has_endpoints=True
-            endpoint_param_contains: (可选) 筛选 endpoint 参数名包含特定字符串，会自动启用 has_endpoints=True
-            link_href_contains: (可选) 筛选 link href 包含特定字符串，会自动启用 has_links=True
-            iframe_src_contains: (可选) 筛选 iframe src 包含特定字符串，会自动启用 has_iframes=True
-            comment_contains: (可选) 筛选 HTML comment 内容包含特定字符串，会自动启用 has_comments=True
-            meta_tag_contains: (可选) 筛选 meta tag JSON 属性包含特定字符串，会自动启用 has_meta_tags=True
-            technology_name_contains: (可选) 筛选技术名称包含特定字符串，会自动启用 has_technologies=True
-            vulnerability_severity: (可选) 筛选漏洞严重度 (info/low/medium/high/critical)，会自动启用 has_vulnerabilities=True
-            limit: (可选) 返回结果数量上限，默认 20
+            target_id: (可選) 篩選指定 Target 下的 URL
+            hostname_contains: (可選) 篩選 hostname 包含特定字串（子字串匹配，非完整匹配）
+            url_contains: (可選) 篩選 URL 路徑包含特定字串（子字串匹配）
+            content_fetch_status: (可選) 按抓取狀態篩選 ('SUCCESS_FETCHED', 'FAILED_BLOCKED', 'PENDING')
+            used_flaresolverr: (可選) 是否已用過 Flaresolverr
+            status_code: (可選) HTTP 狀態碼
+            has_forms: True=只有 Form 的 URL；False=沒有 Form 的
+            has_links: 是否有 Link 資產
+            has_meta_tags: 是否有 MetaTag
+            has_iframes: 是否有 Iframe
+            has_comments: 是否有 HTML Comment
+            has_findings: 是否有 AnalysisFinding 敏感發現
+            has_endpoints: 是否有關聯 Endpoint
+            has_javascript_files: 是否有外部 JavaScriptFile
+            has_inline_js: 是否有 ExtractedJS inline block
+            has_technologies: 是否有 TechStack
+            has_vulnerabilities: 是否有關聯漏洞
+            form_method: 篩選 form method ('GET','POST')，自動啟用 has_forms=True
+            form_action_contains: 篩選 form action 包含字串，自動啟用 has_forms=True
+            finding_name_contains: 篩選 finding pattern_name，自動啟用 has_findings=True
+            endpoint_path_contains: 篩選 endpoint path，自動啟用 has_endpoints=True
+            endpoint_param_contains: 篩選 endpoint 參數名，自動啟用 has_endpoints=True
+            link_href_contains: 篩選 link href，自動啟用 has_links=True
+            iframe_src_contains: 篩選 iframe src，自動啟用 has_iframes=True
+            comment_contains: 篩選 HTML comment 內容，自動啟用 has_comments=True
+            meta_tag_contains: 篩選 meta tag JSON 屬性，自動啟用 has_meta_tags=True
+            technology_name_contains: 篩選技術名稱，自動啟用 has_technologies=True
+            vulnerability_severity: 篩選漏洞嚴重度 (info/low/medium/high/critical)，自動啟用 has_vulnerabilities=True
+            limit: 每頁返回數量（預設 20，建議不超過 50）
         """
         try:
             from apps.core.models.url_assets import URLResult
@@ -624,9 +647,24 @@ class ReconnaissanceMixin:
                 if meta_tag_contains: filter_desc.append(f"meta_tag_contains='{meta_tag_contains}'")
                 if technology_name_contains: filter_desc.append(f"technology_name_contains='{technology_name_contains}'")
                 if vulnerability_severity: filter_desc.append(f"vulnerability_severity='{vulnerability_severity}'")
-                
+
                 filter_str = ", ".join(filter_desc) if filter_desc else "no filters (all URLs)"
-                return f"No URLs found with filters: {filter_str}"
+
+                # ═══ Intent-to-Scan Hint ═══
+                # 當 url_contains / hostname_contains 查無結果，代表該 URL 尚未被系統爬取。
+                # 明確告知 AI 應觸發爬蟲，省去 AI 判斷步驟。
+                scan_hint = ""
+                if url_contains or hostname_contains:
+                    target_hint = url_contains or hostname_contains
+                    scan_hint = (
+                        f"\n💡 INTENT-TO-SCAN: No crawl history found for '{target_hint}'. "
+                        f"This URL has not been fetched yet. "
+                        f"Use run_flaresolverr_crawler(target_url='https://{target_hint}') to crawl it, "
+                        f"or run_katana_crawl(subdomain_name='{target_hint}') for full site discovery. "
+                        f"Do NOT call query_urls again with the same filter — trigger the scan instead."
+                    )
+
+                return f"No URLs found with filters: {filter_str}{scan_hint}"
             
             summary = f"=== URL Query Results (showing {len(urls)} results) ===\n"
             for u in urls:
@@ -661,7 +699,9 @@ class ReconnaissanceMixin:
         """
         try:
             from apps.core.models import Overview
-            from apps.ai_assistant.helpers.use_cases import create_message
+            from apps.core.models.ai_models import Thread as AIThread
+            from apps.core.models import Message as DjangoMessage
+            from langchain_core.messages import HumanMessage, message_to_dict
             from django.contrib.auth import get_user_model
             from django.utils import timezone
 
@@ -672,23 +712,27 @@ class ReconnaissanceMixin:
             if not overview.parent_thread_id:
                 return "⚠️ 沒有設定 parent_thread_id，無法向 Orchestrator 求助。請繼續自行嘗試。"
 
-            User = get_user_model()
-            system_user = User.objects.filter(is_superuser=True).first()
-
-            create_message(
-                assistant_id="hacker_assistant_agent",
-                thread_id=overview.parent_thread_id,
-                user=system_user,
-                content=(
-                    f"🤖 **AutomationAgent needs guidance (Overview #{overview_id})**\n\n"
-                    f"**Target**: {overview.target.name if overview.target else 'N/A'}\n"
-                    f"**Risk Score**: {overview.risk_score}\n"
-                    f"**Question**: {question}\n\n"
-                    f"---\n"
-                    f"System: Review the AutomationAgent's recent steps in Overview #{overview_id} "
-                    f"and provide focused strategic guidance. Be specific about what to try next."
+            # 直接將求助訊息注入到父層 Thread，不觸發 LLM 避免無限迴圈
+            try:
+                parent_thread = AIThread.objects.get(id=overview.parent_thread_id)
+                notification = HumanMessage(
+                    content=(
+                        f"🤖 **AutomationAgent needs guidance (Overview #{overview_id})**\n\n"
+                        f"**Target**: {overview.target.name if overview.target else 'N/A'}\n"
+                        f"**Risk Score**: {overview.risk_score}\n"
+                        f"**Question**: {question}\n\n"
+                        f"---\n"
+                        f"System: Review the AutomationAgent's recent steps in Overview #{overview_id} "
+                        f"and provide focused strategic guidance. Be specific about what to try next."
+                    )
                 )
-            )
+                DjangoMessage.objects.create(
+                    thread=parent_thread,
+                    role="human",
+                    message=message_to_dict(notification),
+                )
+            except Exception as notify_err:
+                logger.error(f"escalate_to_orchestrator: failed to inject notification into parent thread: {notify_err}")
 
             knowledge = overview.knowledge or {}
             knowledge['_escalation'] = {

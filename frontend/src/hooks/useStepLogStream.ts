@@ -198,6 +198,19 @@ export function useStepLogStream(
         console.log('[StepLogStream] Stream completed');
         eventSource.close();
         setIsConnected(false);
+
+        // The backend may close the stream early (e.g. idle timeout while the step is
+        // still running). Reconnect with exponential backoff so the viewer stays live.
+        if (autoReconnect && retryCountRef.current < maxRetries) {
+          retryCountRef.current++;
+          const backoffMs = Math.min(1000 * Math.pow(2, retryCountRef.current - 1), 30000);
+          console.warn(
+            `[StepLogStream] Stream ended (done), reconnecting in ${backoffMs}ms (attempt ${retryCountRef.current}/${maxRetries})`
+          );
+          reconnectTimeoutRef.current = setTimeout(() => {
+            connect(lastSequenceRef.current);
+          }, backoffMs);
+        }
       });
 
       eventSource.addEventListener('error', (e: Event) => {

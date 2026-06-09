@@ -29,6 +29,13 @@ RUN wget -qO /tmp/nu.zip \
     && chmod +x /usr/local/bin/nuclei \
     && rm /tmp/nu.zip
 
+# katana v1.1.0
+RUN wget -qO /tmp/kt.zip \
+    https://github.com/projectdiscovery/katana/releases/download/v1.1.0/katana_1.1.0_linux_amd64.zip \
+    && unzip -q /tmp/kt.zip katana -d /usr/local/bin \
+    && chmod +x /usr/local/bin/katana \
+    && rm /tmp/kt.zip
+
 WORKDIR /app
 
 # 先複製 requirements.txt 利用 layer cache

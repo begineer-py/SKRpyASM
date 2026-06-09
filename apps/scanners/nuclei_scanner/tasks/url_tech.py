@@ -4,31 +4,28 @@ from celery import shared_task
 from django.conf import settings
 from apps.core.models import URLResult
 from .utils import process_nuclei_tech_line  # 假設解析代碼放在 parsers.py
-from apps.core.utils import with_auto_callback
+from apps.core.header_injection import get_tagged_headers
 
 logger = logging.getLogger(__name__)
 
 
 @shared_task(name="nuclei_scanner.tasks.url_tech.scan_url_tech_stack")
-@with_auto_callback
-def scan_url_tech_stack(url_result_ids: list[int], callback_step_id: int = None):
+def scan_url_tech_stack(url_result_ids: list[int], callback_step_id: int = None, target_id: int = None, execution_graph_id: int | None = None, execution_node_id: int | None = None):
     """
     針對指定的 URLResult 執行技術堆疊掃描
     """
     urls_to_scan = URLResult.objects.filter(id__in=url_result_ids)
 
-    # 建議從設定檔讀取 Nuclei 模板路徑
+    if not target_id and urls_to_scan.exists():
+        resolved_target_id = urls_to_scan.first().target_id
+    else:
+        resolved_target_id = target_id
 
     results_count = 0
 
     for url_res in urls_to_scan:
         logger.info(f"正在掃描 URL 技術堆疊: {url_res.url}")
 
-        # 構建指令
-        # -u: 目標 URL
-        # -t: 技術檢測模板
-        # -jsonl: 輸出 JSON Lines 格式
-        # -irr: (選配) 儲存原始請求回應，如果需要更詳細資訊可加上
         command = [
             "nice",
             "nuclei",
@@ -38,8 +35,15 @@ def scan_url_tech_stack(url_result_ids: list[int], callback_step_id: int = None)
             "tech",
             "-jsonl",
             "-silent",
-            "-nc",  # 禁用顏色輸出
+            "-nc",
         ]
+
+        tagged_headers = get_tagged_headers(target_id=resolved_target_id)
+        for h_key, h_val in tagged_headers.items():
+            command.extend(["-H", f"{h_key}: {h_val}"])
+
+        from apps.core.header_injection import build_rate_limit_args
+        command.extend(build_rate_limit_args("nuclei", resolved_target_id))
 
         try:
             # 執行並實時讀取輸出
@@ -71,4 +75,14 @@ def scan_url_tech_stack(url_result_ids: list[int], callback_step_id: int = None)
                 logger.info(f"Triggering TechStack CVE sync for target {target_id}")
                 sync_techstack_cves.delay(target_id, callback_step_id)
 
-    return f"完成 {results_count} 個 URL 的技術堆疊掃描"
+    result = f"完成 {results_count} 個 URL 的技術堆疊掃描"
+    _complete_execution_node(execution_node_id, content=result, output={"results_count": results_count})
+    return result
+
+
+def _complete_execution_node(execution_node_id: int | None, *, content: str, output: dict | None = None) -> None:
+    if not execution_node_id:
+        return
+    from apps.core.services import ExecutionService
+
+    ExecutionService.complete_node_by_id(execution_node_id, output=output, content=content)

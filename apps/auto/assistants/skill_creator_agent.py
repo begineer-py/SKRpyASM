@@ -72,14 +72,7 @@ class SkillCreatorAgent(AIAssistant):
         self._thread = thread
 
     def get_callbacks(self) -> Sequence[BaseCallbackHandler]:
-        callbacks: list[BaseCallbackHandler] = []
-        if self.step_id:
-            from apps.auto.callbacks.step_log_handler import StepLogCallbackHandler
-            callbacks.append(StepLogCallbackHandler(step_id=self.step_id))
-        if hasattr(self, "_thread") and self._thread:
-            from apps.auto.callbacks.checkpoint_handler import ThreadCheckpointHandler
-            callbacks.append(ThreadCheckpointHandler(thread=self._thread))
-        return callbacks
+        return []
 
     def get_llm(self):
         return get_llm_instance(

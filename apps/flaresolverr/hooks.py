@@ -1,31 +1,33 @@
-import json
 from typing import Any, Optional
-
-from django.utils import timezone
 
 
 def log_http_exchange(
     *,
     step_id: Optional[int],
+    execution_graph_id: Optional[int] = None,
+    execution_node_id: Optional[int] = None,
     tool: str,
     request: dict[str, Any],
     response: dict[str, Any],
     level: str = "INFO",
 ) -> None:
-    """Hook: persist HTTP request/response for a step.
+    """Persist HTTP request/response as execution graph telemetry.
 
-    This is intentionally generic so other tools can reuse it.
+    step_id is accepted for transitional callers but no longer writes StepLog.
     """
 
-    if not step_id:
+    if not execution_graph_id:
         return
 
-    from apps.core.models import StepLog
-    from apps.core.models.analyze.Step import StepNote
+    from apps.core.models import ExecutionGraph, ExecutionNode
+    from apps.core.services import ExecutionService
 
-    # Keep StepLog structured-ish but readable.
+    graph = ExecutionGraph.objects.filter(id=execution_graph_id).first()
+    if not graph:
+        return
+    node = ExecutionNode.objects.filter(id=execution_node_id, graph=graph).first() if execution_node_id else None
+
     payload = {
-        "ts": timezone.now().isoformat(),
         "tool": tool,
         "request": request,
         "response": {
@@ -37,23 +39,31 @@ def log_http_exchange(
         },
     }
 
-    StepLog.objects.create(
-        step_id=step_id,
-        level=level,
-        tag="API_CALL",
-        message=json.dumps(payload, ensure_ascii=True, default=str),
-        action_status="SUCCESS" if (response.get("status_code") or 0) < 400 else "FAILED",
+    status_code = response.get("status_code") or 0
+    status = "SUCCEEDED" if status_code < 400 else "FAILED"
+    content = f"{tool} {request.get('method')} {request.get('url')} -> {status_code}"
+
+    ExecutionService.emit_event(
+        graph=graph,
+        node=node,
+        event_type="http_exchange",
+        status=status,
+        content=content,
+        payload={
+            "tool": tool,
+            "level": level,
+            "status_code": status_code,
+            "response_url": response.get("response_url"),
+            "step_id": step_id,
+        },
     )
 
-    # Human-friendly StepNote append.
-    note_line = (
-        f"\n\n[HTTP:{tool}] {request.get('method')} {request.get('url')} -> {response.get('status_code')}\n"
-        f"Request headers: {request.get('headers')}\n"
-        f"Request body preview: {(request.get('body') or '')[:500]}\n"
-        f"Response url: {response.get('response_url')}\n"
-        f"Response body preview: {(response.get('response_text') or '')[:800]}"
+    ExecutionService.attach_artifact(
+        graph=graph,
+        node=node,
+        artifact_type="http_exchange",
+        name=f"{tool}:{request.get('method')}:{request.get('url')}",
+        content=content,
+        data=payload,
+        metadata={"status": status, "status_code": status_code},
     )
-    # Append instead of overwrite.
-    note_obj, created = StepNote.objects.get_or_create(step_id=step_id, defaults={"content": ""})
-    note_obj.content = (note_obj.content or "") + note_line
-    note_obj.save(update_fields=["content"])

@@ -4,6 +4,7 @@ import os
 from urllib.parse import urlparse
 
 
+from asgiref.sync import sync_to_async
 from ninja import Router
 from pydantic import Extra
 
@@ -67,17 +68,23 @@ async def start_crawl(request, trigger_data: FlaresolverrTriggerSchema):
             if_run=False,
         )
     # 4. 觸發 Celery
-    perform_scan_for_url.delay(
+    task = perform_scan_for_url.delay(
         url=url,
         method=trigger_data.method,
         seed_id=seed_id,
         auto_create=auto_create,
         target_id=target_id,
         callback_step_id=trigger_data.callback_step_id,
+        execution_graph_id=trigger_data.execution_graph_id,
+        execution_node_id=trigger_data.execution_node_id,
         body=trigger_data.body,
         content_type=trigger_data.content_type,
         host_header=trigger_data.host_header,
     )
+    if trigger_data.execution_node_id:
+        from apps.core.services import ExecutionService
+
+        await sync_to_async(ExecutionService.set_node_external_task_id)(trigger_data.execution_node_id, task.id)
 
     return 200, FlaresolverrResponse(
         detail="FlareSolverr 掃描任務已成功觸發。",
@@ -171,7 +178,7 @@ async def send_request(request, payload: FlareSolverrSendRequestSchema):
             if_run=False,
         )
 
-    perform_flaresolverr_request.delay(
+    task = perform_flaresolverr_request.delay(
         url=payload.url,
         method=payload.method,
         headers=payload.headers or {},
@@ -182,7 +189,13 @@ async def send_request(request, payload: FlareSolverrSendRequestSchema):
         session_key=payload.session_key,
         refresh_session=payload.refresh_session,
         callback_step_id=payload.callback_step_id,
+        execution_graph_id=payload.execution_graph_id,
+        execution_node_id=payload.execution_node_id,
     )
+    if payload.execution_node_id:
+        from apps.core.services import ExecutionService
+
+        await sync_to_async(ExecutionService.set_node_external_task_id)(payload.execution_node_id, task.id)
 
     return 202, FlareSolverrSendRequestResponse(
         detail="FlareSolverr request 任務已提交。",

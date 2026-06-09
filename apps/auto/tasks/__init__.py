@@ -19,8 +19,6 @@ def _handle_guidance_request(overview):
     import json
     from apps.core.llms import get_llm_instance
     from apps.core.models import Step
-    from apps.ai_assistant.helpers.use_cases import create_message
-    from django.contrib.auth import get_user_model
 
     target = overview.target
     knowledge = overview.knowledge or {}
@@ -67,15 +65,23 @@ def _handle_guidance_request(overview):
         )
         logger.warning(f"[Guidance] LLM call failed, using fallback guidance: {e}")
 
-    User = get_user_model()
-    system_user = User.objects.filter(is_superuser=True).first()
+    from apps.core.models.ai_models import Thread as AIThread
+    from apps.core.models import Message as DjangoMessage
+    from langchain_core.messages import HumanMessage, message_to_dict
 
-    create_message(
-        assistant_id="automation_agent",
-        thread_id=overview.thread_id,
-        user=system_user,
-        content=f"🧠 **Orchestrator Strategic Guidance**\n\n{guidance}\n\n---\n*Auto-generated. Use this to decide your next move.*"
-    )
+    try:
+        guidance_thread = AIThread.objects.get(id=overview.thread_id)
+        guidance_msg = HumanMessage(
+            content=f"🧠 **Orchestrator Strategic Guidance**\n\n{guidance}\n\n---\n*Auto-generated. Use this to decide your next move.*"
+        )
+        DjangoMessage.objects.create(
+            thread=guidance_thread,
+            role="human",
+            message=message_to_dict(guidance_msg),
+        )
+        logger.info(f"[Guidance] Saved guidance message to thread {overview.thread_id}")
+    except Exception as e:
+        logger.error(f"[Guidance] Failed to save guidance to thread {overview.thread_id}: {e}")
 
     # Clean escalation data from knowledge
     overview.knowledge = knowledge
@@ -150,6 +156,7 @@ def auto_execute_plan():
                     name=f"Auto-Pentest: {target.name} (Overview {overview.id})",
                     assistant_id="automation_agent",
                     user=system_user,
+                    is_hidden=True,
                 )
                 overview.thread_id = thread_obj.id
                 overview.save(update_fields=['thread_id'])
@@ -160,6 +167,12 @@ def auto_execute_plan():
             
             # Create a Step to track this execution
             from apps.core.models import Step
+
+            # Skip if another worker is already running an agent for this overview.
+            if Step.objects.filter(overview=overview, status="RUNNING").exists():
+                logger.info(f"[AutoExecution] Overview#{overview.id} already has a RUNNING step, skipping to avoid concurrent agents")
+                continue
+
             step = Step.objects.create(
                 overview=overview,
                 operation_type="AI_AUTOMATION_EXECUTION",
@@ -238,12 +251,143 @@ def auto_execute_plan():
 @log_function_call()
 def run_automation_agent_async(message: str, caller_thread_id: int = None):
     from apps.auto.assistants.planning_agent import AutomationAgent
-    agent = AutomationAgent(caller_thread_id=caller_thread_id)
+    from apps.core.models import Step
+
+    step = Step.objects.create(
+        operation_type="AI_AUTOMATION_EXECUTION",
+        status="RUNNING"
+    )
+
+    agent = AutomationAgent(step_id=step.id, caller_thread_id=caller_thread_id)
     try:
         result = agent._run_as_tool(message, caller_thread_id=caller_thread_id)
+        step.status = "COMPLETED"
+        step.completed_at = timezone.now()
+        step.save(update_fields=["status", "completed_at"])
         agent._auto_notify_parent(result=result)
         return result
     except Exception as e:
         logger.exception(f"[run_automation_agent_async] Failed: {e}")
+        step.status = "FAILED"
+        step.completed_at = timezone.now()
+        step.save(update_fields=["status", "completed_at"])
         agent._auto_notify_parent(error=str(e))
         raise
+
+
+def _run_sub_agent(agent_class, agent_id_label, message, caller_thread_id):
+    """共用輔助函式：建立 Step、執行子 Agent、處理完成/失敗。"""
+    from apps.core.models import Step
+
+    step = Step.objects.create(
+        operation_type="AI_AUTOMATION_EXECUTION",
+        status="RUNNING"
+    )
+    agent = agent_class(step_id=step.id, caller_thread_id=caller_thread_id)
+    try:
+        result = agent._run_as_tool(message, caller_thread_id=caller_thread_id)
+        step.status = "COMPLETED"
+        step.completed_at = timezone.now()
+        step.save(update_fields=["status", "completed_at"])
+        return result
+    except Exception as e:
+        logger.exception(f"[{agent_id_label}] Failed: {e}")
+        step.status = "FAILED"
+        step.completed_at = timezone.now()
+        step.save(update_fields=["status", "completed_at"])
+        raise
+
+
+@shared_task(name="apps.auto.tasks.run_recon_agent_async")
+@log_function_call()
+def run_recon_agent_async(message: str, target_name: str = "", caller_thread_id: int = None):
+    from apps.auto.agents.recon_agent import ReconAgent
+
+    # Bind the overview's parent_thread_id to caller so notify_caller_agent routes correctly
+    if caller_thread_id and target_name:
+        try:
+            from apps.core.models import Target, Overview
+            target = Target.objects.filter(name=target_name).first()
+            if target:
+                ov = Overview.objects.filter(target=target).order_by("-updated_at").first()
+                if ov and not ov.parent_thread_id:
+                    ov.parent_thread_id = caller_thread_id
+                    ov.save(update_fields=["parent_thread_id"])
+        except Exception as e:
+            logger.warning(f"[run_recon_agent_async] Could not bind overview parent_thread_id: {e}")
+
+    full_message = message
+    if target_name:
+        full_message = (
+            f"[RECON MISSION] Target: {target_name}\n\n"
+            f"First call get_target_context('{target_name}') to obtain overview_id and asset IDs.\n"
+            f"Then execute full reconnaissance (subfinder, nmap, gau, katana, nuclei tech scan).\n"
+            f"When all async tasks are dispatched, call notify_caller_agent with a full recon report.\n\n"
+            f"Additional context: {message}"
+        )
+    return _run_sub_agent(ReconAgent, "run_recon_agent_async", full_message, caller_thread_id)
+
+
+@shared_task(name="apps.auto.tasks.run_post_exploit_agent_async")
+@log_function_call()
+def run_post_exploit_agent_async(message: str, target_name: str = "", caller_thread_id: int = None):
+    from apps.auto.agents.post_exploit_agent import PostExploitAgent
+
+    if caller_thread_id and target_name:
+        try:
+            from apps.core.models import Target, Overview
+            target = Target.objects.filter(name=target_name).first()
+            if target:
+                ov = Overview.objects.filter(target=target).order_by("-updated_at").first()
+                if ov and not ov.parent_thread_id:
+                    ov.parent_thread_id = caller_thread_id
+                    ov.save(update_fields=["parent_thread_id"])
+        except Exception as e:
+            logger.warning(f"[run_post_exploit_agent_async] Could not bind overview parent_thread_id: {e}")
+
+    full_message = message
+    if target_name:
+        full_message = (
+            f"[POST-EXPLOITATION MISSION] Target: {target_name}\n\n"
+            f"First call get_target_context('{target_name}') to obtain overview_id.\n"
+            f"Then execute post-exploitation: confirm environment, collect internal network info, "
+            f"gather credentials, attempt lateral movement.\n"
+            f"Record findings with record_vulnerability() and call notify_caller_agent when done.\n\n"
+            f"Additional context: {message}"
+        )
+    return _run_sub_agent(PostExploitAgent, "run_post_exploit_agent_async", full_message, caller_thread_id)
+
+
+@shared_task(name="apps.auto.tasks.run_reporting_agent_async")
+@log_function_call()
+def run_reporting_agent_async(
+    message: str,
+    target_name: str = "",
+    overview_id: int = None,
+    caller_thread_id: int = None,
+):
+    from apps.auto.agents.reporting_agent import ReportingAgent
+
+    if caller_thread_id and overview_id:
+        try:
+            from apps.core.models import Overview
+            ov = Overview.objects.filter(id=overview_id).first()
+            if ov and not ov.parent_thread_id:
+                ov.parent_thread_id = caller_thread_id
+                ov.save(update_fields=["parent_thread_id"])
+        except Exception as e:
+            logger.warning(f"[run_reporting_agent_async] Could not bind overview parent_thread_id: {e}")
+
+    full_message = message
+    if target_name or overview_id:
+        ctx = f"Target: {target_name}" if target_name else ""
+        if overview_id:
+            ctx += f" | Overview ID: {overview_id}"
+        full_message = (
+            f"[REPORTING MISSION] {ctx}\n\n"
+            f"Query all steps, vulnerabilities, and findings from the database.\n"
+            f"Generate a structured penetration test report.\n"
+            f"Update overview status to COMPLETED and call notify_caller_agent with the full report.\n\n"
+            f"Additional context: {message}"
+        )
+    return _run_sub_agent(ReportingAgent, "run_reporting_agent_async", full_message, caller_thread_id)

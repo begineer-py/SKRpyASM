@@ -2,11 +2,14 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useHasuraSubscription } from '../../hooks/useHasuraSubscription';
 import { GET_ALL_EXECUTION_STEPS } from '../../queries';
+import ExecutionTimelineViewer from '../../components/ExecutionTimelineViewer';
 import StepLogViewer from '../../components/StepLogViewer';
 import ScriptExecutionViewer from '../../components/ScriptExecutionViewer';
 import { StepService } from '../../services/stepService';
 import { OverviewService } from '../../services/overviewService';
 import { assistantApi } from '../../services/assistantApi';
+import { executionApi } from '../../services/executionApi';
+import type { ExecutionGraph } from '../../services/executionApi';
 import './ExecutionMonitor.css';
 
 interface Step {
@@ -69,6 +72,9 @@ export default function ExecutionMonitorPage() {
 
   // State for selected step to view logs
   const [selectedStepId, setSelectedStepId] = useState<number | null>(null);
+  const [selectedGraphId, setSelectedGraphId] = useState<number | null>(null);
+  const [executionGraphs, setExecutionGraphs] = useState<ExecutionGraph[]>([]);
+  const [executionGraphError, setExecutionGraphError] = useState<string | null>(null);
 
   // State for right panel tab selection (logs or script executions)
   const [rightPanelTab, setRightPanelTab] = useState<'logs' | 'scripts'>('logs');
@@ -106,6 +112,23 @@ export default function ExecutionMonitorPage() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const graphs = await executionApi.listGraphs({ limit: 20 });
+        if (cancelled) return;
+        setExecutionGraphs(graphs);
+        setExecutionGraphError(null);
+      } catch (err: any) {
+        if (!cancelled) setExecutionGraphError(err?.message || 'Failed to load execution graphs');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Read ?step=XXX from URL for deep-linking (one-way: URL → state only)
   const [searchParams] = useSearchParams();
   useEffect(() => {
@@ -117,7 +140,29 @@ export default function ExecutionMonitorPage() {
         setRightPanelTab('logs');
       }
     }
+    const graphParam = searchParams.get('graph');
+    if (graphParam) {
+      const graphId = parseInt(graphParam, 10);
+      if (!isNaN(graphId)) {
+        setSelectedGraphId(graphId);
+      }
+    }
   }, []);
+
+  // Auto-select the most recently active step when data arrives and nothing is selected.
+  // Prefers a RUNNING step so the live SSE stream activates immediately.
+  const hasUrlParam = !!searchParams.get('step');
+  useEffect(() => {
+    if (hasUrlParam || selectedStepId !== null || overviews.length === 0) return;
+    const allSteps = overviews.flatMap((ov) => ov.core_steps || []);
+    if (allSteps.length === 0) return;
+    const running = allSteps.find((s) => s.status === 'RUNNING');
+    const target = running ?? allSteps[allSteps.length - 1];
+    if (target) {
+      setSelectedStepId(target.id);
+      setRightPanelTab('logs');
+    }
+  }, [overviews, hasUrlParam]);
 
   const selectedStep = useMemo(() => {
     if (!selectedStepId) return null;
@@ -428,7 +473,34 @@ export default function ExecutionMonitorPage() {
         <span>{filteredAndSortedOverviews.length} Overviews</span>
         <span>•</span>
         <span>{filteredAndSortedOverviews.reduce((acc, ov) => acc + (ov.core_steps?.length || 0), 0)} Steps</span>
+        <span>•</span>
+        <span>{executionGraphs.length} Execution Graphs</span>
+        <select
+          value={selectedGraphId ?? ''}
+          onChange={(event) => setSelectedGraphId(event.target.value ? Number(event.target.value) : null)}
+          className="filter-btn"
+          style={{ marginLeft: 'auto', minWidth: 220 }}
+        >
+          <option value="">Select execution graph</option>
+          {executionGraphs.map((graph) => (
+            <option key={graph.id} value={graph.id}>
+              #{graph.id} {graph.status} {graph.title || graph.assistant_id || 'execution'}
+            </option>
+          ))}
+        </select>
       </div>
+
+      {executionGraphError && (
+        <div className="empty-state" style={{ minHeight: 48, margin: '8px 0', color: '#ef4444' }}>
+          {executionGraphError}
+        </div>
+      )}
+
+      {selectedGraphId && (
+        <div style={{ minHeight: 420, marginBottom: 16 }}>
+          <ExecutionTimelineViewer graphId={selectedGraphId} autoScroll={true} />
+        </div>
+      )}
 
       {/* Progress Tree View */}
       <div className="exec-tree-container">

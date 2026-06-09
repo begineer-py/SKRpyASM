@@ -68,6 +68,7 @@ INSTALLED_APPS = [  # 註冊 Django 項目中使用的應用程序列表
     "apps.api_keys",
     "apps.ai_assistant",
     "apps.auto",  # Auto App - 3-Tier Agent Orchestration
+    "apps.scanners.katana_scanner",  # Katana 主動爬蟲
     "django.contrib.postgres",  # PostgreSQL 特定功能（GIN index 等）
 ]
 MIDDLEWARE = [  # 中間件列表，處理請求和響應的層次
@@ -204,6 +205,13 @@ STATIC_URL = "static/"  # 靜態文件的 URL 前綴
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"  # 模型中自動創建主鍵的默認字段類型
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
+    }
+}
+
 CELERY_BROKER_URL = os.environ.get(
     "CELERY_BROKER_URL", "redis://localhost:6379/0"
 )  # Celery 消息代理的 URL；Docker 模式由 .env.docker 覆蓋為 redis://redis:6379/0
@@ -246,6 +254,7 @@ CELERY_IMPORTS = (
     "apps.auto.tasks",  # Auto App - AI Orchestration Tasks
     "apps.scanners.cve_intelligence.tasks.enrichment_tasks",  # CVE Enrichment
     "apps.scanners.cve_intelligence.tasks.scheduled_sync",  # CVE Scheduled Sync
+    "apps.scanners.katana_scanner.tasks",  # Katana Active Crawler
 )
 API_BASE_URL = os.environ.get("API_BASE_URL", "http://127.0.0.1:8000")
 LOG_DIR = BASE_DIR / "c2_core" / "logs"
