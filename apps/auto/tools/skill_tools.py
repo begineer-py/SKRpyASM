@@ -11,7 +11,7 @@ class SkillMixin:
     Skill System Tools Mixin
     Provides tools for searching, loading, creating, updating, deleting, and executing reusable skills.
     
-    新增自動執行追蹤：所有腳本執行都會被記錄到 ScriptExecution 模型，
+    新增自動執行追蹤：所有腳本執行都會被記錄到 ExecutionArtifact，
     即使腳本未存入 SkillTemplate，也能追蹤完整的執行歷史。
     """
 
@@ -150,7 +150,7 @@ Use the `create_skill` tool to create this skill. Make sure to carefully analyze
         )
 
         # 使用 SkillCreatorAgent 處理這個請求
-        agent = SkillCreatorAgent(step_id=getattr(self, 'step_id', None))
+        agent = SkillCreatorAgent()
         
         try:
             result = agent.run(user_message, thread_id=thread.id)
@@ -211,7 +211,7 @@ Use the `create_skill` tool to create this skill. Make sure to carefully analyze
         系統會將程式碼 dump 到暫存檔，並搭配你提供的 args_string (如 '--url https://target.com') 執行，執行後自動清理暫存。
         
         === 新增：執行追蹤與驗證 ===
-        所有執行都會被自動記錄到 ScriptExecution，即使腳本未存入 SkillTemplate。
+        所有執行都會被自動記錄到 ExecutionArtifact，即使腳本未存入 SkillTemplate。
         如果定義了 input/output schema，系統會自動進行類型驗證。
         
         Args:
@@ -221,17 +221,11 @@ Use the `create_skill` tool to create this skill. Make sure to carefully analyze
             input_json: 可選，結構化的輸入參數（JSON），將被驗證
         """
         from apps.core.models.analyze.SkillTemplate import SkillTemplate
-        from apps.core.models.analyze.AttackVector import ScriptExecution
-        from apps.core.models import Step
         from apps.core.validators.schema_validators import InputValidator, OutputValidator
         import subprocess
         import tempfile
         import os
         import docker
-        from django.utils import timezone
-        
-        # 取得當前 Step（用於記錄）
-        current_step = self._get_current_step()
         
         try:
             skill = SkillTemplate.objects.get(name=name)
@@ -305,29 +299,21 @@ Use the `create_skill` tool to create this skill. Make sure to carefully analyze
                 else:
                     output_validation_status = "VALIDATED"
             
-            # === 步驟 4：記錄執行到 ScriptExecution ===
+            # === 步驟 4：記錄執行到 execution graph ===
             execution_duration = int((completed_at - started_at).total_seconds() * 1000)
-            
-            if current_step:
-                script_execution = ScriptExecution.objects.create(
-                    skill=skill,
-                    step=current_step,
-                    attack_vector_id=attack_vector_id,
-                    script_content=skill.script_content,
-                    script_language=skill.language,
-                    args_string=args_string,
-                    input_json=input_json,
-                    status="SUCCESS" if exit_code == 0 else "FAILED",
-                    exit_code=exit_code,
-                    raw_output=output,
-                    output_json=output_json,
-                    validation_status=output_validation_status,
-                    validation_error=output_validation_error,
-                    completed_at=completed_at,
-                    execution_duration_ms=execution_duration
-                )
-                
-                self._emit_script_execution_event(skill, script_execution)
+            self._record_skill_execution_artifact(
+                skill=skill,
+                attack_vector_id=attack_vector_id,
+                args_string=args_string,
+                input_json=input_json,
+                status="SUCCESS" if exit_code == 0 else "FAILED",
+                exit_code=exit_code,
+                output=output,
+                output_json=output_json,
+                validation_status=output_validation_status,
+                validation_error=output_validation_error,
+                execution_duration_ms=execution_duration,
+            )
             
             # === 步驟 5：回傳結果 ===
             result = f"Executed Skill: {name} (Usage Count now {skill.usage_count})\n"
@@ -360,23 +346,16 @@ Use the `create_skill` tool to create this skill. Make sure to carefully analyze
             if 'host_path' in locals() and os.path.exists(host_path):
                 os.remove(host_path)
             
-            # 記錄失敗到 ScriptExecution
-            if current_step:
-                script_execution = ScriptExecution.objects.create(
-                    skill=skill,
-                    step=current_step,
-                    attack_vector_id=attack_vector_id,
-                    script_content=skill.script_content,
-                    script_language=skill.language,
-                    args_string=args_string,
-                    input_json=input_json,
-                    status="FAILED",
-                    error_message="Sandbox 容器未找到 (c2_kali_sandbox)",
-                    validation_status=input_validation_status,
-                    validation_error=input_validation_error,
-                    completed_at=datetime.now(timezone.utc)
-                )
-                self._emit_script_execution_event(skill, script_execution)
+            self._record_skill_execution_artifact(
+                skill=skill,
+                attack_vector_id=attack_vector_id,
+                args_string=args_string,
+                input_json=input_json,
+                status="FAILED",
+                error_message="Sandbox 容器未找到 (c2_kali_sandbox)",
+                validation_status=input_validation_status,
+                validation_error=input_validation_error,
+            )
             
             return "錯誤：找不到 Sandbox 容器 (c2_kali_sandbox)。請手動啟動 sandbox。"
         
@@ -384,23 +363,16 @@ Use the `create_skill` tool to create this skill. Make sure to carefully analyze
             if 'host_path' in locals() and os.path.exists(host_path):
                 os.remove(host_path)
             
-            # 記錄失敗到 ScriptExecution
-            if current_step:
-                script_execution = ScriptExecution.objects.create(
-                    skill=skill,
-                    step=current_step,
-                    attack_vector_id=attack_vector_id,
-                    script_content=skill.script_content,
-                    script_language=skill.language,
-                    args_string=args_string,
-                    input_json=input_json,
-                    status="FAILED",
-                    error_message=str(e),
-                    validation_status=input_validation_status,
-                    validation_error=input_validation_error,
-                    completed_at=datetime.now(timezone.utc)
-                )
-                self._emit_script_execution_event(skill, script_execution)
+            self._record_skill_execution_artifact(
+                skill=skill,
+                attack_vector_id=attack_vector_id,
+                args_string=args_string,
+                input_json=input_json,
+                status="FAILED",
+                error_message=str(e),
+                validation_status=input_validation_status,
+                validation_error=input_validation_error,
+            )
             
             return f"[ERROR] Kali Sandbox 執行發生系統異常: {e}"
 
@@ -439,39 +411,72 @@ Use the `create_skill` tool to create this skill. Make sure to carefully analyze
     
     # === 輔助方法 ===
     
-    def _get_current_step(self):
-        """取得當前 Step（如果在 Agent 上下文中）"""
-        from apps.core.models import Step
-        
-        # 嘗試從 Agent 上下文中取得 step_id
-        if hasattr(self, 'step_id') and self.step_id:
-            try:
-                return Step.objects.get(id=self.step_id)
-            except Step.DoesNotExist:
-                return None
-        return None
-    
-    def _emit_script_execution_event(self, skill, script_execution):
-        """Emit graph-native realtime event for skill execution."""
-        if not skill or not script_execution or not hasattr(self, "emit_thread_event"):
-            return
+    def _record_skill_execution_artifact(
+        self,
+        *,
+        skill,
+        attack_vector_id: int | None = None,
+        args_string: str = "",
+        input_json: dict | None = None,
+        status: str = "SUCCESS",
+        exit_code: int | None = None,
+        output: str = "",
+        output_json: dict | None = None,
+        validation_status: str = "NOT_VALIDATED",
+        validation_error: str | None = None,
+        execution_duration_ms: int | None = None,
+        error_message: str | None = None,
+    ):
+        """Record skill execution in the graph-native execution log."""
+        try:
+            from apps.core.models import ExecutionGraph, ExecutionNode
+            from apps.core.services import ExecutionService
 
-        event_type = "skill_execution_finished" if script_execution.status == "SUCCESS" else "skill_execution_error"
-        self.emit_thread_event(
-            event_type,
-            status="success" if script_execution.status == "SUCCESS" else "failed",
-            content=f"Executed skill: {skill.name} (exit={script_execution.exit_code})",
-            payload={
+            graph = getattr(self, "_execution_graph", None)
+            node = getattr(self, "_current_execution_node", None)
+            if graph is None:
+                graph_id = getattr(self, "_current_execution_graph_id", None)
+                graph = ExecutionGraph.objects.filter(id=graph_id).first() if graph_id else None
+            if node is None:
+                node_id = getattr(self, "_current_execution_node_id", None)
+                node = ExecutionNode.objects.filter(id=node_id).first() if node_id else None
+            if graph is None:
+                return None
+
+            payload = {
                 "skill_id": skill.id,
                 "skill_name": skill.name,
-                "script_execution_id": script_execution.id,
-                "step_id": script_execution.step_id,
-                "exit_code": script_execution.exit_code,
-                "validation_status": script_execution.validation_status,
-                "execution_duration_ms": script_execution.execution_duration_ms,
-            },
-            tool_name="execute_skill_script",
-        )
+                "attack_vector_id": attack_vector_id,
+                "args_string": args_string,
+                "input_json": input_json,
+                "status": status,
+                "exit_code": exit_code,
+                "output_json": output_json,
+                "validation_status": validation_status,
+                "validation_error": validation_error,
+                "execution_duration_ms": execution_duration_ms,
+                "error_message": error_message,
+            }
+            event = ExecutionService.emit_event(
+                graph=graph,
+                node=node,
+                event_type="skill_execution_finished" if status == "SUCCESS" else "skill_execution_error",
+                status="success" if status == "SUCCESS" else "failed",
+                content=f"Executed skill: {skill.name} (exit={exit_code})" if not error_message else error_message,
+                payload=payload,
+            )
+            artifact = ExecutionService.attach_artifact(
+                graph=graph,
+                node=node,
+                artifact_type="skill_execution",
+                name=f"Skill execution: {skill.name}"[:255],
+                content=output or error_message or "",
+                data=payload,
+            )
+            return event, artifact
+        except Exception as exc:
+            logger.warning("Failed to record skill execution artifact: %s", exc)
+            return None
     
     @method_tool
     def promote_successful_script(
@@ -483,10 +488,10 @@ Use the `create_skill` tool to create this skill. Make sure to carefully analyze
         force: bool = False
     ) -> str:
         """
-        [Skill System] 將成功驗證的 ScriptExecution 升級為永久 SkillTemplate。
+        [Skill System] 舊版腳本執行記錄升級入口已停用。
         
-        這個工具讓 AI 能夠將臨時腳本的執行記錄轉換為可重用的技能，
-        即使腳本最初沒有計劃存入庫中。
+        腳本執行記錄已改存 ExecutionArtifact。請根據 skill_execution artifact
+        直接建立或更新 SkillTemplate。
         
         升級規則：
         1. 必須是 SUCCESS 狀態
@@ -494,7 +499,7 @@ Use the `create_skill` tool to create this skill. Make sure to carefully analyze
         3. 系統會自動生成 instructions 和 input/output schema
         
         Args:
-            script_execution_id: 要升級的 ScriptExecution ID
+            script_execution_id: 舊版腳本執行記錄 ID（已停用）
             skill_name: 新技能的名稱（kebab-case，如 'django-csrf-bypass'）
             tags: 技能標籤列表（如 ["django", "csrf", "bypass"]）
             description: 技能描述（如果 None，自動生成）

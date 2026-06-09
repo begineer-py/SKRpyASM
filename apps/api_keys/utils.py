@@ -29,7 +29,7 @@ def get_active_api_keys():
     keys_qs = APIKey.objects.filter(is_active=True)
     result = defaultdict(list)
     for k in keys_qs:
-        result[k.service_name.lower()].append(k.key_value)
+        result[k.service_name.lower()].append(k.get_key())
 
     summary = {svc: f"{len(v)} key(s)" for svc, v in result.items()}
     logger.info(f"🔑 使用中的 API 金鑰: {summary}")
@@ -67,9 +67,9 @@ def get_ai_provider_key(provider: str) -> str | None:
         record = APIKey.objects.filter(
             service_name__iexact=provider, is_active=True
         ).first()
-        if record and record.key_value:
+        if record and record.get_key():
             logger.debug("get_ai_provider_key: Found active DB key for '%s'", provider)
-            return record.key_value
+            return record.get_key()
         if record:
             logger.warning(
                 "get_ai_provider_key: DB record for '%s' exists but key_value is empty. "

@@ -69,6 +69,7 @@ class URLResult(models.Model):
         ("FAILED_TIMEOUT", "FAILED_TIMEOUT"),
         ("FAILED_CLIENT_ERROR", "FAILED_CLIENT_ERROR"),
         ("FAILED_SERVER_ERROR", "FAILED_SERVER_ERROR"),
+        ("FAILED_SYSTEM_ERROR", "FAILED_SYSTEM_ERROR"),
     ]
     content_fetch_status = models.CharField(
         max_length=30,
@@ -126,6 +127,11 @@ class URLResult(models.Model):
         null=True,
         blank=True,
         help_text="清理後的 HTML（去除噪音後，供抽取 link/form/meta 等分析）。",
+    )
+    dom_snapshot = models.TextField(
+        null=True,
+        blank=True,
+        help_text="截斷後的 DOM 樹摘要，供 AI 快速判讀頁面結構。",
     )
     raw_response_hash = models.CharField(
         max_length=64,

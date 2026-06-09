@@ -49,10 +49,11 @@ def _schema_to_pydantic_field(field_name: str, field_schema: dict, indent: int =
     # Add pattern validation for strings
     pattern = field_schema.get("pattern")
     if pattern and field_type == "string":
+        pattern_repr = repr(pattern)
         if "=" in field_line:
-            field_line = field_line.rstrip(")") + f', pattern=r{json.dumps(pattern)})'
+            field_line = field_line.rstrip(")") + f", pattern={pattern_repr})"
         else:
-            field_line += f' = Field(pattern=r{json.dumps(pattern)})'
+            field_line += f" = Field(pattern={pattern_repr})"
 
     # Add constraints for integers
     minimum = field_schema.get("minimum")

@@ -25,7 +25,6 @@ class NmapScanTriggerSchema(Schema):
     scan_ports: Union[List[int], str] = "top-1000"
     scan_service_version: bool = True  # -sV
     scan_os: bool = False  # -O
-    callback_step_id: Optional[int] = None
     execution_graph_id: Optional[int] = None
     execution_node_id: Optional[int] = None
 
@@ -41,4 +40,3 @@ class NmapScanSchema(Schema):
     started_at: Optional[datetime] = None  # 允許為空，預設為 None
     completed_at: Optional[datetime] = None  # 允許為空，預設為 None
     error_message: Optional[str] = None  # 錯誤訊息通常也是空的
-

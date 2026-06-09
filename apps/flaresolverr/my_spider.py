@@ -422,6 +422,7 @@ class MySpider:
             lines = raw_output.split("\n")
             last_line = next((line for line in reversed(lines) if line.strip()), None)
             if not last_line:
+                self.content_fetch_status = "FAILED_NO_CONTENT"
                 return False
             data = json.loads(last_line)
             status = data.get("status_code", 0)

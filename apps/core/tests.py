@@ -48,7 +48,7 @@ class ExecutionApiTests(TestCase):
         payload = response.json()
         self.assertEqual(payload["id"], self.graph.id)
         self.assertEqual(payload["nodes"][0]["id"], self.node.id)
-        self.assertEqual([event["event_type"] for event in payload["events"]], ["graph_started", "node_started", "node_completed"])
+        self.assertEqual([event["event_type"] for event in payload["events"]], ["graph_started", "node_started", "node_completed", "graph_completed"])
         self.assertEqual(payload["artifacts"][0]["artifact_type"], "scan_result")
 
     def test_list_execution_events_supports_sequence_resume(self):
@@ -56,7 +56,7 @@ class ExecutionApiTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertEqual([event["sequence"] for event in payload], [2, 3])
+        self.assertEqual([event["sequence"] for event in payload], [2, 3, 4])
 
 
 class ExecutionEventStreamFormattingTests(TestCase):
@@ -107,8 +107,26 @@ class ExecutionServiceLifecycleTests(TestCase):
         self.assertEqual(node.status, ExecutionNode.Status.FAILED)
         self.assertEqual(
             [event.event_type for event in events],
-            ["graph_started", "node_started", "node_task_bound", "node_failed"],
+            ["graph_started", "node_started", "node_task_bound", "node_failed", "graph_failed"],
         )
         self.assertEqual(events[2].payload["external_task_id"], "celery-task-1")
         self.assertEqual(events[3].payload, {})
         self.assertEqual(node.error["message"], "boom")
+
+    def test_waiting_graph_completes_after_async_node_callback(self):
+        user_model = get_user_model()
+        user = user_model.objects.create_user(username="execution_async_tester")
+        thread = Thread.objects.create(name="async", created_by=user)
+        graph = ExecutionService.start_graph(thread=thread, assistant_id="tester")
+        node = ExecutionService.start_node(graph=graph, name="scanner", kind=ExecutionNode.Kind.SCANNER)
+
+        ExecutionService.wait_node(node, wait_reason="ASYNC_CALLBACK", content="waiting")
+        graph.refresh_from_db()
+        self.assertEqual(graph.status, ExecutionGraph.Status.WAITING)
+
+        ExecutionService.complete_node_by_id(node.id, output={"ok": True}, content="scanner complete")
+        graph.refresh_from_db()
+        events = list(ExecutionEvent.objects.filter(graph=graph).order_by("sequence"))
+
+        self.assertEqual(graph.status, ExecutionGraph.Status.SUCCEEDED)
+        self.assertEqual(events[-1].event_type, "graph_completed")

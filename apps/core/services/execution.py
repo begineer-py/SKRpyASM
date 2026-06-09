@@ -163,6 +163,7 @@ class ExecutionService:
         output: dict[str, Any] | None = None,
         content: Any = "",
         payload: dict[str, Any] | None = None,
+        reconcile_graph: bool = True,
     ) -> ExecutionNode:
         node.status = ExecutionNode.Status.SUCCEEDED
         node.output = output or {}
@@ -176,6 +177,8 @@ class ExecutionService:
             content=content,
             payload=payload,
         )
+        if reconcile_graph:
+            ExecutionService.reconcile_graph_status(node.graph)
         return node
 
     @staticmethod
@@ -186,6 +189,7 @@ class ExecutionService:
         error: dict[str, Any] | None = None,
         content: Any = "",
         payload: dict[str, Any] | None = None,
+        reconcile_graph: bool = True,
     ) -> ExecutionNode:
         node.status = ExecutionNode.Status.FAILED
         node.error = error or {}
@@ -199,7 +203,45 @@ class ExecutionService:
             content=content,
             payload=payload,
         )
+        if reconcile_graph:
+            ExecutionService.reconcile_graph_status(node.graph)
         return node
+
+    @staticmethod
+    @transaction.atomic
+    def reconcile_graph_status(graph: ExecutionGraph) -> ExecutionGraph:
+        graph = ExecutionGraph.objects.select_for_update().get(id=graph.id)
+        if graph.status in [
+            ExecutionGraph.Status.SUCCEEDED,
+            ExecutionGraph.Status.FAILED,
+            ExecutionGraph.Status.CANCELLED,
+            ExecutionGraph.Status.BLOCKED,
+        ]:
+            return graph
+
+        statuses = list(graph.nodes.values_list("status", flat=True))
+        if not statuses:
+            return graph
+
+        active_statuses = {
+            ExecutionNode.Status.PENDING,
+            ExecutionNode.Status.RUNNING,
+            ExecutionNode.Status.WAITING,
+        }
+        if any(status in active_statuses for status in statuses):
+            next_status = ExecutionGraph.Status.WAITING if ExecutionNode.Status.WAITING in statuses else ExecutionGraph.Status.RUNNING
+            if graph.status != next_status:
+                graph.status = next_status
+                graph.save(update_fields=["status", "updated_at"])
+            return graph
+
+        if any(status == ExecutionNode.Status.FAILED for status in statuses):
+            return ExecutionService.fail_graph(graph, error="One or more execution nodes failed")
+
+        if all(status in [ExecutionNode.Status.SUCCEEDED, ExecutionNode.Status.SKIPPED] for status in statuses):
+            return ExecutionService.complete_graph(graph, content="All execution nodes completed")
+
+        return graph
 
     @staticmethod
     @transaction.atomic
@@ -228,12 +270,13 @@ class ExecutionService:
         output: dict[str, Any] | None = None,
         content: Any = "",
         payload: dict[str, Any] | None = None,
+        reconcile_graph: bool = True,
     ) -> ExecutionNode | None:
         if not execution_node_id:
             return None
         node = ExecutionNode.objects.filter(id=execution_node_id).first()
         if node and node.status in [ExecutionNode.Status.RUNNING, ExecutionNode.Status.WAITING]:
-            return ExecutionService.complete_node(node, output=output, content=content, payload=payload)
+            return ExecutionService.complete_node(node, output=output, content=content, payload=payload, reconcile_graph=reconcile_graph)
         return node
 
     @staticmethod
@@ -243,12 +286,13 @@ class ExecutionService:
         error: dict[str, Any] | None = None,
         content: Any = "",
         payload: dict[str, Any] | None = None,
+        reconcile_graph: bool = True,
     ) -> ExecutionNode | None:
         if not execution_node_id:
             return None
         node = ExecutionNode.objects.filter(id=execution_node_id).first()
         if node and node.status in [ExecutionNode.Status.RUNNING, ExecutionNode.Status.WAITING]:
-            return ExecutionService.fail_node(node, error=error, content=content, payload=payload)
+            return ExecutionService.fail_node(node, error=error, content=content, payload=payload, reconcile_graph=reconcile_graph)
         return node
 
     @staticmethod

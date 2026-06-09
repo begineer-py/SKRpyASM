@@ -22,7 +22,7 @@ _REPORTING_INSTRUCTIONS = """
 
 ### 第一步：收集所有發現
 1. 呼叫 `get_target_context(target_name)` 取得 overview_id
-2. 呼叫 `query_steps(overview_id=<id>)` 取得所有已執行步驟
+2. 呼叫 `query_steps(overview_id=<id>)` 取得所有 execution graph/node 狀態
 3. 呼叫 `get_url_intelligence(url_id=<id>)` 查詢關鍵 URL 的詳細資訊（選擇性）
 
 ### 第二步：整理漏洞清單

@@ -21,7 +21,6 @@ from apps.flaresolverr.api import (
 from apps.core.api import (
     router as core_router,
 )  # 從 core 應用導入 API 路由器，並重命名為 core_router
-from apps.core.step_api import router as core_steps_router
 from apps.core.overview_api import router as core_overview_router
 
 # Unified Scanners Router
@@ -47,7 +46,6 @@ api.add_router("/targets", targets_router, tags=["Targets - 目標管理"])
 api.add_router("/scanners", scanners_router)
 api.add_router("/flaresolverr", flaresolverr_router, tags=["Tools - FlareSolverr 繞過"])
 api.add_router("/core", core_router, tags=["Core - 系統核心層"])
-api.add_router("/core", core_steps_router, tags=["Core - Steps"])
 api.add_router("/core", core_overview_router, tags=["Core - Overviews"])
 api.add_router("/analyze_ai", analyze_ai_router, tags=["AI Analysis - 指揮中心"])
 api.add_router("/scheduler", scheduler_router, tags=["Scheduler - 任務調度"])

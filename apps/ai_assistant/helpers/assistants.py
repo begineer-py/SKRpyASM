@@ -839,6 +839,7 @@ class AIAssistant(abc.ABC):  # noqa: F821
                             error={"error_type": "ToolNotFound"},
                             content=error_message,
                             payload={"tool_call_id": tool_call_id, "error_type": "ToolNotFound"},
+                            reconcile_graph=False,
                         )
                     tool_messages.append(
                         ToolMessage(content=error_message, tool_call_id=tool_call_id)
@@ -866,6 +867,7 @@ class AIAssistant(abc.ABC):  # noqa: F821
                             output={"preview": str(output)[:4000]},
                             content=str(output),
                             payload={"tool_call_id": tool_call_id, "output_preview": str(output)[:4000]},
+                            reconcile_graph=False,
                         )
                     tool_messages.append(
                         ToolMessage(content=str(output), tool_call_id=tool_call_id)
@@ -878,6 +880,7 @@ class AIAssistant(abc.ABC):  # noqa: F821
                             error={"error_type": type(exc).__name__, "message": str(exc)},
                             content=error_message,
                             payload={"tool_call_id": tool_call_id, "error_type": type(exc).__name__},
+                            reconcile_graph=False,
                         )
                     tool_messages.append(
                         ToolMessage(content=error_message, tool_call_id=tool_call_id)
@@ -993,8 +996,10 @@ class AIAssistant(abc.ABC):  # noqa: F821
                 thread_messages = [m for m in state["messages"] if not isinstance(m, SystemMessage)]
                 save_django_messages(cast(list[BaseMessage], thread_messages), thread=thread)
             graph = self._get_execution_graph()
-            if graph is not None and graph.status == "RUNNING":
-                ExecutionService.complete_graph(graph, content=response)
+            if graph is not None:
+                graph.refresh_from_db(fields=["status"])
+                if graph.status in ["RUNNING", "WAITING"]:
+                    ExecutionService.complete_graph(graph, content=response)
             return {"output": response}
 
         workflow = StateGraph(AgentState)

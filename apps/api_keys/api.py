@@ -74,7 +74,14 @@ def list_supported_services(request):
 
 @router.post("/", response=APIKeyOut)
 def create_api_key(request, data: APIKeyIn):
-    api_key = APIKey.objects.create(**data.model_dump())
+    plaintext = data.key_value
+    api_key = APIKey(
+        service_name=data.service_name,
+        is_active=data.is_active,
+        description=data.description,
+    )
+    api_key.set_key(plaintext)
+    api_key.save()
     return api_key
 
 @router.get("/", response=List[APIKeyOut])
@@ -86,7 +93,14 @@ def bulk_create_api_keys(request, data_list: List[APIKeyIn]):
     """批量匯入多個 API 金鑰 (支援同 service 多個 key)。"""
     created = []
     for data in data_list:
-        api_key = APIKey.objects.create(**data.model_dump())
+        plaintext = data.key_value
+        api_key = APIKey(
+            service_name=data.service_name,
+            is_active=data.is_active,
+            description=data.description,
+        )
+        api_key.set_key(plaintext)
+        api_key.save()
         created.append(api_key)
     return created
 
@@ -279,7 +293,7 @@ def test_llm_connection(request, data: TestLLMIn):
     api_key_val = None
     if data.api_key_id is not None:
         key_obj = get_object_or_404(APIKey, id=data.api_key_id)
-        api_key_val = key_obj.key_value
+        api_key_val = key_obj.get_key()
     else:
         try:
             from apps.api_keys.utils import get_ai_provider_key

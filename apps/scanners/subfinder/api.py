@@ -44,7 +44,7 @@ _RECON_CONFIG = {
 # =============================================================================
 
 async def _trigger_recon_chain(
-    tool_key: str, seed_id: int, callback_step_id: int = None, execution_graph_id: int = None, execution_node_id: int = None
+    tool_key: str, seed_id: int, execution_graph_id: int = None, execution_node_id: int = None
 ) -> Model:
     """
     【通用偵察鏈啟動助手】
@@ -91,16 +91,16 @@ async def _trigger_recon_chain(
 
     # 4. 觸發任務
     if tool_key == "amass":
-        task = cfg["trigger_task"].delay(scan_id=scan_record.id, seed_id=seed_id, callback_step_id=callback_step_id, execution_graph_id=execution_graph_id, execution_node_id=execution_node_id)
+        task = cfg["trigger_task"].delay(scan_id=scan_record.id, seed_id=seed_id, execution_graph_id=execution_graph_id, execution_node_id=execution_node_id)
     else:
-        task = cfg["trigger_task"].delay(scan_id=scan_record.id, callback_step_id=callback_step_id, execution_graph_id=execution_graph_id, execution_node_id=execution_node_id)
+        task = cfg["trigger_task"].delay(scan_id=scan_record.id, execution_graph_id=execution_graph_id, execution_node_id=execution_node_id)
 
     if execution_node_id:
         from apps.core.services import ExecutionService
 
         await sync_to_async(ExecutionService.set_node_external_task_id)(execution_node_id, task.id)
 
-    logger.info(f"{cfg['description']} 偵察鏈啟動成功: Seed='{seed.value}', ScanID={scan_record.id}, CallbackStepID={callback_step_id}")
+    logger.info(f"{cfg['description']} 偵察鏈啟動成功: Seed='{seed.value}', ScanID={scan_record.id}, ExecutionNode={execution_node_id}")
     return scan_record
 
 
@@ -117,7 +117,7 @@ async def _trigger_recon_chain(
 )
 async def start_full_domain_recon(request, payload: DomainReconTriggerSchema):
     """啟動基於 Subfinder 的子域名發現流程"""
-    return await _trigger_recon_chain("subfinder", payload.seed_id, callback_step_id=payload.callback_step_id, execution_graph_id=payload.execution_graph_id, execution_node_id=payload.execution_node_id)
+    return await _trigger_recon_chain("subfinder", payload.seed_id, execution_graph_id=payload.execution_graph_id, execution_node_id=payload.execution_node_id)
 
 
 @log_function_call()
@@ -129,4 +129,4 @@ async def start_full_domain_recon(request, payload: DomainReconTriggerSchema):
 )
 async def start_amass_recon(request, payload: DomainReconTriggerSchema):
     """啟動基於 Amass 的增強發現流程"""
-    return await _trigger_recon_chain("amass", payload.seed_id, callback_step_id=payload.callback_step_id, execution_graph_id=payload.execution_graph_id, execution_node_id=payload.execution_node_id)
+    return await _trigger_recon_chain("amass", payload.seed_id, execution_graph_id=payload.execution_graph_id, execution_node_id=payload.execution_node_id)

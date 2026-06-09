@@ -25,7 +25,6 @@ def scan_all_url(
     self,
     subdomain_id: int,
     threads: int = 50,
-    callback_step_id: Optional[int] = None,
     execution_graph_id: Optional[int] = None,
     execution_node_id: Optional[int] = None,
 ):

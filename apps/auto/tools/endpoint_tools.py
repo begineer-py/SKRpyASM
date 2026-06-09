@@ -249,6 +249,9 @@ class EndpointMixin:
             except Exception:
                 pass
 
+            if url_obj.dom_snapshot:
+                sections.append(f"\n[DOM Snapshot (3000 chars)]\n{url_obj.dom_snapshot[:3000]}")
+
             # Content preview (cleaned HTML, truncated)
             content = url_obj.cleaned_html or url_obj.text or ""
             if content:
@@ -263,7 +266,7 @@ class EndpointMixin:
                         from django.conf import settings
                         import requests as _req
                         api_base = getattr(settings, "INTERNAL_API_BASE_URL", "http://127.0.0.1:8000/api")
-                        # Find overview for this URL's target to create step
+                        # Find overview for this URL's target to bind the async crawl to the active execution graph.
                         from apps.core.models.analyze.overview import Overview
                         overview_qs = Overview.objects.filter(
                             target=url_obj.target,
@@ -271,18 +274,61 @@ class EndpointMixin:
                         ).order_by("-id")
                         active_ov = overview_qs.first()
                         if active_ov:
-                            from apps.core.models.analyze.Step import Step, StepNote
-                            from django.utils import timezone
-                            step = Step.create_next(
-                                overview_id=active_ov.id,
-                                status="WAITING_FOR_ASYNC"
+                            from apps.core.models import ExecutionGraph
+                            from apps.core.services import ExecutionService
+
+                            graph = getattr(self, "_execution_graph", None)
+                            current_node = getattr(self, "_current_execution_node", None)
+                            if graph is None:
+                                graph_id = getattr(self, "_current_execution_graph_id", None)
+                                graph = ExecutionGraph.objects.filter(id=graph_id).first() if graph_id else None
+
+                            crawl_node = None
+                            if graph is not None:
+                                crawl_node = ExecutionService.start_node(
+                                    graph=graph,
+                                    parent=current_node,
+                                    name="auto_intent_flaresolverr_crawl",
+                                    input={"overview_id": active_ov.id, "url": url_obj.url},
+                                    metadata={"trigger": "url_intelligence_pending_content"},
+                                )
+                                ExecutionService.emit_event(
+                                    graph=graph,
+                                    node=crawl_node,
+                                    event_type="auto_intent_crawl_started",
+                                    status="started",
+                                    content=f"AI queried PENDING URL {url_obj.url}; auto-triggering Flaresolverr crawl",
+                                    payload={"overview_id": active_ov.id, "url_id": url_obj.id, "url": url_obj.url},
+                                )
+
+                            payload = {
+                                "url": url_obj.url,
+                                "method": "GET",
+                                "execution_graph_id": getattr(graph, "id", None),
+                                "execution_node_id": getattr(crawl_node, "id", None),
+                            }
+                            resp = _req.post(
+                                f"{api_base.rstrip('/')}/flaresolverr/start_scanner",
+                                json=payload,
+                                timeout=5,
                             )
-                            StepNote.objects.create(
-                                step=step,
-                                content=f"[Auto-Intent Crawl] AI queried PENDING URL {url_obj.url} — auto-triggering Flaresolverr crawl"
-                            )
-                            payload = {"url": url_obj.url, "method": "GET", "callback_step_id": step.id}
-                            _req.post(f"{api_base.rstrip('/')}/flaresolverr/start_scanner", json=payload, timeout=5)
+                            if crawl_node is not None:
+                                if resp.status_code >= 400:
+                                    ExecutionService.fail_node(
+                                        crawl_node,
+                                        error={"status_code": resp.status_code, "response": resp.text[:4000]},
+                                        content=f"Auto intent crawl dispatch failed: HTTP {resp.status_code}",
+                                        payload={"overview_id": active_ov.id, "url": url_obj.url},
+                                    )
+                                else:
+                                    ExecutionService.wait_node(
+                                        crawl_node,
+                                        wait_reason="ASYNC_CALLBACK",
+                                        content="Auto intent crawl dispatched and waiting for async callback",
+                                        payload={"overview_id": active_ov.id, "url": url_obj.url, "response": resp.text[:2000]},
+                                    )
+                            if resp.status_code >= 400:
+                                raise RuntimeError(f"Flaresolverr dispatch failed with HTTP {resp.status_code}: {resp.text[:500]}")
                             triggered = True
                     except Exception as trig_err:
                         logger.warning(f"[Intent-to-scan] Auto-trigger failed for url_id={url_id}: {trig_err}")

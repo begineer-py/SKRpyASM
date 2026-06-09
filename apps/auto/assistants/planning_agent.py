@@ -174,7 +174,7 @@ class AutomationAgent(AIAssistant, DBToolsMixin, ScannerToolsMixin, SpawnAgentsM
         "【長期記憶與 Blob】\n"
         "- save_long_content(content, source_type, ...): 儲存大型內容到 Blob\n"
         "- read_content_blob(blob_id, focus_query): 以問題驅動讀取大型 Blob\n"
-        "- write_recon_note(overview_id, title, content): 快速記錄偵察發現（自動建立 Step + AttackVector）\n"
+        "- write_recon_note(overview_id, title, content): 快速記錄偵察發現（建立 ExecutionEvent/Artifact + AttackVector）\n"
         "\n"
         "【狀態與報告】\n"
         "- update_overview_status(...): 更新 Overview 的 status/summary/knowledge/plan/risk_score\n"
@@ -280,7 +280,7 @@ class AutomationAgent(AIAssistant, DBToolsMixin, ScannerToolsMixin, SpawnAgentsM
         """Initialize AutomationAgent with optional step_id for logging.
 
         Args:
-            step_id: Optional ID of the Step model to log execution to.
+            step_id: Optional ExecutionNode ID to log execution to.
             thread: Optional Thread object for checkpointing conversation history.
             caller_thread_id: Thread ID of the parent agent that invoked this agent.
                               Used to auto-populate overview.parent_thread_id and

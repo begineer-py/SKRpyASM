@@ -22,7 +22,6 @@ def scan_katana(
     subdomain_id: int,
     depth: int = 3,
     js_crawl: bool = True,
-    callback_step_id: Optional[int] = None,
     execution_graph_id: Optional[int] = None,
     execution_node_id: Optional[int] = None,
 ):

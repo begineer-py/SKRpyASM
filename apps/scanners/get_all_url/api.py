@@ -87,7 +87,6 @@ async def get_all_url(
         # 使用 .delay() 或 .apply_async() 觸發
         task = scan_all_url.delay(
             subdomain.id,
-            callback_step_id=payloads.callback_step_id,
             execution_graph_id=payloads.execution_graph_id,
             execution_node_id=payloads.execution_node_id,
         )

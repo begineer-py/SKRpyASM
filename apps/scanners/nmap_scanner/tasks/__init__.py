@@ -20,7 +20,6 @@ def perform_nmap_scan(
     scan_id: int,
     ip_address: str,
     nmap_args: str,
-    callback_step_id: Optional[int] = None,
     execution_graph_id: Optional[int] = None,
     execution_node_id: Optional[int] = None,
 ):
@@ -30,7 +29,7 @@ def perform_nmap_scan(
     """
     logger.info(
         f"任務 [{self.request.id}] 領取命令：開始處理 NmapScan ID: {scan_id} "
-        f"for IP: {ip_address} (ExecutionNode: {execution_node_id}, Step: {callback_step_id})"
+        f"for IP: {ip_address} (ExecutionNode: {execution_node_id})"
     )
 
     try:

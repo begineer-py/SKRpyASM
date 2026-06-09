@@ -22,7 +22,6 @@ logger = logging.getLogger(__name__)
 def _run_subdomain_enum(
     tool_key: str,
     scan_id: int,
-    callback_step_id: Optional[int] = None,
     execution_graph_id: Optional[int] = None,
     execution_node_id: Optional[int] = None,
 ):
@@ -32,7 +31,8 @@ def _run_subdomain_enum(
     Args:
         tool_key: 'subfinder' | 'amass'
         scan_id: 對應掃描模型的 ID
-        callback_step_id: 回調用的 Step ID (可選)
+        execution_graph_id: ExecutionGraph ID
+        execution_node_id: ExecutionNode ID
     """
     from .enum_configs import get_enum_tool_registry
 
@@ -109,12 +109,8 @@ def _run_subdomain_enum(
                 seed_id=seed.id,
                 subfinder_scan_id=scan.id if tool_key == "subfinder" else None,
                 source=tool_key,
-                callback_step_id=callback_step_id,
-            )
-            _complete_execution_node(
-                execution_node_id,
-                content=f"[{cfg.tool_name}] 子域名發現完成，新增 {update_results['new_count']} 筆。",
-                output={"new_count": update_results["new_count"], "reactivated_count": update_results["reactivated_count"]},
+                execution_graph_id=execution_graph_id,
+                execution_node_id=execution_node_id,
             )
     except Exception as exc:
         _fail_execution_node(

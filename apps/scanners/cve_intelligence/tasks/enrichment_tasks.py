@@ -12,13 +12,12 @@ logger = logging.getLogger(__name__)
 
 
 @shared_task(bind=True, max_retries=3)
-def enrich_vulnerabilities_batch(self, vulnerability_ids: List[int], callback_step_id: Optional[int] = None):
+def enrich_vulnerabilities_batch(self, vulnerability_ids: List[int]):
     """
     批次豐富化 Vulnerability 記錄
 
     Args:
         vulnerability_ids: Vulnerability ID 清單
-        callback_step_id: Step ID for callback
     """
     logger.info(f"Starting CVE enrichment for {len(vulnerability_ids)} vulnerabilities")
 
@@ -94,13 +93,12 @@ def enrich_vulnerabilities_batch(self, vulnerability_ids: List[int], callback_st
 
 
 @shared_task(bind=True, max_retries=3)
-def sync_techstack_cves(self, target_id: int, callback_step_id: Optional[int] = None):
+def sync_techstack_cves(self, target_id: int):
     """
     同步目標的所有 TechStack 與最新 CVE 情報
 
     Args:
         target_id: Target ID
-        callback_step_id: Step ID for callback
     """
     logger.info(f"Starting TechStack CVE sync for target {target_id}")
 

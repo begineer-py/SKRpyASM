@@ -306,10 +306,7 @@ def enrich_vulnerabilities(request, payload: EnrichVulnerabilitiesSchema):
             raise HttpError(404, "未找到有效的 Vulnerability ID")
 
         # 派發 Celery 任務
-        enrich_vulnerabilities_batch.delay(
-            valid_ids,
-            callback_step_id=payload.callback_step_id
-        )
+        enrich_vulnerabilities_batch.delay(valid_ids)
 
         return 202, SuccessSendToAISchema(
             detail=f"成功派發 {len(valid_ids)} 個 Vulnerability 的豐富化任務"
@@ -337,10 +334,7 @@ def sync_techstack(request, payload: SyncTechStackSchema):
             raise HttpError(404, f"Target {payload.target_id} 不存在")
 
         # 派發 Celery 任務
-        sync_techstack_cves.delay(
-            payload.target_id,
-            callback_step_id=payload.callback_step_id
-        )
+        sync_techstack_cves.delay(payload.target_id)
 
         return 202, SuccessSendToAISchema(
             detail=f"成功派發 Target {payload.target_id} 的 TechStack CVE 同步任務"
@@ -364,7 +358,7 @@ def sync_kev(request, payload: SyncKEVSchema):
 
     try:
         # 派發 Celery 任務
-        sync_cisa_kev_database.delay(callback_step_id=payload.callback_step_id)
+        sync_cisa_kev_database.delay()
 
         return 202, SuccessSendToAISchema(
             detail="成功派發 CISA KEV 同步任務"

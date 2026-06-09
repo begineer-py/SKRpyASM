@@ -459,7 +459,7 @@ function TargetDashboard() {
 
   const TABS: { id: TabId; label: string; count?: number }[] = [
     { id: "seeds",      label: "Seeds",         count: seeds.length },
-    { id: "activity",   label: "🤖 AI Activity" },
+    { id: "activity",   label: "AI Activity" },
     { id: "subdomains", label: "Subdomains",    count: subTotalCount || undefined },
     { id: "ips",        label: "IPs / Ports",   count: ipTotalCount || undefined },
     { id: "urls",       label: "URLs",          count: urlsTotalCount || undefined },
@@ -473,15 +473,15 @@ function TargetDashboard() {
       {/* ── Header ── */}
       <header className="td-header">
         <div className="td-header__left">
-          <button onClick={() => navigate("/")} className="c2-btn c2-btn--ghost td-back-btn">
-            ← BACK
-          </button>
-          <div>
-            <h1 className="td-title">
-              <span className="c2-pulse" style={{ marginRight: 10 }} />
-              {target.name}
-              <span className="td-title__sub">// OPERATION DASHBOARD</span>
-            </h1>
+            <button onClick={() => navigate("/")} className="c2-btn c2-btn--ghost td-back-btn">
+              Back
+            </button>
+            <div>
+              <div className="td-eyebrow">Target Mission Control</div>
+              <h1 className="td-title">
+                {target.name}
+                <span className="td-title__sub">Authorized operation</span>
+              </h1>
             <p className="td-subtitle">{target.description || "No description provided"}</p>
           </div>
         </div>
@@ -527,7 +527,7 @@ function TargetDashboard() {
               <div className="c2-section-header">
                 <span className="c2-section-title">SEEDS <span>({seeds.length})</span></span>
                 <button className="c2-btn c2-btn--ghost" onClick={fetchBase} style={{ fontSize: "0.7rem" }}>
-                  ↻ REFRESH
+                  Refresh
                 </button>
               </div>
               {seeds.length === 0 ? (
@@ -580,7 +580,7 @@ function TargetDashboard() {
 
             {/* Add Seed Sidebar */}
             <div className="td-seeds-sidebar c2-card c2-card--green" style={{ padding: 20 }}>
-              <h3 style={{ fontFamily: "var(--font-mono)", fontSize: "0.8rem", marginBottom: 16, color: "var(--green)", textTransform: "uppercase" }}>+ ADD SEED</h3>
+              <h3 style={{ fontFamily: "var(--font-body)", fontSize: "0.95rem", marginBottom: 16, color: "var(--text-primary)", fontWeight: 800 }}>Add Seed</h3>
               <label className="c2-form-label">Seed Value</label>
               <input
                 className="c2-input" type="text" placeholder="e.g. example.com"
@@ -595,13 +595,13 @@ function TargetDashboard() {
               </select>
               <button className="c2-btn c2-btn--primary" style={{ width: "100%", justifyContent: "center" }}
                 onClick={handleAddSeed} disabled={isAdding || !newSeedVal.trim()}>
-                {isAdding ? "ADDING..." : "ADD SEED +"}
+                {isAdding ? "Adding..." : "Add Seed"}
               </button>
               <div style={{ marginTop: 16, fontSize: "0.72rem", color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
-                <div style={{ marginBottom: 8, color: "var(--text-secondary)" }}>AUTO TRIGGERS:</div>
-                <div>→ Subdomain Enumeration</div>
-                <div>→ Port Scanning</div>
-                <div>→ AI Initial Analysis</div>
+                <div style={{ marginBottom: 8, color: "var(--text-secondary)" }}>Auto triggers:</div>
+                <div>Subdomain Enumeration</div>
+                <div>Port Scanning</div>
+                <div>AI Initial Analysis</div>
               </div>
             </div>
           </div>
@@ -611,7 +611,7 @@ function TargetDashboard() {
         {activeTab === "activity" && (
           <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: 12 }}>
             <div className="c2-section-header">
-              <span className="c2-section-title">🤖 AI ACTIVITY MONITOR</span>
+              <span className="c2-section-title">AI ACTIVITY MONITOR</span>
               <span className="td-muted" style={{ fontSize: "0.75rem" }}>
                 Real-time tracking of AI operations on this target
               </span>

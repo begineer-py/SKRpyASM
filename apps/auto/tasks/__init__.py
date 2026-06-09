@@ -5,7 +5,6 @@ from c2_core.config.logging import log_function_call
 from apps.ai_assistant.helpers.use_cases import create_thread
 from apps.core.models import Target, Subdomain, IP
 from apps.core.models.analyze.overview import Overview
-from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +17,7 @@ def _handle_guidance_request(overview):
     """
     import json
     from apps.core.llms import get_llm_instance
-    from apps.core.models import Step
+    from apps.core.models import ExecutionGraph
 
     target = overview.target
     knowledge = overview.knowledge or {}
@@ -30,16 +29,19 @@ def _handle_guidance_request(overview):
         return
 
     question = escalation.get('question', 'No question provided')
-    recent_steps = list(Step.objects.filter(overview=overview).order_by('-created_at')[:10].values(
-        'id', 'status', 'operation_type', 'created_at'
-    ))
+    thread_ids = [value for value in [overview.thread_id, overview.parent_thread_id] if value]
+    recent_executions = list(
+        ExecutionGraph.objects.filter(thread_id__in=thread_ids)
+        .order_by('-started_at')[:10]
+        .values('id', 'status', 'assistant_id', 'title', 'started_at', 'completed_at')
+    ) if thread_ids else []
 
     prompt = (
         "You are a senior penetration testing strategist advising a sub-agent that is stuck.\n\n"
         f"## Target\n{target.name} ({target.description or 'No description'})\n\n"
         f"## Current Risk Score\n{overview.risk_score}/100\n\n"
         f"## Current Knowledge\n{json.dumps(knowledge, indent=2)}\n\n"
-        f"## Recent Steps (last 10)\n{json.dumps(recent_steps, indent=2, default=str)}\n\n"
+        f"## Recent Executions (last 10)\n{json.dumps(recent_executions, indent=2, default=str)}\n\n"
         f"## Sub-agent's Question\n{question}\n\n"
         "Your task: Provide focused, actionable strategic guidance. Be specific — "
         "mention exact tools, techniques, or alternative attack paths. "
@@ -114,11 +116,16 @@ def auto_execute_plan():
     # ═══ Phase 0: 對停滯在 PLANNING 的 Overview 自動觸發策略規劃 ═══
     stalled_planning = Overview.objects.filter(status="PLANNING")
     for ov in stalled_planning:
-        # 檢查是否有 PENDING 的 Step（有 = 正在等規劃結果，跳過）
-        has_pending_steps = ov.steps.filter(status="PENDING").exists()
-        if not has_pending_steps:
+        from apps.core.models import ExecutionGraph
+
+        thread_ids = [value for value in [ov.thread_id, ov.parent_thread_id] if value]
+        has_active_execution = ExecutionGraph.objects.filter(
+            thread_id__in=thread_ids,
+            status__in=[ExecutionGraph.Status.RUNNING, ExecutionGraph.Status.WAITING],
+        ).exists() if thread_ids else False
+        if not has_active_execution:
             from apps.analyze_ai.tasks.planning import propose_next_steps
-            logger.info(f"[AutoExecute] Overview#{ov.id} 停滯在 PLANNING 且無待執行步驟，觸發策略規劃")
+            logger.info(f"[AutoExecute] Overview#{ov.id} 停滯在 PLANNING 且無 active execution，觸發策略規劃")
             propose_next_steps.delay(ov.id)
 
     overviews = Overview.objects.filter(status__in=["EXECUTING", "NEEDS_GUIDANCE"])
@@ -165,22 +172,17 @@ def auto_execute_plan():
                 from apps.core.models.ai_models import Thread
                 thread_obj = Thread.objects.get(id=overview.thread_id)
             
-            # Create a Step to track this execution
-            from apps.core.models import Step
+            from apps.core.models import ExecutionGraph
 
-            # Skip if another worker is already running an agent for this overview.
-            if Step.objects.filter(overview=overview, status="RUNNING").exists():
-                logger.info(f"[AutoExecution] Overview#{overview.id} already has a RUNNING step, skipping to avoid concurrent agents")
+            if ExecutionGraph.objects.filter(
+                thread=thread_obj,
+                status__in=[ExecutionGraph.Status.RUNNING, ExecutionGraph.Status.WAITING],
+            ).exists():
+                logger.info(f"[AutoExecution] Overview#{overview.id} already has an active execution graph, skipping to avoid concurrent agents")
                 continue
-
-            step = Step.objects.create(
-                overview=overview,
-                operation_type="AI_AUTOMATION_EXECUTION",
-                status="RUNNING"
-            )
             
-            # Initialize agent with step_id for logging + thread for checkpointing conversation
-            agent = AutomationAgent(step_id=step.id, thread=thread_obj)
+            # AIAssistant.invoke creates the ExecutionGraph; no legacy Step wrapper is needed.
+            agent = AutomationAgent(thread=thread_obj)
             
             # 收集真實的 Asset IDs，避免 AI 幻覺亂猜 ID
             from apps.core.models import Subdomain, IP, Seed
@@ -229,72 +231,39 @@ def auto_execute_plan():
             # Use agent.invoke() which automatically applies callbacks
             result = agent.invoke(
                 {"input": user_prompt},
+                thread=thread_obj,
                 thread_id=thread_obj.id
             )
             
             logger.info(f"[AutoExecution] Agent execution completed for {target.name}")
-            
-            # Mark step as completed
-            step.status = "COMPLETED"
-            step.completed_at = timezone.now()
-            step.save(update_fields=["status", "completed_at"])
-                
+                 
         except Exception as e:
             logger.error(f"[AutoExecution] Failed executing plan for {target.name}: {e}")
-            # Mark step as failed on exception
-            if 'step' in locals():
-                step.status = "FAILED"
-                step.completed_at = timezone.now()
-                step.save(update_fields=["status", "completed_at"])
 
 @shared_task(name="apps.auto.tasks.run_automation_agent_async")
 @log_function_call()
 def run_automation_agent_async(message: str, caller_thread_id: int = None):
     from apps.auto.assistants.planning_agent import AutomationAgent
-    from apps.core.models import Step
 
-    step = Step.objects.create(
-        operation_type="AI_AUTOMATION_EXECUTION",
-        status="RUNNING"
-    )
-
-    agent = AutomationAgent(step_id=step.id, caller_thread_id=caller_thread_id)
+    agent = AutomationAgent(caller_thread_id=caller_thread_id)
     try:
         result = agent._run_as_tool(message, caller_thread_id=caller_thread_id)
-        step.status = "COMPLETED"
-        step.completed_at = timezone.now()
-        step.save(update_fields=["status", "completed_at"])
         agent._auto_notify_parent(result=result)
         return result
     except Exception as e:
         logger.exception(f"[run_automation_agent_async] Failed: {e}")
-        step.status = "FAILED"
-        step.completed_at = timezone.now()
-        step.save(update_fields=["status", "completed_at"])
         agent._auto_notify_parent(error=str(e))
         raise
 
 
 def _run_sub_agent(agent_class, agent_id_label, message, caller_thread_id):
-    """共用輔助函式：建立 Step、執行子 Agent、處理完成/失敗。"""
-    from apps.core.models import Step
-
-    step = Step.objects.create(
-        operation_type="AI_AUTOMATION_EXECUTION",
-        status="RUNNING"
-    )
-    agent = agent_class(step_id=step.id, caller_thread_id=caller_thread_id)
+    """共用輔助函式：執行子 Agent；graph lifecycle 由 AIAssistant.invoke 管理。"""
+    agent = agent_class(caller_thread_id=caller_thread_id)
     try:
         result = agent._run_as_tool(message, caller_thread_id=caller_thread_id)
-        step.status = "COMPLETED"
-        step.completed_at = timezone.now()
-        step.save(update_fields=["status", "completed_at"])
         return result
     except Exception as e:
         logger.exception(f"[{agent_id_label}] Failed: {e}")
-        step.status = "FAILED"
-        step.completed_at = timezone.now()
-        step.save(update_fields=["status", "completed_at"])
         raise
 
 

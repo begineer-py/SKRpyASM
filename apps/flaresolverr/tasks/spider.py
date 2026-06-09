@@ -32,7 +32,6 @@ def perform_scan_for_url(
     seed_id: int = None,
     auto_create: bool = False,
     target_id: int = None,
-    callback_step_id: int = None,
     execution_graph_id: int | None = None,
     execution_node_id: int | None = None,
     body: str | None = None,
@@ -168,9 +167,12 @@ def perform_scan_for_url(
                 )
                 url_result_to_update.text = result.get("text", "")
                 url_result_to_update.cleaned_html = result.get("cleaned_html", "")
-                url_result_to_update.raw_response_hash = result.get(
-                    "raw_response_hash", ""
-                )
+            url_result_to_update.dom_snapshot = result.get("dom_snapshot", "")
+            url_result_to_update.raw_response_hash = (
+                result.get("raw_response_hash", "")
+                if result.get("text")
+                else url_result_to_update.raw_response_hash
+            )
 
             # 再次確保 Target ID (如果是舊資料更新)
             if target_id and not url_result_to_update.target_id:

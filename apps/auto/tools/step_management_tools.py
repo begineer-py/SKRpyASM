@@ -6,9 +6,22 @@ logger = logging.getLogger(__name__)
 
 class StepManagementMixin:
     """
-    Step Management & Workflow Tools Mixin
-    Provides tools for creating, querying, and updating steps in the automated pentesting workflow.
+    Execution workflow tools mixin.
+    Provides tools for creating, querying, and updating execution graph planning state.
     """
+
+    def _get_current_execution_context(self):
+        from apps.core.models import ExecutionGraph, ExecutionNode
+
+        graph = getattr(self, "_execution_graph", None)
+        node = getattr(self, "_current_execution_node", None)
+        if graph is None:
+            graph_id = getattr(self, "_current_execution_graph_id", None)
+            graph = ExecutionGraph.objects.filter(id=graph_id).first() if graph_id else None
+        if node is None:
+            node_id = getattr(self, "_current_execution_node_id", None)
+            node = ExecutionNode.objects.filter(id=node_id).first() if node_id else None
+        return graph, node
 
     @method_tool
     def update_overview_status(self, overview_id: int = None, new_status: str = None, new_summary: str = None, new_knowledge: dict = None, new_plan: dict = None, new_risk_score: int = None) -> str:
@@ -70,105 +83,99 @@ class StepManagementMixin:
         ai_thoughts: str | None = None,
         append: bool = False,
     ) -> str:
-        """Update (or create) the human-facing StepNote.
+        """Record a human-facing note on the current execution graph.
 
         Intended workflow:
-        - `summary` is a short human-friendly note shown in the step list/preview.
+        - `summary` is a short human-friendly note shown in execution previews.
         - `details` and `ai_thoughts` can contain longer execution trace / reasoning.
         - If `append=True`, the provided text will be appended.
         """
         try:
-            from apps.core.models import Step
-            from apps.core.models.analyze.Step import StepNote
+            from apps.core.models import ExecutionNode
+            from apps.core.services import ExecutionService
 
-            step = Step.objects.filter(id=step_id).first()
-            if not step:
-                return f"CRITICAL_FAILURE: Step#{step_id} not found."
+            graph, current_node = self._get_current_execution_context()
+            node = ExecutionNode.objects.filter(id=step_id).first() if step_id else current_node
+            if graph is None and node is not None:
+                graph = node.graph
+            if graph is None:
+                return "CRITICAL_FAILURE: no active ExecutionGraph found."
 
-            note, _created = StepNote.objects.get_or_create(step=step)
-
-            def _merge(old: str | None, new: str | None) -> str | None:
-                if new is None:
-                    return old
-                if not append:
-                    return new
-                if not old:
-                    return new
-                return old + "\n" + new
-
-            # Keep summary in content by default (human-facing)
-            note.content = _merge(note.content, summary)
-            # Store longer details by appending into content if provided
-            if details:
-                note.content = _merge(note.content, details)
-            note.ai_thoughts = _merge(note.ai_thoughts, ai_thoughts)
-            note.save(update_fields=["content", "ai_thoughts"])
-
-            return f"✅ Step#{step_id} StepNote updated."
+            note_parts = [value for value in [summary, details, ai_thoughts] if value]
+            note_content = "\n\n".join(note_parts)
+            event = ExecutionService.emit_event(
+                graph=graph,
+                node=node,
+                event_type="execution_note_recorded",
+                status=getattr(node, "status", None),
+                content=summary or details or ai_thoughts or "Execution note recorded",
+                payload={
+                    "execution_node_id_param": step_id,
+                    "summary": summary,
+                    "details": details,
+                    "ai_thoughts": ai_thoughts,
+                    "append": append,
+                },
+            )
+            artifact = ExecutionService.attach_artifact(
+                graph=graph,
+                node=node,
+                artifact_type="execution_note",
+                name=(summary or "Execution Note")[:255],
+                content=note_content,
+                data={"execution_node_id_param": step_id, "append": append},
+            )
+            return f"✅ ExecutionEvent#{event.id} / ExecutionArtifact#{artifact.id} recorded."
         except Exception as e:
-            logger.error(f"update_step_note failed for step_id={step_id}: {e}")
-            return f"更新 StepNote 失敗: {e}"
+            logger.error(f"update_step_note failed for execution_node_id={step_id}: {e}")
+            return f"記錄 execution note 失敗: {e}"
 
     @method_tool
     def query_steps(self, overview_id: int = None, status_filter: str = None, limit: int = 20) -> str:
         """
-        查詢指定 Overview 下的所有 Step 的詳細狀態與內容。
+        查詢指定 Overview 關聯 thread 下的 execution graph/node 詳細狀態與內容。
         可以按狀態過濾 (e.g. 只看 COMPLETED 或 FAILED)。
-        回傳每個 Step 的 ID、狀態、關聯攻擊向量、筆記內容。
+        回傳每個 ExecutionNode 的 ID、狀態與最新事件。
 
         Args:
             overview_id: (Optional) 要查詢的 Overview ID。自動注入。
-            status_filter: (選填) 過濾狀態 ('PENDING', 'RUNNING', 'COMPLETED', 'FAILED', 'WAITING_FOR_ASYNC', 'ENDED')。
+            status_filter: (選填) 過濾 graph 狀態 ('RUNNING', 'WAITING', 'SUCCEEDED', 'FAILED')。
             limit: (選填) 最大回傳數量，預設 20。
         """
         try:
-            from apps.core.models.analyze.Step import Step, StepNote
-            from apps.core.models import Overview
+            from apps.core.models import ExecutionGraph, Overview
 
             if not Overview.objects.filter(id=overview_id).exists():
                 return f"CRITICAL_FAILURE: overview_id={overview_id} does not exist."
+            overview = Overview.objects.get(id=overview_id)
 
-            qs = Step.objects.filter(overview_id=overview_id).prefetch_related(
-                'discovered_vectors', 'note_detail', 'content_blobs'
-            ).order_by('-created_at')
-
+            thread_ids = [value for value in [overview.thread_id, overview.parent_thread_id] if value]
+            qs = ExecutionGraph.objects.filter(thread_id__in=thread_ids).prefetch_related("nodes", "events") if thread_ids else ExecutionGraph.objects.none()
             if status_filter:
                 qs = qs.filter(status=status_filter)
 
-            steps = qs[:limit]
-            if not steps:
-                return f"Overview#{overview_id} 下沒有找到符合條件的 Step。"
+            graphs = list(qs.order_by("-started_at")[:limit])
+            if not graphs:
+                return f"Overview#{overview_id} 下沒有找到符合條件的 ExecutionGraph。"
 
-            lines = [f"=== Steps for Overview#{overview_id} (顯示 {len(steps)} 筆) ==="]
-            for s in steps:
-                # Attack Vector 資訊
-                vectors = s.discovered_vectors.all()
-                vector_info = ", ".join([f"{v.name}({v.id})" for v in vectors]) if vectors else "None"
-
-                # StepNote 內容
-                note_content = ""
-                if hasattr(s, 'note_detail') and s.note_detail:
-                    note_content = s.note_detail.content[:300] if s.note_detail.content else ""
-
-                # ContentBlob 摘要
-                blobs = s.content_blobs.all()
-                blob_info = ""
-                if blobs:
-                    blob_info = " | Blobs: " + ", ".join(
-                        [f"blob_id={b.id}({b.content_size}chars)" for b in blobs]
-                    )
-
+            lines = [f"=== Executions for Overview#{overview_id} (顯示 {len(graphs)} 筆) ==="]
+            for graph in graphs:
+                nodes = list(graph.nodes.order_by("sequence")[:10])
+                latest_event = graph.events.order_by("-sequence").first()
                 lines.append(
-                    f"- Step[{s.id}] Status:{s.status} | Created:{s.created_at.strftime('%m-%d %H:%M')} "
-                    f"| Vectors:{vector_info}{blob_info}"
-                    f"\n  Note: {note_content[:200]}{'...' if len(note_content) > 200 else ''}"
+                    f"- ExecutionGraph[{graph.id}] Status:{graph.status} | Started:{graph.started_at.strftime('%m-%d %H:%M')} "
+                    f"| Nodes:{len(nodes)} | Title:{graph.title or graph.assistant_id}"
                 )
+                for node in nodes:
+                    lines.append(f"  - Node[{node.id}] {node.name} Status:{node.status} Kind:{node.kind}")
+                if latest_event:
+                    lines.append(f"  LatestEvent[{latest_event.sequence}] {latest_event.event_type}: {latest_event.content[:200]}")
 
             lines.append("=== END ===")
             return "\n".join(lines)
         except Exception as e:
             logger.error(f"query_steps failed for overview {overview_id}: {e}")
-            return f"查詢 Steps 失敗: {e}"
+            return f"查詢 executions 失敗: {e}"
 
     @method_tool
     def create_step(
@@ -185,8 +192,8 @@ class StepManagementMixin:
         ai_thoughts: str = None,
     ) -> str:
         """
-        [Workflow] 建立一個新的任務步驟 (Step) 與關聯的攻擊向量。
-        這會同步建立關聯的 StepNote、AttackVector 以及 CommandTemplate。
+        [Workflow] 建立一個 execution planning artifact 與關聯的攻擊向量。
+        這會同步建立 ExecutionArtifact、AttackVector 以及 CommandTemplate。
 
         Args:
             overview_id: (Optional) 關聯的 Overview ID。自動注入。
@@ -195,30 +202,55 @@ class StepManagementMixin:
             description: 這個步驟的說明與目的。
             asset_fk_field: 關聯的資產類型 ('ip', 'subdomain', 或 'url_result')。
             asset_fk_value_id: 關聯的資產主鍵 ID。
-            parent_step_id: (Optional) 父步驟 ID。
+            parent_step_id: (Optional) 父 ExecutionNode ID。
             tool_name: (Optional) 使用的工具名稱 (nmap, nuclei 等)。
             note: (Optional) AI寫給人類看的進度筆記。
             ai_thoughts: (Optional) AI內部推理過程筆記。
         """
         try:
-            from apps.core.models import Step, AttackVector, Overview
-            from apps.core.models.analyze.Step import StepNote
+            from apps.core.models import AttackVector, Overview
             from apps.core.models.analyze.AttackVector import CommandTemplate
+            from apps.core.services import ExecutionService
             
             # Overview ID 前置驗證：AI 幻覺防火牆
             if not Overview.objects.filter(id=overview_id).exists():
                 logger.error(f"Hallucinated overview_id={overview_id}, does not exist in DB.")
                 return f"CRITICAL_FAILURE: overview_id={overview_id} does not exist. DO NOT RETRY. Use only the overview_id given in your starting context."
             
-            if parent_step_id and not Step.objects.filter(id=parent_step_id).exists():
-                logger.warning(f"Invalid parent_step_id {parent_step_id}, setting to None")
-                parent_step_id = None
-
-            step = Step.create_next(
-                overview_id=overview_id,
-                parent_step_id=parent_step_id,
-                status="PENDING"
-            )
+            graph, node = self._get_current_execution_context()
+            if graph is not None:
+                ExecutionService.emit_event(
+                    graph=graph,
+                    node=node,
+                    event_type="execution_plan_item_created",
+                    status="planned",
+                    content=description or command_name or tool_name or "Execution plan item created",
+                    payload={
+                        "overview_id": overview_id,
+                        "tool_name": tool_name,
+                        "command_name": command_name,
+                        "command": command_template_str,
+                        "asset_fk_field": asset_fk_field,
+                        "asset_fk_value_id": asset_fk_value_id,
+                        "parent_execution_node_id_param": parent_step_id,
+                    },
+                )
+                artifact = ExecutionService.attach_artifact(
+                    graph=graph,
+                    node=node,
+                    artifact_type="execution_plan_item",
+                    name=(command_name or tool_name or "Execution Plan Item")[:255],
+                    content=note or description or command_template_str or "",
+                    data={
+                        "overview_id": overview_id,
+                        "tool_name": tool_name,
+                        "command_name": command_name,
+                        "command": command_template_str,
+                        "ai_thoughts": ai_thoughts,
+                    },
+                )
+            else:
+                artifact = None
             
             if asset_fk_field and asset_fk_value_id:
                 # 資產 ID 前置驗證：在寫入 M2M 前先確認資產存在
@@ -233,23 +265,11 @@ class StepManagementMixin:
                     _mod = importlib.import_module(_model_info[0])
                     _AssetModel = getattr(_mod, _model_info[1])
                     if not _AssetModel.objects.filter(id=asset_fk_value_id).exists():
-                        logger.warning(f"Hallucinated asset {asset_fk_field}_id={asset_fk_value_id}. Rolling back step and returning CRITICAL_FAILURE.")
-                        step.delete()
+                        logger.warning(f"Hallucinated asset {asset_fk_field}_id={asset_fk_value_id}. Returning CRITICAL_FAILURE.")
                         return f"CRITICAL_FAILURE: asset {asset_fk_field}_id={asset_fk_value_id} does not exist in the database. Use ONLY IDs from your starting context. DO NOT RETRY with the same ID."
 
-                m2m_mgr = getattr(step, asset_fk_field, None)
-                if m2m_mgr is not None:
-                    try:
-                        m2m_mgr.add(asset_fk_value_id)
-                    except Exception as m2m_err:
-                        logger.warning(f"Invalid asset {asset_fk_field}={asset_fk_value_id}, ignored: {m2m_err}")
-            
-            if note or ai_thoughts:
-                StepNote.objects.create(step=step, content=note, ai_thoughts=ai_thoughts)
-            
             vector = AttackVector.objects.create(
                 overview_id=overview_id,
-                discovery_step=step,
                 name=f"Attack Vector via {tool_name or 'Tool'}",
                 description=description,
                 status="IDENTIFIED"
@@ -263,10 +283,10 @@ class StepManagementMixin:
                 command=command_template_str
             )
             
-            return f"成功建立新的 Step#{step.id}, AttackVector#{vector.id}, 與 CommandTemplate#{cmd.id}！"
+            return f"成功建立 ExecutionArtifact#{getattr(artifact, 'id', 'N/A')}, AttackVector#{vector.id}, 與 CommandTemplate#{cmd.id}！"
         except Exception as e:
             logger.error(f"Failed to create step: {e}")
-            return f"建立 Step 時發生錯誤: {e}"
+            return f"建立 execution plan item 時發生錯誤: {e}"
 
     @method_tool
     def update_step_status(
@@ -276,60 +296,67 @@ class StepManagementMixin:
         execution_output: str = None,
     ) -> str:
         """
-        更新指定 Step 的執行狀態。
+        更新指定 ExecutionNode 的執行狀態。
         
         **AI 使用規則 (MANDATORY WORKFLOW)**:
-        - 在呼叫任何掃描 API 工具「之前」，先呼叫此工具將 Step 設為 RUNNING。
-        - 如果工具是非同步的 (會有 callback)，呼叫後設為 WAITING_FOR_ASYNC。
-        - 如果工具立即返回成功結果，設為 COMPLETED。
+        - 在呼叫任何掃描 API 工具之前，先確認目前 ExecutionNode 為 RUNNING。
+        - 如果工具是非同步的，呼叫後設為 WAITING。
+        - 如果工具立即返回成功結果，設為 SUCCEEDED。
         - 如果工具返回 CRITICAL_FAILURE，設為 FAILED 並附上錯誤輸出。
         
-        Valid status values: PENDING, RUNNING, COMPLETED, FAILED, WAITING_FOR_ASYNC, ENDED
+        Valid status values: PENDING, RUNNING, SUCCEEDED, FAILED, WAITING, CANCELLED, SKIPPED, BLOCKED
 
         Args:
-            step_id: 要更新的 Step ID。
-            status: 新狀態 (RUNNING / COMPLETED / FAILED / WAITING_FOR_ASYNC / ENDED)。
+            step_id: 要更新的 ExecutionNode ID（保留舊參數名以相容工具 schema）。
+            status: 新狀態 (RUNNING / SUCCEEDED / FAILED / WAITING / CANCELLED / SKIPPED / BLOCKED)。
             execution_output: (Optional) 執行結果摘要或錯誤訊息。
         """
         try:
-            from apps.core.models import Step
-            from apps.core.models.analyze.Step import StepNote
-            from django.utils import timezone
-            
-            step = Step.objects.get(id=step_id)
-            valid_statuses = ["PENDING", "RUNNING", "COMPLETED", "FAILED", "WAITING_FOR_ASYNC", "ENDED"]
-            if status not in valid_statuses:
-                return f"無效的 status 值: '{status}'。請使用: {valid_statuses}"
-            
-            step.status = status
-            
-            # 📍 P0 FIX: 當 Step 完成或失敗時，設置 completed_at 時間戳
-            if status in ["COMPLETED", "FAILED", "ENDED"]:
-                step.completed_at = timezone.now()
-            
-            step.save(update_fields=["status", "completed_at"])
-            
-            # Append execution output to StepNote without destroying the first-line summary.
-            if execution_output:
-                note, _ = StepNote.objects.get_or_create(step=step)
-                existing = (note.content or "").strip()
-                details_line = f"[{status}] {execution_output}".strip()
-                if existing:
-                    first_line = (existing.split("\n")[0] or "").strip()
-                    rest = "\n".join(existing.split("\n")[1:]).strip()
-                    combined = first_line
-                    if rest:
-                        combined += "\n" + rest
-                    combined += "\n\n" + details_line
-                    note.content = combined
-                else:
-                    # If we have no summary yet, create one from the status line.
-                    note.content = details_line
-                note.save(update_fields=["content"])
-            
-            return f"Step#{step_id} 狀態已更新為 {status}。"
+            from apps.core.models import ExecutionNode
+            from apps.core.services import ExecutionService
+
+            node = ExecutionNode.objects.filter(id=step_id).first()
+            if not node:
+                return f"CRITICAL_FAILURE: ExecutionNode#{step_id} not found."
+
+            status_map = {
+                "PENDING": ExecutionNode.Status.PENDING,
+                "RUNNING": ExecutionNode.Status.RUNNING,
+                "COMPLETED": ExecutionNode.Status.SUCCEEDED,
+                "FAILED": ExecutionNode.Status.FAILED,
+                "WAITING_FOR_ASYNC": ExecutionNode.Status.WAITING,
+                "ENDED": ExecutionNode.Status.SUCCEEDED,
+                "SUCCEEDED": ExecutionNode.Status.SUCCEEDED,
+                "WAITING": ExecutionNode.Status.WAITING,
+                "CANCELLED": ExecutionNode.Status.CANCELLED,
+                "SKIPPED": ExecutionNode.Status.SKIPPED,
+                "BLOCKED": ExecutionNode.Status.BLOCKED,
+            }
+            normalized = status_map.get(status)
+            if normalized is None:
+                return f"無效的 status 值: '{status}'。請使用: {list(status_map.keys())}"
+
+            if normalized == ExecutionNode.Status.SUCCEEDED:
+                ExecutionService.complete_node(node, output={"preview": (execution_output or "")[:4000]}, content=execution_output or status)
+            elif normalized == ExecutionNode.Status.FAILED:
+                ExecutionService.fail_node(node, error={"message": execution_output or ""}, content=execution_output or status)
+            elif normalized == ExecutionNode.Status.WAITING:
+                ExecutionService.wait_node(node, wait_reason="MANUAL_STATUS_UPDATE", content=execution_output or status)
+            else:
+                node.status = normalized
+                node.save(update_fields=["status", "updated_at"])
+                ExecutionService.emit_event(
+                    graph=node.graph,
+                    node=node,
+                    event_type="node_status_updated",
+                    status=normalized,
+                    content=execution_output or status,
+                    payload={"execution_node_id_param": step_id, "requested_status": status},
+                )
+
+            return f"ExecutionNode#{step_id} 狀態已更新為 {normalized}。"
         except Exception as e:
-            return f"更新 Step#{step_id} 狀態失敗: {e}"
+            return f"更新 ExecutionNode#{step_id} 狀態失敗: {e}"
 
     @method_tool
     def create_verification(
@@ -345,12 +372,12 @@ class StepManagementMixin:
         
         Args:
             attack_vector_id: 目標 AttackVector 的 ID。
-            observation_prompt: 驗證標準，描述「這個步驟的成功標準」(如: 'nmap 輸出中出現漏洞 CVE')。
+            observation_prompt: 驗證標準，描述成功條件（如: 'nmap 輸出中出現漏洞 CVE'）。
             confidence_threshold: 信心門檻 (預設 75)。
             auto_create_vulnerability: 驗證通過時是否自動回報漏洞 (預設 False)。
         """
         try:
-            from apps.core.models.analyze.Step import Verification
+            from apps.core.models.analyze.Verification import Verification
             v = Verification.objects.create(
                 attack_vector_id=attack_vector_id,
                 observation_prompt=observation_prompt,
@@ -372,7 +399,7 @@ class StepManagementMixin:
         """
         取得此 Overview 中所有狀態為 EXHAUSTED (失敗) 或 MITIGATED (已緩解) 的攻擊向量（支持分页）。
 
-        AI 在規劃 Step 前應先呼叫此工具，避免重複使用已經失敗的攻擊向量！
+        AI 在規劃新行動前應先呼叫此工具，避免重複使用已經失敗的攻擊向量！
 
         Args:
             overview_id: Overview ID

@@ -10,12 +10,6 @@ class ContentBlob(models.Model):
 
     存入時自動產生 ai_summary，避免每次都要重新分析一次。
     """
-    # 可選關聯：哪個 Step 觸發了這段內容
-    step = models.ForeignKey(
-        'core.Step', null=True, blank=True,
-        on_delete=models.SET_NULL, related_name='content_blobs'
-    )
-
     # 內容來源標籤
     SOURCE_CHOICES = [
         ('curl', 'Shell/Curl Output'),

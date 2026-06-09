@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 @shared_task(name="nuclei_scanner.tasks.url_tech.scan_url_tech_stack")
-def scan_url_tech_stack(url_result_ids: list[int], callback_step_id: int = None, target_id: int = None, execution_graph_id: int | None = None, execution_node_id: int | None = None):
+def scan_url_tech_stack(url_result_ids: list[int], target_id: int = None, execution_graph_id: int | None = None, execution_node_id: int | None = None):
     """
     針對指定的 URLResult 執行技術堆疊掃描
     """
@@ -64,7 +64,7 @@ def scan_url_tech_stack(url_result_ids: list[int], callback_step_id: int = None,
             continue
 
     # === CVE 對應：自動觸發 TechStack CVE 同步 ===
-    if callback_step_id and urls_to_scan.exists():
+    if urls_to_scan.exists():
         from apps.scanners.cve_intelligence.tasks.enrichment_tasks import sync_techstack_cves
 
         # 取得所有相關的 target_id
@@ -73,7 +73,7 @@ def scan_url_tech_stack(url_result_ids: list[int], callback_step_id: int = None,
         for target_id in target_ids:
             if target_id:
                 logger.info(f"Triggering TechStack CVE sync for target {target_id}")
-                sync_techstack_cves.delay(target_id, callback_step_id)
+                sync_techstack_cves.delay(target_id)
 
     result = f"完成 {results_count} 個 URL 的技術堆疊掃描"
     _complete_execution_node(execution_node_id, content=result, output={"results_count": results_count})

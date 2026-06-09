@@ -17,7 +17,6 @@ def execute_nuclei_command(
     asset_map: Dict[str, int],
     asset_type: str,
     scan_record_ids: List[int],
-    callback_step_id: Optional[int] = None,
     execution_node_id: Optional[int] = None,
 ):
     """
@@ -118,21 +117,20 @@ def execute_nuclei_command(
         _complete_execution_node(execution_node_id, content=f"{asset_type} Nuclei 掃描完成", output={"scan_record_ids": scan_record_ids})
 
         # === CVE 豐富化：自動觸發 ===
-        if callback_step_id:
-            from apps.scanners.cve_intelligence.tasks.enrichment_tasks import enrich_vulnerabilities_batch
-            from apps.core.models import Vulnerability
+        from apps.scanners.cve_intelligence.tasks.enrichment_tasks import enrich_vulnerabilities_batch
+        from apps.core.models import Vulnerability
 
-            # 查詢待豐富化的 Vulnerability（限制數量避免過載）
-            vuln_ids = list(Vulnerability.objects.filter(
-                tool_source="nuclei",
-                enrichment_status="pending"
-            ).values_list("id", flat=True)[:50])
+        # 查詢待豐富化的 Vulnerability（限制數量避免過載）
+        vuln_ids = list(Vulnerability.objects.filter(
+            tool_source="nuclei",
+            enrichment_status="pending"
+        ).values_list("id", flat=True)[:50])
 
-            if vuln_ids:
-                logger.info(f"Triggering CVE enrichment for {len(vuln_ids)} vulnerabilities")
-                enrich_vulnerabilities_batch.delay(vuln_ids, callback_step_id)
-            else:
-                logger.debug("No pending vulnerabilities for CVE enrichment")
+        if vuln_ids:
+            logger.info(f"Triggering CVE enrichment for {len(vuln_ids)} vulnerabilities")
+            enrich_vulnerabilities_batch.delay(vuln_ids)
+        else:
+            logger.debug("No pending vulnerabilities for CVE enrichment")
 
     except Exception as e:
         logger.exception(f"{asset_type} Nuclei 掃描執行失敗: {e}")
@@ -159,7 +157,7 @@ def execute_nuclei_command(
 # =============================================================================
 
 def _execute_nuclei_batch(
-    asset_type: str, ids: List[int], custom_tags: Optional[List[str]] = None, task_self=None, callback_step_id: Optional[int] = None, target_id: Optional[int] = None, execution_graph_id: Optional[int] = None, execution_node_id: Optional[int] = None
+    asset_type: str, ids: List[int], custom_tags: Optional[List[str]] = None, task_self=None, target_id: Optional[int] = None, execution_graph_id: Optional[int] = None, execution_node_id: Optional[int] = None
 ) -> str:
     """
     【通用 Nuclei 執行助手】
@@ -182,7 +180,10 @@ def _execute_nuclei_batch(
         logger.warning(f"[{cfg.asset_name}] 沒有需要掃描的目標。")
         return "Nuclei 掃描終止：沒有有效的掃描目標。"
 
-    logger.info(f"[{cfg.asset_name}] 啟動 Nuclei 掃描 | 目標數: {len(asset_map)} | Tags: {final_tags_str} | Step: {callback_step_id}")
+    logger.info(
+        f"[{cfg.asset_name}] 啟動 Nuclei 掃描 | 目標數: {len(asset_map)} | "
+        f"Tags: {final_tags_str} | ExecutionNode: {execution_node_id}"
+    )
 
     # 2. 建構標準化核心命令
     command = (
@@ -215,7 +216,6 @@ def _execute_nuclei_batch(
         asset_map=asset_map,
         asset_type=cfg.asset_name,
         scan_record_ids=scan_record_ids,
-        callback_step_id=callback_step_id,
         execution_node_id=execution_node_id,
     )
 

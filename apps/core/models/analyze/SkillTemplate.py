@@ -11,7 +11,7 @@ class SkillTemplate(models.Model):
     
     新增: 完整的類型驗證系統，包括輸入/輸出 schema 定義與執行時驗證。
     """
-    name = models.CharField(max_length=100, unique=True, help_text="技能名稱，例如 django-csrf-bypass")
+    name = models.CharField(max_length=100, db_index=True, help_text="技能名稱，例如 django-csrf-bypass")
     description = models.TextField(help_text="技能摘要描述。用於 RAG 檢索，讓 AI 判斷是否需要呼叫此技能。")
     instructions = models.TextField(help_text="等同於 SKILL.md，包含該如何正確使用與傳參的指南。")
     script_content = models.TextField(blank=True, null=True, help_text="實際執行的工具源碼 (例如 Python 或 Bash 腳本)。")
@@ -176,12 +176,13 @@ class SkillTemplate(models.Model):
 
         self.full_clean()
         
-        # 如果是已驗證的技能，且內容有變，自動遞增版本
         if self.is_robust and self.pk:
             original = SkillTemplate.objects.get(pk=self.pk)
             if original.script_content != self.script_content or original.input_schema != self.input_schema:
+                self.pk = None
+                self._state.adding = True
                 self.version += 1
-                self.is_robust = False  # 新版本重新需要驗證
+                self.is_robust = False
                 self.last_verified_at = None
         
         super().save(*args, **kwargs)

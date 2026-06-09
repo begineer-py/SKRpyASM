@@ -162,7 +162,6 @@ class ExecutionServiceTests(TestCase):
         graph = ExecutionService.start_graph(thread=thread, assistant_id="test", title="Execution Test")
         node = ExecutionService.start_node(graph=graph, name="scan", kind=ExecutionNode.Kind.SCANNER)
         ExecutionService.complete_node(node, output={"ok": True}, content="scan complete")
-        ExecutionService.complete_graph(graph, content="done")
 
         events = list(ExecutionEvent.objects.filter(graph=graph).order_by("sequence"))
         node.refresh_from_db()
@@ -184,15 +183,15 @@ class ThreadEventStreamFormattingTests(TestCase):
             tool_name="scan",
             status="started",
             content="scan started",
-            payload={"step_id": 123},
+            payload={"execution_node_id": 123},
             sequence=7,
         )
 
         payload = _event_payload(event)
         self.assertEqual(payload["sequence"], 7)
-        self.assertEqual(payload["payload"], {"step_id": 123})
+        self.assertEqual(payload["payload"], {"execution_node_id": 123})
 
         sse = _sse_event(payload, event=event.event_type, event_id=event.sequence)
         self.assertIn("id: 7", sse)
         self.assertIn("event: tool_started", sse)
-        self.assertIn('"step_id": 123', sse)
+        self.assertIn('"execution_node_id": 123', sse)

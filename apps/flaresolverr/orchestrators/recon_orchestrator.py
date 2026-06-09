@@ -78,6 +78,7 @@ class ReconOrchestrator:
             "content_fetch_status": "PENDING",
             "raw_response_hash": "",
             "cleaned_html": "",
+            "dom_snapshot": "",
             "extracted_js": "",
             "processed_links": {"internal": [], "external": []},
             "text": "",
@@ -190,10 +191,15 @@ class ReconOrchestrator:
             # HackerGF 吃資源，只在有內容時跑
             if response_text:
                 lines = response_text.splitlines()
-                result["analysis_result"] = self.analyzer.run_all_patterns(lines)
-                logger.info(
-                    f"HackerGF 發現 {len(result['analysis_result'])} 個潛在點。"
-                )
+                try:
+                    result["analysis_result"] = self.analyzer.run_all_patterns(lines)
+                    logger.info(
+                        f"HackerGF 發現 {len(result['analysis_result'])} 個潛在點。"
+                    )
+                except Exception as e:
+                    logger.error(f"HackerGF 分析異常: {e}")
+                    result["analysis_result"] = []
+                    result["error"] = f"HackerGF error: {e}"
 
             # --- D. 高級連結提取 (JS & Comments) ---
             extracted_links = self._extract_advanced_links(
@@ -212,18 +218,30 @@ class ReconOrchestrator:
 
             # --- F. 連結歸一化 ---
             logger.info(f"正在處理共 {len(raw_link_pool)} 個原始連結標籤...")
-            processed_links = process_all_discovered_links(
-                result["final_url"], raw_link_pool
-            )
+            try:
+                processed_links = process_all_discovered_links(
+                    result["final_url"], raw_link_pool
+                )
+            except Exception as e:
+                logger.error(f"連結歸一化異常: {e}")
+                processed_links = {"internal": [], "external": []}
+                if not result.get("error"):
+                    result["error"] = f"Link processing error: {e}"
             result["processed_links"] = processed_links
 
             # --- G. Source Map 挖掘 ---
             response_headers = response_data.get("response_headers", {})
-            source_map_result = self._run_source_map_scan(
-                result.get("scripts_result", []),
-                response_headers,
-                result.get("extracted_js", ""),
-            )
+            try:
+                source_map_result = self._run_source_map_scan(
+                    result.get("scripts_result", []),
+                    response_headers,
+                    result.get("extracted_js", ""),
+                )
+            except Exception as e:
+                logger.error(f"SourceMap 掃描異常: {e}")
+                source_map_result = {"findings": [], "endpoints": [], "map_files": []}
+                if not result.get("error"):
+                    result["error"] = f"SourceMap error: {e}"
             result["source_map_result"] = source_map_result
 
             # 補充雜項
@@ -310,6 +328,7 @@ class ReconOrchestrator:
                 "meta_tags_result": analysis.get("meta_tags", []),
                 "iframes_result": analysis.get("iframes", []),
                 "cleaned_html": analysis.get("cleaned_html", ""),
+                "dom_snapshot": analysis.get("dom_snapshot", ""),
                 "extracted_js": analysis.get("extracted_js", ""),
                 "text": analysis.get("text", ""),
                 # title 會在外部處理
