@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 from .models.pentest_config import PentestHeaderConfig
 from .models.target_request_config import TargetRequestConfig
 from .models.base import Target
-from .models import ExecutionArtifact, ExecutionEvent, ExecutionGraph, ExecutionNode
+from .models import ExecutionArtifact, ExecutionEvent, ExecutionGraph, ExecutionNode, Overview
 from .schemas import (
     ExecutionArtifactSchema,
     ExecutionEventSchema,
@@ -95,6 +95,7 @@ def delete_target_request_config(request, target_id: int):
 def list_execution_graphs(
     request,
     thread_id: Optional[int] = None,
+    target_id: Optional[int] = None,
     status: Optional[str] = None,
     limit: int = 50,
 ):
@@ -102,6 +103,17 @@ def list_execution_graphs(
     queryset = ExecutionGraph.objects.all().order_by("-started_at")
     if thread_id is not None:
         queryset = queryset.filter(thread_id=thread_id)
+    if target_id is not None:
+        thread_ids = set(
+            Overview.objects.filter(target_id=target_id)
+            .values_list("thread_id", flat=True)
+        )
+        thread_ids.update(
+            Overview.objects.filter(target_id=target_id)
+            .values_list("parent_thread_id", flat=True)
+        )
+        thread_ids.discard(None)
+        queryset = queryset.filter(thread_id__in=thread_ids) if thread_ids else queryset.none()
     if status:
         queryset = queryset.filter(status=status)
     return list(queryset[:limit])

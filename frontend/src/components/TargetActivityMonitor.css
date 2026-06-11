@@ -260,8 +260,8 @@
   flex-shrink: 0;
 }
 
-/* Step summary (always visible) */
-.step-summary {
+/* Execution summary (always visible) */
+.execution-summary {
   font-size: 12px;
   color: #111827;
   margin-top: 4px;

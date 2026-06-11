@@ -4,6 +4,8 @@ import { executionApi } from '../services/executionApi';
 import type { ExecutionEvent, ExecutionGraphDetail } from '../services/executionApi';
 import './ExecutionTimelineViewer.css';
 
+const EMPTY_EVENTS: ExecutionEvent[] = [];
+
 interface ExecutionTimelineViewerProps {
   graphId: number | null;
   autoScroll?: boolean;
@@ -62,7 +64,7 @@ export default function ExecutionTimelineViewer({ graphId, autoScroll = true, co
     };
   }, [graphId]);
 
-  const { events, isConnected, error, lastSequence } = useExecutionEventStream(graphId, graph?.events ?? []);
+  const { events, isConnected, error, lastSequence } = useExecutionEventStream(graphId, graph?.events ?? EMPTY_EVENTS);
 
   const nodeById = useMemo(() => {
     const map = new Map<number, string>();
