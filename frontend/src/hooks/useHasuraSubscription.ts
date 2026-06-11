@@ -17,7 +17,7 @@ const wsClient = createClient({
   shouldRetry: () => true, // 總是重試
 });
 
-export function useHasuraSubscription(query: string, variables?: Record<string, any>) {
+export function useHasuraSubscription(query: string, variables?: Record<string, any>, enabled = true) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -25,6 +25,12 @@ export function useHasuraSubscription(query: string, variables?: Record<string, 
   const retryCountRef = useRef(0);
 
   useEffect(() => {
+    if (!enabled || !query.trim()) {
+      setLoading(false);
+      setIsConnected(false);
+      return;
+    }
+
     let unsubscribe: (() => void) | null = null;
     let reconnectTimeout: NodeJS.Timeout | null = null;
 
@@ -76,7 +82,7 @@ export function useHasuraSubscription(query: string, variables?: Record<string, 
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
       if (unsubscribe) unsubscribe();
     };
-  }, [query, JSON.stringify(variables)]);
+  }, [enabled, query, JSON.stringify(variables)]);
 
   return { data, loading, error, isConnected };
 }

@@ -14,6 +14,13 @@ class APIKeyOut(Schema):
     created_at: datetime
     updated_at: datetime
 
+    @staticmethod
+    def resolve_key_value(obj):
+        key = obj.get_key()
+        if key and len(key) > 8:
+            return key[:4] + "****" + key[-4:]
+        return "****"
+
 class APIKeyIn(Schema):
     service_name: str
     key_value: str

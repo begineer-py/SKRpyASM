@@ -16,7 +16,56 @@ def promote_to_skill(
     description: Optional[str] = None,
     force: bool = False
 ) -> Tuple[bool, str]:
-    return False, "舊版腳本執行記錄已移除；請從 ExecutionArtifact(skill_execution) 建立或更新 SkillTemplate。"
+    """
+    從 ScriptExecution 升級為 SkillTemplate。
+    如果 ScriptExecution 不存在或不可用，嘗試從 ExecutionArtifact 建立。
+    """
+    from apps.core.models.analyze.SkillTemplate import SkillTemplate
+    from apps.core.models.analyze.AttackVector import ScriptExecution
+
+    try:
+        script_exec = ScriptExecution.objects.select_related("skill", "attack_vector").get(id=script_execution_id)
+    except ScriptExecution.DoesNotExist:
+        return False, f"ScriptExecution #{script_execution_id} 不存在"
+
+    if not force:
+        if script_exec.status != "SUCCESS":
+            return False, f"只有 SUCCESS 狀態的執行才能升級，目前狀態: {script_exec.status}"
+        if script_exec.validation_status not in ("VALIDATED", "NOT_VALIDATED"):
+            return False, f"輸入/輸出驗證失敗，無法升級: {script_exec.validation_status}"
+
+    if SkillTemplate.objects.filter(name=skill_name).exists():
+        return False, f"Skill '{skill_name}' 已存在"
+
+    if description is None:
+        if script_exec.attack_vector:
+            description = f"Script to handle attack vector: {script_exec.attack_vector.name}"
+        elif script_exec.step:
+            description = f"Script from legacy Step #{script_exec.step.id}"
+        else:
+            description = "Promoted from successful script execution"
+
+    instructions = _generate_instructions(script_exec)
+
+    try:
+        skill = SkillTemplate.objects.create(
+            name=skill_name,
+            description=description,
+            instructions=instructions,
+            script_content=script_exec.script_content,
+            language=script_exec.script_language,
+            tags=tags or [],
+            input_schema=script_exec.input_json or {},
+            output_schema=script_exec.output_json or {},
+            version=1,
+            is_robust=False,
+        )
+        script_exec.skill = skill
+        script_exec.save(update_fields=["skill"])
+        logger.info(f"Successfully promoted ScriptExecution #{script_execution_id} to Skill '{skill_name}'")
+        return True, f"Script promoted to Skill '{skill_name}' (ID: {skill.id})"
+    except Exception as e:
+        return False, f"升級失敗: {str(e)}"
 
 
 def _generate_instructions(script_exec) -> str:

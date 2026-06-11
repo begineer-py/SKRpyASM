@@ -1,7 +1,7 @@
 /**
  * TelemetryPanel Component
  * 
- * Sidebar showing LLM metrics, step execution summary, and waveform chart.
+ * Sidebar showing LLM metrics, execution summary, and waveform chart.
  * Part of P11 redesigned AICenterPage layout (Sidebar + Main Content).
  */
 
@@ -9,23 +9,21 @@ import { useMemo } from 'react';
 import { WaveformChart } from './WaveformChart';
 import { TutorialPanel } from './TutorialPanel';
 
-interface Step {
+interface ExecutionSample {
   id: number;
   status: 'COMPLETED' | 'FAILED' | 'RUNNING' | 'PENDING';
   estimated_duration_ms?: number;
-  /** Hasura GraphQL returns this shape */
-  core_stepnote?: { content?: string | null } | null;
-  core_attackvectors?: Array<{ name: string }>;
+  name?: string;
 }
 
 interface TelemetryPanelProps {
   /** LLM response time in milliseconds */
   lastElapsedMs?: number | null;
   
-  /** Steps array for visualization */
-  steps?: Step[];
+  /** Execution samples for visualization */
+  steps?: ExecutionSample[];
 
-  /** Optional recent step updates (e.g., from Hasura subscription) */
+  /** Optional recent overview updates */
   recentOverviews?: Array<any>;
 
   /** Map thread_id -> display name for provenance */
@@ -71,9 +69,8 @@ export function TelemetryPanel({
       .map((s) => ({
         id: s.id,
         name:
-          s.core_attackvectors?.[0]?.name ||
-          (s.core_stepnote?.content || '').split('\n')[0].trim() ||
-          `Step #${s.id}`,
+          s.name ||
+          `Execution #${s.id}`,
         duration_ms: s.estimated_duration_ms || 0,
         status: s.status,
       }));
@@ -160,7 +157,7 @@ export function TelemetryPanel({
 
       {/* Content */}
       <div style={{ flex: 1, padding: '16px', overflowY: 'auto', minWidth: 0 }}>
-        {/* Real-time Step Updates */}
+        {/* Recent Overview Updates */}
         {recentOverviews && recentOverviews.length > 0 && (
           <div style={{ marginBottom: '24px' }}>
             <div
@@ -173,7 +170,7 @@ export function TelemetryPanel({
                 textTransform: 'uppercase',
               }}
             >
-              Real-time Step Updates
+              Recent Overview Updates
             </div>
             <div
               style={{
@@ -186,19 +183,12 @@ export function TelemetryPanel({
               }}
             >
               {recentOverviews.slice(0, 2).map((overview: any) => {
-                const recentSteps = (overview.core_steps || []).slice(0, 5);
-                const runningSteps = recentSteps.filter((s: any) => s.status === 'RUNNING').length;
-                const completedSteps = recentSteps.filter((s: any) => s.status === 'COMPLETED').length;
-                const failedSteps = recentSteps.filter((s: any) => s.status === 'FAILED').length;
-
                 return (
                   <div key={overview.id} style={{ marginBottom: '6px' }}>
                     <span style={{ color: overview.status === 'EXECUTING' ? '#fbbf24' : '#22c55e' }}>
                       {overview.core_target?.name || `Target#${overview.id}`}:
                     </span>{' '}
-                    {runningSteps > 0 && <span style={{ color: '#fbbf24' }}>🔄 {runningSteps} running</span>}
-                    {completedSteps > 0 && <span style={{ color: '#22c55e', marginLeft: '6px' }}>✓ {completedSteps} done</span>}
-                    {failedSteps > 0 && <span style={{ color: '#ef4444', marginLeft: '6px' }}>✗ {failedSteps} failed</span>}
+                    <span style={{ color: '#94a3b8' }}>{overview.status}</span>
                     {(overview.thread_id || overview.parent_thread_id) && (
                       <div style={{ marginTop: 2, color: '#64748b', fontFamily: 'monospace' }}>
                         {(() => {
@@ -335,7 +325,7 @@ export function TelemetryPanel({
           </div>
         )}
 
-        {/* Step Statistics */}
+        {/* Execution Statistics */}
         {stepStats.completed + stepStats.failed + stepStats.running + stepStats.pending > 0 && (
           <div style={{ marginBottom: '24px' }}>
             <div
@@ -348,7 +338,7 @@ export function TelemetryPanel({
                 textTransform: 'uppercase',
               }}
             >
-              Step Summary
+              Execution Summary
             </div>
             <div
               style={{
@@ -394,7 +384,7 @@ export function TelemetryPanel({
           </div>
         )}
 
-        {/* Step Duration Waveform */}
+        {/* Execution Duration Waveform */}
         {stepStats.chartData.length > 0 && (
           <div>
             <div

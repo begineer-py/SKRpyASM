@@ -60,7 +60,7 @@ All API routes registered in `c2_core/urls.py` via a single `NinjaAPI` instance 
 | `/api/targets/` | `apps.targets.api` | Target and seed CRUD |
 | `/api/scanners/` | `apps.scanners.api` | Unified scan dispatch |
 | `/api/flaresolverr/` | `apps.flaresolverr.api` | Anti-bot bypass |
-| `/api/core/` | `apps.core.api`, `step_api`, `overview_api` | Core models, steps, overviews |
+| `/api/core/` | `apps.core.api`, `overview_api` | Core models, executions, overviews |
 | `/api/analyze_ai/` | `apps.analyze_ai.api` | AI analysis dispatch |
 | `/api/scheduler/` | `apps.scheduler.api` | Celery Beat schedules |
 | `/api/http_sender/` | `apps.http_sender.api` | HTTP requests and fuzzing |
@@ -72,7 +72,7 @@ Each app's router is defined in its `api.py` using Django Ninja's `Router` class
 
 ### App Responsibilities
 
-- **core**: Central models (Target, Seed, Subdomain, Port, Vulnerability, URLResult, NmapScan, SubfinderScan, NucleiScan, Overview, Step, AttackVector, SkillTemplate). Heavily interconnected — check `apps/core/models/__init__.py` for exports. All scan record models (`NmapScan`, `SubfinderScan`, `NucleiScan`, `URLScan`, `AmassScan`, `SubBrute`) inherit from `ScanRecord` abstract base (`apps/core/models/scans_record_models.py`), which provides `status`, `started_at`, `completed_at`, `error_message`, `created_at`. Canonical `ErrorSchema` (field: `detail`) lives in `apps/core/schemas.py` — do not redeclare it in other apps.
+- **core**: Central models (Target, Seed, Subdomain, Port, Vulnerability, URLResult, NmapScan, SubfinderScan, NucleiScan, Overview, AttackVector, SkillTemplate, Verification, ExecutionGraph, ExecutionNode, ExecutionEvent, ExecutionArtifact). Heavily interconnected — check `apps/core/models/__init__.py` for exports. All scan record models (`NmapScan`, `SubfinderScan`, `NucleiScan`, `URLScan`, `AmassScan`, `SubBrute`) inherit from `ScanRecord` abstract base (`apps/core/models/scans_record_models.py`), which provides `status`, `started_at`, `completed_at`, `error_message`, `created_at`. Canonical `ErrorSchema` (field: `detail`) lives in `apps/core/schemas.py` — do not redeclare it in other apps.
 - **targets**: Target/Seed CRUD APIs.
 - **scanners**: Unified scanner interface. Sub-apps: `nmap_scanner`, `subfinder`, `nuclei_scanner`, `get_all_url` — each has its own `tasks/` directory with Celery tasks.
 - **flaresolverr**: FlareSolverr/FlareProxyGo integration for anti-bot protected pages. Includes JS/security analysis parsers.
@@ -121,6 +121,7 @@ Note: `c2_core/settings.py` has hardcoded fallback values for database credentia
 - **Authentication**: DRF TokenAuthentication is the default (`REST_FRAMEWORK` in settings). CSRF middleware is disabled for dev (commented out in MIDDLEWARE).
 - **Model primary keys**: `BigAutoField` as default.
 - **Docker infrastructure**: `docker/docker-compose.yml` runs PostgreSQL, Redis, Hasura, NocoDB, FlareSolverr, FlareProxyGo.
+- **ExecutionGraph-first monitoring**: The legacy `Step`/`StepLog`/`ScriptExecution` models and `callback_step_id` parameter have been fully removed. All scan and agent execution monitoring now uses `ExecutionGraph` → `ExecutionNode` → `ExecutionEvent` → `ExecutionArtifact` (defined in `apps/core/models/execution.py`). Backend API: `/api/core/executions` (list with `target_id`/`thread_id`/`status` filters), `/api/core/executions/{id}` (detail with nodes/events/artifacts). Frontend uses `executionApi` service + `ExecutionTimelineViewer` component + `useExecutionEventStream` SSE hook. Hasura GraphQL subscriptions are limited to a single top-level field per subscription (Hasura constraint).
 - **Agent-Driven Memory Compression**: The agent self-manages context via three tools in `MemoryMixin` (`apps/auto/tools/memory_tools.py`):
   1. `review_chunks()` — reads all messages, generates GlobalContextOverview via LLM, divides into THINK→ACT→RESULT chunks
   2. `decide_chunk(chunk_index, strategy)` — agent chooses RETAIN/TEXTUALIZE/DISCARD per chunk (uses `compressed_content` + `compression_applied` on Message, never deletes)

@@ -1,11 +1,11 @@
 /**
  * AI Agent Tree Subscription
  *
- * Execution details are no longer read from Hasura core_steps/core_steplog.
+ * Execution details are no longer read from Hasura legacy execution tables.
  * The UI loads ExecutionGraph/ExecutionNode/ExecutionEvent through Django REST + SSE.
  */
 export const GET_AGENT_TREE_SUBSCRIPTION = `
-  subscription GetAgentTree($rootThreadId: bigint!, $childPattern: String!) {
+  subscription GetAgentTree($rootThreadId: bigint!) {
     ai_assistant_thread_by_pk(id: $rootThreadId) {
       id
       name
@@ -42,72 +42,6 @@ export const GET_AGENT_TREE_SUBSCRIPTION = `
               bound_target_id
               created_at
             }
-          }
-        }
-      }
-    }
-    directChildren: ai_assistant_thread(where: { name: { _ilike: $childPattern } }) {
-      id
-      name
-      assistant_id
-      is_hidden
-      bound_target_id
-      created_at
-      coreOverviewsByThreadId(limit: 1, order_by: { id: desc }) {
-        id
-        status
-        risk_score
-        parent_thread_id
-        core_target { name }
-      }
-      core_overviews {
-        id
-        status
-        risk_score
-        thread_id
-        parent_thread_id
-        core_target { name }
-        aiAssistantThreadByThreadId {
-          id
-          name
-          assistant_id
-          is_hidden
-          bound_target_id
-          created_at
-        }
-      }
-    }
-    childOverviews: core_overview(
-      where: { parent_thread_id: { _eq: $rootThreadId } }
-      order_by: { id: desc }
-    ) {
-      id
-      status
-      risk_score
-      thread_id
-      parent_thread_id
-      core_target { name }
-      aiAssistantThreadByThreadId {
-        id
-        name
-        assistant_id
-        is_hidden
-        bound_target_id
-        created_at
-        core_overviews {
-          id
-          status
-          risk_score
-          thread_id
-          parent_thread_id
-          core_target { name }
-          aiAssistantThreadByThreadId {
-            id
-            name
-            assistant_id
-            is_hidden
-            bound_target_id
-            created_at
           }
         }
       }

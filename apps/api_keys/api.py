@@ -377,7 +377,11 @@ def get_api_key(request, api_key_id: int):
 @router.patch("/{api_key_id}", response=APIKeyOut)
 def update_api_key(request, api_key_id: int, data: APIKeyUpdate):
     api_key = get_object_or_404(APIKey, id=api_key_id)
-    for attr, value in data.model_dump(exclude_unset=True).items():
+    updates = data.model_dump(exclude_unset=True)
+    plaintext = updates.pop("key_value", None)
+    if plaintext is not None:
+        api_key.set_key(plaintext)
+    for attr, value in updates.items():
         setattr(api_key, attr, value)
     api_key.save()
     return api_key

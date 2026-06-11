@@ -11,8 +11,6 @@ import './AICenter.css';
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
-const NOOP_SUB = `subscription { __typename }`;
-
 // ── Status badge helpers ──────────────────────────────────────────────────
 
 const STATUS_CLASS: Record<string, string> = {
@@ -272,14 +270,13 @@ const AICenterPage: React.FC = () => {
     if (!rootThreadId) return undefined;
     return {
       rootThreadId: parseInt(rootThreadId),
-      // _ilike prefix match catches all sub-agent naming variants for this root thread
-      childPattern: `subagent_%for_thread_${rootThreadId}%`,
     };
   }, [rootThreadId]);
 
   const { data: treeRawData, isConnected: treeConnected } = useHasuraSubscription(
-    rootThreadId ? GET_AGENT_TREE_SUBSCRIPTION : NOOP_SUB,
-    treeSubVars
+    GET_AGENT_TREE_SUBSCRIPTION,
+    treeSubVars,
+    Boolean(rootThreadId && treeSubVars)
   );
 
   // Convert GQL data → flat TreeNode[]
@@ -704,13 +701,13 @@ const AICenterPage: React.FC = () => {
                   <div className="logs-panel-header">
                     <div className="logs-panel-title">
                       <span>EXECUTION GRAPH</span>
-                      {selectedGraphId && <span className="logs-step-status">Graph #{selectedGraphId}</span>}
+                      {selectedGraphId && <span className="logs-graph-status">Graph #{selectedGraphId}</span>}
                     </div>
 
                     <div className="logs-panel-controls">
                       {activeThreadGraphs.length > 1 && (
                         <select
-                          className="step-picker"
+                          className="graph-picker"
                           value={selectedGraphId ?? ''}
                           onChange={e => setSelectedGraphId(Number(e.target.value))}
                         >

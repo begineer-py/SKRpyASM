@@ -71,7 +71,7 @@ export interface ExecutionGraphDetail extends ExecutionGraph {
 }
 
 export const executionApi = {
-  listGraphs: async (params?: { thread_id?: number; status?: string; limit?: number }): Promise<ExecutionGraph[]> => {
+  listGraphs: async (params?: { thread_id?: number; target_id?: number; status?: string; limit?: number }): Promise<ExecutionGraph[]> => {
     const response = await api.get<ExecutionGraph[]>('/executions', { params });
     return Array.isArray(response.data) ? response.data : [];
   },

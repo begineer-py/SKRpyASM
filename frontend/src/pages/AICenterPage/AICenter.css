@@ -780,7 +780,7 @@
   color: #fbbf24;
 }
 
-.logs-step-status {
+.logs-graph-status {
   font-size: 0.65rem;
   font-weight: 500;
   letter-spacing: 0.06em;
@@ -792,7 +792,7 @@
   gap: 8px;
 }
 
-.step-picker {
+.graph-picker {
   background: #0f172a;
   border: 1px solid #1e3a5f;
   color: #94a3b8;
@@ -804,7 +804,7 @@
   outline: none;
 }
 
-.step-picker:hover {
+.graph-picker:hover {
   border-color: #fbbf24;
   color: #f1f5f9;
 }
@@ -832,7 +832,7 @@
   flex-direction: column;
 }
 
-.logs-panel-body .step-log-viewer {
+.logs-panel-body .execution-timeline-viewer {
   height: 100%;
   border: none;
   border-radius: 0;

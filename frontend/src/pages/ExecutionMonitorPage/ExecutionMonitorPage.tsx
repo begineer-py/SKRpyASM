@@ -84,7 +84,7 @@ export default function ExecutionMonitorPage() {
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       next.set('graph', String(selectedGraphId));
-      next.delete('step');
+      next.delete('node');
       return next;
     });
 
@@ -140,7 +140,7 @@ export default function ExecutionMonitorPage() {
             <div style={{ fontSize: 12, letterSpacing: '0.18em', color: '#38bdf8', textTransform: 'uppercase' }}>Execution Graph Operations</div>
             <h1 style={{ margin: '6px 0 0', fontSize: 34, lineHeight: 1, color: '#f8fafc' }}>Runtime Flight Deck</h1>
             <p style={{ margin: '10px 0 0', color: '#94a3b8', maxWidth: 720 }}>
-              LangGraph-native execution monitoring. Nodes replace legacy steps; events replace StepLog; artifacts carry notes, HTTP traces, skill runs, and long content.
+              LangGraph-native execution monitoring. Nodes are the execution unit; events stream real-time status; artifacts carry notes, HTTP traces, skill runs, and long content.
             </p>
           </div>
           <button className="filter-btn active" onClick={() => void loadGraphs()} disabled={loading}>
