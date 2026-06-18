@@ -128,4 +128,53 @@ Note: `c2_core/settings.py` has hardcoded fallback values for database credentia
   3. `apply_compression()` — finalizes decisions, updates ThreadCompressionState
   - `compression_middleware.py` flags `requires_compression=True` when 40+ new messages since last compress
   - `assistants.py` `context_check` node warns the agent; `setup` node auto-injects GlobalContextOverview into system prompt
-  - LLM configured via AgentLLMConfig `compression_agent` (recommend cheap model for summarization)
+   - LLM configured via AgentLLMConfig `compression_agent` (recommend cheap model for summarization)
+
+## Anchored Summary
+
+**Goal**: Fix Agent execution failures (field hallucinations, ID exposure, weak target matching, recursion limits, compression deadlock loop), add SSE message persistence, eliminate orphaned ExecutionGraph/Thread via DB-level CASCADE, and fix ScannerToolsMixin seed resolution so agents don't get stuck guessing seed_ids.
+
+### Completed
+
+#### Compression Deadlock Fix (Fix A, B, D)
+- `ContentBlob.page_breakdown` JSONField + migration 0025.
+- `_generate_page_breakdown()` in AIAssistant — LLM-driven structural page splitting.
+- `compress_tool_outputs` node: threshold 2500→8000; whitelist prefix detection; page_breakdown generation for content >12000 chars.
+- `read_content_blob` tool: `page` param returns structured page from `page_breakdown`.
+- `save_long_content` tool: generates page_breakdown for >12000 chars.
+- System prompts updated (HackerAssistant rules 8, 12).
+- 8 unit tests in `CompressionDeadlockFixTests` — all pass (19 total).
+
+#### Thread FK Cascade Fix
+- `Thread.bound_target_id` / `bound_overview_id` changed from `IntegerField` to `ForeignKey(on_delete=CASCADE, db_column=..., related_name='+')`.
+- Migration 0026 — FK constraints verified in DB.
+- Scheduler cleanup reverted (no longer needed).
+
+#### caller_thread_id Propagation Fix
+- `AutomationAgent.as_tool()` was not receiving `RunnableConfig` from LangChain (`config_type=NoneType` in production), causing `caller_thread_id=None` → no sub-thread/ExecutionGraph created.
+- **Fix**: Moved `self._current_invoke_thread_id = thread_id` before `self.as_graph()` in `invoke()`; `HackerAssistantAgent.get_tools()` now captures `ha_caller_thread_id` via closure and passes to `AutomationAgent().as_tool(ha_caller_thread_id=...)`.
+- `_tool_func` no longer relies on LangChain's broken `RunnableConfig` injection.
+
+#### ScannerToolsMixin Seed Auto-Resolution
+- Tools requiring `seed_id` (`run_subfinder_discovery`, `run_nmap_port_scan`, `run_flaresolverr_crawler`, `run_flaresolverr_request`) now auto-resolve from `Overview → Target → Seed` when the agent doesn't provide a seed_id.
+- New `_resolve_seed(overview_id)` helper in `ScannerToolsMixin` — finds first active Seed for the Overview's Target.
+
+### Blocked / Known Issues
+- PEP 668 blocks `pip install` in Kali sandbox. Agent needs `PIP_REQUIRE_VIRTUALENV=false` or `--break-system-packages` in `run_command`.
+
+### Key Decisions
+- **Seed auto-resolution**: Prefer resolving from `overview_id` (always auto-injected by `@method_tool`) rather than making the agent parse `get_target_context` output — more robust against agent parsing errors.
+- **`caller_thread_id` closure capture**: Instead of relying on LangChain's `RunnableConfig` injection (which is version-dependent and unreliable in prod), pass thread_id directly through closure at tool-creation time.
+
+### Next Steps
+- Test AutomationAgent delegation again for target 48 — should now create sub-thread + ExecutionGraph + auto-resolve seed_id.
+
+### Relevant Files
+- `apps/auto/tools/scanner_tools.py` — `_resolve_seed()` (new), `run_flaresolverr_crawler`/`_request`/`_discovery`/`_port_scan` (seed auto-injection).
+- `apps/ai_assistant/helpers/assistants.py:1357` — `_current_invoke_thread_id` moved before `as_graph()`.
+- `apps/ai_assistant/assistants.py:178,191` — `ha_caller_thread_id` captured and passed to `as_tool()`.
+- `apps/auto/assistants/planning_agent.py:396-435` — `as_tool()` accepts `ha_caller_thread_id`, `_tool_func` uses closure value.
+- `apps/auto/tasks/__init__.py` — `run_automation_agent_async` task.
+- `apps/core/models/ai_models.py` — Thread FK cascade.
+- Migration 0025, 0026.
+- `apps/ai_assistant/tests.py` — Compression deadlock tests.

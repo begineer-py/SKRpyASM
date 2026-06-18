@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useHasuraQuery } from '../../hooks/useHasuraQuery';
 import { GET_SKILLS } from '../../queries';
+import { skillApi } from '../../services/skillApi';
 import './SkillLibrary.css';
 
 interface SkillTemplate {
@@ -21,6 +23,10 @@ interface SkillTemplate {
   script_content: string | null;
   input_schema: any | null;
   output_schema: any | null;
+  has_io_contract: boolean;
+  last_verified_at: string | null;
+  last_failure_reason: string | null;
+  test_input_example: any | null;
 }
 
 const LANG_COLOR: Record<string, string> = {
@@ -98,6 +104,7 @@ const SkillLibraryPage: React.FC = () => {
   const [selectedSkill, setSelectedSkill] = useState<SkillTemplate | null>(null);
   const [activeTab, setActiveTab] = useState<'script_body' | 'instructions' | 'script_content' | 'io_layers'>('script_body');
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   const { data, loading, error, refetch } = useHasuraQuery(GET_SKILLS, {
     search: '%',
@@ -157,6 +164,18 @@ const SkillLibraryPage: React.FC = () => {
               <span className="skill-stat-label">{lang.toUpperCase()}</span>
             </div>
           ))}
+          <button
+            className="btn"
+            style={{
+              marginLeft: 'auto', padding: '6px 16px', borderRadius: 4,
+              background: 'rgba(0,255,0,0.1)', border: '1px solid rgba(0,255,0,0.3)',
+              color: '#00ff00', fontFamily: 'inherit', fontSize: '0.7rem',
+              fontWeight: 700, letterSpacing: '0.08em', cursor: 'pointer',
+            }}
+            onClick={() => navigate('/skills/new')}
+          >
+            + ADD SKILL
+          </button>
         </div>
       </div>
 
@@ -292,6 +311,45 @@ const SkillLibraryPage: React.FC = () => {
                   <div className="skill-io-badge">📋 I/O CONTRACT</div>
                 )}
 
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                <button
+                  className="btn"
+                  style={{
+                    padding: '4px 14px', borderRadius: 4,
+                    background: 'rgba(0,255,0,0.08)', border: '1px solid rgba(0,255,0,0.25)',
+                    color: '#00ff00', fontFamily: 'inherit', fontSize: '0.65rem',
+                    fontWeight: 700, letterSpacing: '0.08em', cursor: 'pointer',
+                  }}
+                  onClick={() => navigate(`/skills/${selectedSkill.id}/edit`)}
+                >
+                  EDIT
+                </button>
+                <button
+                  className="btn"
+                  style={{
+                    padding: '4px 14px', borderRadius: 4,
+                    background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
+                    color: '#f87171', fontFamily: 'inherit', fontSize: '0.65rem',
+                    fontWeight: 700, letterSpacing: '0.08em', cursor: 'pointer',
+                  }}
+                  onClick={async () => {
+                    if (!selectedSkill) return;
+                    if (!window.confirm(`Permanently delete skill "${selectedSkill.name}"?`)) return;
+                    try {
+                      await skillApi.delete(selectedSkill.id);
+                      setSelectedSkill(null);
+                      const pattern = search.trim() ? `%${search.trim()}%` : '%';
+                      refetch({ search: pattern });
+                    } catch (e: any) {
+                      alert(e?.response?.data?.detail || e?.message || 'Delete failed');
+                    }
+                  }}
+                >
+                  DELETE
+                </button>
               </div>
 
               {/* Tab Switcher */}

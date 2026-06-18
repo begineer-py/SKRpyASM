@@ -86,16 +86,18 @@ class SkillMixin:
         output_schema: dict = None,
     ) -> str:
         """
-        [Skill System] 請求 SkillCreatorAgent 創建一個新的技能並存入資料庫。
+        [Skill System] 創建一個新的技能並存入資料庫。
 
         ⚠️ 這是唯一允許創建 Skill 的工具。AI 不應直接撰寫 script_content，
-        而是透過此工具，由專用的 SkillCreatorAgent 協調生成符合規範的技能。
+        而是透過此工具，由系統生成符合規範的技能。
 
-        SkillCreatorAgent 會自動：
-        1. 根據 task_description + schema 生成腳本主體
+        系統會自動：
+        1. 使用原始 input_schema / output_schema 呼叫 LLM 生成腳本主體 (script_body)
         2. 驗證 AST 語法並自動注入 Pydantic I/O Contract
         3. 確保技能符合全域規範並存入資料庫
-        4. **保存完整的對話歷史到資料庫**，以便追蹤技能創建過程
+
+        重要：input_schema 和 output_schema 會被原封不動地傳遞給資料庫，
+        不經過 LLM 中繼，因此複雜的巢狀 JSON Schema 不會丟失。
 
         Args:
             name: 唯一 kebab-case 標識符，例如 'django-csrf-bypass'
@@ -104,60 +106,100 @@ class SkillMixin:
             task_description: 自然語言描述此腳本應該做什麼
             language: 'python' 或 'bash'
             tags: 標籤陣列，例如 ["django", "csrf", "bypass"]
-            input_schema: 輸入參數的 JSON Schema
-            output_schema: 輸出的預期 JSON Schema
+            input_schema: 輸入參數的 JSON Schema（原封不動存入資料庫）
+            output_schema: 輸出的預期 JSON Schema（原封不動存入資料庫）
         """
-        import json
-        from apps.auto.assistants.skill_creator_agent import SkillCreatorAgent
-        from django.contrib.auth import get_user_model
+        from apps.auto.tools.skill_creator_agent import create_skill_from_spec
 
         if tags is None:
             tags = []
 
-        # 準備給 SkillCreatorAgent 的輸入訊息
-        import json
-        input_data = {
-            "name": name,
-            "description": description,
-            "instructions": instructions,
-            "task_description": task_description,
-            "input_schema": input_schema or {},
-            "output_schema": output_schema or {},
-            "language": language,
-            "tags": tags
-        }
-
-        user_message = f"""Please create a new skill with the following specifications:
-
-```json
-{json.dumps(input_data, indent=2)}
-```
-
-Use the `create_skill` tool to create this skill. Make sure to carefully analyze the task description and generate appropriate code."""
-
-        # 獲取系統使用者
-        User = get_user_model()
-        system_user = User.objects.filter(is_superuser=True).first()
-
-        # 創建新的 Thread 並運行 SkillCreatorAgent
-        from apps.ai_assistant.helpers.use_cases import create_thread, create_message
-        thread_name = f"skill_creation_{name.replace('-', '_')}"
-        thread = create_thread(
-            name=thread_name,
-            user=system_user,
-            assistant_id=SkillCreatorAgent.id,
-            is_hidden=True,
-        )
-
-        # 使用 SkillCreatorAgent 處理這個請求
-        agent = SkillCreatorAgent()
-        
+        # 直接呼叫 create_skill_from_spec，不經過 LLM 中繼跳接。
+        # 這樣 input_schema / output_schema 會原封不動地傳遞給資料庫，
+        # 避免複雜巢狀結構在 LLM tool call 過程中丟失或被簡化。
         try:
-            result = agent.run(user_message, thread_id=thread.id)
-            return result
+            result = create_skill_from_spec(
+                name=name,
+                description=description,
+                instructions=instructions,
+                task_description=task_description,
+                input_schema=input_schema,
+                output_schema=output_schema,
+                language=language,
+                tags=tags,
+            )
+
+            if result.get("ok"):
+                action = result.get("action", "Saved")
+                skill_id = result["skill_id"]
+                script_body_preview = result.get("script_body", "")[:500]
+                full_len = result.get("script_content_length", 0)
+
+                # 記錄執行軌跡到 ExecutionArtifact（若可用）
+                self._record_skill_creation_artifact(
+                    skill_id=skill_id,
+                    skill_name=name,
+                    action=action,
+                    input_schema=input_schema,
+                    output_schema=output_schema,
+                )
+
+                return (
+                    f"✅ **Success!** {action} skill '{name}' (ID: {skill_id})\n\n"
+                    f"📝 **Script Body Preview**:\n```python\n{script_body_preview}...```\n\n"
+                    f"🔧 **Assembled Script**: {full_len} chars (I/O Contract auto-injected)\n"
+                    f"📊 **Schema Preserved**: input_schema={'yes' if input_schema else 'no'}, "
+                    f"output_schema={'yes' if output_schema else 'no'}"
+                )
+            else:
+                return f"❌ **Error**: {result.get('error', 'Unknown error')}"
         except Exception as e:
-            logger.exception(f"Failed to run SkillCreatorAgent: {e}")
-            return f"[ERROR] SkillCreatorAgent failed: {str(e)}"
+            logger.exception(f"Failed to create skill '{name}': {e}")
+            return f"❌ **Exception**: {str(e)}"
+
+    def _record_skill_creation_artifact(
+        self,
+        *,
+        skill_id: int,
+        skill_name: str,
+        action: str,
+        input_schema: dict | None = None,
+        output_schema: dict | None = None,
+    ):
+        """Record skill creation event in the execution graph (best-effort)."""
+        try:
+            from apps.core.models import ExecutionGraph, ExecutionNode
+            from apps.core.services import ExecutionService
+
+            graph = getattr(self, "_execution_graph", None)
+            node = getattr(self, "_current_execution_node", None)
+            if graph is None:
+                graph_id = getattr(self, "_current_execution_graph_id", None)
+                graph = ExecutionGraph.objects.filter(id=graph_id).first() if graph_id else None
+            if node is None:
+                node_id = getattr(self, "_current_execution_node_id", None)
+                node = ExecutionNode.objects.filter(id=node_id).first() if node_id else None
+            if graph is None:
+                return None
+
+            payload = {
+                "skill_id": skill_id,
+                "skill_name": skill_name,
+                "action": action,
+                "has_input_schema": bool(input_schema),
+                "has_output_schema": bool(output_schema),
+            }
+            ExecutionService.emit_event(
+                graph=graph,
+                node=node,
+                event_type="skill_created",
+                status="success",
+                content=f"{action} skill: {skill_name} (ID={skill_id})",
+                payload=payload,
+            )
+        except Exception as exc:
+            logger.debug("Failed to record skill creation artifact: %s", exc)
+            return None
 
     @method_tool
     def deprecate_skill(self, name: str, reason: str = "") -> str:
@@ -204,7 +246,8 @@ Use the `create_skill` tool to create this skill. Make sure to carefully analyze
         name: str, 
         args_string: str = "", 
         attack_vector_id: int = None,
-        input_json: dict = None
+        input_json: dict = None,
+        overview_id: int = None,
     ) -> str:
         """
         [Skill System] 安全地執行資料庫中已存檔的 Skill 腳本。
@@ -219,6 +262,7 @@ Use the `create_skill` tool to create this skill. Make sure to carefully analyze
             args_string: 命令列參數字串
             attack_vector_id: 可選，關聯到特定攻擊向量（用於導出）
             input_json: 可選，結構化的輸入參數（JSON），將被驗證
+            overview_id: (Auto-injected) 當前 Overview ID，用來解析 workspace。
         """
         from apps.core.models.analyze.SkillTemplate import SkillTemplate
         from apps.core.validators.schema_validators import InputValidator, OutputValidator
@@ -271,9 +315,13 @@ Use the `create_skill` tool to create this skill. Make sure to carefully analyze
             io_args = ""
             if input_json:
                 io_args = json.dumps(input_json)
-            cmd = f"{runner} {sandbox_path} {io_args} {args_string}".strip()
+            raw_cmd = f"{runner} {sandbox_path} {io_args} {args_string}".strip()
+            # 用 bwrap 隔離到 target 的 workspace（如果有 overview_id）
+            target_id = self._resolve_target_id(overview_id) if hasattr(self, "_resolve_target_id") else None
+            workspace = self._ensure_workspace(target_id) if (target_id and hasattr(self, "_ensure_workspace")) else None
+            wrapped_cmd = self._wrap_command(raw_cmd, workspace) if hasattr(self, "_wrap_command") else raw_cmd
             exit_code, output_bytes = container.exec_run(
-                cmd=cmd,
+                cmd=["/bin/bash", "-c", wrapped_cmd],
                 detach=False,
                 stream=False
             )
@@ -380,6 +428,8 @@ Use the `create_skill` tool to create this skill. Make sure to carefully analyze
     def install_sandbox_dependency(self, package_manager: str, package_name: str) -> str:
         """
         [Skill System] 當你的腳本缺少相依套件 (例如執行時跳出 ImportError，或 bash 跳出 command not found) 時，你可以呼叫此工具自行為 Kali Docker Sandbox 安裝套件。
+        安裝是全系統的（所有 target 共用），不會被 workspace 隔離限制。
+        pip install 不需要額外參數（環境已配置 PIP_BREAK_SYSTEM_PACKAGES=1）。
         
         Args:
             package_manager: 只能是 'apt' 或 'pip'
@@ -392,7 +442,7 @@ Use the `create_skill` tool to create this skill. Make sure to carefully analyze
         if package_manager == "apt":
             cmd = f"apt-get update && apt-get install -y --no-install-recommends {package_name}"
         else:
-            cmd = f"pip3 install {package_name} --break-system-packages"
+            cmd = f"pip3 install {package_name}"
             
         try:
             client = docker.from_env()
@@ -488,18 +538,16 @@ Use the `create_skill` tool to create this skill. Make sure to carefully analyze
         force: bool = False
     ) -> str:
         """
-        [Skill System] 舊版腳本執行記錄升級入口已停用。
+        [DEPRECATED — 請勿呼叫]
+        舊版腳本執行記錄升級入口已停用：ScriptExecution 模型已移除，
+        腳本執行記錄現改存於 ExecutionArtifact。本工具僅保留外殼以維持 schema 相容性。
         
-        腳本執行記錄已改存 ExecutionArtifact。請根據 skill_execution artifact
-        直接建立或更新 SkillTemplate。
-        
-        升級規則：
-        1. 必須是 SUCCESS 狀態
-        2. 最好通過了輸出驗證（VALIDATED）
-        3. 系統會自動生成 instructions 和 input/output schema
+        若要將成功的執行結果升級為 SkillTemplate，請改用：
+        1. 先用 query_steps / ExecutionArtifact 查詢成功執行的 artifact
+        2. 直接使用 create_skill 或 update_skill 建立技能
         
         Args:
-            script_execution_id: 舊版腳本執行記錄 ID（已停用）
+            script_execution_id: (已停用) 舊版腳本執行記錄 ID
             skill_name: 新技能的名稱（kebab-case，如 'django-csrf-bypass'）
             tags: 技能標籤列表（如 ["django", "csrf", "bypass"]）
             description: 技能描述（如果 None，自動生成）
@@ -508,27 +556,12 @@ Use the `create_skill` tool to create this skill. Make sure to carefully analyze
         Returns:
             升級結果訊息
         """
-        from apps.core.script_upgrader import promote_to_skill
-        
-        if tags is None:
-            tags = []
-        
-        try:
-            is_success, message = promote_to_skill(
-                script_execution_id=script_execution_id,
-                skill_name=skill_name,
-                tags=tags,
-                description=description,
-                force=force
-            )
-            
-            if is_success:
-                return f"[SUCCESS] {message}"
-            else:
-                return f"[ERROR] {message}"
-        
-        except Exception as e:
-            return f"[ERROR] 升級失敗: {str(e)}"
+        # 早期守衛：避免觸發已移除模型的 import
+        return (
+            "[DEPRECATED] promote_successful_script 已停用。\n"
+            "ScriptExecution 模型已移除，請改用 ExecutionArtifact 查詢成功執行結果，\n"
+            "再以 create_skill / update_skill 建立技能。"
+        )
     
     @method_tool
     def mark_skill_as_robust(self, skill_name: str, verified: bool = True) -> str:
@@ -567,31 +600,20 @@ Use the `create_skill` tool to create this skill. Make sure to carefully analyze
     @method_tool
     def list_ready_for_promotion(self) -> str:
         """
-        [Skill System] 列出所有可以升級到 SkillTemplate 的成功腳本執行。
+        [DEPRECATED — 請勿呼叫]
+        舊版「列出可升級的腳本執行記錄」入口已停用：ScriptExecution 模型已移除。
+        腳本執行結果現改存於 ExecutionArtifact。
         
-        條件：
-        - 必須是 SUCCESS 狀態
-        - 最好已通過輸出驗證
-        - 未關聯到任何 SkillTemplate
+        若要查詢可升級為 SkillTemplate 的執行結果，請改用：
+        - query_steps 查詢 status=SUCCESS 的執行節點
+        - 直接讀取 ExecutionArtifact 中的 skill_execution 內容
         
         Returns:
-            可升級腳本的列表
+            停用訊息
         """
-        from apps.core.script_upgrader import get_scripts_ready_for_promotion
-        
-        scripts = get_scripts_ready_for_promotion()
-        
-        if not scripts:
-            return "No scripts ready for promotion."
-        
-        result = [f"Found {len(scripts)} scripts ready for promotion:\n"]
-        for script in scripts[:10]:  # 最多顯示 10 個
-            result.append(
-                f"- ID: {script.id}\n"
-                f"  Language: {script.script_language}\n"
-                f"  Status: {script.status}\n"
-                f"  Validation: {script.validation_status}\n"
-                f"  Created: {script.started_at.isoformat()}"
-            )
-        
-        return "\n".join(result)
+        # 早期守衛：get_scripts_ready_for_promotion 已是 stub 回傳 []
+        return (
+            "[DEPRECATED] list_ready_for_promotion 已停用。\n"
+            "ScriptExecution 模型已移除。\n"
+            "請改用 query_steps 查詢 status=SUCCESS 的執行節點及其 ExecutionArtifact。"
+        )

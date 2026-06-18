@@ -232,6 +232,8 @@ CELERY_TASK_SERIALIZER = "json"  # Celery 任務的序列化格式設為 JSON
 
 # 時區設定
 CELERY_TIMEZONE = "UTC"  # Celery 的時區設定為 UTC
+CELERY_TASK_ACKS_LATE = os.environ.get("CELERY_TASK_ACKS_LATE", "true").lower() == "true"
+CELERY_WORKER_PREFETCH_MULTIPLIER = int(os.environ.get("CELERY_WORKER_PREFETCH_MULTIPLIER", "1"))
 # 在 settings.py 的末尾加上
 REST_FRAMEWORK = {  # Django REST framework 配置
     "DEFAULT_AUTHENTICATION_CLASSES": [  # 默認的認證類列表
@@ -302,6 +304,64 @@ LOGGING = {
             "formatter": "verbose",
             "encoding": "utf-8",
         },
+        # 4. ai_assistant.agent 專屬 DEBUG console handler（放行 DEBUG，不影響其他 app）
+        "ai_agent_console": {
+            "class": "rich.logging.RichHandler",
+            "formatter": "rich",
+            "level": "DEBUG",
+            "rich_tracebacks": True,
+            "tracebacks_show_locals": True,
+        },
+        # 5. ai_assistant.agent 專屬 DEBUG file handler（寫入既有 app.log，不另開檔）
+        "ai_agent_file": {
+            "level": "DEBUG",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": LOG_DIR / "app.log",
+            "maxBytes": 1024 * 1024 * 10,
+            "backupCount": 5,
+            "formatter": "verbose",
+            "encoding": "utf-8",
+        },
+        # 6. AI graph API 專屬 DEBUG file handler（獨立 ai_graph.log）
+        "ai_graph_file": {
+            "level": "DEBUG",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": LOG_DIR / "ai_graph.log",
+            "maxBytes": 1024 * 1024 * 10,
+            "backupCount": 5,
+            "formatter": "verbose",
+            "encoding": "utf-8",
+        },
+        # 7. Celery Worker 通用日誌
+        "celery_worker_file": {
+            "level": "INFO",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": LOG_DIR / "celery_worker.log",
+            "maxBytes": 1024 * 1024 * 10,
+            "backupCount": 5,
+            "formatter": "verbose",
+            "encoding": "utf-8",
+        },
+        # 8. Celery Worker AI 專屬日誌（auto / analyze_ai 跑在 worker 中的軌跡）
+        "celery_worker_ai_file": {
+            "level": "DEBUG",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": LOG_DIR / "celery_worker_ai.log",
+            "maxBytes": 1024 * 1024 * 10,
+            "backupCount": 5,
+            "formatter": "verbose",
+            "encoding": "utf-8",
+        },
+        # 9. Celery Beat 排程日誌
+        "celery_beat_file": {
+            "level": "INFO",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": LOG_DIR / "celery_worker_beat.log",
+            "maxBytes": 1024 * 1024 * 10,
+            "backupCount": 5,
+            "formatter": "verbose",
+            "encoding": "utf-8",
+        },
     },
     "loggers": {
         # 根日誌記錄器：所有沒被接管的日誌都會走這路
@@ -336,7 +396,7 @@ LOGGING = {
             "propagate": False,
         },
         "analyze_ai": {
-            "handlers": ["console", "app_file", "error_file"],
+            "handlers": ["console", "app_file", "error_file", "celery_worker_ai_file"],
             "level": "DEBUG",
             "propagate": False,
         },
@@ -346,7 +406,7 @@ LOGGING = {
             "propagate": False,
         },
         "auto": {
-            "handlers": ["console", "app_file", "error_file"],
+            "handlers": ["console", "app_file", "error_file", "celery_worker_ai_file"],
             "level": "DEBUG",
             "propagate": False,
         },
@@ -358,8 +418,26 @@ LOGGING = {
         },
         # Django AI Assistant 場景 debug (看 as_tool 輸入 與 agent 訊息)
         "ai_assistant.agent": {
-            "handlers": ["console", "app_file"],
+            "handlers": ["ai_agent_console", "ai_graph_file"],
             "level": "DEBUG",  # 改 DEBUG 可看到每条 message 內容
+            "propagate": False,
+        },
+        # Celery Worker 框架日誌（worker 管理、任務分派）
+        "celery": {
+            "handlers": ["celery_worker_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        # Celery Beat 排程器日誌
+        "celery.beat": {
+            "handlers": ["celery_beat_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        # Celery 任務執行日誌
+        "celery.task": {
+            "handlers": ["celery_worker_file"],
+            "level": "INFO",
             "propagate": False,
         },
         # 資料庫日誌
@@ -389,3 +467,5 @@ AI_ASSISTANT_CAN_RUN_ASSISTANT = "apps.ai_assistant.permissions.allow_all"
 # LangChain Verbose Logging (scoped, avoids crashing Rich with debug mode)
 # langchain.debug = True  # 千萬別開！會讓 Rich log handler 遞迴爛掉
 LANGCHAIN_VERBOSE = False  # 如果要看 chain 的輸入/輸出，在各 Agent 文件中設定 verbose=True
+API_KEY_ENCRYPTION_KEY = "Z39ixGU2CW6QcUodG8z3IYNrV_a4Vud2Uy_esQRLGfM="
+# 加密 API Key 的金鑰，請在環境變數中設定

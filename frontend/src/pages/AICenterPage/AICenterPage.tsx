@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { assistantApi } from '../../services/assistantApi';
 import { useHasuraSubscription } from '../../hooks/useHasuraSubscription';
 import ExecutionTimelineViewer from '../../components/ExecutionTimelineViewer';
+import ThreadEventTimeline from '../../components/ThreadEventTimeline';
 import { executionApi } from '../../services/executionApi';
 import type { ExecutionGraph } from '../../services/executionApi';
+import { OverviewService, type OverviewData } from '../../services/overviewService';
 import { GET_AGENT_TREE_SUBSCRIPTION } from '../../queries';
 import './AICenter.css';
 
@@ -158,66 +161,9 @@ function buildTreeNodes(rawData: any, rootThreadId: string): TreeNode[] {
   });
   seen.add(Number(root.id));
 
-  // Source A: root thread's overviews → their owning sub-threads (+ grandchildren via recursion)
   for (const ov of root.core_overviews ?? []) {
     const t = ov.aiAssistantThreadByThreadId;
     if (t) _ingestThreadFromOv(t, ov, Number(rootThreadId), nodes, seen);
-  }
-
-  // Source B: direct name-pattern match (all subagent_*_for_thread_X threads)
-  for (const t of rawData.directChildren ?? []) {
-    if (seen.has(Number(t.id))) {
-      // Already added via Source A, but may have more overviews → recurse its children
-      for (const childOv of t.core_overviews ?? []) {
-        const childT = childOv.aiAssistantThreadByThreadId;
-        if (childT) _ingestThreadFromOv(childT, childOv, Number(t.id), nodes, seen);
-      }
-      continue;
-    }
-    seen.add(Number(t.id));
-    const latestOv = t.coreOverviewsByThreadId?.[0];
-    nodes.push({
-      thread_id: Number(t.id),
-      thread_name: t.name,
-      assistant_id: t.assistant_id,
-      is_hidden: t.is_hidden,
-      bound_target_id: t.bound_target_id,
-      parent_thread_id: Number(rootThreadId),
-      overview_id: latestOv ? Number(latestOv.id) : null,
-      overview_status: latestOv?.status ?? null,
-      overview_risk_score: latestOv?.risk_score ?? null,
-      target_name: latestOv?.core_target?.name ?? null,
-      created_at: t.created_at,
-    });
-    // Recurse into this direct child's own sub-threads
-    for (const childOv of t.core_overviews ?? []) {
-      const childT = childOv.aiAssistantThreadByThreadId;
-      if (childT) _ingestThreadFromOv(childT, childOv, Number(t.id), nodes, seen);
-    }
-  }
-
-  // Source C: core_overview where parent_thread_id = rootThreadId (FK fallback)
-  for (const ov of rawData.childOverviews ?? []) {
-    const t = ov.aiAssistantThreadByThreadId;
-    if (t) {
-      _ingestThreadFromOv(t, ov, Number(rootThreadId), nodes, seen);
-    } else if (ov.thread_id && !seen.has(Number(ov.thread_id))) {
-      // Overview exists with thread_id but the thread wasn't included in GQL
-      seen.add(Number(ov.thread_id));
-      nodes.push({
-        thread_id: Number(ov.thread_id),
-        thread_name: `Thread ${ov.thread_id}`,
-        assistant_id: 'automation_agent',
-        is_hidden: true,
-        bound_target_id: null,
-        parent_thread_id: Number(rootThreadId),
-        overview_id: Number(ov.id),
-        overview_status: ov.status,
-        overview_risk_score: ov.risk_score,
-        target_name: ov.core_target?.name ?? null,
-        created_at: '',
-      });
-    }
   }
 
   return nodes;
@@ -226,9 +172,13 @@ function buildTreeNodes(rawData: any, rootThreadId: string): TreeNode[] {
 // ── Main page ─────────────────────────────────────────────────────────────
 
 const AICenterPage: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const initialThreadId = searchParams.get('thread');
+
   // Chat state
   const [allThreads, setAllThreads] = useState<any[]>([]);
-  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(initialThreadId);
   const [selectedThreadData, setSelectedThreadData] = useState<any>(null);
   const [activeAssistantId, setActiveAssistantId] = useState<string>('hacker_assistant_agent');
   const [messages, setMessages] = useState<any[]>([]);
@@ -260,9 +210,31 @@ const AICenterPage: React.FC = () => {
   const [activeThreadGraphs, setActiveThreadGraphs] = useState<ExecutionGraph[]>([]);
   const [showLogsPanel, setShowLogsPanel] = useState(false);
 
+  // Thread events panel state
+  const [showEventsPanel, setShowEventsPanel] = useState(false);
+
+  // Overview sidebar state
+  const [sidebarTab, setSidebarTab] = useState<'threads' | 'overviews'>('threads');
+  const [overviews, setOverviews] = useState<OverviewData[]>([]);
+  const [overviewsLoading, setOverviewsLoading] = useState(false);
+
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const cleanupStreamRef = useRef<(() => void) | null>(null);
+  // 持久 message SSE 訂閱 cleanup（mount 時開啟、thread 切換/unmount 時關閉）
+  const cleanupMessageEventsRef = useRef<(() => void) | null>(null);
+  // 輪詢兜底 timer（SSE 失效或仍在等 ai msg 時使用）
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const selectThread = useCallback((id: string | null) => {
+    setSelectedThreadId(id);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (id) next.set('thread', id);
+      else next.delete('thread');
+      return next;
+    });
+  }, [setSearchParams]);
 
   // ── GQL subscription for agent tree ──────────────────────────────────
 
@@ -321,6 +293,19 @@ const AICenterPage: React.FC = () => {
     };
   }, [activeNodeThreadId]);
 
+  // ── Overview fetch ─────────────────────────────────────────────────────
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!boundTargetId) { setOverviews([]); return; }
+    setOverviewsLoading(true);
+    OverviewService.list({ target_id: boundTargetId })
+      .then(data => { if (!cancelled) setOverviews(data); })
+      .catch(() => { if (!cancelled) setOverviews([]); })
+      .finally(() => { if (!cancelled) setOverviewsLoading(false); });
+    return () => { cancelled = true; };
+  }, [boundTargetId]);
+
   // ── Scroll helpers ────────────────────────────────────────────────────
 
   const scrollToBottom = () => {
@@ -331,9 +316,7 @@ const AICenterPage: React.FC = () => {
   // ── Load threads ──────────────────────────────────────────────────────
 
   useEffect(() => { loadThreads(); }, [targetSearchId, showInternal]);
-  useEffect(() => {
-    if (selectedThreadId) loadMessagesForThread(selectedThreadId);
-  }, [selectedThreadId]);
+  // 訊息載入與持久 SSE 訂閱改由下方的獨立 useEffect 統一管理（避免重複載入）
 
   const loadThreads = async () => {
     setThreadsLoading(true);
@@ -349,7 +332,7 @@ const AICenterPage: React.FC = () => {
             .filter(
               t =>
                 !t.is_hidden &&
-                t.assistant_id !== 'automation_agent' &&
+                (t.assistant_id !== 'automation_agent' || t.bound_overview_id) &&
                 !t.name?.startsWith('subagent_') &&
                 !t.name?.startsWith('ephemeral_') &&
                 !t.name?.includes('Analysis Batch')
@@ -361,7 +344,7 @@ const AICenterPage: React.FC = () => {
       if (filtered.length > 0 && !selectedThreadId) {
         handleSelectSidebarThread(filtered[0]);
       } else if (filtered.length === 0 && selectedThreadId) {
-        setSelectedThreadId(null);
+        selectThread(null);
         setSelectedThreadData(null);
         setMessages([]);
       } else if (selectedThreadId) {
@@ -395,28 +378,112 @@ const AICenterPage: React.FC = () => {
       });
       setDisplayLimit(50);
       setMessages(parsed);
+      return parsed;
     } catch (err) {
       console.error('Failed to load messages', err);
       setMessages([]);
+      return [];
     }
   };
 
   // ── Thread / node selection ───────────────────────────────────────────
 
+  // 持久 message SSE 訂閱 + 輪詢兜底
+  // 解決「刷新時 AI 回應尚未寫入 DB → 永遠看不到」的問題：
+  //   1. thread 切換時關閉舊訂閱、載入歷史、開啟新訂閱
+  //   2. 收到 message_created 事件 → reload messages（補上背景完成的 AI 回應）
+  //   3. 若歷史最後一條是 user msg 而無對應 ai msg → 啟動輪詢兜底
+  useEffect(() => {
+    if (!selectedThreadId) return;
+
+    // 關閉舊訂閱與輪詢
+    cleanupMessageEventsRef.current?.();
+    cleanupMessageEventsRef.current = null;
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+
+    let cancelled = false;
+
+    const init = async () => {
+      const parsed = await loadMessagesForThread(selectedThreadId);
+      if (cancelled) return;
+
+      // 偵測：最後一條是 user msg 而無 ai msg → 可能有進行中的回應
+      const hasPending =
+        parsed.length > 0 && parsed[parsed.length - 1].role === 'user';
+
+      // (1) 持久 SSE 訂閱：收到新訊息即 reload
+      cleanupMessageEventsRef.current = assistantApi.streamMessageEvents(
+        selectedThreadId,
+        () => {
+          // 收到新訊息 → reload；同時停止輪詢（SSE 已接通）
+          if (pollTimerRef.current) {
+            clearInterval(pollTimerRef.current);
+            pollTimerRef.current = null;
+          }
+          loadMessagesForThread(selectedThreadId);
+        },
+      );
+
+      // (2) 輪詢兜底：只在 hasPending 時啟動，SSE 接通後自動停止
+      if (hasPending) {
+        let attempts = 0;
+        const maxAttempts = 60; // 最多輪詢 60 次（約 2 分鐘）
+        pollTimerRef.current = setInterval(async () => {
+          if (cancelled || attempts >= maxAttempts) {
+            if (pollTimerRef.current) {
+              clearInterval(pollTimerRef.current);
+              pollTimerRef.current = null;
+            }
+            return;
+          }
+          attempts++;
+          try {
+            const msgs = await loadMessagesForThread(selectedThreadId);
+            // AI 回應已到（最後一條變成 assistant）→ 停止輪詢
+            if (msgs.length > 0 && msgs[msgs.length - 1].role === 'assistant') {
+              if (pollTimerRef.current) {
+                clearInterval(pollTimerRef.current);
+                pollTimerRef.current = null;
+              }
+            }
+          } catch {
+            /* ignore transient errors */
+          }
+        }, 2000);
+      }
+    };
+
+    init();
+
+    return () => {
+      cancelled = true;
+      cleanupMessageEventsRef.current?.();
+      cleanupMessageEventsRef.current = null;
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+    };
+  }, [selectedThreadId]);
+
   const handleSelectSidebarThread = (thread: any) => {
-    setSelectedThreadId(String(thread.id));
+    selectThread(String(thread.id));
     setSelectedThreadData(thread);
     setActiveAssistantId(thread.assistant_id || 'hacker_assistant_agent');
     setActiveNodeThreadId(String(thread.id));
     setBoundTargetId(thread.bound_target_id ?? null);
     setRootThreadId(thread.assistant_id === 'hacker_assistant_agent' ? String(thread.id) : null);
     setShowLogsPanel(false);
+    setShowEventsPanel(false);
     setSelectedGraphId(null);
     setActiveThreadGraphs([]);
   };
 
   const handleSelectTreeNode = useCallback((node: TreeNode) => {
-    setSelectedThreadId(String(node.thread_id));
+    selectThread(String(node.thread_id));
     setSelectedThreadData({
       id: node.thread_id,
       name: node.thread_name,
@@ -449,7 +516,7 @@ const AICenterPage: React.FC = () => {
     try {
       await assistantApi.deleteThread(threadId);
       if (selectedThreadId === threadId) {
-        setSelectedThreadId(null);
+        selectThread(null);
         setSelectedThreadData(null);
         setMessages([]);
         setRootThreadId(null);
@@ -464,7 +531,7 @@ const AICenterPage: React.FC = () => {
 
   const handleSend = useCallback(async () => {
     if (!inputVal.trim() || !selectedThreadId) return;
-    if (!selectedThreadData) { alert('This conversation was deleted'); setSelectedThreadId(null); return; }
+    if (!selectedThreadData) { alert('This conversation was deleted'); selectThread(null); return; }
 
     const userMsg = inputVal;
     setInputVal('');
@@ -569,29 +636,91 @@ const AICenterPage: React.FC = () => {
         {threadsLoading && <div className="sidebar-loading"><span className="pulse">●</span> Loading...</div>}
         {threadsError && <div className="sidebar-error">Error: {threadsError}</div>}
 
-        <div className="threads-list">
-          {allThreads.length === 0 && !threadsLoading && (
-            <div className="empty-state">No conversations yet</div>
-          )}
-          {allThreads.map(thread => (
-            <div
-              key={thread.id}
-              className={`thread-item ${selectedThreadId === String(thread.id) ? 'active' : ''}`}
-              onClick={() => handleSelectSidebarThread(thread)}
-            >
-              <div className="thread-name">{thread.name || 'Untitled'}</div>
-              {selectedThreadId === String(thread.id) && (
-                <button
-                  className="delete-btn"
-                  onClick={e => { e.stopPropagation(); handleDeleteThread(String(thread.id)); }}
-                  title="Delete conversation"
-                >
-                  Delete
-                </button>
-              )}
-            </div>
-          ))}
+        <div className="sidebar-tabs" style={{ display: 'flex', gap: 4, padding: '4px 8px 0' }}>
+          <button
+            className={`c2-btn c2-btn--sm ${sidebarTab === 'threads' ? 'c2-btn--primary' : 'c2-btn--ghost'}`}
+            style={{ flex: 1, justifyContent: 'center', fontSize: '0.7rem' }}
+            onClick={() => setSidebarTab('threads')}
+          >
+            THREADS
+          </button>
+          <button
+            className={`c2-btn c2-btn--sm ${sidebarTab === 'overviews' ? 'c2-btn--primary' : 'c2-btn--ghost'}`}
+            style={{ flex: 1, justifyContent: 'center', fontSize: '0.7rem' }}
+            onClick={() => setSidebarTab('overviews')}
+          >
+            OVERVIEWS{overviews.length > 0 ? ` (${overviews.length})` : ''}
+          </button>
         </div>
+
+        {sidebarTab === 'threads' && (
+          <div className="threads-list">
+            {allThreads.length === 0 && !threadsLoading && (
+              <div className="empty-state">No conversations yet</div>
+            )}
+            {allThreads.map(thread => (
+              <div
+                key={thread.id}
+                className={`thread-item ${selectedThreadId === String(thread.id) ? 'active' : ''}`}
+                onClick={() => handleSelectSidebarThread(thread)}
+              >
+                <div className="thread-name">{thread.name || 'Untitled'}</div>
+                {selectedThreadId === String(thread.id) && (
+                  <button
+                    className="delete-btn"
+                    onClick={e => { e.stopPropagation(); handleDeleteThread(String(thread.id)); }}
+                    title="Delete conversation"
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {sidebarTab === 'overviews' && (
+          <div className="threads-list">
+            {overviewsLoading && <div className="sidebar-loading"><span className="pulse">●</span> Loading...</div>}
+            {!boundTargetId && !overviewsLoading && (
+              <div className="empty-state">Select a thread bound to a target to see its overviews</div>
+            )}
+            {overviews.map(ov => (
+              <div key={ov.id} className="thread-item" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div className="thread-name">Overview #{ov.id}</div>
+                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{ov.status} · risk {ov.risk_score}</div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {ov.thread_id && (
+                    <button
+                      className="c2-btn c2-btn--ghost c2-btn--sm"
+                      style={{ flex: 1, fontSize: '0.65rem' }}
+                      onClick={() => handleSelectSidebarThread({
+                        id: ov.thread_id,
+                        name: `Overview #${ov.id}`,
+                        assistant_id: 'automation_agent',
+                        is_hidden: true,
+                        bound_target_id: null,
+                      })}
+                    >
+                      VIEW THREAD
+                    </button>
+                  )}
+                  <button
+                    className="c2-btn c2-btn--ghost c2-btn--sm"
+                    style={{ flex: 1, fontSize: '0.65rem' }}
+                    onClick={() => navigate(`/overviews/${ov.id}`)}
+                  >
+                    EDIT DETAIL
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {boundTargetId && (
           <div className="sidebar-footer">
@@ -628,6 +757,13 @@ const AICenterPage: React.FC = () => {
                       {activeThreadGraphs.length} graph{activeThreadGraphs.length > 1 ? 's' : ''}
                     </button>
                   )}
+                  <button
+                    className={`tool-log-toggle-btn ${showEventsPanel ? 'active' : ''}`}
+                    onClick={() => setShowEventsPanel(v => !v)}
+                    title="Toggle thread events"
+                  >
+                    Events
+                  </button>
                   {rootThreadId && (
                     <button
                       className={`tree-toggle-btn ${showTreePanel ? 'active' : ''}`}
@@ -732,6 +868,27 @@ const AICenterPage: React.FC = () => {
                     ) : (
                       <div className="logs-empty">No execution graph selected</div>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Thread events panel ──────────────────────────────── */}
+              {showEventsPanel && (
+                <div className="logs-panel">
+                  <div className="logs-panel-header">
+                    <div className="logs-panel-title">
+                      <span>THREAD EVENTS</span>
+                    </div>
+                    <div className="logs-panel-controls">
+                      <button
+                        className="logs-close-btn"
+                        onClick={() => setShowEventsPanel(false)}
+                        title="Close events panel"
+                      >✕</button>
+                    </div>
+                  </div>
+                  <div className="logs-panel-body">
+                    <ThreadEventTimeline threadId={selectedThreadId} autoScroll />
                   </div>
                 </div>
               )}

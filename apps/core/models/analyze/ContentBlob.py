@@ -27,6 +27,10 @@ class ContentBlob(models.Model):
         null=True, blank=True,
         help_text="AI 第一次存入時自動產生的大意總結，避免重複分析"
     )
+    page_breakdown = models.JSONField(
+        null=True, blank=True,
+        help_text="LLM 生成的结构化页面划分（[{title, content}]），每页至多 4000 字"
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
 

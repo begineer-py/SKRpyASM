@@ -46,6 +46,7 @@ from langchain_core.runnables import (
 )
 from langchain_core.tools import BaseTool, StructuredTool
 from langgraph.graph import END, StateGraph, add_messages
+from langgraph.errors import GraphRecursionError
 from pydantic import BaseModel
 
 from apps.ai_assistant.decorators import with_cast_id
@@ -56,13 +57,14 @@ from apps.ai_assistant.helpers.django_messages import save_django_messages
 from apps.ai_assistant.langchain.tools import tool as tool_decorator
 
 
-ProviderName = Literal["openai", "anthropic", "google"]
 
 
 class ProviderConfig(TypedDict):
     langchain_module: str
     llm_class: str
 
+
+ProviderName = Literal["openai", "anthropic", "google", "groq", "ollama", "mistral", "together"]
 
 PROVIDER_LLM_LOOKUP: dict[ProviderName, ProviderConfig] = {
     "openai": {
@@ -77,8 +79,28 @@ PROVIDER_LLM_LOOKUP: dict[ProviderName, ProviderConfig] = {
         "langchain_module": "langchain_google_genai",
         "llm_class": "ChatGoogleGenerativeAI",
     },
+    # ─── 以下是你可以直接加塞的熱門供應商 ───
+    "groq": {
+        # 極速推理服務（Llama 3, Mixtral）
+        "langchain_module": "langchain_groq",
+        "llm_class": "ChatGroq",
+    },
+    "ollama": {
+        # 本地跑開源模型（Llama 3, Qwen, Mistral）
+        "langchain_module": "langchain_ollama",
+        "llm_class": "ChatOllama",
+    },
+    "mistral": {
+        # 歐洲最強開源大模型
+        "langchain_module": "langchain_mistralai",
+        "llm_class": "ChatMistralAI",
+    },
+    "together": {
+        # 雲端開源模型託管商
+        "langchain_module": "langchain_together",
+        "llm_class": "ChatTogether",
+    },
 }
-
 
 class AIAssistant(abc.ABC):  # noqa: F821
     """Base class for AI Assistants. Subclasses must define at least the following attributes:
@@ -158,8 +180,12 @@ class AIAssistant(abc.ABC):  # noqa: F821
 
     _registry: ClassVar[dict[str, type["AIAssistant"]]] = {}
     """Registry of all AIAssistant subclasses by their id.\n
-    Automatically populated by when a subclass is declared.\n
-    Use `get_cls_registry` and `get_cls` to access the registry."""
+Automatically populated by when a subclass is declared.\n
+Use `get_cls_registry` and `get_cls` to access the registry."""
+
+    _bg_tasks: ClassVar[set[Any]] = set()
+    """Background asyncio tasks for astream producer-consumer.\n
+Holds refs so tasks aren't GC'd before completion."""
 
     DEFAULT_DOCUMENT_PROMPT: ClassVar[PromptTemplate] = PromptTemplate.from_template(
         "{page_content}"
@@ -250,14 +276,32 @@ class AIAssistant(abc.ABC):  # noqa: F821
                 tool = tool_decorator(method)
             tools.append(cast(BaseTool, tool))
 
-        # Remove self from each tool args_schema:
+        # 自動剝離欄位：self（綁定方法）+ 內部 ID 欄位（不對 LLM 暴露）
+        # overview_id / thread_id / parent_thread_id 由 agent instance 自動注入，
+        # 避免 LLM 幻覺猜測 ID（問題 ②③）。agent instance 的 _agent_overview_id、
+        # _current_invoke_thread_id、_caller_thread_id 於 _set_auto_injected_ids() 解析。
+        _hidden_fields = {"self", "overview_id", "thread_id", "parent_thread_id"}
         for tool in tools:
             if tool.args_schema:
                 if isinstance(tool.args_schema.__fields_set__, set):
-                    tool.args_schema.__fields_set__.remove("self")
-                tool.args_schema.__fields__.pop("self", None)
+                    tool.args_schema.__fields_set__ -= _hidden_fields
+                for fld in _hidden_fields:
+                    tool.args_schema.__fields__.pop(fld, None)
 
         self._method_tools = tools
+
+    def _set_auto_injected_ids(self):
+        """解析本 agent instance 對應的 overview_id / thread_id / caller_thread_id，
+        供工具呼叫時自動注入。在 invoke / _run_as_tool 進入點與 get_target_context /
+        create_overview 等工具內會更新 _agent_overview_id。
+
+        應於 invoke() 與 _run_as_tool() 開始時呼叫。
+        """
+        # thread_id（自身）：優先使用 _current_invoke_thread_id，其次 _thread
+        if getattr(self, "_current_invoke_thread_id", None) is None:
+            thread = getattr(self, "_thread", None)
+            if thread is not None and getattr(thread, "id", None) is not None:
+                self._current_invoke_thread_id = thread.id
 
     @classmethod
     def get_cls_registry(cls) -> dict[str, type["AIAssistant"]]:
@@ -434,6 +478,44 @@ class AIAssistant(abc.ABC):  # noqa: F821
             logger.error(f"Internal summary generation failed: {e}")
             return f"[{tool_name}: {str(content)[:150]}...]"
 
+    def _generate_page_breakdown(self, content: str) -> list:
+        """使用 compression_agent LLM 將超長內容拆分為結構化頁面。
+
+        返回 [{"title": str, "content": str}, ...]
+        用於 read_content_blob 的 page 參數分頁查詢，避免死循環。
+        """
+        try:
+            from apps.core.llms import get_llm_instance
+            from langchain_core.messages import HumanMessage
+            import json
+
+            try:
+                llm = get_llm_instance(agent_id="compression_agent", temperature=0)
+            except Exception:
+                llm = self.get_llm()
+
+            prompt = (
+                "你是一個文檔結構分析專家。請將以下內容按語義結構拆分為多個頁面(page)。\n"
+                "要求：\n"
+                "1. 按內容主題自然分頁（而非按字符硬切）\n"
+                "2. 每頁提供一個簡短的 title（20 字以內）\n"
+                "3. 每頁 content 不超過 4000 字\n"
+                "4. 輸出為 JSON 數組格式：[{\"title\": \"...\", \"content\": \"...\"}]\n"
+                "5. 只輸出 JSON，不要額外的解釋\n\n"
+                f"=== 原始內容（截取前 50000 字）===\n{content[:50000]}"
+            )
+            resp = llm.invoke([HumanMessage(content=prompt)])
+            text = resp.content if hasattr(resp, 'content') else str(resp)
+            if '```json' in text:
+                text = text.split('```json')[1].split('```')[0].strip()
+            elif '```' in text:
+                text = text.split('```')[1].split('```')[0].strip()
+            pages = json.loads(text)
+            return pages if isinstance(pages, list) else []
+        except Exception as e:
+            logger.error(f"Page breakdown generation failed: {e}")
+            return []
+
     def get_callbacks(self) -> Sequence[BaseCallbackHandler]:
         """Get the list of callback handlers for monitoring and logging assistant execution.
         By default, returns an empty list (no callbacks enabled).
@@ -481,19 +563,38 @@ class AIAssistant(abc.ABC):  # noqa: F821
         node_name: str | None = None,
         tool_name: str | None = None,
     ) -> Any | None:
-        """Allow tools to emit durable execution events."""
+        """Allow tools to emit durable execution events.
+
+        Dual-writes to both ExecutionEvent (for ExecutionTimelineViewer)
+        and ThreadEvent (for ThreadEvent SSE streaming).
+        """
         from apps.core.services import ExecutionService
+        from apps.ai_assistant.services.events import AgentEventService
 
         graph = self._get_execution_graph()
-        if graph is None:
-            return None
-        return ExecutionService.emit_event(
-            graph=graph,
+        thread = self._get_event_thread()
+
+        result = None
+        if graph is not None:
+            result = ExecutionService.emit_event(
+                graph=graph,
+                event_type=event_type,
+                status=status,
+                content=content,
+                payload=payload,
+            )
+
+        AgentEventService.emit(
+            thread=thread,
             event_type=event_type,
             status=status,
             content=content,
             payload=payload,
+            node_name=node_name,
+            tool_name=tool_name,
         )
+
+        return result
 
     def _get_execution_graph(self):
         from apps.core.models import ExecutionGraph
@@ -624,42 +725,64 @@ class AIAssistant(abc.ABC):  # noqa: F821
         tools = self.get_tools()
 
         if thread and thread.bound_overview_id:
-            wrapped_tools = []
-            for tool in tools:
-                # Check if tool expects overview_id
-                has_ov_id = False
-                if tool.args_schema:
-                    # Support both Pydantic v1 (__fields__) and v2 (model_fields)
-                    fields = getattr(tool.args_schema, "model_fields", getattr(tool.args_schema, "__fields__", {}))
-                    if "overview_id" in fields:
-                        has_ov_id = True
-                
-                if has_ov_id:
-                    def _create_wrapped_func(t, ov_id):
-                        orig_func = getattr(t, "func", None)
-                        if not orig_func:
-                            return None
-                            
-                        def _wrapped(*args, **kwargs):
-                            # Auto-inject overview_id if not provided or provided as None
-                            if kwargs.get("overview_id") is None:
-                                kwargs["overview_id"] = ov_id
-                            return orig_func(*args, **kwargs)
-                        return _wrapped
+            # 相容舊路徑：若 thread 已綁定 overview，同步到 agent instance
+            if not getattr(self, "_agent_overview_id", None):
+                self._agent_overview_id = thread.bound_overview_id
 
-                    wrapped_func = _create_wrapped_func(tool, thread.bound_overview_id)
-                    if wrapped_func:
-                        new_tool = StructuredTool.from_function(
-                            func=wrapped_func,
-                            name=tool.name,
-                            description=tool.description,
-                            args_schema=tool.args_schema
-                        )
-                        wrapped_tools.append(new_tool)
-                        continue
-                
-                wrapped_tools.append(tool)
-            tools = wrapped_tools
+        # 無論 thread 是否綁定，都對「宣告過 overview_id 的工具」套用自動注入 wrap。
+        # 策略：強制覆蓋——即使 LLM 企圖傳入 overview_id 也以 agent instance 的值為準，
+        # 徹底避免 ID 幻覺（問題 ②）。
+        _self_overview_id = getattr(self, "_agent_overview_id", None)
+        wrapped_tools = []
+        for tool in tools:
+            # Check if tool expects overview_id（即使已從 public schema 剝離，
+            # 函式簽名仍保留參數，故檢查 __signature__ 而非 args_schema）
+            needs_ov_inject = False
+            try:
+                import inspect as _inspect
+                sig_params = _inspect.signature(getattr(tool, "func", None) or getattr(tool, "coroutine", None)).parameters if hasattr(tool, "func") or hasattr(tool, "coroutine") else {}
+                needs_ov_inject = "overview_id" in sig_params
+            except Exception:
+                pass
+            # fallback：檢查 args_schema 是否原始簽名包含 overview_id
+            if not needs_ov_inject and tool.args_schema:
+                fields = getattr(tool.args_schema, "model_fields", getattr(tool.args_schema, "__fields__", {}))
+                needs_ov_inject = "overview_id" in fields
+
+            if needs_ov_inject:
+                def _create_wrapped_func(t, agent_ref):
+                    orig_func = getattr(t, "func", None)
+                    if not orig_func:
+                        return None
+
+                    def _wrapped(*args, **kwargs):
+                        # 延遲讀取——每次工具呼叫時從 agent instance 取最新值。
+                        # as_graph() 階段 _agent_overview_id 可能仍為 None，
+                        # 要等到 get_target_context / create_overview 執行後才會被設定。
+                        current_ov = getattr(agent_ref, "_agent_overview_id", None)
+                        if current_ov is not None:
+                            kwargs["overview_id"] = current_ov
+                        elif kwargs.get("overview_id") is None:
+                            # fallback：thread.bound_overview_id（舊路徑相容）
+                            bound_ov = getattr(getattr(agent_ref, "_thread", None), "bound_overview_id", None)
+                            if bound_ov:
+                                kwargs["overview_id"] = bound_ov
+                        return orig_func(*args, **kwargs)
+                    return _wrapped
+
+                wrapped_func = _create_wrapped_func(tool, self)
+                if wrapped_func:
+                    new_tool = StructuredTool.from_function(
+                        func=wrapped_func,
+                        name=tool.name,
+                        description=tool.description,
+                        args_schema=tool.args_schema
+                    )
+                    wrapped_tools.append(new_tool)
+                    continue
+
+            wrapped_tools.append(tool)
+        tools = wrapped_tools
 
         llm_with_tools = llm.bind_tools(tools) if tools else llm
         if thread is None and thread_id is not None:
@@ -674,7 +797,15 @@ class AIAssistant(abc.ABC):  # noqa: F821
         def setup(state: AgentState):
             system_prompt = self.get_instructions()
             if thread:
-                system_prompt += f"\n\n[SYSTEM INFO]\nYour current Thread ID is: {thread.id}\nIf you delegate long tasks asynchronously to another agent, explicitly pass your Thread ID via their `caller_thread_id` tool parameter so they can wake you up when done."
+                # 不再對 LLM 暴露具體 Thread ID（問題 ②③）。
+                # 委派子 Agent 時，spawn 工具會自動帶入 caller_thread_id。
+                system_prompt += (
+                    "\n\n[SYSTEM INFO]\n"
+                    "You are running inside a managed conversation thread. "
+                    "When you delegate long tasks to another agent via spawn_*_agent tools, "
+                    "the platform automatically propagates your caller_thread_id — "
+                    "you do NOT need to (and should not) pass any thread_id explicitly."
+                )
 
                 # Inject GlobalContextOverview into system prompt if available
                 try:
@@ -704,7 +835,13 @@ class AIAssistant(abc.ABC):  # noqa: F821
         def history(state: AgentState):
             messages = thread.get_messages(include_extra_messages=True) if thread else []
             if state["input"]:
-                messages.append(HumanMessage(content=state["input"]))
+                input_content = state["input"]
+                already_present = any(
+                    isinstance(m, HumanMessage) and m.content == input_content
+                    for m in messages
+                )
+                if not already_present:
+                    messages.append(HumanMessage(content=input_content))
 
             return {"messages": messages}
 
@@ -752,19 +889,27 @@ class AIAssistant(abc.ABC):  # noqa: F821
 
         def agent(state: AgentState):
             _logger = logging.getLogger("ai_assistant.agent")
+            _logger.info(f"[NODE:agent] enter | messages_count={len(state['messages'])}")
             if _logger.isEnabledFor(logging.DEBUG):
                 for i, msg in enumerate(state["messages"]):
                     _logger.debug(f"[AGENT INVOKE] msg[{i}] type={type(msg).__name__}: {str(msg.content)[:500]}")
             response = llm_with_tools.invoke(state["messages"])
-            if _logger.isEnabledFor(logging.DEBUG):
-                _logger.debug(f"[AGENT RESPONSE] tool_calls={getattr(response, 'tool_calls', [])}")
+            tc = getattr(response, 'tool_calls', [])
+            _logger.info(f"[NODE:agent] exit | has_tool_calls={bool(tc)} tool_names={[t.get('name') for t in tc]} content_len={len(str(response.content)) if response.content else 0}")
+            if thread:
+                save_django_messages([response], thread=thread)
             return {"messages": [response]}
 
         def tool_selector(state: AgentState):
             last_message = state["messages"][-1]
+            _logger = logging.getLogger("ai_assistant.agent")
 
             if not (isinstance(last_message, AIMessage) and last_message.tool_calls):
+                _logger.info(f"[NODE:tool_selector] → continue (no tool_calls)")
                 return "continue"
+
+            tool_names = [tc.get("name") for tc in last_message.tool_calls]
+            _logger.info(f"[NODE:tool_selector] evaluating | tools={tool_names}")
 
             # Guard A: stop after multiple WAITING_FOR_ASYNC results to prevent polling loops
             if self.stop_on_waiting_async:
@@ -777,6 +922,7 @@ class AIAssistant(abc.ABC):  # noqa: F821
                     if "WAITING_FOR_ASYNC" in str(m.content)
                 )
                 if waiting_count >= 2:
+                    _logger.info(f"[NODE:tool_selector] → continue (guard A: {waiting_count} WAITING_FOR_ASYNC)")
                     return "continue"
 
             # Guard B: stop if the same tool is called repeatedly with no variation
@@ -795,8 +941,10 @@ class AIAssistant(abc.ABC):  # noqa: F821
                         len(all_tool_names) >= self.max_consecutive_same_tool
                         and len(set(all_tool_names[-self.max_consecutive_same_tool:])) == 1
                     ):
+                        _logger.info(f"[NODE:tool_selector] → continue (guard B: repeated {all_tool_names[-self.max_consecutive_same_tool:]})")
                         return "continue"
 
+            _logger.info(f"[NODE:tool_selector] → call_tool")
             return "call_tool"
 
         tools_by_name = {tool.name: tool for tool in tools}
@@ -805,17 +953,30 @@ class AIAssistant(abc.ABC):  # noqa: F821
             last_message = state["messages"][-1]
             if not isinstance(last_message, AIMessage):
                 return {"pending_tool_calls": []}
-            return {"pending_tool_calls": list(last_message.tool_calls or [])}
+            pending = list(last_message.tool_calls or [])
+            _logger = logging.getLogger("ai_assistant.agent")
+            _logger.info(f"[NODE:prepare_tool_runs] pending_count={len(pending)} names={[tc.get('name') for tc in pending]}")
+            return {"pending_tool_calls": pending}
 
         def execute_tools(state: AgentState, config: RunnableConfig | None = None):
             """Execute pending tool calls as an explicit graph node with durable events."""
+            import time as _time
             from apps.core.services import ExecutionService
+
+            _et_logger = logging.getLogger("ai_assistant.agent")
+            _et_start = _time.monotonic()
+            pending = state.get("pending_tool_calls", [])
+            _et_logger.info(f"[NODE:execute_tools] enter | pending_count={len(pending)}")
 
             tool_messages: list[ToolMessage] = []
             run_config = config or {}
+            _et_logger.info(
+                f"[NODE:execute_tools] config_received | config_type={type(config).__name__} "
+                f"configurable.thread_id={run_config.get('configurable', {}).get('thread_id', 'MISSING') if isinstance(run_config, dict) else 'N/A'}"
+            )
             graph_run_id = str(run_config.get("run_id") or "")
             graph = self._get_execution_graph()
-            for tool_call in state.get("pending_tool_calls", []):
+            for tool_call in pending:
                 tool_name = tool_call.get("name") or "unknown_tool"
                 tool_args = tool_call.get("args") or {}
                 tool_call_id = tool_call.get("id") or f"{tool_name}_call"
@@ -829,10 +990,16 @@ class AIAssistant(abc.ABC):  # noqa: F821
                         input=tool_args,
                         metadata={"run_id": graph_run_id, "langgraph_node": "execute_tools"},
                     )
+                    _et_logger.debug(
+                        f"[DB-WRITE] ExecutionNode START | node_id={node.id} graph_id={node.graph_id} "
+                        f"seq={node.sequence} tool={tool_name} call_id={tool_call_id} "
+                        f"args_keys={list(tool_args.keys())}"
+                    )
 
                 tool = tools_by_name.get(tool_name)
                 if tool is None:
                     error_message = f"Tool {tool_name!r} is not available."
+                    _et_logger.warning(f"[NODE:execute_tools] tool_not_found | name={tool_name!r}")
                     if node is not None:
                         ExecutionService.fail_node(
                             node,
@@ -840,6 +1007,10 @@ class AIAssistant(abc.ABC):  # noqa: F821
                             content=error_message,
                             payload={"tool_call_id": tool_call_id, "error_type": "ToolNotFound"},
                             reconcile_graph=False,
+                        )
+                        _et_logger.debug(
+                            f"[DB-WRITE] ExecutionNode FAIL(ToolNotFound) | node_id={node.id} "
+                            f"tool={tool_name} call_id={tool_call_id}"
                         )
                     tool_messages.append(
                         ToolMessage(content=error_message, tool_call_id=tool_call_id)
@@ -849,7 +1020,15 @@ class AIAssistant(abc.ABC):  # noqa: F821
                 try:
                     self._current_execution_node = node
                     self._current_execution_node_id = node.id if node is not None else None
+                    _t_start = _time.monotonic()
+                    _et_logger.info(f"[NODE:execute_tools] invoking | name={tool_name} args_keys={list(tool_args.keys())}")
                     output = tool.invoke(tool_args, config=run_config)
+                    _t_elapsed = _time.monotonic() - _t_start
+                    _et_logger.info(f"[NODE:execute_tools] completed | name={tool_name} elapsed={_t_elapsed:.3f}s output_len={len(str(output))}")
+                    _et_logger.debug(
+                        f"[TOOL] invoked | name={tool_name} elapsed_ms={int(_t_elapsed * 1000)} "
+                        f"output_len={len(str(output))} output_preview={str(output)[:500]!r}"
+                    )
                     if node is not None:
                         node.refresh_from_db()
                     if node is not None and node.status == "WAITING":
@@ -861,6 +1040,11 @@ class AIAssistant(abc.ABC):  # noqa: F821
                             content=str(output),
                             payload={"tool_call_id": tool_call_id, "output_preview": str(output)[:4000]},
                         )
+                        _et_logger.debug(
+                            f"[DB-WRITE] ExecutionEvent EMIT(tool_dispatched) | node_id={node.id} "
+                            f"graph_id={graph.id} status=WAITING content_len={len(str(output))} "
+                            f"call_id={tool_call_id}"
+                        )
                     elif node is not None:
                         ExecutionService.complete_node(
                             node,
@@ -869,11 +1053,23 @@ class AIAssistant(abc.ABC):  # noqa: F821
                             payload={"tool_call_id": tool_call_id, "output_preview": str(output)[:4000]},
                             reconcile_graph=False,
                         )
+                        _et_logger.debug(
+                            f"[DB-WRITE] ExecutionNode COMPLETE | node_id={node.id} status=SUCCEEDED "
+                            f"seq={node.sequence} graph_id={node.graph_id} tool={tool_name} "
+                            f"call_id={tool_call_id} output_preview={str(output)[:500]!r}"
+                        )
                     tool_messages.append(
                         ToolMessage(content=str(output), tool_call_id=tool_call_id)
                     )
+                    if thread:
+                        _saved = save_django_messages(tool_messages[-1:], thread=thread)
+                        _et_logger.debug(
+                            f"[DB-WRITE] Message SAVED | thread_id={thread.id} role=tool_result "
+                            f"msg_ids={[m.id for m in _saved]} tool_call_id={tool_call_id}"
+                        )
                 except Exception as exc:
                     error_message = f"{type(exc).__name__}: {exc}"
+                    _et_logger.error(f"[NODE:execute_tools] failed | name={tool_name} error={error_message}", exc_info=True)
                     if node is not None:
                         ExecutionService.fail_node(
                             node,
@@ -882,21 +1078,35 @@ class AIAssistant(abc.ABC):  # noqa: F821
                             payload={"tool_call_id": tool_call_id, "error_type": type(exc).__name__},
                             reconcile_graph=False,
                         )
+                        _et_logger.debug(
+                            f"[DB-WRITE] ExecutionNode FAIL | node_id={node.id} status=FAILED "
+                            f"seq={node.sequence} graph_id={node.graph_id} tool={tool_name} "
+                            f"call_id={tool_call_id} error_type={type(exc).__name__} error_msg={str(exc)[:300]!r}"
+                        )
                     tool_messages.append(
                         ToolMessage(content=error_message, tool_call_id=tool_call_id)
                     )
+                    if thread:
+                        _saved = save_django_messages(tool_messages[-1:], thread=thread)
+                        _et_logger.debug(
+                            f"[DB-WRITE] Message SAVED(error) | thread_id={thread.id} "
+                            f"msg_ids={[m.id for m in _saved]} tool_call_id={tool_call_id} "
+                            f"error={error_message[:200]!r}"
+                        )
                 finally:
                     self._current_execution_node = None
                     self._current_execution_node_id = None
 
+            _et_elapsed = _time.monotonic() - _et_start
+            _et_logger.info(f"[NODE:execute_tools] exit | tool_messages_count={len(tool_messages)} elapsed={_et_elapsed:.3f}s")
             return {"messages": tool_messages, "pending_tool_calls": []}
 
         def compress_tool_outputs(state: AgentState):
             """Compress large tool outputs before they reach the LLM."""
+            _ct_logger = logging.getLogger("ai_assistant.agent")
             messages = state["messages"]
             last_tool_messages = []
             
-            # Find the recent wave of tool messages
             for msg in reversed(messages):
                 if msg.type == "tool":
                     last_tool_messages.append(msg)
@@ -904,13 +1114,23 @@ class AIAssistant(abc.ABC):  # noqa: F821
                     break
             
             if not last_tool_messages:
+                _ct_logger.info(f"[NODE:compress_tool_outputs] skip (no tool messages)")
                 return {"messages": []}
+
+            _ct_logger.info(f"[NODE:compress_tool_outputs] enter | tool_msg_count={len(last_tool_messages)}")
 
             updated_messages = []
             for msg in last_tool_messages:
                 content = str(msg.content)
-                # Auto-compress if output > 2500 chars
-                if len(content) > 2500:
+
+                # Fix A: whitelist read_content_blob / save_long_content from Stage 1
+                _whitelist_prefixes = ('=== ContentBlob #', '=== Focused Analysis for Blob #', '[Long Output Saved] blob_id=')
+                if any(content.startswith(p) for p in _whitelist_prefixes):
+                    updated_messages.append(msg)
+                    continue
+
+                # Fix B: raise threshold 2500 → 8000
+                if len(content) > 8000:
                     try:
                         from apps.core.models.analyze.ContentBlob import ContentBlob
                         
@@ -923,13 +1143,30 @@ class AIAssistant(abc.ABC):  # noqa: F821
                             source_type="auto_hook",
                         )
                         
+                        # Fix D: generate page_breakdown for structured pagination
+                        if len(content) > 12000:
+                            try:
+                                pages = self._generate_page_breakdown(content)
+                                if pages:
+                                    blob.page_breakdown = pages
+                                    blob.save(update_fields=['page_breakdown'])
+                            except Exception as e:
+                                logger.warning(f"Page breakdown generation skipped: {e}")
+                        
                         # Replace content in the message object
                         new_content = (
                             f"⚠️ [AUTO-COMPRESSED] Tool output too large ({len(content)} chars). Moved to database.\n"
                             f"**Summary**: {summary}\n"
                             f"**Blob ID**: {blob.id}\n"
-                            f"Use `read_content_blob(blob_id={blob.id})` for details."
                         )
+                        if blob.page_breakdown:
+                            page_count = len(blob.page_breakdown)
+                            new_content += (
+                                f"**Pages**: {page_count} pages available.\n"
+                                f"Use `read_content_blob(blob_id={blob.id}, page=N)` to read a specific page (1-{page_count}).\n"
+                            )
+                        else:
+                            new_content += f"Use `read_content_blob(blob_id={blob.id})` for details."
                         msg.content = new_content
                         updated_messages.append(msg)
                     except Exception as e:
@@ -943,17 +1180,22 @@ class AIAssistant(abc.ABC):  # noqa: F821
             if thread:
                 truncated_list = []
                 for msg in updated_messages:
+                    # Fix A (Stage 2): preserve whitelisted messages from Stage 2 truncation
+                    _msg_content = str(msg.content)
+                    _whitelist_prefixes = ('=== ContentBlob #', '=== Focused Analysis for Blob #', '[Long Output Saved] blob_id=')
+                    _is_whitelisted = any(_msg_content.startswith(p) for p in _whitelist_prefixes)
                     if (
                         isinstance(msg, ToolMessage)
-                        and len(str(msg.content)) > 300
+                        and len(_msg_content) > 300
+                        and not _is_whitelisted
                     ):
                         _tool_name = getattr(msg, 'name', None) or 'tool'
                         try:
                             _summary = self._internal_generate_summary(
-                                str(msg.content), tool_name=_tool_name
+                                _msg_content, tool_name=_tool_name
                             )
                         except Exception:
-                            _summary = str(msg.content)[:150] + "..."
+                            _summary = _msg_content[:150] + "..."
                         truncated_list.append(
                             ToolMessage(
                                 content=f"[{_tool_name}] {_summary}",
@@ -966,10 +1208,15 @@ class AIAssistant(abc.ABC):  # noqa: F821
                 updated_messages = truncated_list
 
             # Return updated messages with same IDs to update state
+            _ct_logger.info(f"[NODE:compress_tool_outputs] exit | updated_count={len(updated_messages)}")
             return {"messages": updated_messages}
 
         def record_response(state: AgentState):
+            import time as _time
             from apps.core.services import ExecutionService
+
+            _rr_logger = logging.getLogger("ai_assistant.agent")
+            _rr_logger.info(f"[NODE:record_response] enter | messages_count={len(state['messages'])}")
 
             # Structured output must happen in the end, to avoid disabling tool calling.
             # Tool calling + structured output is not supported by OpenAI:
@@ -992,14 +1239,16 @@ class AIAssistant(abc.ABC):  # noqa: F821
                 response = state["messages"][-1].content
 
             if thread:
-                # Save all messages, except the initial system message:
                 thread_messages = [m for m in state["messages"] if not isinstance(m, SystemMessage)]
                 save_django_messages(cast(list[BaseMessage], thread_messages), thread=thread)
+                _rr_logger.info(f"[NODE:record_response] saved {len(thread_messages)} messages to thread {thread.id}")
             graph = self._get_execution_graph()
             if graph is not None:
                 graph.refresh_from_db(fields=["status"])
                 if graph.status in ["RUNNING", "WAITING"]:
                     ExecutionService.complete_graph(graph, content=response)
+                    _rr_logger.info(f"[NODE:record_response] completed graph {graph.id}")
+            _rr_logger.info(f"[NODE:record_response] exit | output_len={len(str(response))}")
             return {"output": response}
 
         workflow = StateGraph(AgentState)
@@ -1103,6 +1352,11 @@ class AIAssistant(abc.ABC):  # noqa: F821
             self._execution_graph = execution_graph
             self._current_execution_graph_id = execution_graph.id
             config.setdefault("configurable", {})["execution_graph_id"] = execution_graph.id
+        # Keep an instance fallback for non-LangGraph tool invocation paths where
+        # RunnableConfig may not be propagated into the wrapped tool function.
+        self._current_invoke_thread_id = thread_id
+        # 解析本 agent instance 對應的 overview_id / thread_id（供 ID 自動注入）
+        self._set_auto_injected_ids()
         graph = self.as_graph(thread_id=thread_id, thread=thread)
         
         # Tool lifecycle persistence is graph-native. Callbacks remain available
@@ -1114,9 +1368,6 @@ class AIAssistant(abc.ABC):  # noqa: F821
         # Inject thread_id into configurable so nested agent tools can read caller_thread_id
         if thread_id is not None:
             config.setdefault("configurable", {})["thread_id"] = thread_id
-        # Keep an instance fallback for non-LangGraph tool invocation paths where
-        # RunnableConfig may not be propagated into the wrapped tool function.
-        self._current_invoke_thread_id = thread_id
         _logger = logging.getLogger("ai_assistant.agent")
         _logger.info(
             f"[INVOKE] agent={getattr(self, 'id', '?')} | thread_id={thread_id} | "
@@ -1126,6 +1377,29 @@ class AIAssistant(abc.ABC):  # noqa: F821
             raise NotImplementedError(f"mode={mode!r}")
         try:
             return getattr(graph, mode)(*args, config=config, **kwargs)
+        except GraphRecursionError as exc:
+            # Agent 陷入迴圈或步驟過多（問題 ⑤）。回傳結構化「已達思考上限」訊息，
+            # 而非讓例外傳播造成 Celery 無意義重試風暴。
+            _logger.warning(
+                f"[{getattr(self, 'id', '?')}] GraphRecursionError: hit recursion_limit="
+                f"{config.get('recursion_limit')} (thread_id={thread_id})"
+            )
+            recursion_msg = (
+                "⚠️ 已達思考步驟上限（GraphRecursionError）。"
+                "可能原因：工具連續失敗導致重試、或任務本身需要過多步驟。"
+                "請彙整目前已完成的進度，以結構化方式回報，並停止嘗試相同動作。"
+            )
+            if execution_graph is not None:
+                ExecutionService.fail_graph(
+                    execution_graph,
+                    error=f"GraphRecursionError: hit limit {config.get('recursion_limit')}",
+                    payload={
+                        "error_type": "GraphRecursionError",
+                        "recursion_limit": config.get("recursion_limit"),
+                    },
+                )
+            # 回傳結構化結果而非拋出例外，避免上層 Celery 無意義重試
+            return {"output": recursion_msg, "error": "GraphRecursionError"}
         except Exception as exc:
             if execution_graph is not None:
                 ExecutionService.fail_graph(
@@ -1164,6 +1438,9 @@ class AIAssistant(abc.ABC):  # noqa: F821
         """Async-stream the assistant with the given message and thread.\n
         This is the higher-level method to run the assistant.\n
 
+        The graph runs inside an independent asyncio.Task so that it completes
+        regardless of whether the SSE consumer (caller) is still iterating.
+
         Args:
             message (str): The user message to pass to the assistant.
             thread (Any | None): The thread object for the chat message history.
@@ -1171,25 +1448,52 @@ class AIAssistant(abc.ABC):  # noqa: F821
             **kwargs: Additional keyword arguments to pass to the graph.
 
         Yields:
-            Any: The assistant response to the user message.
+            Any: Token strings from the agent node.
         """
+        import asyncio
         from asgiref.sync import sync_to_async
 
-        # as_graph() 和 get_llm() 內部包含同步 ORM 查詢（AgentLLMConfig / APIKey / Thread），
-        # 在 async 上下文中必須先在同步執行緒中建好 graph，再接回 async 串流。
-        graph = await sync_to_async(self.invoke)(
-            {
-                "input": message,
-            },
-            thread=thread,
-            thread_id=thread.id if thread else None,
-            mode="astream",
-            stream_mode="messages",
-            **kwargs,
-        )
-        async for output, metadata in graph:
-            if metadata.get("langgraph_node") == "agent" and (content := output.content):
-                yield content
+        queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue()
+        _stream_logger = logging.getLogger("ai_assistant.agent")
+
+        async def _run_graph_to_completion():
+            try:
+                graph_iter = await sync_to_async(self.invoke)(
+                    {"input": message},
+                    thread=thread,
+                    thread_id=thread.id if thread else None,
+                    mode="astream",
+                    stream_mode="messages",
+                    **kwargs,
+                )
+                token_count = 0
+                async for output, metadata in graph_iter:
+                    if metadata.get("langgraph_node") == "agent" and (content := output.content):
+                        await queue.put(("token", content))
+                        token_count += 1
+                _stream_logger.info(f"[astream producer] graph completed | tokens_produced={token_count}")
+                await queue.put(("done", None))
+            except Exception as exc:
+                _stream_logger.error(f"[astream producer] graph failed: {type(exc).__name__}: {exc}", exc_info=True)
+                await queue.put(("error", exc))
+
+        task = asyncio.create_task(_run_graph_to_completion())
+        self._bg_tasks.add(task)
+        task.add_done_callback(self._bg_tasks.discard)
+        _stream_logger.info(f"[astream] spawned background task={id(task)} thread={thread.id if thread else None}")
+
+        try:
+            while True:
+                event_type, data = await queue.get()
+                if event_type == "token":
+                    yield data
+                elif event_type == "done":
+                    break
+                elif event_type == "error":
+                    raise data
+        except GeneratorExit:
+            _stream_logger.info("[astream consumer] GeneratorExit — SSE client disconnected; graph continues in background")
+            raise
 
     def _run_as_tool(self, message: str, caller_thread_id: int | None = None, persistent: bool = True, **kwargs: Any) -> Any:
         _logger = logging.getLogger("ai_assistant.agent")
@@ -1244,11 +1548,19 @@ class AIAssistant(abc.ABC):  # noqa: F821
             except Exception as e:
                 _logger.error(f"Failed to manage sub-thread: {e}")
 
+        # 同步 caller_thread_id 到 agent instance（供 create_overview / notify_caller_agent 自動注入）
+        if caller_thread_id:
+            self._caller_thread_id = caller_thread_id
+        if target_thread_id:
+            self._current_invoke_thread_id = target_thread_id
+
         if target_thread_id:
             if persistent:
-                message = f"[System Context: Your own assigned Thread ID is {target_thread_id}. You were invoked by an upper-layer agent from parent Thread ID {caller_thread_id}. When calling `create_overview`, YOU MUST explicitly set `thread_id={target_thread_id}` and `parent_thread_id={caller_thread_id}` so that async background tasks will callback to YOUR thread ({target_thread_id}) and wake YOU up. Once you decide the entire 4-phase operation is complete, use `notify_caller_agent` to wake up your parent ({caller_thread_id}).]\n\n" + message
+                # 不再對 LLM 暴露具體 Thread ID / parent_thread_id（問題 ②③），
+                # 改為告知它「後端已自動處理 thread 關聯，工具呼叫時不必提供 thread_id/parent_thread_id」。
+                message = f"[System Context: You are running as a managed sub-agent. Your Thread relationship (own thread + parent thread) has been automatically configured by the platform. When calling `create_overview` / `notify_caller_agent`, DO NOT pass thread_id or parent_thread_id — the backend auto-injects them. Once you decide the operation is complete, call `notify_caller_agent` to wake up your parent.]\n\n" + message
             else:
-                message = f"[System Context: This is a ONE-TIME execution but state-managed for reliability. You are running in Thread ID {target_thread_id}. Your output will be returned to the caller. Do not expect long-term interaction.]\n\n" + message
+                message = f"[System Context: This is a ONE-TIME execution but state-managed for reliability. You are running in a managed Thread. Your output will be returned to the caller. Do not expect long-term interaction.]\n\n" + message
             
         return self.run(message, thread_id=target_thread_id, **kwargs)
 

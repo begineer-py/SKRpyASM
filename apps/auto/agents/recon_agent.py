@@ -63,7 +63,7 @@ class ReconAgent(AIAssistant, ReconnaissanceMixin, ScannerToolsMixin, AssetCreat
     id = "recon_agent"
     name = "Recon Agent"
     instructions = _RECON_INSTRUCTIONS
-    recursion_limit = 40
+    recursion_limit = 60
     stop_on_waiting_async = True
     max_consecutive_same_tool = 3
 

@@ -15,6 +15,30 @@ class ScannerToolsMixin:
     prevent schema or lifecycle hallucinations.
     """
 
+    def _resolve_seed(self, overview_id: int) -> int | None:
+        """Resolve the first active Seed ID from an Overview's Target.
+
+        Args:
+            overview_id: Overview ID (auto-injected by @method_tool).
+
+        Returns:
+            Seed ID if found, None otherwise.
+        """
+        if not overview_id:
+            return None
+        try:
+            from apps.core.models import Overview, Seed
+            overview = Overview.objects.filter(id=overview_id).first()
+            if not overview or not overview.target_id:
+                return None
+            seed = Seed.objects.filter(
+                target_id=overview.target_id, is_active=True
+            ).first()
+            return seed.id if seed else None
+        except Exception as e:
+            logger.warning(f"[_resolve_seed] Failed for overview_id={overview_id}: {e}")
+            return None
+
     def _dispatch_scanner(self, overview_id: int, tool_name: str, endpoint: str, payload: dict, description: str = "") -> str:
         try:
             from apps.core.models import ExecutionGraph, ExecutionNode
@@ -125,10 +149,13 @@ class ScannerToolsMixin:
             overview_id: (Optional) 目標目前的 Overview ID。自動注入。
             target_url: 完整的網址 (例如 'https://example.com/')
         """
+        payload = {"url": target_url, "method": "GET"}
+        seed_id = self._resolve_seed(overview_id)
+        if seed_id:
+            payload["seed_id"] = seed_id
         return self._dispatch_scanner(
-            # API_BASE_URL already ends with /api, so endpoints should NOT start with /api
             overview_id, "flaresolverr", "/flaresolverr/start_scanner", 
-            {"url": target_url, "method": "GET"}, "Flaresolverr Crawl"
+            payload, "Flaresolverr Crawl"
         )
 
     @method_tool
@@ -155,6 +182,14 @@ class ScannerToolsMixin:
         Args:
             overview_id: (Optional) 當前 Overview ID。自動注入。
             target_url: 目標 URL。
+            method: HTTP 方法（預設 GET；可選 POST/PUT/DELETE 等）。
+            body: 請求主體（POST/PUT 時使用，純文字）。
+            content_type: 請求的 Content-Type（例如 'application/json'、'application/x-www-form-urlencoded'）。
+            host_header: 覆寫 HTTP Host header（用於 vhost 路由/繞過）。
+            headers: 額外自訂 headers（dict）。
+            cookies: Cookie 字串（例如 'key1=val1; key2=val2'）。
+            session_key: 復用既有 FlareSolverr session 的 key（省略則建立新 session）。
+            refresh_session: 是否在送出前刷新/重置 session（預設 False）。
         """
 
         payload = {
@@ -168,6 +203,9 @@ class ScannerToolsMixin:
             "session_key": session_key,
             "refresh_session": refresh_session,
         }
+        seed_id = self._resolve_seed(overview_id)
+        if seed_id:
+            payload["seed_id"] = seed_id
         return self._dispatch_scanner(
             overview_id,
             "flaresolverr-request",
@@ -183,8 +221,10 @@ class ScannerToolsMixin:
         
         Args:
             overview_id: (Optional) 目標目前的 Overview ID。自動注入。
-            seed_id: 對應的 Seed ID
+            seed_id: 對應的 Seed ID（若省略則自動從 Overview 解析）
         """
+        if not seed_id:
+            seed_id = self._resolve_seed(overview_id)
         return self._dispatch_scanner(
             overview_id, "subfinder", "/scanners/subdomain/start_subfinder", 
             {"seed_id": seed_id}, "Subfinder Subdomain Enum"
@@ -286,7 +326,7 @@ class ScannerToolsMixin:
         Args:
             overview_id: (Optional) 目標目前的 Overview ID。自動注入。
             ip_id: 要掃描的 IP 資產的 ID (整數)
-            seed_id: 該 IP 對應的 Seed ID (整數)
+            seed_id: 該 IP 對應的 Seed ID（若省略則自動從 Overview 解析）
         """
         try:
             from apps.core.models import IP
@@ -297,9 +337,13 @@ class ScannerToolsMixin:
         except Exception as e:
             return f"CRITICAL_FAILURE: 查詢 IP 資產時發生錯誤: {e}"
         
+        if not seed_id:
+            seed_id = self._resolve_seed(overview_id)
+        seed_ids = [seed_id] if seed_id else []
+        
         return self._dispatch_scanner(
             overview_id, "nmap", "/scanners/nmap/start_scan", 
-            {"ip": ip_str, "seed_ids": [seed_id], "scan_rate": 4, "scan_ports": "top-1000"}, 
+            {"ip": ip_str, "seed_ids": seed_ids, "scan_rate": 4, "scan_ports": "top-1000"}, 
             f"Nmap Port Scan for {ip_str}"
         )
 

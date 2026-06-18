@@ -30,6 +30,7 @@ from .scans_record_models import (
     AmassScan,
 )
 from .Vulnerability import Vulnerability
+from .PoCRecord import PoCRecord
 from .cve_intelligence import CVEIntelligence, TechStackCVEMapping
 from .url_assets import (
     URLResult,

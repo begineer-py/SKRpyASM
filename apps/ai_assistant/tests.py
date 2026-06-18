@@ -195,3 +195,283 @@ class ThreadEventStreamFormattingTests(TestCase):
         self.assertIn("id: 7", sse)
         self.assertIn("event: tool_started", sse)
         self.assertIn('"execution_node_id": 123', sse)
+
+
+class CompressionDeadlockFixTests(TestCase):
+    """Tests for compression deadlock fixes in compress_tool_outputs node.
+
+    Covers:
+      Fix B — threshold raised 2500 → 8000
+      Fix A — whitelist read_content_blob / save_long_content from Stage 1 & 2
+      Fix D — page_breakdown + read_content_blob(blob_id, page=N)
+    """
+
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(username="compressionfix")
+        self.thread = Thread.objects.create(
+            name="compression fix test",
+            created_by=self.user,
+            assistant_id="compression_fix_test",
+        )
+
+    def test_threshold_8000_skips_compression_for_5000_chars(self):
+        """Fix B: 5000-char output stays below 8000 threshold → no ContentBlob."""
+        _next_id = iter(range(1, 100))
+
+        class TestAssistant(AIAssistant):
+            id = "compression_fix_B_skip"
+            name = "Compression Fix Test"
+            instructions = "test"
+            max_consecutive_same_tool = 0
+            stop_on_waiting_async = False
+
+            def get_llm(self):
+                return BindableFakeMessagesListChatModel(
+                    responses=[
+                        AIMessage(content="", tool_calls=[{"name": "return_output", "args": {"size": 5000}, "id": f"call_{next(_next_id)}"}]),
+                        AIMessage(content="done"),
+                    ]
+                ).bind_tools(self.get_tools())
+
+            @method_tool
+            def return_output(self, size: int = 100) -> str:
+                """Return a string of given size for threshold testing."""
+                return "X" * size
+
+        assistant = TestAssistant(user=self.user)
+        result = assistant.invoke({"input": "run"}, thread=self.thread, thread_id=self.thread.id)
+        self.assertEqual(result["output"], "done")
+        from apps.core.models.analyze.ContentBlob import ContentBlob
+        self.assertEqual(ContentBlob.objects.count(), 0)
+
+    def test_threshold_8000_compresses_9000_chars(self):
+        """Fix B: 9000-char output exceeds 8000 threshold → ContentBlob created."""
+        _next_id = iter(range(1, 100))
+
+        class TestAssistant(AIAssistant):
+            id = "compression_fix_B_compress"
+            name = "Compression Fix Test"
+            instructions = "test"
+            max_consecutive_same_tool = 0
+            stop_on_waiting_async = False
+
+            def get_llm(self):
+                return BindableFakeMessagesListChatModel(
+                    responses=[
+                        AIMessage(content="", tool_calls=[{"name": "return_output", "args": {"size": 9000}, "id": f"call_{next(_next_id)}"}]),
+                        AIMessage(content="done"),
+                    ]
+                ).bind_tools(self.get_tools())
+
+            @method_tool
+            def return_output(self, size: int = 100) -> str:
+                """Return a string of given size for threshold testing."""
+                return "X" * size
+
+        from apps.core.models.analyze.ContentBlob import ContentBlob
+        assistant = TestAssistant(user=self.user)
+        result = assistant.invoke({"input": "run"}, thread=self.thread, thread_id=self.thread.id)
+        self.assertEqual(result["output"], "done")
+        self.assertEqual(ContentBlob.objects.count(), 1)
+        blob = ContentBlob.objects.first()
+        self.assertGreaterEqual(blob.content_size, 9000)
+
+    def test_whitelist_read_content_blob_prefix(self):
+        """Fix A: output starting with '=== ContentBlob #' skips Stage 1 compression."""
+        _next_id = iter(range(1, 100))
+
+        class TestAssistant(AIAssistant):
+            id = "compression_fix_A_blob"
+            name = "Compression Fix Test"
+            instructions = "test"
+            max_consecutive_same_tool = 0
+            stop_on_waiting_async = False
+
+            def get_llm(self):
+                return BindableFakeMessagesListChatModel(
+                    responses=[
+                        AIMessage(content="", tool_calls=[{"name": "return_blob_output", "args": {"prefix": "=== ContentBlob #"}, "id": f"call_{next(_next_id)}"}]),
+                        AIMessage(content="done"),
+                    ]
+                ).bind_tools(self.get_tools())
+
+            @method_tool
+            def return_blob_output(self, prefix: str = "") -> str:
+                """Return output that looks like a read_content_blob result."""
+                return prefix + "999 Summary ===\nSource: test | Size: 9000 chars\n\n" + "X" * 9000
+
+        from apps.core.models.analyze.ContentBlob import ContentBlob
+        assistant = TestAssistant(user=self.user)
+        assistant.invoke({"input": "run"}, thread=self.thread, thread_id=self.thread.id)
+        self.assertEqual(ContentBlob.objects.count(), 0)
+
+    def test_whitelist_save_long_content_prefix(self):
+        """Fix A: output starting with '[Long Output Saved] blob_id=' skips compression."""
+        _next_id = iter(range(1, 100))
+
+        class TestAssistant(AIAssistant):
+            id = "compression_fix_A_long"
+            name = "Compression Fix Test"
+            instructions = "test"
+            max_consecutive_same_tool = 0
+            stop_on_waiting_async = False
+
+            def get_llm(self):
+                return BindableFakeMessagesListChatModel(
+                    responses=[
+                        AIMessage(content="", tool_calls=[{"name": "return_long_output", "args": {}, "id": f"call_{next(_next_id)}"}]),
+                        AIMessage(content="done"),
+                    ]
+                ).bind_tools(self.get_tools())
+
+            @method_tool
+            def return_long_output(self) -> str:
+                """Return output that looks like a save_long_content result."""
+                return "[Long Output Saved] blob_id=999 | Size: 9000 chars\nSummary: test\n" + "X" * 9000
+
+        from apps.core.models.analyze.ContentBlob import ContentBlob
+        assistant = TestAssistant(user=self.user)
+        assistant.invoke({"input": "run"}, thread=self.thread, thread_id=self.thread.id)
+        self.assertEqual(ContentBlob.objects.count(), 0)
+
+    def test_whitelist_focused_analysis_prefix(self):
+        """Fix A: output starting with '=== Focused Analysis for Blob #' skips compression."""
+        _next_id = iter(range(1, 100))
+
+        class TestAssistant(AIAssistant):
+            id = "compression_fix_A_focus"
+            name = "Compression Fix Test"
+            instructions = "test"
+            max_consecutive_same_tool = 0
+            stop_on_waiting_async = False
+
+            def get_llm(self):
+                return BindableFakeMessagesListChatModel(
+                    responses=[
+                        AIMessage(content="", tool_calls=[{"name": "return_focus_output", "args": {}, "id": f"call_{next(_next_id)}"}]),
+                        AIMessage(content="done"),
+                    ]
+                ).bind_tools(self.get_tools())
+
+            @method_tool
+            def return_focus_output(self) -> str:
+                """Return output that looks like a focused analysis result."""
+                return "=== Focused Analysis for Blob #999 ===\nQuery: test\n\n" + "X" * 9000
+
+        from apps.core.models.analyze.ContentBlob import ContentBlob
+        assistant = TestAssistant(user=self.user)
+        assistant.invoke({"input": "run"}, thread=self.thread, thread_id=self.thread.id)
+        self.assertEqual(ContentBlob.objects.count(), 0)
+
+    def test_read_content_blob_page_param(self):
+        """Fix D: read_content_blob(blob_id=X, page=N) returns structured page content."""
+        from apps.core.models.analyze.ContentBlob import ContentBlob
+        from apps.auto.tools.memory_tools import MemoryMixin
+
+        blob = ContentBlob.objects.create(
+            raw_content="Test " * 3000,
+            content_size=12000,
+            ai_summary="Test summary",
+            source_type="other",
+            page_breakdown=[
+                {"title": "Overview", "content": "Target: example.com\nOpen ports: 80, 443"},
+                {"title": "Vulnerabilities", "content": "SQL injection at /login\nXSS at /search"},
+            ],
+        )
+
+        class TestAssistant(AIAssistant, MemoryMixin):
+            id = "compression_fix_D_page"
+            name = "Page Test Assistant"
+            instructions = "test"
+            max_consecutive_same_tool = 0
+            stop_on_waiting_async = False
+
+            def get_llm(self):
+                return BindableFakeMessagesListChatModel(
+                    responses=[
+                        AIMessage(content="done"),
+                    ]
+                ).bind_tools(self.get_tools())
+
+        assistant = TestAssistant(user=self.user)
+
+        result = assistant.read_content_blob(blob_id=blob.id, page=1)
+        self.assertIn("Page 1/2", result)
+        self.assertIn("Overview", result)
+        self.assertIn("Open ports", result)
+
+        result = assistant.read_content_blob(blob_id=blob.id, page=2)
+        self.assertIn("Page 2/2", result)
+        self.assertIn("Vulnerabilities", result)
+
+        result = assistant.read_content_blob(blob_id=blob.id, page=999)
+        self.assertIn("out of range", result)
+        self.assertIn("Page 1", result)
+
+    def test_read_content_blob_page_missing_breakdown(self):
+        """Fix D: page param on blob without page_breakdown returns helpful message."""
+        from apps.core.models.analyze.ContentBlob import ContentBlob
+        from apps.auto.tools.memory_tools import MemoryMixin
+
+        blob = ContentBlob.objects.create(
+            raw_content="Small content",
+            content_size=15,
+            ai_summary="Small summary",
+            source_type="other",
+        )
+
+        class TestAssistant(AIAssistant, MemoryMixin):
+            id = "compression_fix_D_nopage"
+            name = "Page Test Assistant"
+            instructions = "test"
+            max_consecutive_same_tool = 0
+            stop_on_waiting_async = False
+
+            def get_llm(self):
+                return BindableFakeMessagesListChatModel(
+                    responses=[
+                        AIMessage(content="done"),
+                    ]
+                ).bind_tools(self.get_tools())
+
+        assistant = TestAssistant(user=self.user)
+
+        result = assistant.read_content_blob(blob_id=blob.id, page=1)
+        self.assertIn("no page_breakdown", result)
+        self.assertIn("without `page`", result)
+
+    def test_read_content_blob_no_page_shows_summary(self):
+        """Fix D: read_content_blob without page shows summary + page count."""
+        from apps.core.models.analyze.ContentBlob import ContentBlob
+        from apps.auto.tools.memory_tools import MemoryMixin
+
+        blob = ContentBlob.objects.create(
+            raw_content="Test " * 3000,
+            content_size=12000,
+            ai_summary="Test summary content",
+            source_type="other",
+            page_breakdown=[
+                {"title": "Overview", "content": "Port scanning results"},
+            ],
+        )
+
+        class TestAssistant(AIAssistant, MemoryMixin):
+            id = "compression_fix_D_summary"
+            name = "Page Test Assistant"
+            instructions = "test"
+            max_consecutive_same_tool = 0
+            stop_on_waiting_async = False
+
+            def get_llm(self):
+                return BindableFakeMessagesListChatModel(
+                    responses=[
+                        AIMessage(content="done"),
+                    ]
+                ).bind_tools(self.get_tools())
+
+        assistant = TestAssistant(user=self.user)
+
+        result = assistant.read_content_blob(blob_id=blob.id)
+        self.assertIn("Test summary content", result)
+        self.assertIn("Pages available: 1", result)

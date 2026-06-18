@@ -24,11 +24,29 @@ export interface OverviewCreatePayload {
   plan?: any;
 }
 
+export interface OverviewData {
+  id: number;
+  target_id?: number | null;
+  target_name?: string | null;
+  status: string;
+  risk_score: number;
+  summary?: string | null;
+  business_impact?: string | null;
+  plan?: any;
+  knowledge?: any;
+  techs?: any;
+  thread_id?: number | null;
+  parent_thread_id?: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export const OverviewService = {
-  list: async () => {
-    return (await coreApi.get('/overviews/')).data;
+  list: async (params?: { target_id?: number }): Promise<OverviewData[]> => {
+    const res = await coreApi.get<OverviewData[]>('/overviews/', { params });
+    return Array.isArray(res.data) ? res.data : [];
   },
-  get: async (overviewId: number) => {
+  get: async (overviewId: number): Promise<OverviewData> => {
     return (await coreApi.get(`/overviews/${overviewId}`)).data;
   },
   create: async (payload: OverviewCreatePayload) => {

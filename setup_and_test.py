@@ -9,9 +9,8 @@ sys.path.append(BASE_DIR)
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "c2_core.settings")
 django.setup()
 
-from apps.core.models import Target, Seed, Overview, Subdomain, IP, Step
+from apps.core.models import Target, Seed, Overview, Subdomain, IP
 from apps.core.models.url_assets import URLResult
-from apps.core.models.analyze.Step import StepNote
 from apps.core.models.ai_models import Thread, Message
 from apps.ai_assistant.helpers.use_cases import create_thread
 from apps.analyze_ai.tasks.initial_tasks import periodic_initial_analysis_bootstrapper as preprocess_data
@@ -27,11 +26,7 @@ def cleanup_all():
     print(f"Deleting {Thread.objects.count()} Threads...")
     Thread.objects.all().delete()
     
-    # 2. 清理概覽與步驟 (Overviews and Steps)
-    print(f"Deleting {StepNote.objects.count()} StepNotes...")
-    StepNote.objects.all().delete()
-    print(f"Deleting {Step.objects.count()} Steps...")
-    Step.objects.all().delete()
+    # 2. 清理概覽 (Overviews)
     print(f"Deleting {Overview.objects.count()} Overviews...")
     Overview.objects.all().delete()
     
@@ -116,13 +111,14 @@ def run_setup_and_test():
 
     # 4. 驗證結果
     overview.refresh_from_db()
-    steps = overview.steps.all()
+    from apps.core.models import ExecutionGraph
+    exec_graphs = ExecutionGraph.objects.filter(thread_id=thread.id)
     print(f"\n=== FINAL TEST RESULTS ===")
     print(f"Target: {target.name}")
     print(f"Overview Status: {overview.status}")
-    print(f"Generated Steps: {steps.count()}")
-    for s in steps:
-        print(f" - Step[{s.id}] {s.operation_type} | Status: {s.status}")
+    print(f"Execution Graphs: {exec_graphs.count()}")
+    for graph in exec_graphs:
+        print(f" - Graph[{graph.id}] {graph.title} | Status: {graph.status}")
 
     print("\n=== SETUP AND TEST COMPLETED ===")
 

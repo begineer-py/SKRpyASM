@@ -40,8 +40,6 @@ def promote_to_skill(
     if description is None:
         if script_exec.attack_vector:
             description = f"Script to handle attack vector: {script_exec.attack_vector.name}"
-        elif script_exec.step:
-            description = f"Script from legacy Step #{script_exec.step.id}"
         else:
             description = "Promoted from successful script execution"
 

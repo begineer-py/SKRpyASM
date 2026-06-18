@@ -1058,12 +1058,19 @@ function TargetDashboard() {
                         <span className="td-mono" style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>ID #{ov.id}</span>
                         {ov.thread_id && <span className="td-mono" style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginLeft: 8 }}>Thread #{ov.thread_id}</span>}
                       </div>
-                      <div style={{ textAlign: "right" }}>
-                        <div style={{ marginBottom: 6, width: 140 }}>
+                      <div style={{ textAlign: "right", display: "flex", flexDirection: "column", gap: 6 }}>
+                        <div style={{ marginBottom: 0, width: 140 }}>
                           <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginBottom: 4, fontFamily: "var(--font-mono)" }}>RISK SCORE</div>
                           <RiskBar score={ov.risk_score} />
                         </div>
                         <div className="td-muted">{new Date(ov.updated_at).toLocaleString()}</div>
+                        <button
+                          className="c2-btn c2-btn--ghost"
+                          onClick={() => navigate(`/overviews/${ov.id}`)}
+                          style={{ fontSize: "0.7rem", marginTop: 4 }}
+                        >
+                          EDIT DETAILS →
+                        </button>
                       </div>
                     </div>
 

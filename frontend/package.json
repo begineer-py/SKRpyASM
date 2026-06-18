@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@apollo/client": "^4.1.9",
+    "@monaco-editor/react": "^4.7.0",
     "axios": "^1.11.0",
     "graphql": "^16.13.2",
     "graphql-ws": "^6.0.8",

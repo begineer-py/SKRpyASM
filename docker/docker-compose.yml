@@ -111,6 +111,10 @@ services:
     container_name: c2_kali_sandbox
     restart: always
     network_mode: host # Allows sandbox to scan localhost easily
+    cap_add:
+      - SYS_ADMIN # Required for bwrap user namespace (per-target isolation)
+    security_opt:
+      - apparmor:unconfined # Required for bwrap on AppArmor-enabled hosts
     volumes:
       - /tmp/c2_sandbox_scripts:/scripthub
     deploy:

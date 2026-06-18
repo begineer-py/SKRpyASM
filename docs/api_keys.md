@@ -48,7 +48,7 @@
 支援的 service 同時涵蓋：
 
 - 掃描服務：如 `shodan`、`securitytrails`、`chaos`、`nvd`
-- AI provider：如 `openai`、`anthropic`、`mistral`、`gemini`、`deepseek`
+- AI provider：如 `openai`、`anthropic`、`mistral`、`gemini`、`deepseek`、`groq`、`ollama`、`together`
 
 ### AgentLLMConfig 合併邏輯
 

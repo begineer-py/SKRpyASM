@@ -44,31 +44,26 @@ async def _stream_generator(thread: Thread, assistant_id: str, content: str):
     """
     import time
     t_start = time.monotonic()
+    chunk_count = 0
     try:
         assistant_cls = AIAssistant.get_cls(assistant_id)
-        assistant = assistant_cls(thread=thread)  # pass thread so tools can access it
+        assistant = assistant_cls(thread=thread)
 
-        # Save the HumanMessage to DB immediately so it's not lost if stream aborts/hangs
         from asgiref.sync import sync_to_async
         from langchain_core.messages import HumanMessage
         from apps.ai_assistant.helpers.django_messages import save_django_messages
         
         await sync_to_async(save_django_messages)([HumanMessage(content=content)], thread=thread)
 
-        # Yield a "start" event so the frontend knows streaming has begun
         yield _sse_event(json.dumps({"status": "started"}), event="start")
 
-        # Stream tokens from the LangGraph graph
         async for chunk in assistant.astream(content, thread=thread):
             if chunk:
-                # chunk is a str token from the agent "agent" node
+                chunk_count += 1
                 yield _sse_event(chunk)
 
-        # Send timing stats before done
         elapsed_ms = int((time.monotonic() - t_start) * 1000)
         yield _sse_event(json.dumps({"elapsed_ms": elapsed_ms}), event="stats")
-
-        # Signal successful completion
         yield _sse_event("[DONE]", event="done")
 
     except Exception as exc:
@@ -81,8 +76,13 @@ async def _stream_generator(thread: Thread, assistant_id: str, content: str):
         yield _sse_event(json.dumps({"elapsed_ms": elapsed_ms}), event="stats")
         error_payload = json.dumps({"error": str(exc), "type": type(exc).__name__})
         yield _sse_event(error_payload, event="error")
-        # Always send done so the client EventSource can clean up
         yield _sse_event("[DONE]", event="done")
+    finally:
+        elapsed_ms = int((time.monotonic() - t_start) * 1000)
+        logger.info(
+            f"[SSE _stream_generator] finished | thread_id={thread.id} "
+            f"chunks={chunk_count} elapsed_ms={elapsed_ms}"
+        )
 
 
 

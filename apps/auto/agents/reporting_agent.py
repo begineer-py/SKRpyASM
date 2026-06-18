@@ -90,7 +90,7 @@ class ReportingAgent(AIAssistant, ReconnaissanceMixin, EndpointMixin, StepManage
     id = "reporting_agent"
     name = "Reporting Agent"
     instructions = _REPORTING_INSTRUCTIONS
-    recursion_limit = 30
+    recursion_limit = 50
     stop_on_waiting_async = True
     max_consecutive_same_tool = 3
 

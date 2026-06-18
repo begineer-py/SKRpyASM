@@ -165,17 +165,30 @@ class SkillTemplate(models.Model):
 
     def save(self, *args, **kwargs):
         """保存前執行驗證"""
+        update_fields = kwargs.get('update_fields')
+
         # 若有 script_body，自動組裝成完整的 script_content
-        if self.script_body and self.language == "python":
+        # 但如果 update_fields 指定了且不包含 script_content/script_body/input_schema/output_schema，
+        # 則跳過重新組裝（避免冪等性問題觸發不必要的版本遞增）
+        _skip_assembly = (
+            update_fields is not None
+            and not (set(update_fields) & {'script_content', 'script_body', 'input_schema', 'output_schema'})
+        )
+
+        if not _skip_assembly and self.script_body and self.language == "python":
             from apps.core.validators.io_contract import assemble_full_script
             self.script_content = assemble_full_script(
                 script_body=self.script_body,
                 input_schema=self.input_schema,
                 output_schema=self.output_schema,
             )
+            # 當組裝出 I/O Contract（有 input_schema 或 output_schema）時，標記 has_io_contract
+            if self.input_schema or self.output_schema:
+                self.has_io_contract = True
 
-        self.full_clean()
-        
+        if not _skip_assembly:
+            self.full_clean()
+
         if self.is_robust and self.pk:
             original = SkillTemplate.objects.get(pk=self.pk)
             if original.script_content != self.script_content or original.input_schema != self.input_schema:
@@ -184,7 +197,9 @@ class SkillTemplate(models.Model):
                 self.version += 1
                 self.is_robust = False
                 self.last_verified_at = None
-        
+                # 新版本是 INSERT，不能用 update_fields（否則 Django 嘗試 UPDATE 無 PK 的物件）
+                kwargs.pop('update_fields', None)
+
         super().save(*args, **kwargs)
 
     def __str__(self):

@@ -1039,7 +1039,7 @@
 .tree-badge--risk.medium { background: rgba(234,179,8,0.1);   color: #fbbf24; }
 .tree-badge--risk.high   { background: rgba(239,68,68,0.1);   color: #f87171; }
 
-.tree-badge--steps { background: rgba(251,191,36,0.1); color: #fbbf24; }
+.tree-badge--executing { background: rgba(251,191,36,0.1); color: #fbbf24; }
 
 .tree-running-dot {
   display: inline-block;

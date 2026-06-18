@@ -12,12 +12,25 @@ import json
 from typing import Any, Optional
 
 
-def _schema_to_pydantic_field(field_name: str, field_schema: dict, indent: int = 4) -> str:
-    """Convert a single JSON Schema property to a Pydantic field definition."""
+def _schema_to_pydantic_field(
+    field_name: str,
+    field_schema: dict,
+    required_fields: set | None = None,
+    indent: int = 4,
+) -> str:
+    """Convert a single JSON Schema property to a Pydantic field definition.
+
+    Args:
+        field_name: The field name.
+        field_schema: The JSON Schema for this property.
+        required_fields: Set of required field names (from parent schema's ``required`` array).
+            Fields in this set are rendered as non-Optional, no-default fields.
+        indent: Indentation spaces.
+    """
     pad = " " * indent
+    required_fields = required_fields or set()
     field_type = field_schema.get("type", "Any")
     description = field_schema.get("description", "")
-    default_val = field_schema.get("default", ...)
 
     # map JSON types to Python types
     type_map = {
@@ -31,55 +44,47 @@ def _schema_to_pydantic_field(field_name: str, field_schema: dict, indent: int =
     }
     py_type = type_map.get(field_type, "Any")
 
-    # Handle Optional (if default is None or not in required)
-    if "default" in field_schema or field_schema.get("default") is None:
-        py_type = f"Optional[{py_type}]"
-        default_repr = repr(default_val) if default_val is not ... else "None"
-        field_line = f'{pad}{field_name}: {py_type} = Field(default={default_repr}'
+    is_required = field_name in required_fields
+    has_explicit_default = "default" in field_schema
+
+    # --- Collect Field() kwargs ---
+    field_kwargs: list[str] = []
+
+    if is_required:
+        # Required: no default, non-Optional. Pydantic enforces presence.
+        if description:
+            field_kwargs.append(f"description={json.dumps(description)}")
     else:
-        field_line = f'{pad}{field_name}: {py_type}'
-
-    # append Field description
-    if description:
-        if "default" in field_schema or field_schema.get("default") is None:
-            field_line += f', description={json.dumps(description)})'
+        # Optional: wrap in Optional, provide default
+        py_type = f"Optional[{py_type}]"
+        if has_explicit_default:
+            field_kwargs.append(f"default={json.dumps(field_schema['default'])}")
         else:
-            field_line += f' = Field(description={json.dumps(description)})'
+            field_kwargs.append("default=None")
+        if description:
+            field_kwargs.append(f"description={json.dumps(description)}")
 
-    # Add pattern validation for strings
+    # Pattern validation for strings
     pattern = field_schema.get("pattern")
     if pattern and field_type == "string":
-        pattern_repr = repr(pattern)
-        if "=" in field_line:
-            field_line = field_line.rstrip(")") + f", pattern={pattern_repr})"
-        else:
-            field_line += f" = Field(pattern={pattern_repr})"
+        field_kwargs.append(f"pattern={json.dumps(pattern)}")
 
-    # Add constraints for integers
+    # Numeric constraints
     minimum = field_schema.get("minimum")
     maximum = field_schema.get("maximum")
-    if (minimum is not None or maximum is not None) and field_type in ("integer", "number"):
-        kwargs = []
-        if minimum is not None:
-            kwargs.append(f"ge={minimum}")
-        if maximum is not None:
-            kwargs.append(f"le={maximum}")
-        constraints = ", ".join(kwargs)
-        if "=" in field_line:
-            field_line = field_line.rstrip(")") + f", {constraints})"
-        else:
-            field_line += f" = Field({constraints})"
+    if minimum is not None:
+        field_kwargs.append(f"ge={minimum}")
+    if maximum is not None:
+        field_kwargs.append(f"le={maximum}")
 
-    # Add enum validation
+    # Enum validation
     enum_values = field_schema.get("enum")
     if enum_values:
-        enum_repr = json.dumps(enum_values)
-        if "=" in field_line:
-            pass  # keep as-is, runtime validation handles it
-        else:
-            pass  # keep as-is
+        field_kwargs.append(f"enum={json.dumps(enum_values)}")
 
-    return field_line
+    if field_kwargs:
+        return f"{pad}{field_name}: {py_type} = Field({', '.join(field_kwargs)})"
+    return f"{pad}{field_name}: {py_type}"
 
 
 def _schema_to_pydantic_model(model_name: str, schema: dict) -> str:
@@ -96,7 +101,9 @@ def _schema_to_pydantic_model(model_name: str, schema: dict) -> str:
         return "\n".join(lines)
 
     for field_name, field_schema in properties.items():
-        pydantic_field = _schema_to_pydantic_field(field_name, field_schema)
+        pydantic_field = _schema_to_pydantic_field(
+            field_name, field_schema, required_fields=required_fields
+        )
         lines.append(pydantic_field)
 
     # Add model_config

@@ -15,12 +15,14 @@ import SeedReconPage from "./pages/SeedReconPageSub/SeedReconPage.tsx";
 import SubdomainDetailPage from "./pages/SubdomainDetailPage/SubdomainDetailPage.tsx";
 import UrlDetailPage from "./pages/UrlDetailPage/UrlDetailPage.tsx";
 import SkillLibraryPage from "./pages/SkillLibraryPage/SkillLibraryPage.tsx";
+import SkillEditPage from "./pages/SkillEditPage/SkillEditPage.tsx";
 import APIKeyManagerPage from "./pages/APIKeyManagerPage/APIKeyManagerPage.tsx";
 import AgentLLMConfigPage from "./pages/AgentLLMConfigPage/AgentLLMConfigPage.tsx";
 import OverviewDetailPage from "./pages/OverviewDetailPage/OverviewDetailPage.tsx";
 import CVEIntelligencePage from "./pages/CVEIntelligencePage/CVEIntelligencePage.tsx";
 import SchedulerPage from "./pages/SchedulerPage/SchedulerPage.tsx";
 import PentestConfigPage from "./pages/PentestConfigPage/PentestConfigPage.tsx";
+import VulnerabilityPage from "./pages/VulnerabilityPage/VulnerabilityPage";
 function App() {
   return (
     <BrowserRouter>
@@ -40,9 +42,12 @@ function App() {
           <Route path="/cve-intelligence" element={<CVEIntelligencePage />} />
           <Route path="/scheduler" element={<SchedulerPage />} />
           <Route path="/skills" element={<SkillLibraryPage />} />
+          <Route path="/skills/new" element={<SkillEditPage />} />
+          <Route path="/skills/:skillId/edit" element={<SkillEditPage />} />
           <Route path="/api-keys" element={<APIKeyManagerPage />} />
           <Route path="/agent-config" element={<AgentLLMConfigPage />} />
           <Route path="/pentest-config" element={<PentestConfigPage />} />
+          <Route path="/vulnerabilities" element={<VulnerabilityPage />} />
         </Routes>
       </main>
     </BrowserRouter>

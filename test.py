@@ -1,175 +1,136 @@
-import os
 import time
-import concurrent.futures
-from openai import OpenAI
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from langchain_openai import ChatOpenAI
 
-# 設定環境變數
-API_KEY = os.getenv("AI_API_KEY", "sk-GMa3aMdJd2jcnY4dP8h9q8q5PLW6FbtFyCiqoDRrddyhad0v")
-BASE_URL = os.getenv("AI_API_BASE_URL", "https://tokeness.cn/v1")
+# ================= 配置區域 =================
+API_KEY = "sk-yBMQgpSlo1wG44xOOhqdWWAwKojv1XtUTESg8nO6X4GKTt9_mv_atJmiap7H8mlY"
+BASE_URL = "https://api.yuhuanstudio.com/v1"
+MODEL_NAME = "tokenrouter/MiniMax-M3"
 
-# 初始化 OpenAI 客戶端
-client = OpenAI(
-    api_key=API_KEY,
-    base_url=BASE_URL
-)
+CONCURRENT_REQUESTS = 100  
+TOTAL_REQUESTS = 100       
+TIMEOUT = 150              
+# ============================================
 
-models_to_test = [
-    # Claude 系列
-    "claude-haiku-4-5",
-    "claude-opus-4-6",
-    "claude-opus-4-7",
-    "claude-opus-4-8",
-    "claude-sonnet-4-6",
-    
-    # DeepSeek 系列
-    "deepseek-v4-flash",
-    "deepseek-v4-pro",
-    
-    # Gemini 系列
-    # "gemini-3.1-flash-image", # 圖片生成，文字對話會噴錯，預設註解
-    "gemini-3.1-pro",
-    "gemini-3.5-flash",
-    
-    # GLM 系列
-    "glm-5.1",
-    
-    # GPT 系列
-    "gpt-5.4",
-    "gpt-5.4-mini",
-    "gpt-5.5",
-    # "gpt-image-2", # 圖片生成，文字對話會噴錯，預設註解
-    
-    # Kimi 系列
-    "kimi-k2.6", # 注意：此模型可能要求 temperature 必須為 1.0
-    
-    # MiMo 系列
-    "mimo-v2.5",
-    "mimo-v2.5-pro",
-    
-    # MiniMax 系列
-    "minimax-m2.7",
-    "minimax-m3"
+client_kwargs = {
+    "api_key": API_KEY,
+    "base_url": BASE_URL,
+    "temperature": 0.7,      
+    "request_timeout": TIMEOUT,
+    # 【改進 1】啟用自動重試，當遇到連線錯誤或 5xx 錯誤時自動重試 2 次
+    "max_retries": 2, 
+}
+
+BASE_PROMPTS = [
+    "請用五個字形容今天的天氣。",
+    "請用一句話推薦一本書。",
+    "請寫出一個只有三個字的問候語。",
+    "請用四個字祝福寫程式的人。",
+    "請用一句話說一個冷笑話。"
 ]
 
-def send_single_request(model_name, timeout=15.0):
-    """
-    發送單次請求的基礎函式，已修正 NoneType 的 strip 錯誤
-    """
+def warmup_connection():
+    """【改進 2】發送預熱請求，喚醒中轉伺服器"""
+    print("🔄 正在進行首次連線預熱 (Warm-up)...")
+    try:
+        # 使用極小的 max_tokens 減少等待
+        warmup_chat = ChatOpenAI(
+            model=MODEL_NAME,
+            max_tokens=1,
+            **client_kwargs
+        )
+        start_warmup = time.time()
+        # 僅發送一個空字元或簡短字詞
+        warmup_chat.invoke("ping")
+        print(f"✅ 預熱完成！中轉站已喚醒，耗時: {time.time() - start_warmup:.2f}s。")
+    except Exception as e:
+        # 預熱失敗也不影響後續執行，僅做提示
+        print(f"⚠️ 預熱請求未成功（可能因伺服器啟動慢），準備進入正式測試。原因: {str(e).split('\n')[0]}")
+    print("=" * 70)
+
+def send_request(task_id, prompt_content):
+    """向 MiniMax-M3 發送單次請求並記錄數據"""
     start_time = time.time()
     try:
-        response = client.chat.completions.create(
-            model=model_name,
-            messages=[
-                {"role": "user", "content": "你是什麼模型"}
-            ],
-            max_tokens=15,
-            temperature=0.3,
-            timeout=timeout
+        chat = ChatOpenAI(
+            model=MODEL_NAME,
+            max_tokens=50,  
+            **client_kwargs
         )
-        latency = time.time() - start_time
-        content = response.choices[0].message.content
         
-        # 修正：安全處理 content 為 None 的情況
-        reply = content.strip().replace('\n', ' ') if content else "[空內容/None]"
-        return True, latency, reply
-    except Exception as e:
+        response = chat.invoke(prompt_content)
         latency = time.time() - start_time
+        reply = response.content.strip()
+        
+        return {
+            "task_id": task_id,
+            "status": "success",
+            "prompt": prompt_content,
+            "latency": latency,
+            "reply": reply
+        }
+    except Exception as e:
         err_msg = str(e).split('\n')[0]
-        return False, latency, err_msg
+        return {
+            "task_id": task_id,
+            "status": "failed",
+            "prompt": prompt_content,
+            "error": err_msg
+        }
 
-def run_phase_1():
-    """
-    第一階段：快速掃描所有模型（並行 10 個 worker）
-    """
-    print("=" * 80)
-    print(f"階段一：開始快速掃描 {len(models_to_test)} 個模型 (並行限制: 10, 超時限制: 15s)...")
-    print("=" * 80)
+def run_stress_test():
+    # 1. 在正式測試前，先執行連線預熱
+    warmup_connection()
     
-    successful_models = []
+    # 2. 準備測試任務
+    tasks = []
+    for i in range(1, TOTAL_REQUESTS + 1):
+        base_prompt = BASE_PROMPTS[(i - 1) % len(BASE_PROMPTS)]
+        prompt_with_id = f"({i}) {base_prompt}"
+        tasks.append((i, prompt_with_id))
+
+    print(f"開始對 {MODEL_NAME} 進行高併發壓力測試...")
+    print(f"配置執行緒併發數: {CONCURRENT_REQUESTS}")
+    print(f"總計劃發送請求數: {TOTAL_REQUESTS}")
+    print("=" * 70)
+    
+    start_total = time.time()
     results = []
     
-    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        future_to_model = {executor.submit(send_single_request, model, timeout=15.0): model for model in models_to_test}
+    # 3. 併發執行
+    with ThreadPoolExecutor(max_workers=CONCURRENT_REQUESTS) as executor:
+        futures = {
+            executor.submit(send_request, task_id, prompt_content): task_id
+            for task_id, prompt_content in tasks
+        }
         
-        for future in concurrent.futures.as_completed(future_to_model):
-            model = future_to_model[future]
-            success, latency, detail = future.result()
-            results.append((model, success, latency, detail))
+        for future in as_completed(futures):
+            res = future.result()
+            results.append(res)
             
-            if success:
-                successful_models.append(model)
-                print(f" [成功] 耗時: {latency:5.2f}s | 模型: {model:<50} | 回應: {detail}")
+            if res["status"] == "success":
+                print(f"[任務 #{res['task_id']}] ✅ 成功 | 延遲: {res['latency']:.2f}s | 內容簡短摘要: {res['reply'][:20]}...")
             else:
-                print(f"*[失敗]* 耗時: {latency:5.2f}s | 模型: {model:<50} | 錯誤: {detail}")
-                
-    print(f"\n階段一完成。掃描成功數: {len(successful_models)}/{len(models_to_test)}")
-    return successful_models
-
-def run_phase_2(successful_models):
-    """
-    第二階段：針對篩選出的成功模型，每個模型同時發送 10 個請求測試穩定性
-    """
-    if not successful_models:
-        print("\n沒有任何模型成功通過第一階段，無法進行穩定性測試。")
-        return
-
-    print("\n" + "=" * 80)
-    print(f"階段二：針對成功的 {len(successful_models)} 個模型進行「同時 10 個請求」穩定性測試...")
-    print("=" * 80)
-
-    stability_report = []
-
-    for idx, model in enumerate(successful_models, 1):
-        print(f"\n[{idx}/{len(successful_models)}] 測試中: {model} ...")
-        
-        latencies = []
-        success_count = 0
-        errors = set()
-        
-        # 同時發起 10 個請求
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            futures = [executor.submit(send_single_request, model, timeout=25.0) for _ in range(10)]
+                print(f"[任務 #{res['task_id']}] ❌ 失敗 | 原因: {res['error']}")
             
-            for future in concurrent.futures.as_completed(futures):
-                success, latency, detail = future.result()
-                if success:
-                    success_count += 1
-                    latencies.append(latency)
-                else:
-                    errors.add(detail)
-        
-        avg_latency = sum(latencies) / len(latencies) if latencies else 0
-        min_latency = min(latencies) if latencies else 0
-        max_latency = max(latencies) if latencies else 0
-        
-        print(f" └─> 穩定性結果: {success_count}/10 成功")
-        if success_count > 0:
-            print(f" └─> 延遲統計: 平均 {avg_latency:.2f}s (最小: {min_latency:.2f}s, 最大: {max_latency:.2f}s)")
-        if errors:
-            print(f" └─> 出現錯誤: {list(errors)}")
-            
-        stability_report.append({
-            "model": model,
-            "success_rate": f"{success_count}/10",
-            "avg_latency": avg_latency,
-            "errors": list(errors)
-        })
-        
-        # 稍微緩衝，避免對伺服器造成過大壓力
-        time.sleep(1.0)
-
-    # 印出最終報告
-    print("\n" + "=" * 80)
-    print(" 穩定性測試匯總報告")
-    print("=" * 80)
-    for r in stability_report:
-        err_str = f" | 錯誤: {r['errors']}" if r['errors'] else ""
-        print(f"模型: {r['model']:<50} | 成功率: {r['success_rate']:<6} | 平均耗時: {r['avg_latency']:5.2f}s{err_str}")
-    print("=" * 80)
+    total_duration = time.time() - start_total
+    
+    # 4. 統計分析
+    successes = [r for r in results if r["status"] == "success"]
+    failures = [r for r in results if r["status"] == "failed"]
+    
+    print("\n" + "=" * 70)
+    print(" 壓力測試統計摘要 ")
+    print("=" * 70)
+    print(f"總共發送請求數 : {TOTAL_REQUESTS}")
+    print(f"成功請求數     : {len(successes)}")
+    print(f"失敗請求數     : {len(failures)}")
+    print(f"測試總耗時     : {total_duration:.2f} 秒")
+    
+    if successes:
+        latencies = [r["latency"] for r in successes]
+        avg_latency = sum(latencies) / len(latencies)
+        print(f"平均響應時間   : {avg_latency:.2f} 秒")
 
 if __name__ == "__main__":
-    # 執行階段一：快速篩選
-    success_list = run_phase_1()
-    
-    # 執行階段二：測試篩選出模型的穩定性
-    run_phase_2(success_list)
+    run_stress_test()

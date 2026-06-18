@@ -28,13 +28,17 @@ class Thread(models.Model):
         null=True,
     )
     assistant_id = models.CharField(max_length=255, blank=True)
-    bound_target_id = models.IntegerField(
-        null=True, blank=True,
-        help_text="The Target ID this thread is currently focused on. Set by the AI agent via bind_to_target tool."
+    bound_target_id = models.ForeignKey(
+        "core.Target", on_delete=models.CASCADE,
+        null=True, blank=True, db_column='bound_target_id',
+        related_name='+',
+        help_text="The Target this thread is currently focused on. Set by the AI agent via bind_to_target tool."
     )
-    bound_overview_id = models.IntegerField(
-        null=True, blank=True,
-        help_text="The Overview ID this thread is currently focused on. Automatically set when binding to a target."
+    bound_overview_id = models.ForeignKey(
+        "core.Overview", on_delete=models.CASCADE,
+        null=True, blank=True, db_column='bound_overview_id',
+        related_name='+',
+        help_text="The Overview this thread is currently focused on. Automatically set when binding to a target."
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

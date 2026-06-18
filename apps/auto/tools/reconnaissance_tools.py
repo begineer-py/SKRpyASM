@@ -18,8 +18,16 @@ class ReconnaissanceMixin:
         返回：active overview_id、target_id、subdomain IDs、IP IDs、seed IDs、URL result IDs。
         嚴禁在沒有呼叫此工具的情況下自行猜測或假設任何 ID。
 
+        系統支援語意查詢，可傳入下列任一形式，會自動多層級匹配：
+          1. 目標完整名稱（e.g. 'vuln-f9wi.onrender.com'）
+          2. 完整網域 / 部分字串（e.g. 'vuln-f9wi' 或 'onrender.com'）
+          3. 子域名（會反查所屬 Target）
+          4. 種子值（Seed.value，會反查所屬 Target）
+          5. URL（會反查其 host 所屬 Target）
+        若查無結果，會回傳所有現存目標清單供你挑選正確名稱。
+
         Args:
-            target_name: 目標名稱或域名 (e.g., 'vuln-f9wi.onrender.com')。
+            target_name: 目標名稱、域名、子域名、種子值或 URL（系統會自動語意匹配）。
         """
         try:
             from apps.core.models import Target, Overview, Subdomain, IP, Seed
@@ -28,13 +36,51 @@ class ReconnaissanceMixin:
             
             now_str = timezone.now().strftime('%Y-%m-%d %H:%M:%S %Z')
 
+            # ════════════════════════════════════════════════════════════════
+            # 語意查詢：多層級匹配，避免要求 Agent 記憶精確格式
+            # 順序：精確名稱 → 完整子串 → 種子值反查 → 子域名反查 → URL host 反查
+            # ════════════════════════════════════════════════════════════════
             target = Target.objects.filter(name=target_name).first()
+
             if not target:
-                # 嘗試模糊搜尋
-                target = Target.objects.filter(name__icontains=target_name.split(".")[0]).first()
+                # 完整子串模糊（使用完整 target_name，而非只取第一段標籤）
+                target = Target.objects.filter(name__icontains=target_name).first()
+
             if not target:
+                # 反查種子值（Seed.value）
+                from apps.core.models import Seed as _Seed
+                seed_match = _Seed.objects.filter(value__icontains=target_name).first()
+                if seed_match and seed_match.target_id:
+                    target = Target.objects.filter(id=seed_match.target_id).first()
+
+            if not target:
+                # 反查子域名
+                from apps.core.models import Subdomain as _Subdomain
+                sub_match = _Subdomain.objects.filter(name__icontains=target_name).first()
+                if sub_match and sub_match.target_id:
+                    target = Target.objects.filter(id=sub_match.target_id).first()
+
+            if not target:
+                # 反查 URL（host 部分）
+                from apps.core.models.url_assets import URLResult as _URLResult
+                url_match = _URLResult.objects.filter(url__icontains=target_name).first()
+                if url_match and url_match.target_id:
+                    target = Target.objects.filter(id=url_match.target_id).first()
+
+            if not target:
+                # 最終 fallback：列出所有目標
                 all_targets = list(Target.objects.values("id", "name"))
-                return f"找不到目標 '{target_name}'。現有目標：{all_targets}。請用正確的 target_name 重新呼叫。"
+                if all_targets:
+                    return (
+                        f"找不到目標 '{target_name}'。\n"
+                        f"已嘗試：精確名稱、子字串、Seed 反查、子域名反查、URL host 反查。\n"
+                        f"現有目標清單：{all_targets}\n"
+                        f"請從上述清單挑選正確的 target_name（可使用 id 對應的 name 或其部分字串）重新呼叫。"
+                    )
+                return (
+                    f"找不到目標 '{target_name}'，且系統目前沒有任何目標。"
+                    f"請先透過 /api/targets/ 建立目標後再呼叫。"
+                )
 
             active_overview = Overview.objects.filter(
                 target=target, status__in=["PLANNING", "EXECUTING"]
@@ -68,36 +114,48 @@ class ReconnaissanceMixin:
                 )
 
             # ════════════════════════════════════════════════════════════════
-            # Auto-bind thread_id when this agent was invoked by a parent
-            # (Orchestrator delegation flow). The sub-thread was already
-            # created by _run_as_tool — we just need to store its ID on the
-            # overview so the frontend can display it and async scanners
-            # can callback to the correct thread.
+            # Auto-bind thread_id / parent_thread_id
+            # 多層 fallback 鏈（避免 Overview 孤兒——前端 graph / 樹狀結構完全依賴此關聯）：
+            #   thread_id：_current_invoke_thread_id → _thread.id → 命名慣例反查
+            #   parent_thread_id：_caller_thread_id
             # ════════════════════════════════════════════════════════════════
             if not active_overview.thread_id or not active_overview.parent_thread_id:
-                _caller_id = getattr(self, '_caller_thread_id', None)
-                if _caller_id:
-                    update_fields = []
-                    # 1. Bind thread_id (current sub-thread)
-                    if not active_overview.thread_id:
-                        from apps.core.models.ai_models import Thread
-                        sub_thread = Thread.objects.filter(
-                            name=f"subagent_automation_agent_for_thread_{_caller_id}"
-                        ).first()
-                        if sub_thread:
-                            active_overview.thread_id = sub_thread.id
-                            update_fields.append('thread_id')
-                    
-                    # 2. Bind parent_thread_id (caller)
-                    if not active_overview.parent_thread_id:
+                update_fields = []
+                # 1. 解析自身 thread_id（優先 instance 屬性，再反查子執行緒）
+                if not active_overview.thread_id:
+                    resolved_tid = getattr(self, '_current_invoke_thread_id', None)
+                    if not resolved_tid:
+                        _thread_obj = getattr(self, '_thread', None)
+                        if _thread_obj and getattr(_thread_obj, 'id', None):
+                            resolved_tid = _thread_obj.id
+                    if not resolved_tid:
+                        _caller_id = getattr(self, '_caller_thread_id', None)
+                        if _caller_id:
+                            from apps.core.models.ai_models import Thread
+                            sub_thread = Thread.objects.filter(
+                                name=f"subagent_automation_agent_for_thread_{_caller_id}"
+                            ).first()
+                            if sub_thread:
+                                resolved_tid = sub_thread.id
+                    if resolved_tid:
+                        active_overview.thread_id = resolved_tid
+                        update_fields.append('thread_id')
+
+                # 2. Bind parent_thread_id (caller)
+                if not active_overview.parent_thread_id:
+                    _caller_id = getattr(self, '_caller_thread_id', None)
+                    if _caller_id:
                         active_overview.parent_thread_id = _caller_id
                         update_fields.append('parent_thread_id')
-                    
-                    if update_fields:
-                        active_overview.save(update_fields=update_fields)
-                        logger.info(f"[get_target_context] Auto-bound overview {active_overview.id} fields: {update_fields}")
-            if hasattr(self, '_agent_overview_id') is not None and not self._agent_overview_id:
+
+                if update_fields:
+                    active_overview.save(update_fields=update_fields)
+                    logger.info(f"[get_target_context] Auto-bound overview {active_overview.id} fields: {update_fields}")
+            if not getattr(self, '_agent_overview_id', None):
                 self._agent_overview_id = active_overview.id
+            # 同步 thread_id 到 agent instance（供 create_overview / 自動注入使用）
+            if active_overview.thread_id and not getattr(self, '_current_invoke_thread_id', None):
+                self._current_invoke_thread_id = active_overview.thread_id
 
             is_completed = active_overview.status == "COMPLETED"
             context_prefix = "RECENTLY COMPLETED" if is_completed else "ACTIVE"
@@ -138,14 +196,13 @@ class ReconnaissanceMixin:
             }
 
             return (
-                f"=== TARGET CONTEXT (USE ONLY THESE IDs) ===\n"
+                f"=== TARGET CONTEXT ===\n"
                 f"Current System Time: {now_str}\n"
                 f"Target Name: {target.name}\n"
                 f"Target ID: {target.id}\n"
-                f"{context_prefix} Overview ID: {active_overview.id}  ← USE THIS as overview_id in ALL tools\n"
+                f"{context_prefix} Overview: ✓ ACTIVE (ID 已自動綁定到本 session，後續工具呼叫無需提供 overview_id)\n"
                 f"Overview Status: {active_overview.status}\n"
-                f"Overview Thread ID: {active_overview.thread_id or '—'}  ← Your conversation thread\n"
-                f"Overview Parent Thread ID: {active_overview.parent_thread_id or '—'}  ← Parent/caller thread\n"
+                f"Thread Relationship: ✓ AUTO-MANAGED (parent/own thread IDs 已由後端綁定，無需手動傳遞)\n"
                 f"Overview Knowledge: {active_overview.knowledge}\n"
                 f"Overview Plan: {active_overview.plan}\n"
                 f"Overview Active Executions:{executions_info}\n"
@@ -171,16 +228,17 @@ class ReconnaissanceMixin:
             return f"查詢目標上下文失敗: {e}"
 
     @method_tool
-    def create_overview(self, target_id: int, thread_id: int = None, parent_thread_id: int = None) -> str:
+    def create_overview(self, target_id: int) -> str:
         """
         為沒有 Active Overview 的 Target 建立一個全新的 Overview。
         注意：若目標已存在 PLANNING/EXECUTING 的 Overview，此工具會直接回傳現有的，不會重複建立。
         建立後，請務必重新呼叫 get_target_context 來獲取新的 overview_id。
 
+        thread_id 與 parent_thread_id 由後端根據 agent instance 自動綁定，
+        無需（也不應）由呼叫端提供，以避免外鍵約束錯誤與關係混亂。
+
         Args:
-            target_id: Target 的 ID。
-            thread_id: 當前 AI 對話 Thread ID，用於接收非同步掃描器的 Callback。若不能取得，請保持為 None。
-            parent_thread_id: 上層 Calling Agent 的 Thread ID。若上層要求非同步回調，請帶入此 ID。
+            target_id: Target ID
         """
         try:
             from apps.core.models import Target, Overview
@@ -188,27 +246,27 @@ class ReconnaissanceMixin:
             from apps.core.models.ai_models import Thread
             target = Target.objects.get(id=target_id)
 
-            # Fix: Ensure thread_id is None if it's 0 or empty string to avoid FK constraint violation
+            # ══════════════════════════════════════════════════════════════
+            # thread_id / parent_thread_id 完全由 agent instance 推導（問題 ③），
+            # 多層 fallback 鏈確保 Overview 不會成為孤兒（前端 graph / 樹狀結構依賴此關聯）：
+            #   thread_id：_current_invoke_thread_id → _thread.id → 命名慣例反查
+            #   parent_thread_id：_caller_thread_id
+            # ══════════════════════════════════════════════════════════════
+            thread_id = getattr(self, '_current_invoke_thread_id', None)
             if not thread_id:
-                thread_id = None
-            if not parent_thread_id:
-                parent_thread_id = None
+                _thread_obj = getattr(self, '_thread', None)
+                if _thread_obj and getattr(_thread_obj, 'id', None):
+                    thread_id = _thread_obj.id
+            parent_thread_id = getattr(self, '_caller_thread_id', None) or None
 
-            # ══════════════════════════════════════════════════════════════
-            # Auto-bind parent_thread_id & thread_id from caller context
-            # This ensures parent notification works even if the LLM forgets
-            # to pass these parameters explicitly.
-            # ══════════════════════════════════════════════════════════════
-            _caller_id = getattr(self, '_caller_thread_id', None)
-            if _caller_id:
-                if not parent_thread_id:
-                    parent_thread_id = _caller_id
-                if not thread_id:
-                    sub_thread = Thread.objects.filter(
-                        name=f"subagent_automation_agent_for_thread_{_caller_id}"
-                    ).first()
-                    if sub_thread:
-                        thread_id = sub_thread.id
+            # 若自身 thread_id 仍為空但存在 caller，嘗試以命名慣例反查子執行緒
+            _caller_id = parent_thread_id
+            if _caller_id and not thread_id:
+                sub_thread = Thread.objects.filter(
+                    name=f"subagent_automation_agent_for_thread_{_caller_id}"
+                ).first()
+                if sub_thread:
+                    thread_id = sub_thread.id
 
             # ⚠️ Idempotency 保護：防止重複建立
             with transaction.atomic():
@@ -221,7 +279,7 @@ class ReconnaissanceMixin:
                     if _caller_id and not existing.parent_thread_id and not parent_thread_id:
                         existing.parent_thread_id = _caller_id
                         existing.save(update_fields=['parent_thread_id'])
-                    if hasattr(self, '_agent_overview_id'):
+                    if not getattr(self, '_agent_overview_id', None):
                         self._agent_overview_id = existing.id
                     logger.warning(
                         f"create_overview called but active overview already exists "
@@ -241,7 +299,7 @@ class ReconnaissanceMixin:
                     thread_id=thread_id,
                     parent_thread_id=parent_thread_id,
                 )
-            if hasattr(self, '_agent_overview_id'):
+            if not getattr(self, '_agent_overview_id', None):
                 self._agent_overview_id = overview.id
             return f"成功為 Target {target.name} (ID: {target.id}) 建立新的 Overview (ID: {overview.id})。請重新呼叫 get_target_context。"
         except Exception as e:
@@ -291,6 +349,7 @@ class ReconnaissanceMixin:
         target_id: int,
         fetch_status_filter: str = None,
         tech_analyzed_filter: bool = None,
+        vuln_scanned_filter: bool = None,
         limit: int = 50,
         offset: int = 0
     ) -> str:
@@ -302,10 +361,14 @@ class ReconnaissanceMixin:
         或是否已用過 Flaresolverr (used_flaresolverr=True)。
         防止重複執行無意義的掃描造成系統負載。
 
+        漏洞掃描狀態由 vulnerabilities 關聯記錄的數量推導（vuln_count>0 代表已掃出漏洞），
+        URLResult 本身沒有 is_vuln_scanned 布林欄位。
+
         Args:
             target_id: Target ID
             fetch_status_filter: 按 content_fetch_status 过滤 ('SUCCESS_FETCHED', 'FAILED_BLOCKED', 'PENDING' 等)
             tech_analyzed_filter: 按 is_tech_analyzed 过滤 (True/False/None)
+            vuln_scanned_filter: 按漏洞記錄過濾；True=只看已有漏洞記錄的 URL，False=只看尚無漏洞記錄的 URL，None=不過濾
             limit: 返回数量上限（默认 50，最大 200）
             offset: 分页偏移（默认 0）
 
@@ -314,8 +377,11 @@ class ReconnaissanceMixin:
         """
         try:
             from apps.core.models.url_assets import URLResult
+            from django.db.models import Count
 
-            query = URLResult.objects.filter(target_id=target_id)
+            query = URLResult.objects.filter(target_id=target_id).annotate(
+                vuln_count=Count("vulnerabilities", distinct=True)
+            )
 
             # 应用过滤条件
             if fetch_status_filter:
@@ -323,6 +389,11 @@ class ReconnaissanceMixin:
 
             if tech_analyzed_filter is not None:
                 query = query.filter(is_tech_analyzed=tech_analyzed_filter)
+
+            if vuln_scanned_filter is True:
+                query = query.filter(vuln_count__gt=0)
+            elif vuln_scanned_filter is False:
+                query = query.filter(vuln_count=0)
 
             # 限制最大值
             limit = min(limit, 200)
@@ -336,18 +407,18 @@ class ReconnaissanceMixin:
             # 获取分页数据
             urls = query.values(
                 "id", "url", "used_flaresolverr", "content_fetch_status",
-                "status_code", "is_tech_analyzed", "is_vuln_scanned"
+                "status_code", "is_tech_analyzed", "vuln_count"
             ).order_by('-created_at')[offset:offset+limit]
 
             summary = f"URL Scan Status (showing {len(urls)}/{total}):\n"
-            summary += f"Filters: fetch_status={fetch_status_filter}, tech_analyzed={tech_analyzed_filter}\n\n"
+            summary += f"Filters: fetch_status={fetch_status_filter}, tech_analyzed={tech_analyzed_filter}, vuln_scanned={vuln_scanned_filter}\n\n"
 
             for u in urls:
                 used_fs_str = "Yes" if u["used_flaresolverr"] else "No"
                 summary += f"[{u['id']}] {u['url']}\n"
                 summary += f"  Status: {u['content_fetch_status']} (HTTP {u['status_code']})\n"
                 summary += f"  FlareSolverr: {used_fs_str}\n"
-                summary += f"  Tech Analyzed: {u['is_tech_analyzed']}, Vuln Scanned: {u['is_vuln_scanned']}\n\n"
+                summary += f"  Tech Analyzed: {u['is_tech_analyzed']}, Vuln Records: {u['vuln_count']}\n\n"
 
             if total > offset + limit:
                 summary += f"\n💡 Tip: Use offset={offset+limit} to see next {limit} URLs\n"
@@ -794,12 +865,16 @@ class ReconnaissanceMixin:
 
                 guidance = None
                 for msg in agent_msgs:
-                    content = (msg.content or "")
+                    # Message 模型以 JSONField `message` 儲存 LangChain 訊息，需從中萃取文字內容
+                    msg_data = msg.message if isinstance(msg.message, dict) else {}
+                    content = (
+                        msg_data.get('data', {}).get('content')
+                        or msg_data.get('content')
+                        or ""
+                    )
                     if "Orchestrator Strategic Guidance" in content:
                         guidance = content
                         break
-                    if msg._meta.label == 'ai_assistant.AIMessage' and hasattr(msg, 'response'):
-                        continue
 
                 if guidance:
                     overview.status = "EXECUTING"
@@ -868,10 +943,10 @@ class ReconnaissanceMixin:
             if total == 0:
                 return f"No IPs found for Target ID {target_id} with the given filters."
 
-            # 获取分页数据
+            # 获取分页数据（IP 模型無 created_at 欄位，改以 last_scan_type 排序）
             ips = query.values(
                 'id', 'address', 'last_scan_type', 'port_count'
-            ).order_by('-port_count', '-created_at')[offset:offset+limit]
+            ).order_by('-port_count', '-last_scan_type')[offset:offset+limit]
 
             summary = f"IP Scan Status (showing {len(ips)}/{total}):\n"
             summary += f"Filters: port_count_min={port_count_min}, port_count_max={port_count_max}\n\n"

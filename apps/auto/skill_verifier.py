@@ -154,8 +154,13 @@ class SkillVerifier:
             temperature=0.2
         )
 
-    def verify(self, skill_id: int) -> dict:
-        """Run verification on a skill by its ID."""
+    def verify(self, skill_id: int, test_input: dict = None) -> dict:
+        """Run verification on a skill by its ID.
+
+        Args:
+            skill_id: The skill ID to verify.
+            test_input: Optional dict of test input. If None, LLM auto-generates.
+        """
         from apps.core.models.analyze.SkillTemplate import SkillTemplate
         from apps.core.models.analyze.SkillVerification import SkillVerification
 
@@ -167,8 +172,12 @@ class SkillVerifier:
         logger.info(f"[SkillVerifier] Starting verification for skill: {skill.name} v{skill.version}")
 
         try:
-            # Step 1: Generate test input via LLM
-            test_result = self._generate_test_input(skill)
+            # Step 1: Generate or reuse test input
+            if test_input is not None:
+                logger.info(f"[SkillVerifier] Using caller-provided test_input for #{skill_id}")
+                test_result = {"test_input": test_input}
+            else:
+                test_result = self._generate_test_input(skill)
 
             if not test_result.get("test_input"):
                 return self._record_failure(skill, "LLM failed to generate test input")
@@ -233,6 +242,10 @@ class SkillVerifier:
                 "verification_id": verification.id,
                 "verdict": verdict,
                 "confidence": confidence,
+                "exit_code": exec_result.get("exit_code"),
+                "duration_ms": exec_result.get("duration_ms"),
+                "raw_output": exec_result.get("raw_output", ""),
+                "agent_notes": f"Reasoning: {reasoning}\n\nSuggestions: {suggestions}",
             }
 
         except Exception as e:
@@ -294,7 +307,7 @@ class SkillVerifier:
             # Pass input_json as first CLI arg (JSON string)
             args = json.dumps(test_input) if test_input else ""
             exit_code, output_bytes = container.exec_run(
-                cmd=f"{runner} {sandbox_path} {args}",
+                cmd=[runner, sandbox_path, args],
                 detach=False,
                 stream=False,
             )

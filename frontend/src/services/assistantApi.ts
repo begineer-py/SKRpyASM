@@ -5,6 +5,19 @@ const api = axios.create({
   baseURL: `${GLOBAL_CONFIG.DJANGO_API_BASE}/assistant`,
 });
 
+export interface ThreadEvent {
+  id: number;
+  thread_id: number;
+  event_type: string;
+  node_name: string | null;
+  tool_name: string | null;
+  status: string | null;
+  content: string;
+  payload: Record<string, unknown>;
+  sequence: number;
+  created_at: string;
+}
+
 export const assistantApi = {
   // Create a new thread assigned to hacker_assistant_agent
   createThread: async (name?: string) => {
@@ -136,5 +149,51 @@ export const assistantApi = {
   unbindTarget: async (threadId: number | string) => {
     const response = await api.delete(`/threads/${threadId}/bind_target/`);
     return response.data;
+  },
+
+  // Get thread events (ThreadEvent records)
+  getThreadEvents: async (threadId: number | string, after?: number): Promise<ThreadEvent[]> => {
+    const params: Record<string, unknown> = {};
+    if (after !== undefined) params.after = after;
+    const response = await api.get(`/threads/${threadId}/events/`, { params });
+    return Array.isArray(response.data) ? response.data : [];
+  },
+
+  /**
+   * 持久化訂閱：監聽指定 thread 的 Message 表變更（新訊息寫入 DB）。
+   *
+   * 與 streamMessage 的差異：
+   *   - streamMessage 是一次性請求-回應（送出訊息 → 串流回覆 → 關閉）
+   *   - 本方法在 mount 時開啟、unmount 時關閉，持續接收「新訊息已寫入 DB」事件
+   *
+   * 用途：解決「刷新時 AI 回應尚未寫入 DB → 永遠看不到」的問題。
+   * 當背景 graph 完成並寫入 AI message 時，前端會即時收到通知並重新載入。
+   *
+   * @param threadId    目標 thread ID
+   * @param onNewMessage 收到 message_created 事件時的 callback（攜帶新 message summary）
+   * @returns cleanup 函式，呼叫以關閉 EventSource
+   */
+  streamMessageEvents: (
+    threadId: number | string,
+    onNewMessage: (summary: { id: number; thread_id: number; role: string; created_at: string }) => void,
+  ): (() => void) => {
+    const url = `${GLOBAL_CONFIG.DJANGO_API_BASE}/assistant/threads/${threadId}/messages/events/stream/`;
+    const es = new EventSource(url);
+
+    es.addEventListener('message_created', (e: MessageEvent) => {
+      try {
+        const payload = JSON.parse(e.data);
+        onNewMessage(payload);
+      } catch {
+        /* ignore malformed payload */
+      }
+    });
+
+    // checkpoint / stats / start 事件不需處理；error 由 onerror 兜底
+    es.onerror = () => {
+      // EventSource 會自動重連；這裡不自動關閉，讓瀏覽器重連機制處理
+    };
+
+    return () => es.close();
   },
 };

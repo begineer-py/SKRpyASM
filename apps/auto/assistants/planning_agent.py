@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class AutomationAgent(AIAssistant, DBToolsMixin, ScannerToolsMixin, SpawnAgentsMixin):
     id = "automation_agent"
     name = "Pentest Automation Agent"
-    recursion_limit = 50
+    recursion_limit = 80
     stop_on_waiting_async = True
     max_consecutive_same_tool = 3
     instructions = (
@@ -173,7 +173,7 @@ class AutomationAgent(AIAssistant, DBToolsMixin, ScannerToolsMixin, SpawnAgentsM
         "\n"
         "【長期記憶與 Blob】\n"
         "- save_long_content(content, source_type, ...): 儲存大型內容到 Blob\n"
-        "- read_content_blob(blob_id, focus_query): 以問題驅動讀取大型 Blob\n"
+        "- read_content_blob(blob_id, focus_query, page): 以問題驅動讀取大型 Blob；有 page_breakdown 時可用 page=N 讀取指定頁\n"
         "- write_recon_note(overview_id, title, content): 快速記錄偵察發現（建立 ExecutionEvent/Artifact + AttackVector）\n"
         "\n"
         "【狀態與報告】\n"
@@ -393,28 +393,29 @@ class AutomationAgent(AIAssistant, DBToolsMixin, ScannerToolsMixin, SpawnAgentsM
 
         return base_tools + api_tools
 
-    def as_tool(self, description: str):
+    def as_tool(self, description: str, ha_caller_thread_id: int = None):
         """
         Override as_tool to force Orchestrator to pass `target_name` explicitly,
         allowing us to auto-resolve the context and inject it.
+
+        Args:
+            description: Tool description for the LLM.
+            ha_caller_thread_id: The HackerAssistant's thread_id captured at
+                tool-creation time, so the async Celery task can create a
+                linked sub-thread + ExecutionGraph.
         """
         import logging
         from langchain_core.tools import StructuredTool
-        from langchain_core.runnables import RunnableConfig
         from typing import Any
 
         _logger = logging.getLogger("ai_assistant.agent")
         _logger.info(
-            f"[AS_TOOL REGISTERED override] assistant_id={self.id!r} | description={description!r}"
+            f"[AS_TOOL REGISTERED override] assistant_id={self.id!r} | "
+            f"description={description!r} | ha_caller_thread_id={ha_caller_thread_id}"
         )
 
-        def _tool_func(
-            instruction: str, target_name: str = None, config: RunnableConfig = None
-        ) -> Any:
-            thread_id = None
-            if config and "configurable" in config:
-                thread_id = config["configurable"].get("thread_id")
-            # Fallback for non-LangGraph tool invocation paths where config is absent.
+        def _tool_func(instruction: str, target_name: str = None) -> Any:
+            thread_id = ha_caller_thread_id
             if not thread_id:
                 thread_id = getattr(self, '_current_invoke_thread_id', None)
 

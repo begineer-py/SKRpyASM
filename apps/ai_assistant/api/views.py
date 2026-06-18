@@ -22,6 +22,8 @@ from apps.ai_assistant.exceptions import AIAssistantNotDefinedError, AIUserNotAl
 from apps.ai_assistant.helpers import use_cases
 from apps.core.models import Message as MessageModel
 from apps.core.models import Thread as ThreadModel
+from apps.core.models import ThreadEvent
+from apps.core.schemas import ThreadEventSchema
 
 
 class API(NinjaAPI):
@@ -173,6 +175,27 @@ def delete_thread_message(request, thread_id: Any, message_id: Any):
         request=request,
     )
     return 204, None
+
+
+# ── Thread Events ────────────────────────────────────────────────────────
+
+
+@api.get(
+    "threads/{thread_id}/events/",
+    response=List[ThreadEventSchema],
+    url_name="thread_events_list",
+)
+@with_cast_id
+def list_thread_events(request, thread_id: Any, after: int = 0, limit: int = 500):
+    get_object_or_404(ThreadModel, id=thread_id)
+    limit = max(1, min(limit, 500))
+    return list(
+        ThreadEvent.objects.filter(
+            thread_id=thread_id,
+            sequence__gt=max(after, 0),
+        )
+        .order_by("sequence", "id")[:limit]
+    )
 
 
 # ── Target Binding Endpoints ───────────────────────────────────────────────

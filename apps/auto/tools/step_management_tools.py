@@ -48,7 +48,7 @@ class StepManagementMixin:
             overview = Overview.objects.get(id=overview_id)
             update_fields = []
 
-            valid_statuses = ['PLANNING', 'EXECUTING', 'COMPLETED', 'STALLED']
+            valid_statuses = ['PLANNING', 'EXECUTING', 'COMPLETED', 'STALLED', 'NEEDS_GUIDANCE']
             if new_status is not None:
                 if new_status not in valid_statuses:
                     return f"CRITICAL_FAILURE: Invalid status '{new_status}'. Must be one of {valid_statuses}."

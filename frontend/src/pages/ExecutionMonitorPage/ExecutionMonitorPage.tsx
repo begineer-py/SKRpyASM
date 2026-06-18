@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import ExecutionTimelineViewer from '../../components/ExecutionTimelineViewer';
 import { executionApi } from '../../services/executionApi';
 import type { ExecutionGraph, ExecutionGraphDetail, ExecutionNode } from '../../services/executionApi';
 import './ExecutionMonitor.css';
 
 const STATUS_OPTIONS = ['RUNNING', 'WAITING', 'SUCCEEDED', 'FAILED', 'CANCELLED', 'BLOCKED'];
+const ASSISTANT_OPTIONS = ['automation_agent', 'recon_agent', 'post_exploit_agent', 'reporting_agent', 'hacker_assistant_agent'];
 
 const STATUS_CLASS: Record<string, string> = {
   RUNNING: 'running',
@@ -45,7 +46,9 @@ export default function ExecutionMonitorPage() {
   const [selectedGraph, setSelectedGraph] = useState<ExecutionGraphDetail | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('');
+  const [assistantFilter, setAssistantFilter] = useState<string>('');
   const [threadFilter, setThreadFilter] = useState<string>('');
+  const [targetFilter, setTargetFilter] = useState<string>('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,9 +57,10 @@ export default function ExecutionMonitorPage() {
     setLoading(true);
     setError(null);
     try {
-      const params: { status?: string; thread_id?: number; limit: number } = { limit: 100 };
+      const params: { status?: string; thread_id?: number; target_id?: number; limit: number } = { limit: 100 };
       if (statusFilter) params.status = statusFilter;
       if (threadFilter.trim()) params.thread_id = Number(threadFilter.trim());
+      if (targetFilter.trim()) params.target_id = Number(targetFilter.trim());
       const nextGraphs = await executionApi.listGraphs(params);
       setGraphs(nextGraphs);
       if (!selectedGraphId && nextGraphs.length > 0) {
@@ -67,10 +71,39 @@ export default function ExecutionMonitorPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedGraphId, statusFilter, threadFilter]);
+  }, [selectedGraphId, statusFilter, threadFilter, targetFilter]);
 
   useEffect(() => {
     void loadGraphs();
+  }, [loadGraphs]);
+
+  const location = useLocation();
+  const lastLoadRef = useRef<number>(0);
+  useEffect(() => {
+    const now = Date.now();
+    if (now - lastLoadRef.current > 1000) {
+      lastLoadRef.current = now;
+      void loadGraphs();
+    }
+  }, [location.pathname, location.search, loadGraphs]);
+
+  useEffect(() => {
+    const onFocus = () => {
+      const now = Date.now();
+      if (now - lastLoadRef.current > 2000) {
+        lastLoadRef.current = now;
+        void loadGraphs();
+      }
+    };
+    window.addEventListener('focus', onFocus);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') onFocus();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [loadGraphs]);
 
   useEffect(() => {
@@ -105,16 +138,18 @@ export default function ExecutionMonitorPage() {
   }, [selectedGraphId, setSearchParams]);
 
   const filteredGraphs = useMemo(() => {
+    let result = graphs;
+    if (assistantFilter) result = result.filter(g => g.assistant_id === assistantFilter);
     const q = search.trim().toLowerCase();
-    if (!q) return graphs;
-    return graphs.filter((graph) => [
+    if (!q) return result;
+    return result.filter((graph) => [
       graph.title,
       graph.assistant_id,
       graph.status,
       String(graph.id),
       String(graph.thread_id || ''),
     ].some((value) => String(value || '').toLowerCase().includes(q)));
-  }, [graphs, search]);
+  }, [graphs, search, assistantFilter]);
 
   const selectedNode: ExecutionNode | null = useMemo(() => {
     if (!selectedGraph || !selectedNodeId) return null;
@@ -161,6 +196,11 @@ export default function ExecutionMonitorPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
             <input className="search-input" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search graph, assistant, thread..." />
             <input className="search-input" value={threadFilter} onChange={(event) => setThreadFilter(event.target.value)} placeholder="Thread ID filter" />
+            <input className="search-input" value={targetFilter} onChange={(event) => setTargetFilter(event.target.value)} placeholder="Target ID filter" />
+            <select className="filter-select" value={assistantFilter} onChange={(event) => setAssistantFilter(event.target.value)}>
+              <option value="">All agents</option>
+              {ASSISTANT_OPTIONS.map((a) => <option key={a} value={a}>{a}</option>)}
+            </select>
             <select className="filter-select" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
               <option value="">All statuses</option>
               {STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}

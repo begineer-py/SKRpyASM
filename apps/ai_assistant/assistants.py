@@ -1,6 +1,11 @@
 from apps.ai_assistant import AIAssistant, method_tool
 from apps.core.llms import get_llm_instance
 from apps.auto.tools.memory_tools import MemoryMixin
+from apps.auto.tools.reconnaissance_tools import ReconnaissanceMixin
+from apps.auto.tools.endpoint_tools import EndpointMixin
+from apps.auto.tools.cve_intelligence_tools import CVEIntelligenceMixin
+from apps.auto.tools.step_management_tools import StepManagementMixin
+from apps.auto.tools.skill_tools import SkillMixin
 from langchain_community.tools import (
     ShellTool,
     FileSearchTool,
@@ -34,8 +39,11 @@ def _generate_dynamic_instructions() -> str:
         "    <rule id=\"5\">If a target already has discovered assets (domains, IPs, URLs), prioritize attacking/analyzing them over indefinite enumeration.</rule>\n"
         "    <rule id=\"6\">Always verify the Target ID using `list_active_targets` before performing target-specific actions.</rule>\n"
         "    <rule id=\"7\">Be concise in your communication. Acknowledge commands briefly and let the user monitor detailed progress via the UI.</rule>\n"
-        "    <rule id=\"8\">[Data Management] Large tool outputs are automatically compressed and saved to the database. If you see a `blob_id`, DO NOT try to read it yourself unless it's very short. Instead, delegate the analysis to a sub-agent or use `read_content_blob` with a specific `focus_query`.</rule>\n"
+        "    <rule id=\"8\">[Data Management] Large tool outputs are automatically compressed and saved to the database. If you see a `blob_id`, DO NOT try to read it yourself unless it's very short. Instead, delegate the analysis to a sub-agent or use `read_content_blob` with a specific `focus_query` or `page=N`.</rule>\n"
         "    <rule id=\"9\">[Context Binding] Once you call `bind_to_target`, the session will be automatically bound to the active Overview. You DO NOT need to provide `overview_id` in subsequent tool calls; the system will inject it for you.</rule>\n"
+        "    <rule id=\"10\">[Direct DB Queries] You now have direct read access to the asset database. For quick lookups — listing subdomains, IPs, URLs, endpoints, CVEs, execution history, or URL intelligence — use the structured query tools (get_target_context, query_urls, check_scanned_*, query_endpoints, get_url_intelligence, query_cve_by_id, query_steps, etc.) DIRECTLY instead of delegating to AutomationAgent. This is faster and cheaper.</rule>\n"
+        "    <rule id=\"11\">[When to Delegate] STILL delegate to AutomationAgent (Layer 3) when the task requires: running scans (nmap/nuclei/subfinder), executing scripts in the Kali sandbox, performing multi-step attack chains, or analyzing very large data outputs. Rule of thumb: if it involves a tool named run_* or execute_*, delegate it.</rule>\n"
+        "    <rule id=\"12\">[Pagination] When a blob has multiple pages (shown as `**Pages**: N pages available`), use `read_content_blob(blob_id=X, page=N)` to read one page at a time. Each page is a self-contained topic section. Do NOT use `read_content_blob` without `page` for paginated blobs — that will only return the summary.</rule>\n"
         "  </guidelines>\n"
         "\n"
         "  <overview_standards tool=\"create_or_update_target_overview\">\n"
@@ -68,10 +76,39 @@ def _generate_dynamic_instructions() -> str:
         return base_instructions
 
 
-class HackerAssistantAgent(MemoryMixin, AIAssistant):
+class HackerAssistantAgent(
+    ReconnaissanceMixin,
+    EndpointMixin,
+    CVEIntelligenceMixin,
+    StepManagementMixin,
+    SkillMixin,
+    MemoryMixin,
+    AIAssistant,
+):
     id = "hacker_assistant_agent"
     name = "Hacker Assistant"
     instructions = _generate_dynamic_instructions()
+
+    # 工具黑名單：對 HackerAssistant (Layer 2 Orchestrator) 角色不適用的工具。
+    # 這些工具是 Layer 3 sub-agent 向上溝通或執行腳本用的，HackerAssistant 不需要。
+    _EXCLUDE_TOOLS = {
+        'escalate_to_orchestrator',       # 向上請求指導 — HackerAssistant 就是頂層
+        'read_orchestrator_guidance',     # 讀取上層指導 — 同上
+        'create_overview',                # 與既有 create_or_update_target_overview 重疊
+        'notify_caller_agent',            # sub-agent 向 parent 報告 — 無 parent
+        'execute_skill_script',           # 腳本執行應委派 Layer 3
+        'install_sandbox_dependency',     # 同上
+    }
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # 讓 get_url_intelligence 遇到 PENDING URL 時不自動觸發 FlareSolverr 爬蟲。
+        # HackerAssistant 是唯讀查詢模式，掃描應委派 Layer 3。
+        self._skip_auto_crawl = True
+        # 自動注入所需 ID 欄位（初始為 None，由 bind_to_target 或 get_target_context 設定）
+        self._agent_overview_id = None
+        self._caller_thread_id = None
+        self._current_invoke_thread_id = None
 
 
     def get_llm(self):
@@ -104,6 +141,8 @@ class HackerAssistantAgent(MemoryMixin, AIAssistant):
                 bound_target_id=target_id,
                 bound_overview_id=ov_id
             )
+            # 同步到 instance，後續工具呼叫（透過 as_graph wrap 注入）才能正確讀取
+            self._agent_overview_id = ov_id
             
             msg = f"[BOUND] This session is now focused on Target '{target.name}' (ID: {target_id})."
             if ov_id:
@@ -132,27 +171,28 @@ class HackerAssistantAgent(MemoryMixin, AIAssistant):
             return f"Error unbinding target: {str(e)}"
 
     def get_tools(self):
-        from langchain_community.utilities import SQLDatabase
-        from langchain_community.tools.sql_database.tool import QuerySQLDataBaseTool
-        from django.conf import settings
         from apps.auto.assistants.planning_agent import AutomationAgent
 
-        db_settings = settings.DATABASES["default"]
-        db_uri = (
-            f"postgresql+psycopg2://{db_settings.get('USER', 'postgres')}:"
-            f"{db_settings.get('PASSWORD', '')}@{db_settings.get('HOST', 'localhost')}:"
-            f"{db_settings.get('PORT', '5432')}/{db_settings.get('NAME', 'postgres')}"
-        )
-        db = SQLDatabase.from_uri(db_uri)
+        # Capture caller thread_id so the async Celery task can create a
+        # properly linked sub-thread + ExecutionGraph.
+        ha_caller_thread_id = getattr(self, '_current_invoke_thread_id', None)
 
         my_custom_tools = [
             DuckDuckGoSearchResults(),
-            QuerySQLDataBaseTool(db=db),
             AutomationAgent().as_tool(
-                description="Delegates tasks to the Automation Agent (Layer 3). Use this for pentest loops, complex script execution, or analyzing large data/blobs discovered during recon."
+                description=(
+                    "Delegates tasks to the Automation Agent (Layer 3). "
+                    "Use this for pentest loops, complex script execution, "
+                    "running scans (nmap/nuclei/subfinder/flaresolverr), "
+                    "or analyzing large data/blobs discovered during recon. "
+                    "For simple read-only DB queries (listing assets, CVEs, execution history), "
+                    "use the structured query tools directly instead."
+                ),
+                ha_caller_thread_id=ha_caller_thread_id,
             ),
         ]
-        tools = super().get_tools()
+        # 取得 mixin 產生的工具（_method_tools），過濾黑名單
+        tools = [t for t in super().get_tools() if t.name not in self._EXCLUDE_TOOLS]
         for tool in my_custom_tools:
             tools.append(tool)
         return tools

@@ -1,5 +1,5 @@
 from ninja import Schema, ModelSchema, Field
-from typing import List, Optional
+from typing import Any, List, Optional
 from datetime import datetime
 
 from .models import IP
@@ -8,6 +8,7 @@ from apps.core.models import (
     ExecutionEvent,
     ExecutionGraph,
     ExecutionNode,
+    ThreadEvent,
     URLResult,
     Form,
     JavaScriptFile,
@@ -196,6 +197,24 @@ class ExecutionArtifactSchema(ModelSchema):
         ]
 
 
+class ThreadEventSchema(ModelSchema):
+    thread_id: int
+
+    class Meta:
+        model = ThreadEvent
+        fields = [
+            "id",
+            "event_type",
+            "node_name",
+            "tool_name",
+            "status",
+            "content",
+            "payload",
+            "sequence",
+            "created_at",
+        ]
+
+
 class ExecutionGraphDetailSchema(ExecutionGraphSchema):
     nodes: List[ExecutionNodeSchema]
     events: List[ExecutionEventSchema]
@@ -330,3 +349,118 @@ class FlaresolverrResponse(Schema):  # <--- 繼承 Schema
     detail: str
     status_code: int
     if_run: bool
+
+
+class AssetRef(Schema):
+    id: int
+    label: str
+
+
+class PoCRecordOut(Schema):
+    id: int
+    vulnerability_id: int
+    title: str
+    content: str
+    language: str
+    result: Optional[str] = None
+    is_verified: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class PoCRecordCreate(Schema):
+    title: str
+    content: str
+    language: str = "manual"  # curl|python|bash|http_request|manual
+    result: Optional[str] = None
+    is_verified: bool = False
+
+
+class PoCRecordUpdate(Schema):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    language: Optional[str] = None
+    result: Optional[str] = None
+    is_verified: Optional[bool] = None
+
+
+class VulnerabilityOut(Schema):
+    id: int
+    target_id: Optional[int] = None
+    target_name: Optional[str] = None
+    ip_asset: Optional[AssetRef] = None
+    subdomain_asset: Optional[AssetRef] = None
+    url_asset: Optional[AssetRef] = None
+    source_attack_vector_id: Optional[int] = None
+    overview_id: Optional[int] = None
+    cve_intelligence_id: Optional[int] = None
+    enrichment_status: str
+    enrichment_attempted_at: Optional[datetime] = None
+    tool_source: str
+    template_id: str
+    name: str
+    severity: str
+    matched_at: str
+    extracted_results: Optional[Any] = None
+    request_raw: Optional[str] = None
+    response_raw: Optional[str] = None
+    fingerprint: Optional[str] = None
+    status: str
+    description: Optional[str] = None
+    remediation: Optional[str] = None
+    pocs: List[PoCRecordOut] = []
+    created_at: datetime
+    updated_at: datetime
+    last_seen: datetime
+
+
+class VulnerabilityCreate(Schema):
+    target_id: Optional[int] = None
+    name: str
+    severity: str  # info|low|medium|high|critical
+    template_id: str = "manual"
+    matched_at: str
+    tool_source: str = "manual"
+    description: Optional[str] = None
+    remediation: Optional[str] = None
+    extracted_results: Optional[Any] = None
+    request_raw: Optional[str] = None
+    response_raw: Optional[str] = None
+    status: str = "unverified"
+    ip_asset_id: Optional[int] = None
+    subdomain_asset_id: Optional[int] = None
+    url_asset_id: Optional[int] = None
+    overview_id: Optional[int] = None
+    cve_intelligence_id: Optional[int] = None
+
+
+class VulnerabilityUpdate(Schema):
+    target_id: Optional[int] = None
+    name: Optional[str] = None
+    severity: Optional[str] = None
+    template_id: Optional[str] = None
+    matched_at: Optional[str] = None
+    description: Optional[str] = None
+    remediation: Optional[str] = None
+    extracted_results: Optional[Any] = None
+    request_raw: Optional[str] = None
+    response_raw: Optional[str] = None
+    status: Optional[str] = None
+    ip_asset_id: Optional[int] = None
+    subdomain_asset_id: Optional[int] = None
+    url_asset_id: Optional[int] = None
+    overview_id: Optional[int] = None
+    cve_intelligence_id: Optional[int] = None
+
+
+class VulnerabilityStatusUpdate(Schema):
+    status: str  # confirmed | false_positive | unverified
+
+
+class VulnerabilityBatchStatusUpdate(Schema):
+    ids: List[int]
+    status: str
+
+
+class VulnerabilityBatchDelete(Schema):
+    ids: List[int]

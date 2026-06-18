@@ -215,14 +215,13 @@
   background: var(--bg-card);
 }
 
-.step-node {
+.exec-node {
   background: rgba(34, 197, 94, 0.03);
   position: relative;
   margin-left: 12px;
 }
 
-/* Selected step highlight: keep it subtle (dark theme friendly) */
-.step-node.selected {
+.exec-node.selected {
   background: rgba(167, 139, 250, 0.08);
   outline: 1px solid rgba(167, 139, 250, 0.25);
 }
@@ -245,7 +244,7 @@
   background: var(--bg-surface);
 }
 
-.step-header {
+.exec-header {
   background: transparent;
   padding-left: 12px;
 }
@@ -308,7 +307,7 @@
   letter-spacing: 0.02em;
 }
 
-.step-name {
+.exec-name {
   font-family: var(--font-mono);
   font-size: 0.88rem;
   color: var(--text-primary);
@@ -396,8 +395,8 @@
   text-overflow: ellipsis;
 }
 
-/* Step note preview */
-.step-note-preview {
+/* Node note preview */
+.node-note-preview {
   margin-top: 8px;
   padding: 8px;
   background: rgba(0, 240, 255, 0.05);
@@ -410,8 +409,8 @@
   line-height: 1.4;
 }
 
-/* Step stats bar */
-.step-stats-bar {
+/* Execution stats bar */
+.exec-stats-bar {
   display: flex;
   align-items: center;
   gap: 16px;
@@ -446,14 +445,14 @@
   letter-spacing: 0.02em;
 }
 
-/* Node children (expanded steps) */
+/* Node children (expanded execution nodes) */
 .node-children {
   padding: 8px 12px;
   background: rgba(0, 0, 0, 0.2);
   border-top: 1px solid var(--border-subtle);
 }
 
-.no-steps {
+.no-nodes {
   padding: 12px;
   text-align: center;
   color: var(--text-muted);
@@ -491,7 +490,7 @@
 
 /* Responsive */
 @media (max-width: 1024px) {
-  .step-stats-bar {
+  .exec-stats-bar {
     flex-wrap: wrap;
     gap: 12px;
     padding-left: 0;
@@ -524,7 +523,7 @@
     font-size: 0.85rem;
   }
 
-  .step-stats-bar {
+  .exec-stats-bar {
     display: none;
   }
 

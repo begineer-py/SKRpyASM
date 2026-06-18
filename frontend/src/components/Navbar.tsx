@@ -27,6 +27,9 @@ function Navbar() {
           Scheduler
         </NavLink>
         <span className="c2-navbar__divider" aria-hidden="true" />
+        <NavLink to="/vulnerabilities" className={linkClass}>
+          Vulns
+        </NavLink>
         <NavLink to="/cve-intelligence" className={linkClass}>
           CVE Intel
         </NavLink>

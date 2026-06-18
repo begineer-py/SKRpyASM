@@ -21,7 +21,7 @@ interface TelemetryPanelProps {
   lastElapsedMs?: number | null;
   
   /** Execution samples for visualization */
-  steps?: ExecutionSample[];
+  samples?: ExecutionSample[];
 
   /** Optional recent overview updates */
   recentOverviews?: Array<any>;
@@ -44,7 +44,7 @@ interface TelemetryPanelProps {
 
 export function TelemetryPanel({
   lastElapsedMs = null,
-  steps = [],
+  samples = [],
   recentOverviews = [],
   threadNameById = {},
   onOpenThread,
@@ -53,8 +53,8 @@ export function TelemetryPanel({
   hasData = false,
 }: TelemetryPanelProps) {
   // Compute step statistics and timings for chart
-  const stepStats = useMemo(() => {
-    if (!steps || steps.length === 0) {
+  const execStats = useMemo(() => {
+    if (!samples || samples.length === 0) {
       return {
         completed: 0,
         failed: 0,
@@ -64,8 +64,8 @@ export function TelemetryPanel({
       };
     }
 
-    const chartData = steps
-      .slice(-12) // Last 12 steps for chart
+    const chartData = samples
+      .slice(-12)
       .map((s) => ({
         id: s.id,
         name:
@@ -76,13 +76,13 @@ export function TelemetryPanel({
       }));
 
     return {
-      completed: steps.filter((s) => s.status === 'COMPLETED').length,
-      failed: steps.filter((s) => s.status === 'FAILED').length,
-      running: steps.filter((s) => s.status === 'RUNNING').length,
-      pending: steps.filter((s) => s.status === 'PENDING').length,
+      completed: samples.filter((s) => s.status === 'COMPLETED').length,
+      failed: samples.filter((s) => s.status === 'FAILED').length,
+      running: samples.filter((s) => s.status === 'RUNNING').length,
+      pending: samples.filter((s) => s.status === 'PENDING').length,
       chartData,
     };
-  }, [steps]);
+  }, [samples]);
 
   // Show tutorial if no data
   if (!hasData) {
@@ -326,7 +326,7 @@ export function TelemetryPanel({
         )}
 
         {/* Execution Statistics */}
-        {stepStats.completed + stepStats.failed + stepStats.running + stepStats.pending > 0 && (
+        {execStats.completed + execStats.failed + execStats.running + execStats.pending > 0 && (
           <div style={{ marginBottom: '24px' }}>
             <div
               style={{
@@ -349,10 +349,10 @@ export function TelemetryPanel({
             >
               {(
                 [
-                  ['DONE', stepStats.completed, '#10B981'],
-                  ['FAIL', stepStats.failed, '#ef4444'],
-                  ['RUN', stepStats.running, '#fbbf24'],
-                  ['WAIT', stepStats.pending, '#6b7280'],
+                  ['DONE', execStats.completed, '#10B981'],
+                  ['FAIL', execStats.failed, '#ef4444'],
+                  ['RUN', execStats.running, '#fbbf24'],
+                  ['WAIT', execStats.pending, '#6b7280'],
                 ] as Array<[string, number, string]>
               ).map(([label, count, color]) => (
                 <div
@@ -385,7 +385,7 @@ export function TelemetryPanel({
         )}
 
         {/* Execution Duration Waveform */}
-        {stepStats.chartData.length > 0 && (
+        {execStats.chartData.length > 0 && (
           <div>
             <div
               style={{
@@ -399,7 +399,7 @@ export function TelemetryPanel({
             >
               Duration Chart
             </div>
-            <WaveformChart steps={stepStats.chartData} height={100} />
+            <WaveformChart samples={execStats.chartData} height={100} />
           </div>
         )}
       </div>

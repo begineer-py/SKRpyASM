@@ -14,10 +14,10 @@ class MemoryMixin:
     def _generate_summary(self, content: str, max_chars: int = 500) -> str:
         """內部工具：呼叫輕量 LLM 對超長內容產生摘要。"""
         try:
-            from langchain_mistralai import ChatMistralAI
+            from apps.core.llms import get_llm_instance
             from langchain_core.messages import HumanMessage
 
-            llm = ChatMistralAI(model="mistral-small-2503", temperature=0, max_tokens=600)
+            llm = get_llm_instance(agent_id="compression_agent", temperature=0)
             prompt = (
                 "你是一個專業的安全分析師。以下是一段超長的工具輸出（可能是 HTML、Stack Trace、或掃描報告）。"
                 "請用繁體中文產生一份精簡摘要（最多 500 字），重點提取：\n"
@@ -299,7 +299,6 @@ class MemoryMixin:
             content: 要儲存的超長原始內容
             source_type: 來源類型 ('curl', 'crawler', 'nuclei', 'other')
             source_url: 來源網址 (選填)
-            source_url: 來源網址 (選填)
         """
         from apps.core.models.analyze.ContentBlob import ContentBlob
 
@@ -313,6 +312,36 @@ class MemoryMixin:
             source_type=source_type,
             source_url=source_url,
         )
+        # Fix D: generate page_breakdown for large content
+        if len(content) > 12000:
+            try:
+                from apps.core.llms import get_llm_instance
+                from langchain_core.messages import HumanMessage
+                import json
+                _llm = get_llm_instance(agent_id="compression_agent", temperature=0)
+                _prompt = (
+                    "你是一個文檔結構分析專家。請將以下內容按語義結構拆分為多個頁面(page)。\n"
+                    "要求：\n"
+                    "1. 按內容主題自然分頁（而非按字符硬切）\n"
+                    "2. 每頁提供一個簡短的 title（20 字以內）\n"
+                    "3. 每頁 content 不超過 4000 字\n"
+                    "4. 輸出為 JSON 數組格式：[{\"title\": \"...\", \"content\": \"...\"}]\n"
+                    "5. 只輸出 JSON，不要額外的解釋\n\n"
+                    f"=== 原始內容（截取前 50000 字）===\n{content[:50000]}"
+                )
+                _resp = _llm.invoke([HumanMessage(content=_prompt)])
+                _text = _resp.content if hasattr(_resp, 'content') else str(_resp)
+                if '```json' in _text:
+                    _text = _text.split('```json')[1].split('```')[0].strip()
+                elif '```' in _text:
+                    _text = _text.split('```')[1].split('```')[0].strip()
+                _pages = json.loads(_text)
+                if isinstance(_pages, list) and _pages:
+                    blob.page_breakdown = _pages
+                    blob.save(update_fields=['page_breakdown'])
+            except Exception as _e:
+                logger.warning(f"Page breakdown generation skipped in save_long_content: {_e}")
+
         try:
             from apps.core.models import ExecutionGraph, ExecutionNode
             from apps.core.services import ExecutionService
@@ -337,23 +366,33 @@ class MemoryMixin:
                 )
         except Exception as artifact_error:
             logger.warning("Failed to attach ContentBlob #%s to execution graph: %s", blob.id, artifact_error)
+        _pages = getattr(blob, 'page_breakdown', None)
+        _page_hint = ""
+        if _pages and isinstance(_pages, list) and len(_pages) > 0:
+            _page_hint = (
+                f"\nPages: {len(_pages)} pages available.\n"
+                f"Use read_content_blob(blob_id={blob.id}, page=N) to read a specific page (1-{len(_pages)}).\n"
+            )
         return (
             f"[Long Output Saved] blob_id={blob.id} | Size: {blob.content_size} chars\n"
-            f"Summary: {ai_summary}\n\n"
+            f"Summary: {ai_summary}\n"
+            f"{_page_hint}"
             f"若需要深入閱讀原文，請呼叫 read_content_blob(blob_id={blob.id})"
         )
 
     @method_tool
-    def read_content_blob(self, blob_id: int, focus_query: str = None) -> str:
+    def read_content_blob(self, blob_id: int, focus_query: str = None, page: int = None) -> str:
         """
         [Context Compression] 讀取長期記憶中的內容。
-        - 不帶 focus_query：回傳先前自動生成的 AI 摘要 (ai_summary)。
+        - 不帶 focus_query 與 page：回傳先前自動生成的 AI 摘要 (ai_summary)。
+        - 帶 page=N：回傳該頁的結構化內容（限 page_breakdown 已產生的 blob）。
         - 帶 focus_query：啟動壓縮助手，針對原始全文進行聚焦式提取。
           例如 focus_query='幫我找出裡面的 SQL 語法錯誤' 會讓助手只提取相關段落。
 
         Args:
             blob_id: ContentBlob 的 ID
             focus_query: (選填) 聚焦問題，讓系統針對原文提取特定資訊
+            page: (選填) 頁碼（從 1 開始），僅在 blob 有 page_breakdown 時可用
         """
         from apps.core.models.analyze.ContentBlob import ContentBlob
 
@@ -362,19 +401,50 @@ class MemoryMixin:
         except ContentBlob.DoesNotExist:
             return f"ContentBlob ID {blob_id} 不存在。"
 
-        if not focus_query:
+        # Fix D: structured page retrieval
+        if page is not None and blob.page_breakdown:
+            try:
+                idx = page - 1
+                if 0 <= idx < len(blob.page_breakdown):
+                    p = blob.page_breakdown[idx]
+                    return (
+                        f"=== ContentBlob #{blob.id} — Page {page}/{len(blob.page_breakdown)} ===\n"
+                        f"Title: {p.get('title', 'Untitled')}\n\n"
+                        f"{p.get('content', '')}"
+                    )
+                else:
+                    available = "\n".join(
+                        f"  Page {i+1}: {p.get('title', 'Untitled')}"
+                        for i, p in enumerate(blob.page_breakdown)
+                    )
+                    return (
+                        f"Page index out of range. Valid pages: 1-{len(blob.page_breakdown)}\n"
+                        f"Available pages:\n{available}"
+                    )
+            except (IndexError, TypeError) as e:
+                return f"Page retrieval failed: {e}"
+
+        if page is not None and not blob.page_breakdown:
             return (
-                f"=== ContentBlob #{blob.id} Summary ===\n"
-                f"Source: {blob.source_type} | URL: {blob.source_url or 'N/A'} | Size: {blob.content_size} chars\n\n"
-                f"{blob.ai_summary or 'No summary available.'}"
+                f"=== ContentBlob #{blob.id} ===\n"
+                f"This blob has no page_breakdown. Use `read_content_blob(blob_id={blob_id})` without `page` "
+                f"or with `focus_query` to read the content."
             )
+
+        if not focus_query:
+            intro = f"=== ContentBlob #{blob.id} Summary ===\n"
+            if blob.page_breakdown:
+                page_count = len(blob.page_breakdown)
+                intro += f"Pages available: {page_count}\n"
+            intro += f"Source: {blob.source_type} | URL: {blob.source_url or 'N/A'} | Size: {blob.content_size} chars\n\n"
+            return intro + (blob.ai_summary or 'No summary available.')
 
         # 帶 focus_query：啟動聚焦式壓縮
         try:
-            from langchain_mistralai import ChatMistralAI
+            from apps.core.llms import get_llm_instance
             from langchain_core.messages import HumanMessage
 
-            llm = ChatMistralAI(model="mistral-small-2503", temperature=0, max_tokens=800)
+            llm = get_llm_instance(agent_id="compression_agent", temperature=0)
             prompt = (
                 f"你是一個安全分析師。以下是一段超長的內容（{blob.content_size} 字），"
                 f"請針對以下問題進行聚焦式提取（最多 800 字）：\n"

@@ -99,7 +99,7 @@ export function TutorialPanel({ viewMode = 'MAIN' }: TutorialPanelProps) {
               </div>
               <div>
                 <div style={{ color: '#22c55e', marginBottom: '2px' }}>&gt; show progress</div>
-                <div style={{ color: '#6b7280', fontSize: '0.75rem' }}>Monitor active steps and skill execution</div>
+                <div style={{ color: '#6b7280', fontSize: '0.75rem' }}>Monitor active execution nodes and skill runs</div>
               </div>
             </>
           ) : (
@@ -145,7 +145,7 @@ export function TutorialPanel({ viewMode = 'MAIN' }: TutorialPanelProps) {
         >
           <li style={{ marginBottom: '4px' }}>
             <span style={{ marginRight: '4px' }}>→</span>
-            Switch to Execution Monitor to see real-time step logs and performance
+            Switch to Execution Monitor to see real-time execution events and performance
           </li>
           <li style={{ marginBottom: '4px' }}>
             <span style={{ marginRight: '4px' }}>→</span>

@@ -4,6 +4,7 @@ import { useHasuraQuery } from '../../hooks/useHasuraQuery';
 import { GET_SINGLE_OVERVIEW } from '../../queries';
 import { OverviewService } from '../../services/overviewService';
 import type { OverviewUpdatePayload } from '../../services/overviewService';
+import { executionApi } from '../../services/executionApi';
 import './OverviewDetail.css';
 
 interface OverviewData {
@@ -36,7 +37,7 @@ const OverviewDetailPage: React.FC = () => {
   const [editFields, setEditFields] = useState<OverviewUpdatePayload>({});
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'summary' | 'plan' | 'knowledge' | 'techs'>('summary');
+  const [activeTab, setActiveTab] = useState<'summary' | 'plan' | 'knowledge' | 'techs' | 'executions'>('summary');
 
   const overview: OverviewData | null = data?.core_overview_by_pk;
 
@@ -128,6 +129,7 @@ const OverviewDetailPage: React.FC = () => {
               <option value="EXECUTING">EXECUTING</option>
               <option value="STALLED">STALLED</option>
               <option value="COMPLETED">COMPLETED</option>
+              <option value="NEEDS_GUIDANCE">NEEDS_GUIDANCE</option>
             </select>
           </div>
 
@@ -168,6 +170,19 @@ const OverviewDetailPage: React.FC = () => {
               <span>THREAD_ID:</span>
               <code>{overview.thread_id || 'NONE'}</code>
             </div>
+            <div className="info-row">
+              <span>PARENT_THREAD:</span>
+              <code>{overview.parent_thread_id || 'NONE'}</code>
+            </div>
+            {overview.thread_id && (
+              <button
+                className="c2-btn c2-btn--ghost"
+                style={{ marginTop: 8, fontSize: '0.75rem', width: '100%' }}
+                onClick={() => navigate(`/aicenter?thread=${overview.thread_id}`)}
+              >
+                OPEN IN AI CENTER ↗
+              </button>
+            )}
           </div>
         </div>
 
@@ -192,11 +207,17 @@ const OverviewDetailPage: React.FC = () => {
             >
               KNOWLEDGE_BASE
             </button>
-            <button 
-              className={activeTab === 'techs' ? 'active' : ''} 
+            <button
+              className={activeTab === 'techs' ? 'active' : ''}
               onClick={() => setActiveTab('techs')}
             >
               TECH_STACK
+            </button>
+            <button
+              className={activeTab === 'executions' ? 'active' : ''}
+              onClick={() => setActiveTab('executions')}
+            >
+              EXECUTIONS
             </button>
           </div>
 
@@ -217,6 +238,12 @@ const OverviewDetailPage: React.FC = () => {
                 <p className="hint">Tech stack is currently read-only (managed by sensors).</p>
               </div>
             )}
+            {activeTab === 'executions' && overview.thread_id && (
+              <OverviewExecutions threadId={overview.thread_id} />
+            )}
+            {activeTab === 'executions' && !overview.thread_id && (
+              <div style={{ color: '#64748b', padding: 16 }}>No thread linked to this overview.</div>
+            )}
           </div>
         </div>
       </div>
@@ -225,3 +252,33 @@ const OverviewDetailPage: React.FC = () => {
 };
 
 export default OverviewDetailPage;
+
+function OverviewExecutions({ threadId }: { threadId: number }) {
+  const [graphs, setGraphs] = useState<any[]>([]);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    executionApi.listGraphs({ thread_id: threadId, limit: 20 }).then(setGraphs).catch(() => setGraphs([]));
+  }, [threadId]);
+
+  if (graphs.length === 0) return <div style={{ color: '#64748b', padding: 16 }}>No execution graphs found.</div>;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {graphs.map(g => (
+        <div
+          key={g.id}
+          style={{ padding: 12, background: 'rgba(15,23,42,0.7)', borderRadius: 8, border: '1px solid rgba(148,163,184,0.18)', cursor: 'pointer' }}
+          onClick={() => navigate(`/execution-monitor?graph=${g.id}`)}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <strong>Graph #{g.id}</strong>
+            <span style={{ fontSize: 12, color: '#94a3b8' }}>{g.status}</span>
+          </div>
+          <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+            {g.assistant_id} · {new Date(g.started_at).toLocaleString()}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}

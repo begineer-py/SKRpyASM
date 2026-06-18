@@ -206,17 +206,18 @@ def auto_execute_plan():
                 return f"{label}: {ids}"
             
             user_prompt = (
-                f"[SYSTEM CRITICAL]: The ONLY valid overview_id is {overview.id}. "
-                f"You MUST use overview_id={overview.id} in ALL tool calls. NEVER invent or guess IDs.\n\n"
-                f"=== VALID IDs FOR THIS SESSION (DO NOT USE ANY OTHER IDs) ===\n"
+                f"[SYSTEM CRITICAL]: Your session has been bound to a single Overview for this target. "
+                f"The platform auto-injects the correct overview_id into all your tool calls — "
+                f"DO NOT pass overview_id / thread_id / parent_thread_id explicitly. "
+                f"NEVER invent or guess any IDs.\n\n"
+                f"=== SESSION CONTEXT ===\n"
                 f"Target Name: {target.name}\n"
-                f"Overview ID: {overview.id}\n"
                 f"Target ID: {target.id}\n"
                 f"{_fmt_ids('Real Seed IDs (for Subfinder/crawler)', real_seed_ids)}\n"
                 f"{_fmt_ids('Real Subdomain IDs (for Nuclei)', real_subdomain_ids)}\n"
                 f"{_fmt_ids('Real IP IDs (for Nmap/Nuclei)', real_ip_ids)}\n"
                 f"{_fmt_ids('Real URL Result IDs (already crawled)', real_url_ids)}\n"
-                f"=== END OF VALID IDs ===\n\n"
+                f"=== END OF CONTEXT ===\n\n"
                 f"Current Knowledge: {json.dumps(overview.knowledge)}\n"
                 f"Current Plan: {json.dumps(overview.plan)}\n\n"
                 f"Task: Execute the PENDING objectives in the plan using your tools. "
@@ -240,36 +241,55 @@ def auto_execute_plan():
         except Exception as e:
             logger.error(f"[AutoExecution] Failed executing plan for {target.name}: {e}")
 
-@shared_task(name="apps.auto.tasks.run_automation_agent_async")
+@shared_task(name="apps.auto.tasks.run_automation_agent_async", bind=True, max_retries=2, default_retry_delay=120)
 @log_function_call()
-def run_automation_agent_async(message: str, caller_thread_id: int = None):
+def run_automation_agent_async(self, message: str, caller_thread_id: int = None):
     from apps.auto.assistants.planning_agent import AutomationAgent
+    from langgraph.errors import GraphRecursionError
 
     agent = AutomationAgent(caller_thread_id=caller_thread_id)
     try:
         result = agent._run_as_tool(message, caller_thread_id=caller_thread_id)
         agent._auto_notify_parent(result=result)
         return result
+    except GraphRecursionError:
+        # 不重試 recursion 錯誤——重試只會再次撞上限（問題 ⑤）
+        logger.warning(
+            f"[run_automation_agent_async] GraphRecursionError (caller_thread_id={caller_thread_id}); "
+            f"notifying parent and skipping retry."
+        )
+        agent._auto_notify_parent(
+            error="Agent 已達思考步驟上限（GraphRecursionError），任務中止以免無限重試。"
+        )
+        return {"output": "GraphRecursionError: agent hit recursion limit.", "error": "GraphRecursionError"}
     except Exception as e:
         logger.exception(f"[run_automation_agent_async] Failed: {e}")
         agent._auto_notify_parent(error=str(e))
-        raise
+        raise self.retry(exc=e)
 
 
 def _run_sub_agent(agent_class, agent_id_label, message, caller_thread_id):
     """共用輔助函式：執行子 Agent；graph lifecycle 由 AIAssistant.invoke 管理。"""
+    from langgraph.errors import GraphRecursionError
+
     agent = agent_class(caller_thread_id=caller_thread_id)
     try:
         result = agent._run_as_tool(message, caller_thread_id=caller_thread_id)
         return result
+    except GraphRecursionError:
+        # 靜默處理：invoke() 已將結構化結果寫入 ExecutionGraph，此處僅避免 propagation
+        logger.warning(
+            f"[{agent_id_label}] GraphRecursionError swallowed (caller_thread_id={caller_thread_id})"
+        )
+        return {"output": "GraphRecursionError: agent hit recursion limit.", "error": "GraphRecursionError"}
     except Exception as e:
         logger.exception(f"[{agent_id_label}] Failed: {e}")
         raise
 
 
-@shared_task(name="apps.auto.tasks.run_recon_agent_async")
+@shared_task(name="apps.auto.tasks.run_recon_agent_async", bind=True, max_retries=2, default_retry_delay=120)
 @log_function_call()
-def run_recon_agent_async(message: str, target_name: str = "", caller_thread_id: int = None):
+def run_recon_agent_async(self, message: str, target_name: str = "", caller_thread_id: int = None):
     from apps.auto.agents.recon_agent import ReconAgent
 
     # Bind the overview's parent_thread_id to caller so notify_caller_agent routes correctly
@@ -294,12 +314,15 @@ def run_recon_agent_async(message: str, target_name: str = "", caller_thread_id:
             f"When all async tasks are dispatched, call notify_caller_agent with a full recon report.\n\n"
             f"Additional context: {message}"
         )
-    return _run_sub_agent(ReconAgent, "run_recon_agent_async", full_message, caller_thread_id)
+    try:
+        return _run_sub_agent(ReconAgent, "run_recon_agent_async", full_message, caller_thread_id)
+    except Exception as e:
+        raise self.retry(exc=e)
 
 
-@shared_task(name="apps.auto.tasks.run_post_exploit_agent_async")
+@shared_task(name="apps.auto.tasks.run_post_exploit_agent_async", bind=True, max_retries=2, default_retry_delay=120)
 @log_function_call()
-def run_post_exploit_agent_async(message: str, target_name: str = "", caller_thread_id: int = None):
+def run_post_exploit_agent_async(self, message: str, target_name: str = "", caller_thread_id: int = None):
     from apps.auto.agents.post_exploit_agent import PostExploitAgent
 
     if caller_thread_id and target_name:
@@ -324,12 +347,16 @@ def run_post_exploit_agent_async(message: str, target_name: str = "", caller_thr
             f"Record findings with record_vulnerability() and call notify_caller_agent when done.\n\n"
             f"Additional context: {message}"
         )
-    return _run_sub_agent(PostExploitAgent, "run_post_exploit_agent_async", full_message, caller_thread_id)
+    try:
+        return _run_sub_agent(PostExploitAgent, "run_post_exploit_agent_async", full_message, caller_thread_id)
+    except Exception as e:
+        raise self.retry(exc=e)
 
 
-@shared_task(name="apps.auto.tasks.run_reporting_agent_async")
+@shared_task(name="apps.auto.tasks.run_reporting_agent_async", bind=True, max_retries=2, default_retry_delay=120)
 @log_function_call()
 def run_reporting_agent_async(
+    self,
     message: str,
     target_name: str = "",
     overview_id: int = None,
@@ -359,4 +386,7 @@ def run_reporting_agent_async(
             f"Update overview status to COMPLETED and call notify_caller_agent with the full report.\n\n"
             f"Additional context: {message}"
         )
-    return _run_sub_agent(ReportingAgent, "run_reporting_agent_async", full_message, caller_thread_id)
+    try:
+        return _run_sub_agent(ReportingAgent, "run_reporting_agent_async", full_message, caller_thread_id)
+    except Exception as e:
+        raise self.retry(exc=e)
