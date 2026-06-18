@@ -1,0 +1,15 @@
+{
+  "flags": "-iE",
+  "description": "Comprehensive HTTP method detection for GET, PUT, DELETE, PATCH, HEAD, OPTIONS and other HTTP verbs",
+  "patterns": [
+    "method\\s*:\\s*['\"]?(get|put|delete|patch|head|options)",
+    "\\.(get|put|delete|patch|head|options)\\s*\\(",
+    "type\\s*:\\s*['\"]?(get|put|delete|patch|head|options)",
+    "X-HTTP-Method-Override\\s*:\\s*['\"]?(get|put|delete|patch|head|options)",
+    "_method\\s*=\\s*['\"]?(put|delete|patch)",
+    "<form[^>]*method\\s*=\\s*['\"]?(get|put|delete|patch|head|options)['\"]",
+    "@(GetMapping|PostMapping|PutMapping|DeleteMapping|PatchMapping|RequestMapping)\\s*\\(",
+    "app\\.(get|post|put|delete|patch)\\s*\\(",
+    "router\\.(get|post|put|delete|patch)\\s*\\("
+  ]
+}

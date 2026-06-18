@@ -1,0 +1,12 @@
+{
+  "topic": "debug-errors",
+  "description": "Debug 資訊與錯誤訊息 — 堆疊追蹤、除錯端點 — Hard Positive",
+  "category": "hard_positive",
+  "label_range": [0.70, 0.95],
+  "depth_range": "2~7",
+  "generation_guidelines": "Generate debug and error message leaks. Cover: Stack traces with file paths (at /var/www/html/lib/db.php:42), error messages exposing backend paths, debug mode flags (debug: true, DEBUG=1), SQL error output, PHP warnings with paths, Django debug traces, verbose error objects. Paths: root.app.debug, root.config.environment, root.errors, root.logging.",
+  "examples": [
+    {"text": "Path: root.errors | Key: last_exception | Struct: Leaf | Val: \"PDOException: SQLSTATE[42S02]: in /var/www/html/vendor/doctrine/lib/Connection.php:231\"", "label": 0.78, "depth": 3},
+    {"text": "Path: root.config | Key: debug_mode | Struct: Leaf | Val: \"true\"", "label": 0.72, "depth": 2}
+  ]
+}

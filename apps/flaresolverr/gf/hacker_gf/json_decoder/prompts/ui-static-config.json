@@ -1,0 +1,13 @@
+{
+  "topic": "ui-static-config",
+  "description": "UI 靜態設定 — 主題、顏色、佈局 — Hard Negative",
+  "category": "hard_negative",
+  "label_range": [0.0, 0.05],
+  "depth_range": "1~6",
+  "generation_guidelines": "Generate UI static configuration values that are completely harmless. Cover: Hex color codes, font names, image URLs to public CDN assets, layout dimensions, breakpoints, animation durations, z-index values, default locale/language settings, terms-of-service URLs, public contact email addresses, social media links. Paths: root.ui, root.theme, root.styles, root.layout, root.assets, root.public.",
+  "examples": [
+    {"text": "Path: root.ui.theme | Key: primary_color | Struct: Leaf | Val: \"#1976D2\"", "label": 0.01, "depth": 3},
+    {"text": "Path: root.public | Key: logo_url | Struct: Leaf | Val: \"https://cdn.example.com/assets/logo.png\"", "label": 0.01, "depth": 4},
+    {"text": "Path: root.styles.z_index | Key: modal | Struct: Leaf | Val: \"1050\"", "label": 0.0, "depth": 5}
+  ]
+}

@@ -1,0 +1,4 @@
+{
+  "flags": "-i",
+  "pattern": "[\"']([a-z0-9_-]*(?:api[_-]?key|S3|aws_|secret|passw|auth|token|jwt|private|bearer)[a-z0-9_-]*)[\"']\\s*:\\s*[\"']([^\"']+)[\"']"
+}

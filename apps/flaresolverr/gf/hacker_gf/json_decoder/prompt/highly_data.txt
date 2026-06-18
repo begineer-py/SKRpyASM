@@ -1,0 +1,21 @@
+Data Generation Theme: Vulnerability Indicators & Exploitability Mapping
+Data Schema Description:
+"text": A concatenated string: "Path: {path} | Key: {key} | Struct: Leaf | Val: {value}"
+"label": A score (0.0 to 1.0). 1.0 means "Highly Exploitable / Critical Entry Point," 0.0 means "Locked / Static / Harmless."
+"depth": The integer depth of the node in the JSON tree.
+Requirements for "Dirty" Data (High Exploitability - Label: 0.9 to 1.0):
+Broken Access Control (IDOR/BOLA): Nodes that imply horizontal movement, e.g., Key: user_id | Val: 1 (very low ID), Key: role | Val: "guest", or Key: can_delete | Val: true for a public resource.
+Debug & Management Interfaces: Exposed internal tools or flags, e.g., Key: debug | Val: true, Key: env | Val: "development", Key: trace_enabled | Val: 1, or Key: console_path | Val: "/admin/console".
+Outdated/Vulnerable Software Versions: Specific version strings known for CVEs, e.g., Key: version | Val: "Apache/2.4.49" (Path Traversal), Key: framework | Val: "Struts2 v2.3", or Key: lib_version | Val: "log4j-2.14.1".
+Insecure Configuration: Permissions that are too broad, e.g., Key: policy | Val: "Allow * to *", Key: cors_origin | Val: "*", or Key: auth_method | Val: "none".
+SSRF/Internal Network Probing: Hints of internal routing, e.g., Key: internal_proxy | Val: "10.0.0.1", Key: callback_url | Val: "http://localhost:8080", or Key: webhook_target | Val: "169.254.169.254".
+Requirements for "Recon" Data (Medium Exploitability - Label: 0.4 to 0.7):
+Fingerprinting: Technical stack hints, e.g., Key: server | Val: "nginx/1.18.0", Key: technology | Val: "PHP 7.4.3", or Key: x-powered-by | Val: "Express".
+Internal Architecture: Information about the backend, e.g., Key: pod_name | Val: "db-cluster-node-01", Key: cloud_provider | Val: "aws", or Key: internal_dns | Val: "svc.cluster.local".
+Verbose Error Handling: Nodes that might leak structure, e.g., Key: last_error | Val: "Division by zero in /var/www/html/lib/db.php".
+Requirements for "Noise" Data (Low Value - Label: < 0.1):
+Static Content: UI strings, "Terms of Service" URLs, font names, hex color codes, public images, and localized "Help" text.
+Strict Hardening: Evidence of security controls, e.g., Key: security_level | Val: "maximum", Key: captcha_enabled | Val: true.
+Output Format:
+Return ONLY raw JSONL lines. Each line must look like this:
+{"text": "Path: root.settings.auth | Key: allow_anonymous | Struct: Leaf | Val: "true"", "label": 1.0, "depth": 3}

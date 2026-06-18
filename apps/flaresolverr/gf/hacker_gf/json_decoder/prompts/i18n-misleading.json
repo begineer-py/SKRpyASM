@@ -1,0 +1,13 @@
+{
+  "topic": "i18n-misleading",
+  "description": "i18n 國際化字串 — key 像 secret 但值為說明文字 — Hard Negative",
+  "category": "hard_negative",
+  "label_range": [0.0, 0.1],
+  "depth_range": "2~7",
+  "generation_guidelines": "Generate localization/internationalization strings where the key name sounds security-related but the value is harmless display text. Key patterns: password_hint, secret_message, token_label, auth_error_text, permission_description, api_key_placeholder_label. Values should be UI-facing text like 'Enter your password', 'Your secret question', 'Invalid token, please try again'. Paths: root.i18n, root.locales, root.translations, root.lang.",
+  "examples": [
+    {"text": "Path: root.i18n.auth | Key: password_placeholder | Struct: Leaf | Val: \"請輸入您的密碼\"", "label": 0.03, "depth": 3},
+    {"text": "Path: root.locales.en | Key: secret_question_label | Struct: Leaf | Val: \"What is your mother's maiden name?\"", "label": 0.02, "depth": 4},
+    {"text": "Path: root.translations | Key: token_expired_message | Struct: Leaf | Val: \"Your session has expired. Please log in again.\"", "label": 0.05, "depth": 3}
+  ]
+}

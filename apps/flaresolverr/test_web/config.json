@@ -1,7 +1,0 @@
-{
-  "projectId": "fakeproj",
-  "databaseURL": "https://fake-db.firebaseio.com",
-  "authDomain": "fakeproj.firebaseapp.com",
-  "storageBucket": "fakeproj.appspot.com",
-  "apiBase": "https://api.example.com/v1"
-}

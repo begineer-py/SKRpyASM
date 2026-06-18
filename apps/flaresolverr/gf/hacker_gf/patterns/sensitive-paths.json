@@ -1,0 +1,4 @@
+{
+  "flags": "-i",
+  "pattern": "Access-Control-Allow-Origin"
+}

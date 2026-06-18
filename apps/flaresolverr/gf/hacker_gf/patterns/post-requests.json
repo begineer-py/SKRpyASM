@@ -1,0 +1,4 @@
+{
+  "flags": "-HanrE",
+  "pattern": "(?:axios\\.post\\s*\\()|(?:\\bfetch\\s*\\([^)]*\\{[^}]*\\bmethod\\s*:\\s*['\\\"]?post['\\\"]?)|(?:\\bnew\\s+Request\\s*\\([^)]*\\{[^}]*\\bmethod\\s*:\\s*['\\\"]?post['\\\"]?)|(?:\\.open\\s*\\(\\s*['\\\"]post['\\\"]\\s*,)|(?:\\$\\.\\s*ajax\\s*\\(\\s*\\{[^}]*\\b(?:type|method)\\s*:\\s*['\\\"]?post['\\\"]?)|(?:(?:superagent|request)\\.post\\s*\\()"
+}

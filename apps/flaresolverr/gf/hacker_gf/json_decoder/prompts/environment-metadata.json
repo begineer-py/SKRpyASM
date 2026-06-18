@@ -1,0 +1,13 @@
+{
+  "topic": "environment-metadata",
+  "description": "環境與版本資訊 — env name、version、region — Ambiguous",
+  "category": "ambiguous",
+  "label_range": [0.2, 0.5],
+  "depth_range": "1~6",
+  "generation_guidelines": "Generate environment metadata that helps fingerprinting but is not directly exploitable. Cover: NODE_ENV (development/staging/production), framework version strings (React 18.2, Django 4.2), OS/platform info, region/availability zone, build timestamps, commit hashes, container runtime versions, package dependency lists (package.json). These help attacker targeting but don't directly expose secrets. Paths: root.env, root.version, root.build, root.config.environment.",
+  "examples": [
+    {"text": "Path: root.env | Key: NODE_ENV | Struct: Leaf | Val: \"development\"", "label": 0.35, "depth": 2},
+    {"text": "Path: root.version | Key: framework | Struct: Leaf | Val: \"Django 4.2.1\"", "label": 0.25, "depth": 3},
+    {"text": "Path: root.config | Key: region | Struct: Leaf | Val: \"ap-northeast-1\"", "label": 0.20, "depth": 2}
+  ]
+}

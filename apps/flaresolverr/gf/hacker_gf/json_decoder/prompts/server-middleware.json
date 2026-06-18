@@ -1,0 +1,13 @@
+{
+  "topic": "server-middleware",
+  "description": "伺服器中介軟體設定 — CORS、Rate Limit、Middleware — Ambiguous",
+  "category": "ambiguous",
+  "label_range": [0.3, 0.6],
+  "depth_range": "2~6",
+  "generation_guidelines": "Generate server middleware and security configuration values. Cover: CORS allowed origins (* or specific domains), rate limiting config (max_requests, window_ms), CSRF token settings, content security policy directives, cookie settings (secure, httpOnly, sameSite), session timeout values, HTTP security headers (HSTS, X-Frame-Options). These reveal security posture but aren't directly exploitable individual values. Paths: root.security, root.middleware, root.cors, root.session, root.csp.",
+  "examples": [
+    {"text": "Path: root.security.cors | Key: allowed_origins | Struct: Leaf | Val: \"*\"", "label": 0.55, "depth": 4},
+    {"text": "Path: root.middleware | Key: rate_limit | Struct: Leaf | Val: \"100/minute\"", "label": 0.35, "depth": 3},
+    {"text": "Path: root.session | Key: timeout_minutes | Struct: Leaf | Val: \"1440\"", "label": 0.30, "depth": 3}
+  ]
+}

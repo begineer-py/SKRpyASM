@@ -1,0 +1,7 @@
+{
+  "value": "因无障碍要求请允许odt,ods,odp,pdf类型之档案",
+  "where": "root.moduleData[8].components[6].i18n.messages.zh-cn.fileUpload.errorMessage2",
+  "key": "errorMessage2",
+  "score": 0.5,
+  "depth": 9
+}

@@ -1,0 +1,23 @@
+{
+  "flags": "-iE",
+  "description": "JavaScript specific API call patterns including fetch, axios, XMLHttpRequest and other HTTP clients",
+  "patterns": [
+    "fetch\\s*\\(",
+    "axios\\.(get|post|put|delete|patch|head|options)\\s*\\(",
+    "axios\\s*\\([^)]*method\\s*:",
+    "XMLHttpRequest\\s*\\(",
+    "\\.open\\s*\\([^,]*['\"]?(get|post|put|delete|patch|head|options)",
+    "\\.send\\s*\\(",
+    "\\.ajax\\s*\\(",
+    "\\.get\\s*\\(",
+    "\\.post\\s*\\(",
+    "\\.getJSON\\s*\\(",
+    "superagent\\.(get|post|put|delete|patch)\\s*\\(",
+    "ky\\.(get|post|put|delete|patch)\\s*\\(",
+    "got\\.(get|post|put|delete|patch)\\s*\\(",
+    "node-fetch\\s*\\(",
+    "request\\s*\\(",
+    "reqwest\\s*\\(",
+    "fetch-mock\\s*\\("
+  ]
+}

@@ -1,0 +1,4 @@
+{
+  "flags": "-i",
+  "pattern": "[\"'](debug|test_mode|is_test|dev_mode)[\"']\\s*[:=]\\s*(true|1)"
+}

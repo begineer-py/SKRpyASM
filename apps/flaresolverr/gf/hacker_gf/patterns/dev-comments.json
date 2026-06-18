@@ -1,0 +1,4 @@
+{
+  "flags": "-inE",
+  "pattern": "(TODO|FIXME|XXX|HACK|NOTE|BUG)"
+}

@@ -1,0 +1,4 @@
+{
+  "flags": "-i",
+  "pattern": "-----BEGIN (RSA|EC|OPENSSH|PGP) PRIVATE KEY-----"
+}
