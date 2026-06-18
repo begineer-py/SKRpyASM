@@ -238,8 +238,10 @@ class Command(BaseCommand):
 
                 # 組裝紀錄
                 detailed_overview = body_stripped or description
-                # instructions 為模型必填欄位，需有值（clean 要求 <=2000）
-                instructions = (short_desc or description)[:2000]
+                # instructions 為模型必填欄位（clean 要求 <=2000）
+                # 對 documentation 型技能，取 detailed_overview 的前段作為內容摘要
+                # （而非 description 的副本，避免資訊重複）
+                instructions = detailed_overview[:2000]
 
                 skill = SkillTemplate(
                     name=name,
