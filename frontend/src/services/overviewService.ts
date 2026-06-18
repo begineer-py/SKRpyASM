@@ -47,7 +47,7 @@ export const OverviewService = {
     return Array.isArray(res.data) ? res.data : [];
   },
   get: async (overviewId: number): Promise<OverviewData> => {
-    return (await coreApi.get(`/overviews/${overviewId}`)).data;
+    return (await coreApi.get<OverviewData>(`/overviews/${overviewId}`)).data;
   },
   // 後端 POST 採 upsert 語意：因 Target ↔ Overview 已為 1:1 (OneToOneField)，
   // 若該 target 已存在 overview 則更新，否則建立。payload.target_id 決定對應的 target。

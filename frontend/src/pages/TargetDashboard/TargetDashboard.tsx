@@ -1094,11 +1094,10 @@ function TargetDashboard() {
                                 <StatusBadge status={obj.status || "PENDING"} />
                                 {obj.priority && <span className="c2-badge c2-badge--amber">{obj.priority}</span>}
                                 <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.78rem", flex: 1 }}>{obj.description}</span>
-                  </div>
-                );
-                })()}
-              </div>
-            )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -1111,7 +1110,8 @@ function TargetDashboard() {
                       </details>
                     )}
                   </div>
-                ))}
+                  );
+                })()}
               </div>
             )}
           </>
