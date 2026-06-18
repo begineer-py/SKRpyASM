@@ -16,60 +16,163 @@ class SkillMixin:
     """
 
     @method_tool
-    def search_skills(self, query: str) -> str:
+    def search_skills(self, query: str, skill_type: str = None) -> str:
         """
         [Skill System] 透過關鍵字搜尋全域通用的技能清單 (Skill Templates)。
-        這能幫助你發現在過去任務中寫好的自動化繞過腳本 (如 CSRF token 獲取工具等)。
+        這能幫助你發現在過去任務中寫好的自動化繞過腳本 (如 CSRF token 獲取工具等)，
+        或是文件型技能（技術指引、方法論）。
+
+        Args:
+            query: 搜尋關鍵字（比對 name / description / tags / short_description）
+            skill_type: 篩選技能類型（script / documentation / hybrid），不指定則全部
         """
         from apps.core.models.analyze.SkillTemplate import SkillTemplate
         from django.db.models import Q
         
-        skills = SkillTemplate.objects.filter(
+        qs = SkillTemplate.objects.filter(
             Q(name__icontains=query) | 
             Q(description__icontains=query) |
-            Q(tags__icontains=query)
-        ).order_by('-is_robust', '-usage_count')[:10]
+            Q(tags__icontains=query) |
+            Q(short_description__icontains=query)
+        )
+        if skill_type:
+            qs = qs.filter(skill_type=skill_type)
+        skills = qs.order_by('-is_robust', '-usage_count')[:10]
         
         if not skills.exists():
-            return f"找不到符合 '{query}' 的 Skill。"
+            type_hint = f" (skill_type={skill_type})" if skill_type else ""
+            return f"找不到符合 '{query}'{type_hint} 的 Skill。"
             
-        res = [f"Found {skills.count()} skills:"]
+        res = [f"Found {len(list(skills))} skills:"]
         for s in skills:
             robust_badge = " [ROBUST]" if s.is_robust else ""
+            type_badge = f" [{s.skill_type}]" if s.skill_type != "script" else ""
+            short = f" — {s.short_description}" if s.short_description else ""
             res.append(
-                f"- Name: {s.name} v{s.version}{robust_badge}\n"
+                f"- Name: {s.name} v{s.version}{robust_badge}{type_badge}\n"
                 f"  Tags: {s.tags}\n"
                 f"  Usage Count: {s.usage_count}\n"
-                f"  Description: {s.description}"
+                f"  Description: {s.description}{short}"
             )
         return "\n".join(res)
 
     @method_tool
     def load_skill(self, name: str) -> str:
         """
-        [Skill System] 載入指定名稱的 Skill 詳細內容，包括如何使用的 Instructions 以及底層的 script_content。
-        你在執行此技能前，必須先 Load 閱讀其 Instructions 了解具體傳參格式與執行方式。
+        [Skill System] 載入指定名稱的 Skill 詳細內容。
+        - script 型：顯示 instructions + input/output schema + script_content
+        - documentation 型：顯示 detailed_overview（大篇幅技術指引）
+        - hybrid 型：兩者皆顯示
+
+        你在執行此技能前，必須先 Load 閱讀其內容了解具體執行方式。
         """
         from apps.core.models.analyze.SkillTemplate import SkillTemplate
         try:
             skill = SkillTemplate.objects.get(name=name)
             
-            # 組織輸出訊息
-            msg = f"Skill Name: {skill.name} v{skill.version}\n"
+            msg = f"Skill Name: {skill.name} v{skill.version} [{skill.skill_type}]\n"
             msg += f"Tags: {skill.tags}\n"
             msg += f"Usage Count: {skill.usage_count}\n"
             msg += f"Is Robust: {skill.is_robust}\n"
+            if skill.short_description:
+                msg += f"Short: {skill.short_description}\n"
             
-            if skill.input_schema:
-                msg += f"\n=== INPUT SCHEMA ===\n{json.dumps(skill.input_schema, indent=2)}\n"
+            # documentation / hybrid 型：顯示 detailed_overview
+            if skill.skill_type in ("documentation", "hybrid") and skill.detailed_overview:
+                overview = skill.detailed_overview
+                # 若過長，提示 agent 可分頁讀取（目前直接完整回傳，超長時由 compress_tool_outputs 自動處理）
+                msg += f"\n=== DETAILED OVERVIEW ===\n{overview}\n"
+                if skill.skill_type == "documentation":
+                    msg += (
+                        "\n=== 使用方式 ===\n"
+                        "這是 documentation 型技能（指引文件）。\n"
+                        "呼叫 follow_skill_guidance(name='" + skill.name + "') 開始遵循此指引執行。\n"
+                        "你應該用既有的偵察/檢測工具組合來實踐指引中的步驟。\n"
+                    )
             
-            if skill.output_schema:
-                msg += f"\n=== OUTPUT SCHEMA ===\n{json.dumps(skill.output_schema, indent=2)}\n"
-            
-            msg += f"\n=== INSTRUCTIONS ===\n{skill.instructions}\n"
-            msg += f"\n=== SCRIPT CONTENT ({skill.language}) ===\n{skill.script_content or 'No script contents.'}"
+            # script / hybrid 型：顯示 schema 與 script_content
+            if skill.skill_type in ("script", "hybrid"):
+                if skill.input_schema:
+                    msg += f"\n=== INPUT SCHEMA ===\n{json.dumps(skill.input_schema, indent=2)}\n"
+                if skill.output_schema:
+                    msg += f"\n=== OUTPUT SCHEMA ===\n{json.dumps(skill.output_schema, indent=2)}\n"
+                msg += f"\n=== INSTRUCTIONS ===\n{skill.instructions}\n"
+                msg += f"\n=== SCRIPT CONTENT ({skill.language}) ===\n{skill.script_content or 'No script contents.'}"
             
             return msg
+        except SkillTemplate.DoesNotExist:
+            return f"Skill '{name}' 不存在。"
+
+    @method_tool
+    def follow_skill_guidance(
+        self,
+        name: str,
+        overview_id: int = None,
+        context_note: str = "",
+    ) -> str:
+        """
+        [Documentation Skill] 讀取文件型技能的指引，並自主遵循執行。
+        適用於 skill_type=documentation 或 hybrid 的技能。
+
+        與 execute_skill_script 不同：
+        - execute_skill_script 在 sandbox 執行腳本（自動化）
+        - follow_skill_guidance 把 detailed_overview 載入你的上下文，由你（agent）
+          用既有的偵察/檢測工具組合來實踐指引中的步驟（半自動）
+
+        使用流程：
+        1. search_skills(query, skill_type='documentation') 找到相關指引
+        2. load_skill(name) 閱讀 detailed_overview
+        3. follow_skill_guidance(name) 正式開始遵循，系統會記錄遵循過程到 ExecutionArtifact
+
+        Args:
+            name: 技能名稱（kebab-case）
+            overview_id: 當前 Overview ID（自動注入）
+            context_note: 為什麼要遵循此技能（輔助記錄）
+        """
+        from apps.core.models.analyze.SkillTemplate import SkillTemplate
+        try:
+            skill = SkillTemplate.objects.get(name=name)
+            
+            if skill.skill_type == "script":
+                return (
+                    f"Skill '{name}' 是 script 型技能，應使用 execute_skill_script 執行，\n"
+                    f"而非 follow_skill_guidance。"
+                )
+            
+            if not skill.detailed_overview:
+                return f"Skill '{name}' 沒有 detailed_overview，無法遵循指引。"
+            
+            # 記錄遵循過程到 ExecutionArtifact
+            resolved_ov = overview_id or getattr(self, '_agent_overview_id', None)
+            try:
+                from apps.core.services.execution_service import ExecutionService
+                agent_id = getattr(self, 'id', 'unknown')
+                ExecutionService.attach_artifact(
+                    thread_id=getattr(getattr(self, '_thread', None), 'id', None),
+                    assistant_id=agent_id,
+                    artifact_type="skill_guidance_followed",
+                    content=(
+                        f"Agent 開始遵循 documentation 技能: {skill.name}\n"
+                        f"Context: {context_note or '(無)'}\n"
+                        f"Overview: {resolved_ov}\n"
+                        f"Guidance length: {len(skill.detailed_overview)} chars"
+                    ),
+                    metadata={"skill_id": skill.id, "skill_name": skill.name, "skill_type": skill.skill_type},
+                )
+            except Exception as e:
+                logger.warning(f"[follow_skill_guidance] Failed to record artifact: {e}")
+            
+            # 增加使用計數
+            SkillTemplate.objects.filter(id=skill.id).update(usage_count=skill.usage_count + 1)
+            
+            return (
+                f"✅ 已載入技能 '{skill.name}' 的指引並開始遵循。\n"
+                f"系統已記錄此次遵循到 ExecutionArtifact。\n\n"
+                f"=== GUIDANCE TO FOLLOW ===\n"
+                f"{skill.detailed_overview}\n"
+                f"=== END ===\n\n"
+                f"現在請根據上述指引，使用你既有的偵察/檢測工具組合來實踐每個步驟。"
+            )
         except SkillTemplate.DoesNotExist:
             return f"Skill '{name}' 不存在。"
 

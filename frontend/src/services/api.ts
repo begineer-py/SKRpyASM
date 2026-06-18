@@ -146,11 +146,14 @@ export const GET_TARGET_IPS_QUERY = `
 `;
 
 // 查詢目標 AI Overview (戰略概覽)
+// 注意：後端 Target ↔ Overview 已改為 OneToOneField (1:1)，每個 target 最多僅有一筆 overview。
+// 此 query 仍回傳 list 形式以相容 Hasura GraphQL schema 與 null 情況，前端取 core_overview[0] 使用。
 export const GET_TARGET_OVERVIEWS_QUERY = `
   query GetTargetOverviews($targetId: bigint!) {
     core_overview(
       where: { target_id: { _eq: $targetId } }
       order_by: { updated_at: desc }
+      limit: 1
     ) {
       id
       status

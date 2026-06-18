@@ -985,3 +985,150 @@ class ReconnaissanceMixin:
             return summary
         except Exception as e:
             return f"Error checking scanned IPs: {str(e)}"
+
+    # ════════════════════════════════════════════════════════════════
+    # Overview 分頁情報工具（1:1 後 Overview 是 Target 唯一情報中樞）
+    # ════════════════════════════════════════════════════════════════
+
+    @method_tool
+    def write_overview_page(
+        self,
+        section_type: str,
+        title: str,
+        content: str,
+        summary: str = "",
+        overview_id: int = None,
+    ) -> str:
+        """
+        [Overview Intel] 將情報寫入 Overview 的分區頁面（OverviewPage）。
+
+        每個 Target 只有一個 Overview（1:1），但情報依語義分區儲存：
+        - RECON_SUMMARY / SUBDOMAIN_INTEL / PORT_SERVICE / URL_ENDPOINT
+        - VULNERABILITY / ATTACK_VECTOR / TECH_STACK / STRATEGIC_PLAN / FREEFORM
+
+        當內容超過 12000 字元時，系統自動用 LLM 生成 page_breakdown 結構化分頁。
+
+        Args:
+            section_type: 分區類型（見上述 choices）
+            title: 此頁標題
+            content: 完整內容（大篇幅情報）
+            summary: 簡短摘要（agent 快速瀏覽用）
+            overview_id: Overview ID（自動注入）
+        """
+        try:
+            from apps.core.models import OverviewPage
+            from apps.core.services.pagination import maybe_generate_page_breakdown
+            from django.utils import timezone
+
+            resolved_ov = overview_id or getattr(self, '_agent_overview_id', None)
+            if not resolved_ov:
+                return "無 overview_id 可寫入（session 尚未綁定到 Overview）。"
+
+            valid_sections = {
+                "RECON_SUMMARY", "SUBDOMAIN_INTEL", "PORT_SERVICE", "URL_ENDPOINT",
+                "VULNERABILITY", "ATTACK_VECTOR", "TECH_STACK", "STRATEGIC_PLAN", "FREEFORM",
+            }
+            if section_type not in valid_sections:
+                return f"無效 section_type。有效值: {sorted(valid_sections)}"
+
+            # 大篇幅內容自動生成分頁
+            page_breakdown = None
+            if len(content) > 12000:
+                try:
+                    page_breakdown = maybe_generate_page_breakdown(content)
+                except Exception as e:
+                    logger.warning(f"[write_overview_page] page_breakdown failed: {e}")
+
+            source_agent = getattr(self, 'id', 'unknown')
+
+            page, created = OverviewPage.objects.update_or_create(
+                overview_id=resolved_ov,
+                section_type=section_type,
+                defaults={
+                    "title": title,
+                    "content": content,
+                    "summary": summary,
+                    "page_breakdown": page_breakdown,
+                    "source_agent": source_agent,
+                },
+            )
+            action = "Created" if created else "Updated"
+            extra = f" (auto-generated {len(page_breakdown)} pages)" if page_breakdown else ""
+            return (
+                f"✅ {action} OverviewPage #{page.id} [{section_type}] for Overview#{resolved_ov}{extra}.\n"
+                f"Title: {title}\nContent length: {len(content)} chars\n"
+                f"Use read_overview_page(section_type='{section_type}') to read."
+            )
+        except Exception as e:
+            logger.error(f"[write_overview_page] failed: {e}")
+            return f"寫入 OverviewPage 失敗: {e}"
+
+    @method_tool
+    def read_overview_page(
+        self,
+        section_type: str = None,
+        page: int = None,
+        overview_id: int = None,
+    ) -> str:
+        """
+        [Overview Intel] 讀取 Overview 的分區頁面（OverviewPage）。
+
+        三種讀取模式：
+        1. 不指定 section_type → 列出所有分區摘要
+        2. 指定 section_type 但不指定 page → 顯示該分區 summary + （若有分頁）頁面列表
+        3. 指定 section_type + page → 顯示該分區的第 N 頁內容
+
+        Args:
+            section_type: 分區類型（不指定則列出所有）
+            page: 頁碼（僅當該分區有 page_breakdown 時有效）
+            overview_id: Overview ID（自動注入）
+        """
+        try:
+            from apps.core.models import OverviewPage
+            from apps.core.services.pagination import read_page, list_pages_overview
+
+            resolved_ov = overview_id or getattr(self, '_agent_overview_id', None)
+            if not resolved_ov:
+                return "無 overview_id 可讀取（session 尚未綁定到 Overview）。"
+
+            # 模式 1:列出所有分區
+            if not section_type:
+                pages_qs = OverviewPage.objects.filter(overview_id=resolved_ov).order_by("section_type")
+                if not pages_qs.exists():
+                    return f"Overview#{resolved_ov} 目前沒有任何分區頁面。"
+                lines = [f"=== Overview#{resolved_ov} Intel Sections ({pages_qs.count()}) ==="]
+                for p in pages_qs:
+                    page_count = len(p.page_breakdown) if p.page_breakdown else 0
+                    page_hint = f", {page_count} pages" if page_count else ""
+                    lines.append(
+                        f"- [{p.section_type}] {p.title} ({len(p.content)} chars{page_hint})\n"
+                        f"  Summary: {(p.summary or '(無)')[:150]}\n"
+                        f"  Updated: {p.updated_at.strftime('%Y-%m-%d %H:%M')} by {p.source_agent}"
+                    )
+                return "\n".join(lines)
+
+            # 模式 2/3:讀取特定分區
+            try:
+                p = OverviewPage.objects.get(overview_id=resolved_ov, section_type=section_type)
+            except OverviewPage.DoesNotExist:
+                return f"Overview#{resolved_ov} 沒有 [{section_type}] 分區頁面。"
+
+            # 模式 3:讀取特定頁
+            if page is not None and p.page_breakdown:
+                return read_page(p.page_breakdown, page, blob_id=p.id)
+
+            # 模式 2:顯示分區摘要 + 內容
+            result = (
+                f"=== OverviewPage #{p.id} [{p.section_type}] ===\n"
+                f"Title: {p.title}\n"
+                f"Summary: {p.summary or '(無)'}\n"
+            )
+            if p.page_breakdown:
+                result += f"\n{list_pages_overview(p.page_breakdown)}\n"
+                result += f"\n💡 Use read_overview_page(section_type='{section_type}', page=N) to read specific page."
+            else:
+                result += f"\n=== Content ({len(p.content)} chars) ===\n{p.content}"
+            return result
+        except Exception as e:
+            logger.error(f"[read_overview_page] failed: {e}")
+            return f"讀取 OverviewPage 失敗: {e}"

@@ -649,7 +649,7 @@ const AICenterPage: React.FC = () => {
             style={{ flex: 1, justifyContent: 'center', fontSize: '0.7rem' }}
             onClick={() => setSidebarTab('overviews')}
           >
-            OVERVIEWS{overviews.length > 0 ? ` (${overviews.length})` : ''}
+            OVERVIEWS{overviews.length > 0 ? ' ✓' : ''}
           </button>
         </div>
 

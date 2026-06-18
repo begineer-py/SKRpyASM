@@ -148,7 +148,7 @@ function TargetDashboard() {
   const [subdomains, setSubdomains] = useState<SubdomainAsset[]>([]);
   const [ips, setIps] = useState<IPAsset[]>([]);
   const [urls, setUrls] = useState<URLAsset[]>([]);
-  const [overviews, setOverviews] = useState<AIOverview[]>([]);
+  const [overview, setOverview] = useState<AIOverview | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>("seeds");
   const [loading, setLoading] = useState(true);
   const [tabLoading, setTabLoading] = useState(false);
@@ -347,7 +347,7 @@ function TargetDashboard() {
     finally { setTabLoading(false); }
   }, [numericId]);
 
-  // ── Fetch AI Overviews ──
+  // ── Fetch AI Overview (1:1 — target 最多僅一筆) ──
   const fetchOverviews = useCallback(async () => {
     if (!numericId || isNaN(numericId)) return;
     setTabLoading(true);
@@ -355,7 +355,8 @@ function TargetDashboard() {
       const d = await gqlFetcher<{ core_overview: AIOverview[] }>(
         GET_TARGET_OVERVIEWS_QUERY, { targetId: numericId }
       );
-      setOverviews(d.core_overview || []);
+      const list = d.core_overview || [];
+      setOverview(list.length > 0 ? list[0] : null);
     } catch (e) { console.error("Overview fetch error:", e); }
     finally { setTabLoading(false); }
   }, [numericId]);
@@ -464,7 +465,7 @@ function TargetDashboard() {
     { id: "ips",        label: "IPs / Ports",   count: ipTotalCount || undefined },
     { id: "urls",       label: "URLs",          count: urlsTotalCount || undefined },
     { id: "cve",        label: "CVE Report" },
-    { id: "ai",         label: "AI Overview",   count: overviews.length || undefined },
+    { id: "ai",         label: "AI Overview",   count: overview ? 1 : undefined },
     { id: "requestConfig", label: "Req Config" },
   ];
 
@@ -1040,16 +1041,18 @@ function TargetDashboard() {
         {activeTab === "ai" && (
           <>
             <div className="c2-section-header">
-              <span className="c2-section-title">AI STRATEGIC OVERVIEW <span>({overviews.length})</span></span>
+              <span className="c2-section-title">AI STRATEGIC OVERVIEW</span>
               <button className="c2-btn c2-btn--ghost" onClick={fetchOverviews} style={{ fontSize: "0.7rem" }}>↻ REFRESH</button>
             </div>
             {tabLoading ? (
-              <SkeletonCards count={3} height={120} />
-            ) : overviews.length === 0 ? (
+              <SkeletonCards count={1} height={120} />
+            ) : !overview ? (
               <div className="c2-empty">No AI analysis found.<br />The Celery beat task will generate overviews automatically. Check back after 30 minutes.</div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {overviews.map(ov => (
+                {(() => {
+                  const ov = overview;
+                  return (
                   <div key={ov.id} className="c2-card c2-card--cyan" style={{ padding: 20 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                       <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -1091,10 +1094,11 @@ function TargetDashboard() {
                                 <StatusBadge status={obj.status || "PENDING"} />
                                 {obj.priority && <span className="c2-badge c2-badge--amber">{obj.priority}</span>}
                                 <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.78rem", flex: 1 }}>{obj.description}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                  </div>
+                );
+                })()}
+              </div>
+            )}
                       </div>
                     )}
 
