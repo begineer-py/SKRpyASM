@@ -112,9 +112,10 @@ services:
     restart: always
     network_mode: host # Allows sandbox to scan localhost easily
     cap_add:
-      - SYS_ADMIN # Required for bwrap user namespace (per-target isolation)
+      - SYS_ADMIN # Required for bwrap pivot_root (per-target isolation)
     security_opt:
       - apparmor:unconfined # Required for bwrap on AppArmor-enabled hosts
+      - seccomp:unconfined # pivot_root syscall is blocked by Docker's default seccomp profile
     volumes:
       - /tmp/c2_sandbox_scripts:/scripthub
     deploy:

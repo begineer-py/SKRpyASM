@@ -49,7 +49,7 @@ def periodic_initial_analysis_bootstrapper():
     ips = IP.objects.filter(
         ports__state="open"
     ).exclude(
-        overviews__isnull=False
+        highlighted_in_overview__isnull=False
     ).exclude(
         initial_ai_analyses__status__in=["PENDING", "RUNNING", "COMPLETED"]
     ).distinct()[:50]
@@ -57,13 +57,13 @@ def periodic_initial_analysis_bootstrapper():
     subs = Subdomain.objects.filter(
         is_resolvable=True, is_active=True
     ).exclude(
-        overviews__isnull=False
+        highlighted_in_overview__isnull=False
     ).exclude(
         initial_ai_analyses__status__in=["PENDING", "RUNNING", "COMPLETED"]
     ).distinct()[:50]
     
     urls = URLResult.objects.exclude(
-        overviews__isnull=False
+        highlighted_in_overview__isnull=False
     ).exclude(
         initial_ai_analyses__status__in=["PENDING", "RUNNING", "COMPLETED"]
     ).filter(
@@ -109,40 +109,36 @@ def process_initial_analysis_conversions(analysis_ids: List[int]):
             target = related_subdomain.target if related_subdomain else None
 
         ov = None
+        # 1:1 關係下大幅簡化：若 target 存在，直接取得/建立其唯一 overview
         if target:
-            ov = Overview.objects.filter(target=target, status__in=["PLANNING", "EXECUTING"]).first()
-
-        if not ov:
-            ov = asset.overviews.filter(status__in=["PLANNING", "EXECUTING"]).first()
-
-        if not ov:
-            with transaction.atomic():
-                if target:
-                    ov = Overview.objects.select_for_update().filter(
-                        target=target, status__in=["PLANNING", "EXECUTING"]
-                    ).first()
-                if not ov:
-                    ov = asset.overviews.select_for_update().filter(
-                        status__in=["PLANNING", "EXECUTING"]
-                    ).first()
-                if not ov:
-                    ov = Overview.objects.create(
-                        target=target,
-                        status="PLANNING",
-                        summary=f"AI-Detected High Value Asset: {a.summary}",
-                        knowledge={
-                            "source": "ai_initial_triage",
-                            "initial_analysis_id": a.id,
-                            "inferred_purpose": a.inferred_purpose
-                        }
-                    )
+            ov, _ = Overview.objects.get_or_create(
+                target=target,
+                defaults={
+                    "status": "PLANNING",
+                    "summary": f"AI-Detected High Value Asset: {a.summary}",
+                    "knowledge": {
+                        "source": "ai_initial_triage",
+                        "initial_analysis_id": a.id,
+                        "inferred_purpose": a.inferred_purpose,
+                    },
+                },
+            )
         else:
+            # target 未知的罕見情況：用 asset.highlighted_in_overview 反查
+            ov = asset.highlighted_in_overview.filter(
+                status__in=["PLANNING", "EXECUTING"]
+            ).first()
+
+        # 若復用既有 overview，附加新資產資訊
+        if ov and not ov.summary:
+            ov.summary = f"AI-Detected High Value Asset: {a.summary}"
+        elif ov and "added_asset_from_initial" not in (ov.knowledge or {}):
             ov.summary = f"{(ov.summary or '')}\n[新增高價值資產] {a.summary}"
             if not ov.knowledge:
                 ov.knowledge = {}
             ov.knowledge[f"added_asset_from_initial_{a.id}"] = {
                 "source": "ai_initial_triage",
-                "inferred_purpose": a.inferred_purpose
+                "inferred_purpose": a.inferred_purpose,
             }
             ov.save(update_fields=["summary", "knowledge"])
             logger.info(f"將高價值資產 {asset} 附加到現有 Overview#{ov.id}")

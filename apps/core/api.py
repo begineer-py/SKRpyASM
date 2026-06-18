@@ -104,15 +104,13 @@ def list_execution_graphs(
     if thread_id is not None:
         queryset = queryset.filter(thread_id=thread_id)
     if target_id is not None:
-        thread_ids = set(
-            Overview.objects.filter(target_id=target_id)
-            .values_list("thread_id", flat=True)
-        )
-        thread_ids.update(
-            Overview.objects.filter(target_id=target_id)
-            .values_list("parent_thread_id", flat=True)
-        )
-        thread_ids.discard(None)
+        # 1:1 關係：target 只有唯一 overview，直接取得其 thread_ids
+        ov = Overview.objects.filter(target_id=target_id).first()
+        if ov:
+            thread_ids = {ov.thread_id, ov.parent_thread_id}
+            thread_ids.discard(None)
+        else:
+            thread_ids = set()
         queryset = queryset.filter(thread_id__in=thread_ids) if thread_ids else queryset.none()
     if status:
         queryset = queryset.filter(status=status)

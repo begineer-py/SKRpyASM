@@ -27,6 +27,7 @@ class SpawnAgentsMixin:
         self,
         target_name: str,
         objective: str = "",
+        overview_id: int = None,
     ) -> str:
         """
         [Sub-Agent] 啟動一個專注偵察的 ReconAgent 子代理在背景非同步執行。
@@ -42,11 +43,14 @@ class SpawnAgentsMixin:
         Args:
             target_name: 要偵察的目標名稱（必須已存在於資料庫）
             objective: 偵察目標說明（如 "找出所有開放的 API 端點" 或 "識別技術棧"）
+            overview_id: Overview ID（自動注入，無需手動提供）
         """
         try:
             from apps.auto.tasks import run_recon_agent_async
 
             caller_thread_id = self._get_caller_thread_id()
+            # overview_id 自動注入：優先使用 agent 當前綁定的 overview
+            resolved_ov_id = overview_id or getattr(self, '_agent_overview_id', None)
             message = f"對目標 '{target_name}' 執行完整偵察。"
             if objective:
                 message += f"\n偵察重點：{objective}"
@@ -55,12 +59,15 @@ class SpawnAgentsMixin:
                 message=message,
                 target_name=target_name,
                 caller_thread_id=caller_thread_id,
+                overview_id=resolved_ov_id,
+                dispatcher_thread_id=caller_thread_id,
             )
 
             return (
                 f"✅ ReconAgent 已在背景啟動，目標：{target_name}。\n"
                 f"偵察任務將異步執行，完成後會透過 notify_caller_agent 回報結果。\n"
-                f"你可以繼續執行其他任務，無需等待。"
+                f"你可以繼續執行其他任務，無需等待。\n"
+                f"系統會建立 SubAgentDispatch 記錄，後續可用 query_dispatched_agents 查詢狀態。"
             )
         except Exception as e:
             logger.error(f"[SpawnAgents] spawn_recon_agent failed: {e}")
@@ -71,6 +78,7 @@ class SpawnAgentsMixin:
         self,
         target_name: str,
         foothold_info: str = "",
+        overview_id: int = None,
     ) -> str:
         """
         [Sub-Agent] 啟動一個專注後滲透的 PostExploitAgent 子代理在背景非同步執行。
@@ -88,11 +96,13 @@ class SpawnAgentsMixin:
         Args:
             target_name: 目標名稱
             foothold_info: 已獲取的立足點描述（如 "通過 RCE 漏洞在 /cmd 端點獲得命令執行" 或 "已獲得 admin shell"）
+            overview_id: Overview ID（自動注入，無需手動提供）
         """
         try:
             from apps.auto.tasks import run_post_exploit_agent_async
 
             caller_thread_id = self._get_caller_thread_id()
+            resolved_ov_id = overview_id or getattr(self, '_agent_overview_id', None)
             message = f"對目標 '{target_name}' 執行後滲透活動。"
             if foothold_info:
                 message += f"\n已確認的立足點：{foothold_info}"
@@ -101,6 +111,8 @@ class SpawnAgentsMixin:
                 message=message,
                 target_name=target_name,
                 caller_thread_id=caller_thread_id,
+                overview_id=resolved_ov_id,
+                dispatcher_thread_id=caller_thread_id,
             )
 
             return (
@@ -138,28 +150,86 @@ class SpawnAgentsMixin:
             from apps.auto.tasks import run_reporting_agent_async
 
             caller_thread_id = self._get_caller_thread_id()
+            resolved_ov_id = overview_id or getattr(self, '_agent_overview_id', None)
 
-            if not overview_id and not target_name:
+            if not resolved_ov_id and not target_name:
                 return "CRITICAL_FAILURE: 必須提供 overview_id 或 target_name 其中之一。"
 
             message = "生成滲透測試最終報告。"
             if target_name:
                 message += f"\n目標：{target_name}"
-            if overview_id:
-                message += f"\nOverview ID：{overview_id}"
+            if resolved_ov_id:
+                message += f"\nOverview ID：{resolved_ov_id}"
 
             run_reporting_agent_async.delay(
                 message=message,
                 target_name=target_name,
-                overview_id=overview_id,
+                overview_id=resolved_ov_id,
                 caller_thread_id=caller_thread_id,
+                dispatcher_thread_id=caller_thread_id,
             )
 
             return (
                 f"✅ ReportingAgent 已在背景啟動。\n"
-                f"報告生成任務將異步執行，完成後會透過 notify_caller_agent 回傳完整報告。\n"
+                f"報告生成任務將異步執行，完成後會透過 notify_caller_agent 傳回完整報告。\n"
                 f"你可以繼續執行其他任務，無需等待。"
             )
         except Exception as e:
             logger.error(f"[SpawnAgents] spawn_reporting_agent failed: {e}")
             return f"啟動 ReportingAgent 失敗：{e}"
+
+    @method_tool
+    def query_dispatched_agents(
+        self,
+        overview_id: int = None,
+        status_filter: str = None,
+    ) -> str:
+        """
+        [Sub-Agent Tracking] 查詢已派發子代理的狀態與回報。
+
+        重新喚醒後（auto_execute_plan 啟動你）應**第一個**呼叫此工具，
+        檢查哪些子代理已完成、結果為何。
+
+        Args:
+            overview_id: Overview ID（自動注入）
+            status_filter: 篩選狀態（RUNNING / COMPLETED / FAILED），不指定則全部
+        """
+        try:
+            from apps.core.models import SubAgentDispatch
+
+            resolved_ov_id = overview_id or getattr(self, '_agent_overview_id', None)
+            if not resolved_ov_id:
+                return "無 overview_id 可查詢（session 尚未綁定到 Overview）。"
+
+            qs = SubAgentDispatch.objects.filter(overview_id=resolved_ov_id)
+            if status_filter:
+                qs = qs.filter(status=status_filter)
+
+            dispatches = list(qs.order_by("-dispatched_at")[:20])
+            if not dispatches:
+                return f"Overview#{resolved_ov_id} 目前沒有任何子代理派發記錄。"
+
+            lines = [f"=== Overview#{resolved_ov_id} Sub-Agent Dispatches ({len(dispatches)} records) ==="]
+            for d in dispatches:
+                status_icon = {"RUNNING": "🔄", "COMPLETED": "✅", "FAILED": "❌"}.get(d.status, "?")
+                synth = " [已消化]" if d.synthesized else " [待消化]"
+                lines.append(
+                    f"\n{status_icon} Dispatch#{d.id} — {d.sub_agent_type} ({d.status}){synth}\n"
+                    f"   Dispatched: {d.dispatched_at.strftime('%Y-%m-%d %H:%M:%S')}\n"
+                    f"   Sub Thread: {d.sub_thread_id}\n"
+                    f"   Objective: {(d.objective or '')[:150]}\n"
+                    f"   Result: {(d.result_summary or '(尚無回報)')[:500]}"
+                )
+
+            # 標記 COMPLETED 未消化的為已消化（因為 agent 已經透過此工具看到了）
+            unsynth = [d for d in dispatches if d.status == "COMPLETED" and not d.synthesized]
+            for d in unsynth:
+                d.synthesized = True
+                d.save(update_fields=["synthesized"])
+            if unsynth:
+                lines.append(f"\n✨ 已標記 {len(unsynth)} 個回報為「已消化」。")
+
+            return "\n".join(lines)
+        except Exception as e:
+            logger.error(f"[SpawnAgents] query_dispatched_agents failed: {e}")
+            return f"查詢派發狀態失敗：{e}"

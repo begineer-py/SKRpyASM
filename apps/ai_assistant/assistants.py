@@ -129,12 +129,11 @@ class HackerAssistantAgent(
             if not target:
                 return f"Error: Target ID {target_id} does not exist in the database."
             
-            # Find the latest active overview for this target
-            overview = Overview.objects.filter(
-                target=target, 
-                status__in=["PLANNING", "EXECUTING", "NEEDS_GUIDANCE"]
-            ).order_by("-updated_at").first()
-            
+            # 1:1 關係：每個 target 只有唯一 overview
+            overview = getattr(target, 'overview', None)
+            if overview and overview.status not in ("PLANNING", "EXECUTING", "NEEDS_GUIDANCE"):
+                # 既有 overview 已 COMPLETED/STALLED — 仍可復用，只是 status 不活躍
+                pass
             ov_id = overview.id if overview else None
             
             Thread.objects.filter(id=thread.id).update(
@@ -310,7 +309,7 @@ class HackerAssistantAgent(
             import json
             
             target = Target.objects.get(name=target_name)
-            overview = Overview.objects.filter(target=target).order_by('-updated_at').first()
+            overview = getattr(target, 'overview', None)
             if not overview:
                 return f"No Overview found for target: {target_name}. Please wait for Data Pre-processing."
             
@@ -334,9 +333,10 @@ class HackerAssistantAgent(
             import json
             
             target, _ = Target.objects.get_or_create(name=target_name)
-            overview = Overview.objects.filter(target=target).order_by('-updated_at').first()
-            if not overview:
-                overview = Overview.objects.create(target=target, status="PLANNING")
+            overview, _ = Overview.objects.get_or_create(
+                target=target,
+                defaults={"status": "PLANNING"},
+            )
             
             overview.status = status
             if plan_json_string:

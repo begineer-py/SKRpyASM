@@ -11,17 +11,24 @@ class Overview(models.Model):
       2. 儲存 AI 目前對該目標的「知識」與「技術棧」
       3. 紀錄當前的「攻擊計畫 (Plan)」與「執行狀態」
     """
-    target = models.ForeignKey("core.Target", on_delete=models.CASCADE, null=True, blank=True, related_name="overviews")
+    target = models.OneToOneField(
+        "core.Target",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="overview",
+        help_text="1:1 綁定 Target — 每個目標只有一個 Overview 作為情報中樞",
+    )
     seed = models.ForeignKey("core.Seed", on_delete=models.CASCADE, null=True, blank=True, related_name="overviews")
 
-    # 關聯資產 (多對多，支援交叉關聯)
-    ips = models.ManyToManyField("core.IP", blank=True, related_name="overviews")
-    subdomains = models.ManyToManyField("core.Subdomain", blank=True, related_name="overviews")
-    url_results = models.ManyToManyField("core.URLResult", blank=True, related_name="overviews")
+    # 關聯資產（多對多 — 標記為「高價值 / 當前關注」的資產，非全部資產）
+    ips = models.ManyToManyField("core.IP", blank=True, related_name="highlighted_in_overview")
+    subdomains = models.ManyToManyField("core.Subdomain", blank=True, related_name="highlighted_in_overview")
+    url_results = models.ManyToManyField("core.URLResult", blank=True, related_name="highlighted_in_overview")
 
-    # 戰略情報
+    # 戰略情報（核心高頻欄位 — 1:1 後 Overview 為 Target 唯一情報中樞）
     summary = models.TextField(null=True, blank=True, help_text="目前目標的筆記")
-    techs = models.JSONField(null=True, blank=True, help_text="偵測到的技術棧")
+    techs = models.JSONField(null=True, blank=True, help_text="偵測到的技術棧（舊欄位，將逐步淘汰，改用 tech_stack）")
     knowledge = models.JSONField(null=True, blank=True, help_text="當前對目標的認知快照")
     plan = models.JSONField(
         null=True,
@@ -30,6 +37,28 @@ class Overview(models.Model):
             "AI 擬定的結構化計畫。格式: "
             "{objectives: [{id, description, priority, status}], reasoning: str, generated_at: iso8601}"
         ),
+    )
+
+    # 核心情報欄位（新增 — 高頻存取，Agent 與子代理直接讀寫）
+    recon_summary = models.TextField(
+        null=True, blank=True,
+        help_text="偵察階段摘要（子域名數量、開放端口、技術棧等高層次總結）",
+    )
+    tech_stack = models.JSONField(
+        null=True, blank=True,
+        help_text="偵測到的技術棧快照（結構化，取代 techs）",
+    )
+    subdomain_intel = models.JSONField(
+        null=True, blank=True,
+        help_text="子域名情報快照（高價值子域名、解析狀態等）",
+    )
+    port_service = models.JSONField(
+        null=True, blank=True,
+        help_text="開放端口與服務快照",
+    )
+    vuln_intel = models.JSONField(
+        null=True, blank=True,
+        help_text="確認漏洞情報快照（嚴重度、位置、狀態）",
     )
 
     # 狀態管理

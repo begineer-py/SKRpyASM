@@ -9,10 +9,42 @@ class SkillTemplate(models.Model):
     基於 RAG (Retrieval-Augmented Generation) 理念，允許 AI 將常用的程式腳本與操作指引寫入資料庫，
     實作自我進化與跨 Target (任務) 之間的重用。
     
-    新增: 完整的類型驗證系統，包括輸入/輸出 schema 定義與執行時驗證。
+    支援兩種技能本質：
+    - script：可執行腳本（Python/Bash），透過 execute_skill_script 在 sandbox 執行
+    - documentation：AI 閱讀的技術指引文件，透過 follow_skill_guidance 由 agent 自主遵循
+    - hybrid：文件 + 腳本（兩者皆有）
     """
+    SKILL_TYPE_CHOICES = [
+        ("script", "Script — 可執行腳本"),
+        ("documentation", "Documentation — AI 閱讀指引文件"),
+        ("hybrid", "Hybrid — 文件 + 腳本"),
+    ]
+
+    # === 技能類型（決定如何被 agent 使用）===
+    skill_type = models.CharField(
+        max_length=20,
+        choices=SKILL_TYPE_CHOICES,
+        default="script",
+        db_index=True,
+        help_text="技能本質：script（可執行）/ documentation（指引文件）/ hybrid（兩者皆有）",
+    )
+
     name = models.CharField(max_length=100, db_index=True, help_text="技能名稱，例如 django-csrf-bypass")
     description = models.TextField(help_text="技能摘要描述。用於 RAG 檢索，讓 AI 判斷是否需要呼叫此技能。")
+
+    # === 文件型技能專用（skill_type=documentation 或 hybrid）===
+    short_description = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        help_text="一行簡短說明（documentation 型技能建議填寫，供快速判斷用途）",
+    )
+    detailed_overview = models.TextField(
+        blank=True,
+        default="",
+        help_text="大篇幅技術指引（documentation 型技能專用）。包含執行原理、檢測步驟、背景知識。",
+    )
+
     instructions = models.TextField(help_text="等同於 SKILL.md，包含該如何正確使用與傳參的指南。")
     script_content = models.TextField(blank=True, null=True, help_text="實際執行的工具源碼 (例如 Python 或 Bash 腳本)。")
     script_body = models.TextField(
@@ -141,8 +173,8 @@ class SkillTemplate(models.Model):
         if not isinstance(self.tags, list):
             raise ValidationError("tags 必須是陣列類型")
 
-        # script_body AST 格式檢查
-        if self.script_body and self.language == "python":
+        # script_body AST 格式檢查（僅 script / hybrid 型技能需要）
+        if self.script_body and self.language == "python" and self.skill_type in ("script", "hybrid"):
             import ast
             try:
                 tree = ast.parse(self.script_body)
@@ -152,8 +184,12 @@ class SkillTemplate(models.Model):
             except SyntaxError as e:
                 raise ValidationError(f"script_body 語法錯誤: {e}")
 
-        # Pydantic schema 可解析性驗證
-        if (self.input_schema or self.output_schema) and self.language == "python":
+        # documentation 型技能必須填寫 detailed_overview
+        if self.skill_type in ("documentation", "hybrid") and not self.detailed_overview:
+            raise ValidationError("documentation / hybrid 型技能必須填寫 detailed_overview")
+
+        # Pydantic schema 可解析性驗證（僅 script / hybrid 型技能需要）
+        if (self.input_schema or self.output_schema) and self.language == "python" and self.skill_type in ("script", "hybrid"):
             from apps.core.validators.io_contract import IOContractGenerator
             try:
                 code = IOContractGenerator.extract_pydantic_models(

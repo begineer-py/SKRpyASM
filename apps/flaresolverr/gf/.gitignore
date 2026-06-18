@@ -1,1 +1,37 @@
-main
+# ============================================================
+# 白名單模式：預設忽略整個 hacker_gf 子樹，僅放行 production 必要檔案
+# ============================================================
+
+# 忽略整個 hacker_gf/ 子樹（目錄層級）
+/hacker_gf/*
+!/hacker_gf/
+
+# 內部目錄也要逐層放行，git 才會往下走
+!/hacker_gf/json_decoder/
+/hacker_gf/json_decoder/*
+/hacker_gf/json_decoder/**/
+
+# ---- 放行：regex 引擎本體 ----
+!/hacker_gf/__init__.py
+!/hacker_gf/pygf.py
+!/hacker_gf/patterns/
+!/hacker_gf/patterns/**
+
+# ---- 放行：json_decoder 的 production 推理入口與模型 ----
+!/hacker_gf/json_decoder/js_to_json.py
+!/hacker_gf/json_decoder/hacker_model_final_v3_low_lr2/
+!/hacker_gf/json_decoder/hacker_model_final_v3_low_lr2/config.json
+!/hacker_gf/json_decoder/hacker_model_final_v3_low_lr2/model.safetensors
+!/hacker_gf/json_decoder/hacker_model_final_v3_low_lr2/special_tokens_map.json
+!/hacker_gf/json_decoder/hacker_model_final_v3_low_lr2/tokenizer.json
+!/hacker_gf/json_decoder/hacker_model_final_v3_low_lr2/tokenizer_config.json
+!/hacker_gf/json_decoder/hacker_model_final_v3_low_lr2/vocab.txt
+
+# ============================================================
+# 根目錄調試樣本
+# ============================================================
+/leaky_file.js
+
+# Python 快取
+__pycache__/
+*.pyc

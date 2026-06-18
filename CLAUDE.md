@@ -159,18 +159,30 @@ Note: `c2_core/settings.py` has hardcoded fallback values for database credentia
 - Tools requiring `seed_id` (`run_subfinder_discovery`, `run_nmap_port_scan`, `run_flaresolverr_crawler`, `run_flaresolverr_request`) now auto-resolve from `Overview → Target → Seed` when the agent doesn't provide a seed_id.
 - New `_resolve_seed(overview_id)` helper in `ScannerToolsMixin` — finds first active Seed for the Overview's Target.
 
-### Blocked / Known Issues
-- PEP 668 blocks `pip install` in Kali sandbox. Agent needs `PIP_REQUIRE_VIRTUALENV=false` or `--break-system-packages` in `run_command`.
+#### Kali Sandbox Per-Target Isolation (bwrap)
+- `run_command` and `execute_skill_script` now isolate execution to `/workspace/target_<id>` via `bwrap` (bubblewrap namespace).
+- Each target gets its own writable workspace; system tools (`/usr`, `/bin`, `/lib`) are bind-mounted read-only; `/scripthub` (skill scripts) shared read-only.
+- Cross-target file access is blocked (`No such file or directory`).
+- Workspace auto-created via `_ensure_workspace(target_id)` from `overview_id` (auto-injected by `@method_tool`).
+- Docker config: `cap_add: [SYS_ADMIN]` + `security_opt: [apparmor:unconfined, seccomp:unconfined]` (required for `pivot_root`).
+- PEP 668 fix: Dockerfile sets `PIP_BREAK_SYSTEM_PACKAGES=1` + `PIP_REQUIRE_VIRTUALENV=false`; `install_sandbox_dependency` no longer needs `--break-system-packages`.
 
 ### Key Decisions
 - **Seed auto-resolution**: Prefer resolving from `overview_id` (always auto-injected by `@method_tool`) rather than making the agent parse `get_target_context` output — more robust against agent parsing errors.
 - **`caller_thread_id` closure capture**: Instead of relying on LangChain's `RunnableConfig` injection (which is version-dependent and unreliable in prod), pass thread_id directly through closure at tool-creation time.
+- **bwrap over chroot/per-target-container**: bwrap provides namespace isolation (mount/private root) without needing to copy system binaries into each workspace. Lighter than per-task containers, stronger than `workdir`-only isolation.
+- **`SYS_ADMIN + seccomp:unconfined` over `privileged`**: Minimal capability set needed for bwrap's `pivot_root` syscall; avoids granting full container access.
 
 ### Next Steps
-- Test AutomationAgent delegation again for target 48 — should now create sub-thread + ExecutionGraph + auto-resolve seed_id.
+- Rebuild sandbox image (`docker compose build c2_kali_sandbox`) to activate PEP 668 env vars + bubblewrap.
+- Test AutomationAgent delegation again for target 48 — should now create sub-thread + ExecutionGraph + auto-resolve seed_id + isolated workspace.
 
 ### Relevant Files
 - `apps/auto/tools/scanner_tools.py` — `_resolve_seed()` (new), `run_flaresolverr_crawler`/`_request`/`_discovery`/`_port_scan` (seed auto-injection).
+- `apps/auto/tools/sandbox_tools.py` — `SandboxMixin` rewritten: `_resolve_target_id()`, `_ensure_workspace()`, `_build_bwrap_args()`, `_wrap_command()`, `run_command` (bwrap-isolated).
+- `apps/auto/tools/skill_tools.py` — `execute_skill_script` (bwrap-isolated), `install_sandbox_dependency` (removed `--break-system-packages`).
+- `docker/docker-compose.yml` — `c2_kali_sandbox` service: `cap_add: [SYS_ADMIN]`, `security_opt: [apparmor:unconfined, seccomp:unconfined]`.
+- `docker/kali_sandbox/Dockerfile` — `PIP_BREAK_SYSTEM_PACKAGES=1`, `PIP_REQUIRE_VIRTUALENV=false`, `bubblewrap` installed, `/workspace` pre-created.
 - `apps/ai_assistant/helpers/assistants.py:1357` — `_current_invoke_thread_id` moved before `as_graph()`.
 - `apps/ai_assistant/assistants.py:178,191` — `ha_caller_thread_id` captured and passed to `as_tool()`.
 - `apps/auto/assistants/planning_agent.py:396-435` — `as_tool()` accepts `ha_caller_thread_id`, `_tool_func` uses closure value.

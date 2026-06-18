@@ -82,36 +82,24 @@ class ReconnaissanceMixin:
                     f"請先透過 /api/targets/ 建立目標後再呼叫。"
                 )
 
-            active_overview = Overview.objects.filter(
-                target=target, status__in=["PLANNING", "EXECUTING"]
-            ).order_by("-id").first()
+            active_overview = getattr(target, 'overview', None)
 
-            # If no active overview, fall back to most recent COMPLETED overview
+            # 若無 Overview（1:1 關係下 target.overview 為 None），嘗試建立
             if not active_overview:
-                active_overview = Overview.objects.filter(
-                    target=target, status="COMPLETED"
-                ).order_by("-id").first()
+                active_overview = Overview.objects.create(
+                    target=target,
+                    status="PLANNING",
+                    risk_score=50,
+                    plan={"steps": []},
+                )
+                logger.info(f"[get_target_context] Auto-created Overview for Target {target.name} (1:1 relation)")
 
             subdomains = list(Subdomain.objects.filter(target=target).values("id", "name")[:15])
             ips = list(IP.objects.filter(target=target).values("id", "address")[:15])
             seeds = list(Seed.objects.filter(target=target).values("id", "type", "value")[:10])
             urls = list(URLResult.objects.filter(target=target).values("id", "url")[:15])
 
-            if not active_overview:
-                return (
-                    f"=== TARGET CONTEXT ===\n"
-                    f"Current System Time: {now_str}\n"
-                    f"Target Name: {target.name}\n"
-                    f"Target ID: {target.id}\n"
-                    f"Active Overview: NONE - No PLANNING/EXECUTING/COMPLETED overview found.\n"
-                    f"  ⚠ DO NOT call create_step.\n"
-                    f"  👉 You MUST call `create_overview` with target_id={target.id} to initialize a new overview, then call `get_target_context` again.\n"
-                    f"Real Seeds: {seeds}\n"
-                    f"Real Subdomains: {subdomains}\n"
-                    f"Real IPs: {ips}\n"
-                    f"Real URLs: {urls}\n"
-                    f"=== END OF CONTEXT ==="
-                )
+            # active_overview 必不為 None（1:1 關係下，若無則已建立）
 
             # ════════════════════════════════════════════════════════════════
             # Auto-bind thread_id / parent_thread_id
@@ -268,37 +256,38 @@ class ReconnaissanceMixin:
                 if sub_thread:
                     thread_id = sub_thread.id
 
-            # ⚠️ Idempotency 保護：防止重複建立
+            # ⚠️ Idempotency 保護（1:1 關係下大幅簡化）：target 已有 overview 則直接復用
             with transaction.atomic():
-                existing = Overview.objects.select_for_update().filter(
+                overview, created = Overview.objects.get_or_create(
                     target=target,
-                    status__in=["PLANNING", "EXECUTING", "NEEDS_GUIDANCE"]
-                ).order_by("-id").first()
-                if existing:
-                    # Auto-bind parent_thread_id on existing overview too
-                    if _caller_id and not existing.parent_thread_id and not parent_thread_id:
-                        existing.parent_thread_id = _caller_id
-                        existing.save(update_fields=['parent_thread_id'])
+                    defaults={
+                        "status": "PLANNING",
+                        "risk_score": 50,
+                        "plan": {"steps": []},
+                        "thread_id": thread_id,
+                        "parent_thread_id": parent_thread_id,
+                    },
+                )
+                if not created:
+                    # 復用既有 Overview，必要時補上 thread 關聯
+                    changed = False
+                    if _caller_id and not overview.parent_thread_id and not parent_thread_id:
+                        overview.parent_thread_id = _caller_id
+                        changed = True
                     if not getattr(self, '_agent_overview_id', None):
-                        self._agent_overview_id = existing.id
+                        self._agent_overview_id = overview.id
+                    if changed:
+                        overview.save(update_fields=['parent_thread_id'])
                     logger.warning(
-                        f"create_overview called but active overview already exists "
-                        f"(Overview#{existing.id}) for Target {target.name}. Returning existing."
+                        f"create_overview called but overview already exists "
+                        f"(Overview#{overview.id}) for Target {target.name}. Returning existing."
                     )
                     return (
-                        f"⚠️ Target {target.name} (ID: {target.id}) 已有 Active Overview (ID: {existing.id}, "
-                        f"Status: {existing.status})。無需重複建立，請直接使用此 overview_id={existing.id}。"
+                        f"⚠️ Target {target.name} (ID: {target.id}) 已有 Overview (ID: {overview.id}, "
+                        f"Status: {overview.status})。無需重複建立，請直接使用此 overview_id={overview.id}。"
                         f"請重新呼叫 get_target_context 確認。"
                     )
 
-                overview = Overview.objects.create(
-                    target=target,
-                    status="PLANNING",
-                    risk_score=50,
-                    plan={"steps": []},
-                    thread_id=thread_id,
-                    parent_thread_id=parent_thread_id,
-                )
             if not getattr(self, '_agent_overview_id', None):
                 self._agent_overview_id = overview.id
             return f"成功為 Target {target.name} (ID: {target.id}) 建立新的 Overview (ID: {overview.id})。請重新呼叫 get_target_context。"
@@ -312,24 +301,59 @@ class ReconnaissanceMixin:
         如果在長期的非同步自動化任務結束拉！如果 Overview 中存有 parent_thread_id (調用你的上層 Agent)，
         利用此工具將最後的分析結果或是達成目標的消息傳回給上層 Agent 吧。
 
+        路由優先序：
+        1. SubAgentDispatch（直屬派發者，通常是 AutomationAgent）— 最準確
+        2. Overview.parent_thread_id（fallback，可能指向 HackerAssistant）
+
         Args:
             overview_id: (Optional) 當前 Overview 的 ID。自動注入。
             message: 要傳回給上層 Agent 的消息內容。
         """
         try:
-            from apps.core.models import Overview
+            from apps.core.models import Overview, SubAgentDispatch
             from apps.core.models.ai_models import Thread as AIThread
             from apps.core.models import Message as DjangoMessage
             from langchain_core.messages import HumanMessage, message_to_dict
+            from django.utils import timezone
 
             overview = Overview.objects.get(id=overview_id)
-            if not overview.parent_thread_id:
-                return "此 Overview 沒有紀錄 parent_thread_id，無法進行回調通知。"
 
-            parent_thread = AIThread.objects.get(id=overview.parent_thread_id)
+            # ════════════════════════════════════════════════════════════════
+            # 路由優先序 1: SubAgentDispatch（直屬派發者）
+            # 透過當前 agent 的 _thread 反查誰派發了這個子代理任務
+            # ════════════════════════════════════════════════════════════════
+            current_thread = getattr(self, '_thread', None)
+            current_thread_id = getattr(current_thread, 'id', None) if current_thread else None
+
+            dispatch = None
+            if current_thread_id:
+                dispatch = SubAgentDispatch.objects.filter(
+                    sub_thread_id=current_thread_id,
+                    status="RUNNING",
+                ).order_by("-dispatched_at").first()
+
+            if dispatch:
+                # 更新 dispatch 狀態 + 摘要
+                dispatch.status = "COMPLETED"
+                dispatch.result_summary = message[:2000]
+                dispatch.completed_at = timezone.now()
+                dispatch.save(update_fields=["status", "result_summary", "completed_at"])
+
+                target_thread_id = dispatch.dispatcher_thread_id
+                route_note = "（透過 SubAgentDispatch 路由到直屬派發者）"
+            else:
+                # ════════════════════════════════════════════════════════════════
+                # 路由優先序 2: Overview.parent_thread_id（fallback）
+                # ════════════════════════════════════════════════════════════════
+                target_thread_id = overview.parent_thread_id
+                route_note = "（透過 Overview.parent_thread_id fallback）"
+
+            if not target_thread_id:
+                return "此任務沒有關聯的派發者 Thread（無 SubAgentDispatch 且 Overview 無 parent_thread_id），訊息已記錄但未發送。"
+
+            parent_thread = AIThread.objects.get(id=target_thread_id)
 
             # 直接注入訊息到父層 Thread，不觸發 LLM 避免無限迴圈
-            # 上層 HackerAssistant 在使用者下次發訊息時，會自動從 Thread 歷史中讀到此通知並回應
             notification = HumanMessage(
                 content=f"[SYSTEM: Layer 3 Async Completion Report For Overview {overview_id}]\n{message}"
             )
@@ -338,7 +362,7 @@ class ReconnaissanceMixin:
                 role="human",
                 message=message_to_dict(notification),
             )
-            return f"成功回調通知 Parent Thread {overview.parent_thread_id}。"
+            return f"成功回調通知 Parent Thread {target_thread_id} {route_note}。"
         except Exception as e:
             logger.error(f"Failed to notify caller agent for overview {overview_id}: {e}")
             return f"通知 Caller Agent 失敗: {e}"

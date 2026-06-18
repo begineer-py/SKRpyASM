@@ -129,7 +129,7 @@ class Config:
         "gf",
         "hacker_gf",
         "json_decoder",
-        "hacker_model_final_v2",
+        "hacker_model_final_v3_low_lr2",
     )
 
     # ... 其他服務 URL 可以按需添加 ...apps/flaresolverr/gf/hacker_gf/json_decoder/hacker_model_final_v2

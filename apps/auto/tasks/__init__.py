@@ -184,6 +184,29 @@ def auto_execute_plan():
             # AIAssistant.invoke creates the ExecutionGraph; no legacy Step wrapper is needed.
             agent = AutomationAgent(thread=thread_obj)
             
+            # ════════════════════════════════════════════════════════════════
+            # 注入未消化的子代理回報摘要（喚醒後提示 agent 去消化）
+            # ════════════════════════════════════════════════════════════════
+            from apps.core.models import SubAgentDispatch
+            pending_dispatches = list(
+                SubAgentDispatch.objects.filter(
+                    overview=ov, status="COMPLETED", synthesized=False
+                ).order_by("-completed_at")[:5]
+            )
+            dispatch_hint = ""
+            if pending_dispatches:
+                dispatch_lines = []
+                for d in pending_dispatches:
+                    dispatch_lines.append(
+                        f"- [{d.sub_agent_type}] completed at {d.completed_at}: {(d.result_summary or '(無摘要)')[:300]}"
+                    )
+                dispatch_hint = (
+                    f"\n\n=== ⚠️ SUB-AGENT REPORTS (awaiting your synthesis) ===\n"
+                    f"You have {len(pending_dispatches)} completed sub-agent dispatch(es) to review.\n"
+                    f"Call `query_dispatched_agents` immediately to get full details.\n"
+                    f"Preview:\n" + "\n".join(dispatch_lines) + "\n=== END ===\n"
+                )
+            
             # 收集真實的 Asset IDs，避免 AI 幻覺亂猜 ID
             from apps.core.models import Subdomain, IP, Seed
             from apps.core.models.url_assets import URLResult
@@ -219,7 +242,8 @@ def auto_execute_plan():
                 f"{_fmt_ids('Real URL Result IDs (already crawled)', real_url_ids)}\n"
                 f"=== END OF CONTEXT ===\n\n"
                 f"Current Knowledge: {json.dumps(overview.knowledge)}\n"
-                f"Current Plan: {json.dumps(overview.plan)}\n\n"
+                f"Current Plan: {json.dumps(overview.plan)}\n"
+                f"{dispatch_hint}\n\n"
                 f"Task: Execute the PENDING objectives in the plan using your tools. "
                 "Use ONLY the IDs listed above. If a list is empty, skip tools that require those IDs."
             )
@@ -269,41 +293,91 @@ def run_automation_agent_async(self, message: str, caller_thread_id: int = None)
 
 
 def _run_sub_agent(agent_class, agent_id_label, message, caller_thread_id):
-    """共用輔助函式：執行子 Agent；graph lifecycle 由 AIAssistant.invoke 管理。"""
+    """共用輔助函式：執行子 Agent；graph lifecycle 由 AIAssistant.invoke 管理。
+
+    回傳 dict: {result, sub_thread_id, agent_instance}
+      - sub_thread_id: 子代理綁定的 Thread ID（供 SubAgentDispatch 記錄）
+    """
     from langgraph.errors import GraphRecursionError
 
     agent = agent_class(caller_thread_id=caller_thread_id)
+    sub_thread_id = None
     try:
         result = agent._run_as_tool(message, caller_thread_id=caller_thread_id)
-        return result
+        # _run_as_tool 會把 self._thread 設為 sub_thread
+        sub_thread = getattr(agent, '_thread', None)
+        if sub_thread:
+            sub_thread_id = getattr(sub_thread, 'id', None)
+        return {"result": result, "sub_thread_id": sub_thread_id, "agent_instance": agent}
     except GraphRecursionError:
-        # 靜默處理：invoke() 已將結構化結果寫入 ExecutionGraph，此處僅避免 propagation
         logger.warning(
             f"[{agent_id_label}] GraphRecursionError swallowed (caller_thread_id={caller_thread_id})"
         )
-        return {"output": "GraphRecursionError: agent hit recursion limit.", "error": "GraphRecursionError"}
+        sub_thread = getattr(agent, '_thread', None)
+        if sub_thread:
+            sub_thread_id = getattr(sub_thread, 'id', None)
+        return {
+            "result": {"output": "GraphRecursionError: agent hit recursion limit.", "error": "GraphRecursionError"},
+            "sub_thread_id": sub_thread_id,
+            "agent_instance": agent,
+        }
     except Exception as e:
         logger.exception(f"[{agent_id_label}] Failed: {e}")
         raise
 
 
-@shared_task(name="apps.auto.tasks.run_recon_agent_async", bind=True, max_retries=2, default_retry_delay=120)
-@log_function_call()
-def run_recon_agent_async(self, message: str, target_name: str = "", caller_thread_id: int = None):
-    from apps.auto.agents.recon_agent import ReconAgent
+def _resolve_overview_for_dispatch(overview_id, target_name, caller_thread_id, task_label):
+    """解析子代理任務的 Overview 並綁定 parent_thread_id（1:1 關係下確保唯一）。
 
-    # Bind the overview's parent_thread_id to caller so notify_caller_agent routes correctly
-    if caller_thread_id and target_name:
-        try:
-            from apps.core.models import Target, Overview
+    回傳 (overview, overview_id) — 若無法解析則 (None, None)
+    """
+    if not (overview_id or target_name):
+        return None, None
+    try:
+        from apps.core.models import Target, Overview
+        ov = None
+        if overview_id:
+            ov = Overview.objects.filter(id=overview_id).first()
+        elif target_name:
             target = Target.objects.filter(name=target_name).first()
             if target:
-                ov = Overview.objects.filter(target=target).order_by("-updated_at").first()
-                if ov and not ov.parent_thread_id:
-                    ov.parent_thread_id = caller_thread_id
-                    ov.save(update_fields=["parent_thread_id"])
-        except Exception as e:
-            logger.warning(f"[run_recon_agent_async] Could not bind overview parent_thread_id: {e}")
+                ov = getattr(target, 'overview', None)
+        if ov and caller_thread_id and not ov.parent_thread_id:
+            ov.parent_thread_id = caller_thread_id
+            ov.save(update_fields=["parent_thread_id"])
+        return ov, (ov.id if ov else None)
+    except Exception as e:
+        logger.warning(f"[{task_label}] Could not resolve/bind overview: {e}")
+        return None, None
+
+
+def _record_dispatch(overview_id, dispatcher_thread_id, sub_agent_type, sub_thread_id, objective, task_label, status="RUNNING"):
+    """建立 SubAgentDispatch 記錄，讓 AutomationAgent 能結構化追蹤子代理。"""
+    if not overview_id:
+        return None
+    try:
+        from apps.core.models import SubAgentDispatch
+        dispatch = SubAgentDispatch.objects.create(
+            overview_id=overview_id,
+            dispatcher_thread_id=dispatcher_thread_id,
+            sub_agent_type=sub_agent_type,
+            sub_thread_id=sub_thread_id,
+            objective=objective or "",
+            status=status,
+        )
+        logger.info(f"[{task_label}] Recorded dispatch #{dispatch.id}: {sub_agent_type} → Overview#{overview_id}")
+        return dispatch
+    except Exception as e:
+        logger.warning(f"[{task_label}] Failed to record dispatch: {e}")
+        return None
+
+
+@shared_task(name="apps.auto.tasks.run_recon_agent_async", bind=True, max_retries=2, default_retry_delay=120)
+@log_function_call()
+def run_recon_agent_async(self, message: str, target_name: str = "", caller_thread_id: int = None, overview_id: int = None, dispatcher_thread_id: int = None):
+    from apps.auto.agents.recon_agent import ReconAgent
+
+    ov, resolved_ov_id = _resolve_overview_for_dispatch(overview_id, target_name, caller_thread_id, "run_recon_agent_async")
 
     full_message = message
     if target_name:
@@ -315,27 +389,29 @@ def run_recon_agent_async(self, message: str, target_name: str = "", caller_thre
             f"Additional context: {message}"
         )
     try:
-        return _run_sub_agent(ReconAgent, "run_recon_agent_async", full_message, caller_thread_id)
+        result = _run_sub_agent(ReconAgent, "run_recon_agent_async", full_message, caller_thread_id)
+        # 建立派發記錄（使用 task 執行後取得的 sub_thread_id）
+        if resolved_ov_id:
+            sub_tid = result.get("sub_thread_id") if isinstance(result, dict) else None
+            _record_dispatch(
+                overview_id=resolved_ov_id,
+                dispatcher_thread_id=dispatcher_thread_id or caller_thread_id,
+                sub_agent_type="recon_agent",
+                sub_thread_id=sub_tid,
+                objective=full_message[:500],
+                task_label="run_recon_agent_async",
+            )
+        return result.get("result", result) if isinstance(result, dict) else result
     except Exception as e:
         raise self.retry(exc=e)
 
 
 @shared_task(name="apps.auto.tasks.run_post_exploit_agent_async", bind=True, max_retries=2, default_retry_delay=120)
 @log_function_call()
-def run_post_exploit_agent_async(self, message: str, target_name: str = "", caller_thread_id: int = None):
+def run_post_exploit_agent_async(self, message: str, target_name: str = "", caller_thread_id: int = None, overview_id: int = None, dispatcher_thread_id: int = None):
     from apps.auto.agents.post_exploit_agent import PostExploitAgent
 
-    if caller_thread_id and target_name:
-        try:
-            from apps.core.models import Target, Overview
-            target = Target.objects.filter(name=target_name).first()
-            if target:
-                ov = Overview.objects.filter(target=target).order_by("-updated_at").first()
-                if ov and not ov.parent_thread_id:
-                    ov.parent_thread_id = caller_thread_id
-                    ov.save(update_fields=["parent_thread_id"])
-        except Exception as e:
-            logger.warning(f"[run_post_exploit_agent_async] Could not bind overview parent_thread_id: {e}")
+    ov, resolved_ov_id = _resolve_overview_for_dispatch(overview_id, target_name, caller_thread_id, "run_post_exploit_agent_async")
 
     full_message = message
     if target_name:
@@ -348,7 +424,18 @@ def run_post_exploit_agent_async(self, message: str, target_name: str = "", call
             f"Additional context: {message}"
         )
     try:
-        return _run_sub_agent(PostExploitAgent, "run_post_exploit_agent_async", full_message, caller_thread_id)
+        result = _run_sub_agent(PostExploitAgent, "run_post_exploit_agent_async", full_message, caller_thread_id)
+        if resolved_ov_id:
+            sub_tid = result.get("sub_thread_id") if isinstance(result, dict) else None
+            _record_dispatch(
+                overview_id=resolved_ov_id,
+                dispatcher_thread_id=dispatcher_thread_id or caller_thread_id,
+                sub_agent_type="post_exploit_agent",
+                sub_thread_id=sub_tid,
+                objective=full_message[:500],
+                task_label="run_post_exploit_agent_async",
+            )
+        return result.get("result", result) if isinstance(result, dict) else result
     except Exception as e:
         raise self.retry(exc=e)
 
@@ -361,18 +448,11 @@ def run_reporting_agent_async(
     target_name: str = "",
     overview_id: int = None,
     caller_thread_id: int = None,
+    dispatcher_thread_id: int = None,
 ):
     from apps.auto.agents.reporting_agent import ReportingAgent
 
-    if caller_thread_id and overview_id:
-        try:
-            from apps.core.models import Overview
-            ov = Overview.objects.filter(id=overview_id).first()
-            if ov and not ov.parent_thread_id:
-                ov.parent_thread_id = caller_thread_id
-                ov.save(update_fields=["parent_thread_id"])
-        except Exception as e:
-            logger.warning(f"[run_reporting_agent_async] Could not bind overview parent_thread_id: {e}")
+    ov, resolved_ov_id = _resolve_overview_for_dispatch(overview_id, target_name, caller_thread_id, "run_reporting_agent_async")
 
     full_message = message
     if target_name or overview_id:
@@ -387,6 +467,17 @@ def run_reporting_agent_async(
             f"Additional context: {message}"
         )
     try:
-        return _run_sub_agent(ReportingAgent, "run_reporting_agent_async", full_message, caller_thread_id)
+        result = _run_sub_agent(ReportingAgent, "run_reporting_agent_async", full_message, caller_thread_id)
+        if resolved_ov_id:
+            sub_tid = result.get("sub_thread_id") if isinstance(result, dict) else None
+            _record_dispatch(
+                overview_id=resolved_ov_id,
+                dispatcher_thread_id=dispatcher_thread_id or caller_thread_id,
+                sub_agent_type="reporting_agent",
+                sub_thread_id=sub_tid,
+                objective=full_message[:500],
+                task_label="run_reporting_agent_async",
+            )
+        return result.get("result", result) if isinstance(result, dict) else result
     except Exception as e:
         raise self.retry(exc=e)

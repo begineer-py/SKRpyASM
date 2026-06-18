@@ -155,7 +155,7 @@ class HackerScanner:
 # === 測試執行部分 ===
 if __name__ == "__main__":
     # ... 前面的初始化 code 照舊 ...
-    MODEL_PATH = "/home/hacker/Desktop/share/C2_Django_AI_git/apps/flaresolverr/gf/hacker_gf/json_decoder/hacker_model_final_v2"
+    MODEL_PATH = "/home/hacker/Desktop/share/C2_Django_AI_git/apps/flaresolverr/gf/hacker_gf/json_decoder/hacker_model_final_v3_low_lr2"
 
     example_js = """
     const config = {

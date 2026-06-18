@@ -83,14 +83,47 @@ def get_overview(request, overview_id: int):
 
 @router.post("/overviews/", response={201: OverviewOut})
 def create_overview(request, payload: OverviewCreateIn):
-    obj = Overview.objects.create(
-        target_id=payload.target_id,
-        summary=payload.summary or "",
-        status=payload.status or "PLANNING",
-        risk_score=payload.risk_score or 0,
-        business_impact=payload.business_impact or "",
-        plan=payload.plan,
-    )
+    # 1:1 關係：target 已有 overview 時改為 upsert（更新既有）
+    if payload.target_id:
+        obj, created = Overview.objects.get_or_create(
+            target_id=payload.target_id,
+            defaults={
+                "summary": payload.summary or "",
+                "status": payload.status or "PLANNING",
+                "risk_score": payload.risk_score or 0,
+                "business_impact": payload.business_impact or "",
+                "plan": payload.plan,
+            },
+        )
+        if not created:
+            # 既有 overview 已存在 — 更新可選欄位
+            update_fields = []
+            if payload.summary is not None:
+                obj.summary = payload.summary
+                update_fields.append("summary")
+            if payload.status is not None:
+                obj.status = payload.status
+                update_fields.append("status")
+            if payload.risk_score is not None:
+                obj.risk_score = payload.risk_score
+                update_fields.append("risk_score")
+            if payload.business_impact is not None:
+                obj.business_impact = payload.business_impact
+                update_fields.append("business_impact")
+            if payload.plan is not None:
+                obj.plan = payload.plan
+                update_fields.append("plan")
+            if update_fields:
+                obj.save(update_fields=update_fields)
+    else:
+        obj = Overview.objects.create(
+            target_id=payload.target_id,
+            summary=payload.summary or "",
+            status=payload.status or "PLANNING",
+            risk_score=payload.risk_score or 0,
+            business_impact=payload.business_impact or "",
+            plan=payload.plan,
+        )
     return _overview_out(Overview.objects.select_related("target").get(id=obj.id))
 
 
