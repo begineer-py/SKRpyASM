@@ -159,7 +159,7 @@ if __name__ == "__main__":
 
     example_js = """
     const config = {
-        api_key: "[REDACTED_AWS_EXAMPLE]",
+        api_key: "AKIA-EXAMPLE-FAKE-KEY-FOR-TEST",
         debug: true,
         db_password: "admin_password_123",
         moduleData: [

@@ -79,7 +79,7 @@ This will return a beautifully structured JSON report, perfect for piping into t
       "matches": [
         {
           "line": 21,
-          "match": "[REDACTED_GOOGLE_EXAMPLE]",
+          "match": "AIzaSy-FAKE-EXAMPLE-KEY-FOR-DOCUMENTATION-XX",
           "start": 17,
           "end": 58
         }
