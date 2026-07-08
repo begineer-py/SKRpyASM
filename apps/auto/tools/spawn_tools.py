@@ -16,17 +16,67 @@ class SpawnAgentsMixin:
     - Has a focused system prompt and limited tool set for its phase
     """
 
+    @staticmethod
+    def _build_action_context(action_id: int | None) -> str:
+        """從 Action 讀取 purpose_text + asset_links，組成子代理的聚焦上下文。"""
+        if not action_id:
+            return ""
+        try:
+            from apps.core.models import Action
+            action = Action.objects.filter(id=action_id).first()
+            if not action:
+                return ""
+            parts = [f"[ACTION OBJECTIVE] {action.purpose_text or action.purpose}\n"]
+            asset_lines = []
+            for link in action.asset_links.all():
+                for fk_name, label in [
+                    ("ip_asset_id", "IP"), ("subdomain_asset_id", "Subdomain"),
+                    ("url_asset_id", "URL"), ("endpoint_asset_id", "Endpoint"),
+                    ("port_asset_id", "Port"),
+                ]:
+                    val = getattr(link, fk_name, None)
+                    if val:
+                        asset_lines.append(f"  - {label}#{val} (status: {link.status})")
+                        break
+            if asset_lines:
+                parts.append("[ACTION ASSETS]\n" + "\n".join(asset_lines) + "\n")
+            return "".join(parts)
+        except Exception:
+            return ""
+
     def _get_caller_thread_id(self) -> int | None:
         thread = getattr(self, "_thread", None)
         if thread:
             return thread.id
         return None
 
+    def _check_lock_conflicts(self, overview_id: int | None, caller_thread_id: int | None) -> str:
+        """檢查目標資產是否被其他 Agent 持鎖，回傳警告字串（空字串表示無衝突）。"""
+        if not overview_id:
+            return ""
+        try:
+            from apps.core.models import Overview, AssetLock
+            overview = Overview.objects.filter(id=overview_id).select_related("target").first()
+            if not overview or not overview.target_id:
+                return ""
+            qs = AssetLock.objects.filter(
+                target_id=overview.target_id, lock_status="HELD"
+            )
+            if caller_thread_id:
+                qs = qs.exclude(thread_id=caller_thread_id)
+            count = qs.count()
+            if count:
+                return f"\n⚠️ {count} assets locked by other agents — sub-agent may encounter conflicts on those assets."
+            return ""
+        except Exception:
+            return ""
+
     @method_tool
     def spawn_recon_agent(
         self,
         target_name: str,
         objective: str = "",
+        action_id: int = None,
         overview_id: int = None,
     ) -> str:
         """
@@ -43,14 +93,16 @@ class SpawnAgentsMixin:
         Args:
             target_name: 要偵察的目標名稱（必須已存在於資料庫）
             objective: 偵察目標說明（如 "找出所有開放的 API 端點" 或 "識別技術棧"）
+            action_id: 關聯的 Action ID（可選，自動注入 purpose_text 與資產資訊作為子代理聚焦上下文）
             overview_id: Overview ID（自動注入，無需手動提供）
         """
         try:
             from apps.auto.tasks import run_recon_agent_async
 
             caller_thread_id = self._get_caller_thread_id()
-            # overview_id 自動注入：優先使用 agent 當前綁定的 overview
             resolved_ov_id = overview_id or getattr(self, '_agent_overview_id', None)
+            lock_warning = self._check_lock_conflicts(resolved_ov_id, caller_thread_id)
+            action_context = self._build_action_context(action_id)
             message = f"對目標 '{target_name}' 執行完整偵察。"
             if objective:
                 message += f"\n偵察重點：{objective}"
@@ -61,6 +113,7 @@ class SpawnAgentsMixin:
                 caller_thread_id=caller_thread_id,
                 overview_id=resolved_ov_id,
                 dispatcher_thread_id=caller_thread_id,
+                action_id=action_id,
             )
 
             return (
@@ -68,6 +121,7 @@ class SpawnAgentsMixin:
                 f"偵察任務將異步執行，完成後會透過 notify_caller_agent 回報結果。\n"
                 f"你可以繼續執行其他任務，無需等待。\n"
                 f"系統會建立 SubAgentDispatch 記錄，後續可用 query_dispatched_agents 查詢狀態。"
+                f"{lock_warning}"
             )
         except Exception as e:
             logger.error(f"[SpawnAgents] spawn_recon_agent failed: {e}")
@@ -78,6 +132,7 @@ class SpawnAgentsMixin:
         self,
         target_name: str,
         foothold_info: str = "",
+        action_id: int = None,
         overview_id: int = None,
     ) -> str:
         """
@@ -96,6 +151,7 @@ class SpawnAgentsMixin:
         Args:
             target_name: 目標名稱
             foothold_info: 已獲取的立足點描述（如 "通過 RCE 漏洞在 /cmd 端點獲得命令執行" 或 "已獲得 admin shell"）
+            action_id: 關聯的 Action ID（可選，自動注入 purpose_text 與資產資訊作為子代理聚焦上下文）
             overview_id: Overview ID（自動注入，無需手動提供）
         """
         try:
@@ -103,6 +159,7 @@ class SpawnAgentsMixin:
 
             caller_thread_id = self._get_caller_thread_id()
             resolved_ov_id = overview_id or getattr(self, '_agent_overview_id', None)
+            lock_warning = self._check_lock_conflicts(resolved_ov_id, caller_thread_id)
             message = f"對目標 '{target_name}' 執行後滲透活動。"
             if foothold_info:
                 message += f"\n已確認的立足點：{foothold_info}"
@@ -113,12 +170,14 @@ class SpawnAgentsMixin:
                 caller_thread_id=caller_thread_id,
                 overview_id=resolved_ov_id,
                 dispatcher_thread_id=caller_thread_id,
+                action_id=action_id,
             )
 
             return (
                 f"✅ PostExploitAgent 已在背景啟動，目標：{target_name}。\n"
                 f"後滲透任務將異步執行（環境確認 → 內網偵察 → 橫向移動），完成後回報。\n"
                 f"你可以繼續執行其他任務，無需等待。"
+                f"{lock_warning}"
             )
         except Exception as e:
             logger.error(f"[SpawnAgents] spawn_post_exploit_agent failed: {e}")
@@ -129,6 +188,7 @@ class SpawnAgentsMixin:
         self,
         overview_id: int = None,
         target_name: str = "",
+        action_id: int = None,
     ) -> str:
         """
         [Sub-Agent] 啟動一個專注報告生成的 ReportingAgent 子代理在背景非同步執行。
@@ -145,12 +205,14 @@ class SpawnAgentsMixin:
         Args:
             overview_id: 要生成報告的 Overview ID（自動注入）
             target_name: 目標名稱（overview_id 和 target_name 提供其一即可）
+            action_id: 關聯的 Action ID（可選，自動注入 purpose_text 與資產資訊作為子代理聚焦上下文）
         """
         try:
             from apps.auto.tasks import run_reporting_agent_async
 
             caller_thread_id = self._get_caller_thread_id()
             resolved_ov_id = overview_id or getattr(self, '_agent_overview_id', None)
+            lock_warning = self._check_lock_conflicts(resolved_ov_id, caller_thread_id)
 
             if not resolved_ov_id and not target_name:
                 return "CRITICAL_FAILURE: 必須提供 overview_id 或 target_name 其中之一。"
@@ -167,12 +229,14 @@ class SpawnAgentsMixin:
                 overview_id=resolved_ov_id,
                 caller_thread_id=caller_thread_id,
                 dispatcher_thread_id=caller_thread_id,
+                action_id=action_id,
             )
 
             return (
                 f"✅ ReportingAgent 已在背景啟動。\n"
                 f"報告生成任務將異步執行，完成後會透過 notify_caller_agent 傳回完整報告。\n"
                 f"你可以繼續執行其他任務，無需等待。"
+                f"{lock_warning}"
             )
         except Exception as e:
             logger.error(f"[SpawnAgents] spawn_reporting_agent failed: {e}")

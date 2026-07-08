@@ -8,11 +8,15 @@ const coreApi = axios.create({
 
 export interface OverviewUpdatePayload {
   summary?: string | null;
+  recon_summary?: string | null;
   status?: string | null;
   risk_score?: number | null;
   business_impact?: string | null;
-  plan?: any;
   knowledge?: any;
+  tech_stack?: any;
+  subdomain_intel?: any;
+  port_service?: any;
+  vuln_intel?: any;
 }
 
 export interface OverviewCreatePayload {
@@ -21,7 +25,6 @@ export interface OverviewCreatePayload {
   status?: string | null;
   risk_score?: number | null;
   business_impact?: string | null;
-  plan?: any;
 }
 
 export interface OverviewData {
@@ -31,12 +34,23 @@ export interface OverviewData {
   status: string;
   risk_score: number;
   summary?: string | null;
+  recon_summary?: string | null;
   business_impact?: string | null;
   plan?: any;
   knowledge?: any;
   techs?: any;
+  tech_stack?: any;
+  subdomain_intel?: any;
+  port_service?: any;
+  vuln_intel?: any;
+  seed_id?: number | null;
+  ips?: number[];
+  subdomains?: number[];
+  url_results?: number[];
   thread_id?: number | null;
   parent_thread_id?: number | null;
+  needs_human_review?: boolean;
+  latest_mission_review_id?: number | null;
   created_at: string;
   updated_at: string;
 }

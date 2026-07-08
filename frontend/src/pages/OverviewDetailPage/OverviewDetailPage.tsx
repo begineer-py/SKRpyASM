@@ -3,19 +3,28 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useHasuraQuery } from '../../hooks/useHasuraQuery';
 import { GET_SINGLE_OVERVIEW } from '../../queries';
 import { OverviewService } from '../../services/overviewService';
-import type { OverviewUpdatePayload } from '../../services/overviewService';
+import type { OverviewUpdatePayload, OverviewData } from '../../services/overviewService';
 import { executionApi } from '../../services/executionApi';
+import MissionReviewList from '../../components/MissionReviewList';
+import PlanTab from './components/PlanTab';
+import JsonMonacoEditor from './components/JsonMonacoEditor';
 import './OverviewDetail.css';
 
-interface OverviewData {
+interface HasuraOverview {
   id: number;
   status: string;
   risk_score: number;
   summary?: string;
+  recon_summary?: string;
   business_impact?: string;
   plan?: any;
   knowledge?: any;
   techs?: any;
+  tech_stack?: any;
+  subdomain_intel?: any;
+  port_service?: any;
+  vuln_intel?: any;
+  seed_id?: number;
   created_at: string;
   updated_at: string;
   thread_id?: number;
@@ -37,19 +46,38 @@ const OverviewDetailPage: React.FC = () => {
   const [editFields, setEditFields] = useState<OverviewUpdatePayload>({});
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'summary' | 'plan' | 'knowledge' | 'techs' | 'executions'>('summary');
+  const [activeTab, setActiveTab] = useState<'summary' | 'plan' | 'knowledge' | 'techs' | 'subdomain_intel' | 'port_service' | 'vuln_intel' | 'executions' | 'mission_reviews'>('summary');
+  const [restData, setRestData] = useState<OverviewData | null>(null);
+  const [needsHumanReview, setNeedsHumanReview] = useState(false);
 
-  const overview: OverviewData | null = data?.core_overview_by_pk;
+  const overview: HasuraOverview | null = data?.core_overview_by_pk;
+
+  useEffect(() => {
+    if (id) {
+      OverviewService.get(id)
+        .then((data) => {
+          setRestData(data);
+          setNeedsHumanReview(
+            Boolean((data as OverviewData).needs_human_review)
+          );
+        })
+        .catch(() => {});
+    }
+  }, [id]);
 
   useEffect(() => {
     if (overview) {
       setEditFields({
         summary: overview.summary || '',
+        recon_summary: overview.recon_summary || '',
         status: overview.status,
         risk_score: overview.risk_score,
         business_impact: overview.business_impact || '',
-        plan: overview.plan,
         knowledge: overview.knowledge,
+        tech_stack: overview.tech_stack,
+        subdomain_intel: overview.subdomain_intel,
+        port_service: overview.port_service,
+        vuln_intel: overview.vuln_intel,
       });
     }
   }, [overview]);
@@ -64,11 +92,20 @@ const OverviewDetailPage: React.FC = () => {
     try {
       // Ensure JSON fields are parsed if edited as strings
       const payload: OverviewUpdatePayload = { ...editFields };
-      if (typeof payload.plan === 'string') {
-        try { payload.plan = JSON.parse(payload.plan); } catch (e) { throw new Error('Invalid JSON in Plan'); }
-      }
       if (typeof payload.knowledge === 'string') {
         try { payload.knowledge = JSON.parse(payload.knowledge); } catch (e) { throw new Error('Invalid JSON in Knowledge'); }
+      }
+      if (typeof payload.tech_stack === 'string') {
+        try { payload.tech_stack = JSON.parse(payload.tech_stack); } catch (e) { throw new Error('Invalid JSON in Tech Stack'); }
+      }
+      if (typeof payload.subdomain_intel === 'string') {
+        try { payload.subdomain_intel = JSON.parse(payload.subdomain_intel); } catch (e) { throw new Error('Invalid JSON in Subdomain Intel'); }
+      }
+      if (typeof payload.port_service === 'string') {
+        try { payload.port_service = JSON.parse(payload.port_service); } catch (e) { throw new Error('Invalid JSON in Port Service'); }
+      }
+      if (typeof payload.vuln_intel === 'string') {
+        try { payload.vuln_intel = JSON.parse(payload.vuln_intel); } catch (e) { throw new Error('Invalid JSON in Vuln Intel'); }
       }
 
       await OverviewService.update(id, payload);
@@ -81,15 +118,17 @@ const OverviewDetailPage: React.FC = () => {
     }
   };
 
-  const renderJsonEditor = (field: keyof OverviewUpdatePayload) => {
+  const renderMonacoJson = (field: 'knowledge' | 'tech_stack' | 'subdomain_intel' | 'port_service' | 'vuln_intel') => {
     const val = editFields[field];
-    const displayVal = typeof val === 'string' ? val : JSON.stringify(val, null, 2);
+    const str = typeof val === 'string' ? val : JSON.stringify(val ?? null, null, 2);
     return (
-      <textarea
-        className="overview-json-editor"
-        value={displayVal}
-        onChange={(e) => setEditFields({ ...editFields, [field]: e.target.value })}
-        spellCheck={false}
+      <JsonMonacoEditor
+        value={str}
+        onChange={(newStr: string) => {
+          let parsed: unknown = newStr;
+          try { parsed = JSON.parse(newStr); } catch { parsed = newStr; }
+          setEditFields({ ...editFields, [field]: parsed });
+        }}
       />
     );
   };
@@ -102,6 +141,15 @@ const OverviewDetailPage: React.FC = () => {
           <h1 className="overview-title">
             OVERVIEW <span className="id-highlight">#{overview.id}</span>
             <span className="target-name-sub">@{overview.core_target.name}</span>
+            {needsHumanReview && (
+              <span
+                className="c2-badge c2-badge--amber"
+                style={{ marginLeft: 8, verticalAlign: 'middle' }}
+                title="VerificationAgent flagged this overview — open Mission Reviews tab"
+              >
+                ⚠ NEEDS REVIEW
+              </span>
+            )}
           </h1>
         </div>
         <div className="header-actions">
@@ -174,6 +222,40 @@ const OverviewDetailPage: React.FC = () => {
               <span>PARENT_THREAD:</span>
               <code>{overview.parent_thread_id || 'NONE'}</code>
             </div>
+            <div className="info-row">
+              <span>SEED_ID:</span>
+              <code>{overview.seed_id || 'NONE'}</code>
+            </div>
+            {restData?.ips && restData.ips.length > 0 && (
+              <div className="info-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+                <span>IPS ({restData.ips.length}):</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {restData.ips.map((ipId: number) => (
+                    <code key={ipId} style={{ fontSize: 11 }}>#{ipId}</code>
+                  ))}
+                </div>
+              </div>
+            )}
+            {restData?.subdomains && restData.subdomains.length > 0 && (
+              <div className="info-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+                <span>SUBDOMAINS ({restData.subdomains.length}):</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {restData.subdomains.map((sdId: number) => (
+                    <code key={sdId} style={{ fontSize: 11 }}>#{sdId}</code>
+                  ))}
+                </div>
+              </div>
+            )}
+            {restData?.url_results && restData.url_results.length > 0 && (
+              <div className="info-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+                <span>URLS ({restData.url_results.length}):</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {restData.url_results.map((urId: number) => (
+                    <code key={urId} style={{ fontSize: 11 }}>#{urId}</code>
+                  ))}
+                </div>
+              </div>
+            )}
             {overview.thread_id && (
               <button
                 className="c2-btn c2-btn--ghost"
@@ -214,28 +296,109 @@ const OverviewDetailPage: React.FC = () => {
               TECH_STACK
             </button>
             <button
+              className={activeTab === 'subdomain_intel' ? 'active' : ''}
+              onClick={() => setActiveTab('subdomain_intel')}
+            >
+              SUB_INTEL
+            </button>
+            <button
+              className={activeTab === 'port_service' ? 'active' : ''}
+              onClick={() => setActiveTab('port_service')}
+            >
+              PORT_SVC
+            </button>
+            <button
+              className={activeTab === 'vuln_intel' ? 'active' : ''}
+              onClick={() => setActiveTab('vuln_intel')}
+            >
+              VULN_INTEL
+            </button>
+            <button
               className={activeTab === 'executions' ? 'active' : ''}
               onClick={() => setActiveTab('executions')}
             >
               EXECUTIONS
             </button>
+            <button
+              className={activeTab === 'mission_reviews' ? 'active' : ''}
+              onClick={() => setActiveTab('mission_reviews')}
+            >
+              MISSION_REVIEWS
+              {needsHumanReview && (
+                <span
+                  style={{
+                    marginLeft: 6,
+                    color: 'var(--amber)',
+                    fontSize: 10,
+                  }}
+                >
+                  ●
+                </span>
+              )}
+            </button>
           </div>
 
           <div className="tab-body">
             {activeTab === 'summary' && (
-              <textarea
-                className="overview-summary-editor"
-                value={editFields.summary || ''}
-                onChange={(e) => setEditFields({ ...editFields, summary: e.target.value })}
-                placeholder="Write target summary/notes here..."
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>SUMMARY</label>
+                  <textarea
+                    className="overview-summary-editor"
+                    value={editFields.summary || ''}
+                    onChange={(e) => setEditFields({ ...editFields, summary: e.target.value })}
+                    placeholder="Write target summary/notes here..."
+                    style={{ minHeight: 120 }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>RECON SUMMARY</label>
+                  <textarea
+                    className="overview-summary-editor"
+                    value={editFields.recon_summary || ''}
+                    onChange={(e) => setEditFields({ ...editFields, recon_summary: e.target.value })}
+                    placeholder="Reconnaissance phase summary (subdomains, open ports, tech stack)..."
+                    style={{ minHeight: 120 }}
+                  />
+                </div>
+              </div>
+            )}
+            {activeTab === 'plan' && (
+              <PlanTab
+                targetId={overview.core_target.id}
               />
             )}
-            {activeTab === 'plan' && renderJsonEditor('plan')}
-            {activeTab === 'knowledge' && renderJsonEditor('knowledge')}
+            {activeTab === 'knowledge' && renderMonacoJson('knowledge')}
             {activeTab === 'techs' && (
-              <div className="tech-stack-viewer">
-                <pre><code>{JSON.stringify(overview.techs, null, 2)}</code></pre>
-                <p className="hint">Tech stack is currently read-only (managed by sensors).</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>LEGACY TECHS (read-only)</label>
+                  <pre style={{ background: 'rgba(15,23,42,0.5)', padding: 12, borderRadius: 6, fontSize: 12, overflow: 'auto', maxHeight: 200 }}>
+                    <code>{JSON.stringify(overview.techs, null, 2) || 'N/A'}</code>
+                  </pre>
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>TECH STACK (editable JSON)</label>
+                  {renderMonacoJson('tech_stack')}
+                </div>
+              </div>
+            )}
+            {activeTab === 'subdomain_intel' && (
+              <div>
+                <label style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, marginBottom: 8, display: 'block' }}>SUBDOMAIN INTEL (editable JSON)</label>
+                {renderMonacoJson('subdomain_intel')}
+              </div>
+            )}
+            {activeTab === 'port_service' && (
+              <div>
+                <label style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, marginBottom: 8, display: 'block' }}>PORT SERVICE (editable JSON)</label>
+                {renderMonacoJson('port_service')}
+              </div>
+            )}
+            {activeTab === 'vuln_intel' && (
+              <div>
+                <label style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, marginBottom: 8, display: 'block' }}>VULN INTEL (editable JSON)</label>
+                {renderMonacoJson('vuln_intel')}
               </div>
             )}
             {activeTab === 'executions' && overview.thread_id && (
@@ -243,6 +406,9 @@ const OverviewDetailPage: React.FC = () => {
             )}
             {activeTab === 'executions' && !overview.thread_id && (
               <div style={{ color: '#64748b', padding: 16 }}>No thread linked to this overview.</div>
+            )}
+            {activeTab === 'mission_reviews' && (
+              <MissionReviewList overviewId={overview.id} />
             )}
           </div>
         </div>

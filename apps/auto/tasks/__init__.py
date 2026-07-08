@@ -93,6 +93,138 @@ def _handle_guidance_request(overview):
     logger.info(f"[Guidance] Delivered strategic guidance to Overview {overview.id} (thread {overview.thread_id})")
 
 
+@shared_task(name="apps.auto.tasks.wake_agent_on_scan_completion")
+@log_function_call()
+def wake_agent_on_scan_completion(execution_node_id: int = None, thread_id: int = None):
+    """掃描器/subagent 完成後喚醒綁定 Overview 的 agent（事件驅動 wake）。
+
+    由兩種路徑觸發：
+      - execution_node_id: scanner 完成，ExecutionService.complete_node/fail_node 透過 on_commit 排程
+      - thread_id: subagent notify_caller_agent 寫完 message 後直接喚醒 parent
+
+    流程：解析 thread → 檢查 Overview 是否仍在 EXECUTING → 檢查無並發 RUNNING graph
+         → 寫入系統 message → AutomationAgent.invoke()（重用 WAITING graph）。
+
+    為什麼只在 RUNNING 時跳過：WAITING 代表 agent 已退出但 async pending，
+    正是本 task 該喚醒的狀態。SUCCEEDED/FAILED 代表 mission 真完成，不需喚醒。
+    """
+    from apps.core.models import ExecutionNode, ExecutionGraph
+    from apps.core.models.ai_models import Thread as AIThread
+    from apps.core.models import Message as DjangoMessage
+    from langchain_core.messages import HumanMessage, message_to_dict
+
+    # ── 解析 thread_id ──────────────────────────────────────────────
+    if thread_id is None and execution_node_id:
+        node = (
+            ExecutionNode.objects.select_related("graph", "graph__thread")
+            .filter(id=execution_node_id)
+            .first()
+        )
+        if not node or not node.graph.thread_id:
+            logger.debug(f"[WakeAgent] node={execution_node_id} has no bound thread, skip")
+            return
+        thread_id = node.graph.thread_id
+
+    thread = AIThread.objects.filter(id=thread_id).first()
+    if not thread:
+        logger.debug(f"[WakeAgent] thread={thread_id} not found, skip")
+        return
+
+    # ── 找 Overview（mission 層級） ────────────────────────────────
+    from django.db.models import Q
+    overview = Overview.objects.filter(
+        Q(thread_id=thread_id) | Q(parent_thread_id=thread_id)
+    ).first()
+    if not overview:
+        logger.debug(f"[WakeAgent] thread={thread_id} has no Overview, skip")
+        return
+    if overview.status != "EXECUTING":
+        logger.info(
+            f"[WakeAgent] Overview#{overview.id} status={overview.status} (not EXECUTING), skip"
+        )
+        return
+
+    # ── 並發保護：已有 RUNNING graph 且包含活躍節點 → agent 正在跑，跳過 ──
+    #     Reconcile 在 resolve ASYNC_CALLBACK node 後會將 WAITING→RUNNING，
+    #     但此時 agent 已退出（無 RUNNING/WAITING/PENDING 節點），
+    #     正是本 task 該喚醒的狀態。因此需要區分「真 RUNNING（agent 在跑）」和
+    #    「reconcile 後的空 RUNNING（agent 已退出，等喚醒）」。
+    running_graph = ExecutionGraph.objects.filter(
+        thread_id=thread_id, status=ExecutionGraph.Status.RUNNING
+    ).first()
+    if running_graph:
+        active_nodes = running_graph.nodes.filter(
+            status__in=[ExecutionNode.Status.RUNNING, ExecutionNode.Status.WAITING, ExecutionNode.Status.PENDING]
+        ).exists()
+        if active_nodes:
+            logger.info(
+                f"[WakeAgent] thread={thread_id} already has RUNNING graph with active nodes, skip"
+            )
+            return
+
+    # ── Redis 分散式鎖：防止 TOCTOU 競態導致同一 thread 多個 wake 同時 invoke ──
+    import redis as _redis_lib
+    from django.conf import settings as _django_settings
+    _lock_held = False
+    _redis_client = None
+    try:
+        _redis_client = _redis_lib.Redis.from_url(
+            getattr(_django_settings, "CELERY_BROKER_URL", "redis://localhost:6379/0")
+        )
+        _lock_key = f"wake_agent_lock:thread:{thread_id}"
+        _lock_held = _redis_client.set(_lock_key, "1", nx=True, ex=300)  # 5min TTL 防止崩潰鎖死
+        if not _lock_held:
+            logger.info(
+                f"[WakeAgent] thread={thread_id} locked by another wake (Redis), skip"
+            )
+            return
+    except Exception as _lock_err:
+        logger.warning(f"[WakeAgent] Redis lock failed for thread={thread_id}: {_lock_err}, proceeding anyway")
+
+    # ── 組 message ──────────────────────────────────────────────────
+    msg_lines = [
+        "[SYSTEM: Async Task Completed]",
+        "A scanner or sub-agent has finished. Review the latest results and decide the next step.",
+    ]
+    if execution_node_id:
+        node = ExecutionNode.objects.filter(id=execution_node_id).first()
+        if node:
+            msg_lines.append(f"Node: {node.name}")
+            msg_lines.append(f"Status: {node.status}")
+            output_preview = str(node.output)[:500] if node.output else ""
+            if output_preview:
+                msg_lines.append(f"Output: {output_preview}")
+    msg_content = "\n".join(msg_lines)
+
+    # ── 寫入系統 message ────────────────────────────────────────────
+    try:
+        DjangoMessage.objects.create(
+            thread=thread,
+            role="human",
+            message=message_to_dict(HumanMessage(content=msg_content)),
+        )
+    except Exception as e:
+        logger.error(f"[WakeAgent] Failed to write message to thread={thread_id}: {e}")
+        return
+
+    # ── invoke agent（會透過 get_or_create_graph_for_thread 重用 WAITING graph） ──
+    try:
+        from apps.auto.assistants.planning_agent import AutomationAgent
+
+        agent = AutomationAgent(thread=thread)
+        agent.invoke({"input": msg_content}, thread=thread, thread_id=thread.id)
+        logger.info(f"[WakeAgent] Successfully woke agent for thread={thread_id}")
+    except Exception as e:
+        logger.exception(f"[WakeAgent] Failed to invoke agent for thread={thread_id}: {e}")
+    finally:
+        # ── 釋放 Redis 鎖 ──
+        if _lock_held and _redis_client is not None:
+            try:
+                _redis_client.delete(_lock_key)
+            except Exception:
+                pass
+
+
 @shared_task(name="apps.auto.tasks.auto_execute_plan")
 @log_function_call()
 def auto_execute_plan():
@@ -127,6 +259,8 @@ def auto_execute_plan():
             from apps.analyze_ai.tasks.planning import propose_next_steps
             logger.info(f"[AutoExecute] Overview#{ov.id} 停滯在 PLANNING 且無 active execution，觸發策略規劃")
             propose_next_steps.delay(ov.id)
+
+    # NOTE: 此後 `ov` 變數不再可用 — 下面 EXECUTING loop 使用 `overview`。
 
     overviews = Overview.objects.filter(status__in=["EXECUTING", "NEEDS_GUIDANCE"])
     if not overviews.exists():
@@ -176,9 +310,9 @@ def auto_execute_plan():
 
             if ExecutionGraph.objects.filter(
                 thread=thread_obj,
-                status__in=[ExecutionGraph.Status.RUNNING, ExecutionGraph.Status.WAITING],
+                status=ExecutionGraph.Status.RUNNING,
             ).exists():
-                logger.info(f"[AutoExecution] Overview#{overview.id} already has an active execution graph, skipping to avoid concurrent agents")
+                logger.info(f"[AutoExecution] Overview#{overview.id} already has a RUNNING graph, skipping to avoid concurrent agents")
                 continue
             
             # AIAssistant.invoke creates the ExecutionGraph; no legacy Step wrapper is needed.
@@ -190,7 +324,7 @@ def auto_execute_plan():
             from apps.core.models import SubAgentDispatch
             pending_dispatches = list(
                 SubAgentDispatch.objects.filter(
-                    overview=ov, status="COMPLETED", synthesized=False
+                    overview=overview, status="COMPLETED", synthesized=False
                 ).order_by("-completed_at")[:5]
             )
             dispatch_hint = ""
@@ -219,15 +353,69 @@ def auto_execute_plan():
                 .exclude(content_fetch_status="PENDING")
                 .values_list("id", flat=True)[:15]
             )
-            
+
+            plan_info = ""
+            try:
+                from apps.core.models import AttackPlan, WalkCursor
+                active_plan = AttackPlan.objects.filter(
+                    target=target, status="ACTIVE"
+                ).first()
+                if not active_plan:
+                    draft_plan = AttackPlan.objects.filter(
+                        target=target, status="DRAFT"
+                    ).order_by("-created_at").first()
+                    if draft_plan:
+                        plan_info = (
+                            f"Current Plan: AttackPlan#{draft_plan.id} [DRAFT] — {draft_plan.objective}\n"
+                            f"⚠️ Plan is DRAFT — call activate_plan(plan_id={draft_plan.id}) to start executing.\n"
+                        )
+                    else:
+                        plan_info = (
+                            "Current Plan: (無活躍計劃) — call create_attack_plan to create a new plan.\n"
+                        )
+                else:
+                    actions_qs = active_plan.actions.prefetch_related("asset_links").order_by("order", "created_at")
+                    pending = actions_qs.filter(status__in=["PENDING", "IN_PROGRESS"])
+                    action_lines = []
+                    for act in pending:
+                        asset_strs = []
+                        for link in act.asset_links.all():
+                            for fk in ("ip_asset_id", "subdomain_asset_id", "url_asset_id",
+                                       "endpoint_asset_id", "port_asset_id"):
+                                val = getattr(link, fk, None)
+                                if val:
+                                    asset_strs.append(f"{link.asset_type}#{val}")
+                                    break
+                        action_lines.append(
+                            f"  [{act.status}] Action#{act.id} order={act.order}: "
+                            f"{(act.purpose_text or '(無目的)')[:100]} | "
+                            f"Assets: {', '.join(asset_strs) or '(無)'}"
+                        )
+                    cursor_info = ""
+                    try:
+                        cursor = active_plan.walk_cursor
+                        cursor_info = f" | WalkCursor at AssetVectorLink#{cursor.current_asset_link_id}" if cursor.current_asset_link_id else " | WalkCursor: initial"
+                    except WalkCursor.DoesNotExist:
+                        pass
+                    plan_info = (
+                        f"Current Plan: AttackPlan#{active_plan.id} [ACTIVE]{cursor_info}\n"
+                        f"Objective: {active_plan.objective}\n"
+                        f"Pending/In-Progress Actions ({pending.count()}):\n"
+                        + ("\n".join(action_lines) if action_lines else "  (無 PENDING actions — add new ones with add_action)")
+                        + "\n"
+                    )
+            except Exception as e:
+                logger.warning(f"[AutoExecution] Failed to query AttackPlan: {e}")
+                plan_info = f"Current Plan: (查詢失敗: {e})\n"
+
             system_prompt = agent.get_instructions()
-            
+
             # 為每種資產生成明確的 "空清單" 警告，阻止 AI 在清單為空時亂猜 ID
             def _fmt_ids(label, ids):
                 if not ids:
                     return f"{label}: [] — THIS LIST IS EMPTY. DO NOT call any tool requiring this type of IDs."
                 return f"{label}: {ids}"
-            
+
             user_prompt = (
                 f"[SYSTEM CRITICAL]: Your session has been bound to a single Overview for this target. "
                 f"The platform auto-injects the correct overview_id into all your tool calls — "
@@ -242,10 +430,11 @@ def auto_execute_plan():
                 f"{_fmt_ids('Real URL Result IDs (already crawled)', real_url_ids)}\n"
                 f"=== END OF CONTEXT ===\n\n"
                 f"Current Knowledge: {json.dumps(overview.knowledge)}\n"
-                f"Current Plan: {json.dumps(overview.plan)}\n"
+                f"{plan_info}\n"
                 f"{dispatch_hint}\n\n"
-                f"Task: Execute the PENDING objectives in the plan using your tools. "
-                "Use ONLY the IDs listed above. If a list is empty, skip tools that require those IDs."
+                f"Task: Execute the PENDING Actions in your AttackPlan using your tools. "
+                "Use ONLY the IDs listed above. If a list is empty, skip tools that require those IDs. "
+                "If no plan exists, create one with create_attack_plan first."
             )
             
             messages = [
@@ -265,7 +454,7 @@ def auto_execute_plan():
         except Exception as e:
             logger.error(f"[AutoExecution] Failed executing plan for {target.name}: {e}")
 
-@shared_task(name="apps.auto.tasks.run_automation_agent_async", bind=True, max_retries=2, default_retry_delay=120)
+@shared_task(name="apps.auto.tasks.run_automation_agent_async", bind=True, max_retries=3, default_retry_delay=30)
 @log_function_call()
 def run_automation_agent_async(self, message: str, caller_thread_id: int = None):
     from apps.auto.assistants.planning_agent import AutomationAgent
@@ -287,18 +476,74 @@ def run_automation_agent_async(self, message: str, caller_thread_id: int = None)
         )
         return {"output": "GraphRecursionError: agent hit recursion limit.", "error": "GraphRecursionError"}
     except Exception as e:
-        logger.exception(f"[run_automation_agent_async] Failed: {e}")
-        agent._auto_notify_parent(error=str(e))
-        raise self.retry(exc=e)
+        error_msg = str(e)
+        error_type = type(e).__name__
+
+        # 瞬態錯誤（網路/DNS/連線）：重試，但不驚動 parent —
+        # parent 不需要知道「API 斷了 3 秒」這種自己會恢復的事。
+        transient_keywords = (
+            "apiconnectionerror", "connection error", "connection refused",
+            "timeout", "timed out", "connection reset", "temporary failure",
+            "gaierror", "name resolution", "max retries",
+        )
+        error_lower = error_msg.lower()
+        is_transient = (
+            error_type.lower() in transient_keywords
+            or any(kw in error_lower for kw in transient_keywords)
+        )
+
+        if is_transient:
+            logger.warning(
+                f"[run_automation_agent_async] Transient error ({error_type}): {error_msg[:150]}... "
+                f"Retry {self.request.retries}/{self.max_retries} in 30s. NOT notifying parent yet."
+            )
+            # 瞬態錯誤不呼叫 _auto_notify_parent — 讓 Celery retry 靜默處理
+            raise self.retry(exc=e)
+        else:
+            # 非瞬態錯誤（程式 bug / 邏輯錯誤 / 認證失敗）：通知 parent + 重試
+            logger.exception(f"[run_automation_agent_async] Non-transient failure ({error_type}): {e}")
+            agent._auto_notify_parent(error=error_msg)
+            raise self.retry(exc=e)
 
 
-def _run_sub_agent(agent_class, agent_id_label, message, caller_thread_id):
+def _build_system_prompt_prefix(action_id):
+    """從 Action 讀取 purpose_text + asset_links，組成子代理的 system prompt 前綴。"""
+    if not action_id:
+        return ""
+    try:
+        from apps.core.models import Action
+        action = Action.objects.filter(id=action_id).first()
+        if not action:
+            return ""
+        parts = [f"[ACTION OBJECTIVE] {action.purpose_text or action.purpose}\n\n"]
+        asset_lines = []
+        for link in action.asset_links.select_related("attack_vector").all():
+            for fk_name, label in [
+                ("ip_asset_id", "IP"), ("subdomain_asset_id", "Subdomain"),
+                ("url_asset_id", "URL"), ("endpoint_asset_id", "Endpoint"),
+                ("port_asset_id", "Port"),
+            ]:
+                val = getattr(link, fk_name, None)
+                if val:
+                    asset_lines.append(f"  - {label}#{val} (status: {link.status})")
+                    break
+        if asset_lines:
+            parts.append("[ACTION ASSETS]\n" + "\n".join(asset_lines) + "\n\n")
+        return "".join(parts)
+    except Exception:
+        return ""
+
+
+def _run_sub_agent(agent_class, agent_id_label, message, caller_thread_id, system_prompt_prefix=""):
     """共用輔助函式：執行子 Agent；graph lifecycle 由 AIAssistant.invoke 管理。
 
     回傳 dict: {result, sub_thread_id, agent_instance}
       - sub_thread_id: 子代理綁定的 Thread ID（供 SubAgentDispatch 記錄）
     """
     from langgraph.errors import GraphRecursionError
+
+    if system_prompt_prefix:
+        message = f"{system_prompt_prefix}\n{message}"
 
     agent = agent_class(caller_thread_id=caller_thread_id)
     sub_thread_id = None
@@ -351,7 +596,7 @@ def _resolve_overview_for_dispatch(overview_id, target_name, caller_thread_id, t
         return None, None
 
 
-def _record_dispatch(overview_id, dispatcher_thread_id, sub_agent_type, sub_thread_id, objective, task_label, status="RUNNING"):
+def _record_dispatch(overview_id, dispatcher_thread_id, sub_agent_type, sub_thread_id, objective, task_label, status="RUNNING", action_id=None):
     """建立 SubAgentDispatch 記錄，讓 AutomationAgent 能結構化追蹤子代理。"""
     if not overview_id:
         return None
@@ -364,6 +609,7 @@ def _record_dispatch(overview_id, dispatcher_thread_id, sub_agent_type, sub_thre
             sub_thread_id=sub_thread_id,
             objective=objective or "",
             status=status,
+            action_id=action_id,
         )
         logger.info(f"[{task_label}] Recorded dispatch #{dispatch.id}: {sub_agent_type} → Overview#{overview_id}")
         return dispatch
@@ -374,10 +620,12 @@ def _record_dispatch(overview_id, dispatcher_thread_id, sub_agent_type, sub_thre
 
 @shared_task(name="apps.auto.tasks.run_recon_agent_async", bind=True, max_retries=2, default_retry_delay=120)
 @log_function_call()
-def run_recon_agent_async(self, message: str, target_name: str = "", caller_thread_id: int = None, overview_id: int = None, dispatcher_thread_id: int = None):
+def run_recon_agent_async(self, message: str, target_name: str = "", caller_thread_id: int = None, overview_id: int = None, dispatcher_thread_id: int = None, action_id: int = None):
     from apps.auto.agents.recon_agent import ReconAgent
 
     ov, resolved_ov_id = _resolve_overview_for_dispatch(overview_id, target_name, caller_thread_id, "run_recon_agent_async")
+
+    system_prompt_prefix = _build_system_prompt_prefix(action_id)
 
     full_message = message
     if target_name:
@@ -389,7 +637,7 @@ def run_recon_agent_async(self, message: str, target_name: str = "", caller_thre
             f"Additional context: {message}"
         )
     try:
-        result = _run_sub_agent(ReconAgent, "run_recon_agent_async", full_message, caller_thread_id)
+        result = _run_sub_agent(ReconAgent, "run_recon_agent_async", full_message, caller_thread_id, system_prompt_prefix=system_prompt_prefix)
         # 建立派發記錄（使用 task 執行後取得的 sub_thread_id）
         if resolved_ov_id:
             sub_tid = result.get("sub_thread_id") if isinstance(result, dict) else None
@@ -400,6 +648,7 @@ def run_recon_agent_async(self, message: str, target_name: str = "", caller_thre
                 sub_thread_id=sub_tid,
                 objective=full_message[:500],
                 task_label="run_recon_agent_async",
+                action_id=action_id,
             )
         return result.get("result", result) if isinstance(result, dict) else result
     except Exception as e:
@@ -408,10 +657,12 @@ def run_recon_agent_async(self, message: str, target_name: str = "", caller_thre
 
 @shared_task(name="apps.auto.tasks.run_post_exploit_agent_async", bind=True, max_retries=2, default_retry_delay=120)
 @log_function_call()
-def run_post_exploit_agent_async(self, message: str, target_name: str = "", caller_thread_id: int = None, overview_id: int = None, dispatcher_thread_id: int = None):
+def run_post_exploit_agent_async(self, message: str, target_name: str = "", caller_thread_id: int = None, overview_id: int = None, dispatcher_thread_id: int = None, action_id: int = None):
     from apps.auto.agents.post_exploit_agent import PostExploitAgent
 
     ov, resolved_ov_id = _resolve_overview_for_dispatch(overview_id, target_name, caller_thread_id, "run_post_exploit_agent_async")
+
+    system_prompt_prefix = _build_system_prompt_prefix(action_id)
 
     full_message = message
     if target_name:
@@ -424,7 +675,7 @@ def run_post_exploit_agent_async(self, message: str, target_name: str = "", call
             f"Additional context: {message}"
         )
     try:
-        result = _run_sub_agent(PostExploitAgent, "run_post_exploit_agent_async", full_message, caller_thread_id)
+        result = _run_sub_agent(PostExploitAgent, "run_post_exploit_agent_async", full_message, caller_thread_id, system_prompt_prefix=system_prompt_prefix)
         if resolved_ov_id:
             sub_tid = result.get("sub_thread_id") if isinstance(result, dict) else None
             _record_dispatch(
@@ -434,6 +685,7 @@ def run_post_exploit_agent_async(self, message: str, target_name: str = "", call
                 sub_thread_id=sub_tid,
                 objective=full_message[:500],
                 task_label="run_post_exploit_agent_async",
+                action_id=action_id,
             )
         return result.get("result", result) if isinstance(result, dict) else result
     except Exception as e:
@@ -449,10 +701,13 @@ def run_reporting_agent_async(
     overview_id: int = None,
     caller_thread_id: int = None,
     dispatcher_thread_id: int = None,
+    action_id: int = None,
 ):
     from apps.auto.agents.reporting_agent import ReportingAgent
 
     ov, resolved_ov_id = _resolve_overview_for_dispatch(overview_id, target_name, caller_thread_id, "run_reporting_agent_async")
+
+    system_prompt_prefix = _build_system_prompt_prefix(action_id)
 
     full_message = message
     if target_name or overview_id:
@@ -467,7 +722,7 @@ def run_reporting_agent_async(
             f"Additional context: {message}"
         )
     try:
-        result = _run_sub_agent(ReportingAgent, "run_reporting_agent_async", full_message, caller_thread_id)
+        result = _run_sub_agent(ReportingAgent, "run_reporting_agent_async", full_message, caller_thread_id, system_prompt_prefix=system_prompt_prefix)
         if resolved_ov_id:
             sub_tid = result.get("sub_thread_id") if isinstance(result, dict) else None
             _record_dispatch(
@@ -477,6 +732,7 @@ def run_reporting_agent_async(
                 sub_thread_id=sub_tid,
                 objective=full_message[:500],
                 task_label="run_reporting_agent_async",
+                action_id=action_id,
             )
         return result.get("result", result) if isinstance(result, dict) else result
     except Exception as e:

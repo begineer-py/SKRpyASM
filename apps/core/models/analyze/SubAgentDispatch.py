@@ -30,6 +30,14 @@ class SubAgentDispatch(models.Model):
         ("FAILED", "Failed"),
     ]
 
+    action = models.ForeignKey(
+        "core.Action",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="dispatches",
+        help_text="關聯的 Action（若子代理被派發來執行特定行動）",
+    )
     overview = models.ForeignKey(
         "core.Overview",
         on_delete=models.CASCADE,

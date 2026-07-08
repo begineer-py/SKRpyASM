@@ -33,7 +33,8 @@ from apps.analyze_ai.api import router as analyze_ai_router
 from apps.http_sender.api import router as http_sender_router
 from apps.api_keys.api import router as api_keys_router
 from apps.core.skill_api import router as skills_router
-from apps.auto.api import router as auto_router
+from apps.core.mission_review_api import router as mission_review_router
+from apps.core.attack_planning_api import router as attack_planning_router
 from apps.core.execution_stream_views import stream_execution_events
 
 # 建立 NinjaAPI 實例
@@ -50,12 +51,13 @@ api.add_router("/flaresolverr", flaresolverr_router, tags=["Tools - FlareSolverr
 api.add_router("/core", core_router, tags=["Core - 系統核心層"])
 api.add_router("/core", core_overview_router, tags=["Core - Overviews"])
 api.add_router("/core", vulnerability_router, tags=["Core - Vulnerabilities"])
+api.add_router("/core", mission_review_router, tags=["Core - Mission Reviews"])
+api.add_router("/core", attack_planning_router, tags=["Core - Attack Planning"])
 api.add_router("/analyze_ai", analyze_ai_router, tags=["AI Analysis - 指揮中心"])
 api.add_router("/scheduler", scheduler_router, tags=["Scheduler - 任務調度"])
 api.add_router("/http_sender", http_sender_router, tags=["Tools - HTTP 發送器"])
 api.add_router("/api_keys", api_keys_router, tags=["API Keys - 密鑰管理"])
 api.add_router("/skills", skills_router, tags=["Skills - 技能庫"])
-api.add_router("/auto", auto_router, tags=["Legacy Auto - 舊版自動化"])
 urlpatterns = [  # 定義 URL 模式列表
     path("admin/", admin.site.urls),  # 將 /admin/ 路徑映射到 Django 管理後台的 URL
     # apps.ai_assistant 原生接口
