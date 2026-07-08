@@ -49,6 +49,30 @@ npm run lint      # ESLint
 ### CI
 GitHub Actions (`.github/workflows/ci.yml`): starts Docker Compose, runs `manage.py check`, `migrate`, and `test`.
 
+### Testing Workflow (API-First)
+
+When debugging, testing, or verifying behavior, **always prefer the REST API over `docker exec` + Django shell**. It is simpler, faster, and double-tests the API layer.
+
+```bash
+# Check state via API (no auth required in dev)
+curl -s http://localhost:8000/api/core/overviews/                # list all overviews
+curl -s "http://localhost:8000/api/core/overviews?target_id=62"  # filter by target
+curl -s "http://localhost:8000/api/core/attack-plans?target_id=62"  # attack plans for target
+curl -s http://localhost:8000/api/assistant/threads/             # thread history
+curl -s "http://localhost:8000/api/core/executions?target_id=62" # execution graphs
+curl -s http://localhost:8000/api/scheduler/                     # periodic tasks
+
+# Trigger automation forward progress (when stalled)
+curl -s -X PATCH http://localhost:8000/api/core/overviews/{id} \
+  -H 'Content-Type: application/json' \
+  -d '{"status": "PLANNING"}'   # resets to PLANNING so auto_execute_plan picks it up
+
+# Trigger directly via Django shell only as absolute last resort
+docker exec c2_django python manage.py shell -c "from apps.auto.tasks import auto_execute_plan; auto_execute_plan()"
+```
+
+**Anti-pattern**: Do NOT `docker exec` + Django shell for routine state checks or testing. Use curl + API first.
+
 ## Architecture
 
 ### API Routing (Django Ninja)
@@ -65,7 +89,6 @@ All API routes registered in `c2_core/urls.py` via a single `NinjaAPI` instance 
 | `/api/scheduler/` | `apps.scheduler.api` | Celery Beat schedules |
 | `/api/http_sender/` | `apps.http_sender.api` | HTTP requests and fuzzing |
 | `/api/api_keys/` | `apps.api_keys.api` | API key management |
-| `/api/auto/` | `apps.auto.api` | AI agent orchestration |
 | `/api/assistant/` | `apps.ai_assistant.urls` (Django URLconf, not Ninja) | Threads/messages + SSE streaming |
 
 Each app's router is defined in its `api.py` using Django Ninja's `Router` class. Exception: `ai_assistant` uses its own Django URLconf with both Ninja REST and SSE streaming endpoints.
@@ -74,11 +97,11 @@ Each app's router is defined in its `api.py` using Django Ninja's `Router` class
 
 - **core**: Central models (Target, Seed, Subdomain, Port, Vulnerability, URLResult, NmapScan, SubfinderScan, NucleiScan, Overview, AttackVector, SkillTemplate, Verification, ExecutionGraph, ExecutionNode, ExecutionEvent, ExecutionArtifact). Heavily interconnected — check `apps/core/models/__init__.py` for exports. All scan record models (`NmapScan`, `SubfinderScan`, `NucleiScan`, `URLScan`, `AmassScan`, `SubBrute`) inherit from `ScanRecord` abstract base (`apps/core/models/scans_record_models.py`), which provides `status`, `started_at`, `completed_at`, `error_message`, `created_at`. Canonical `ErrorSchema` (field: `detail`) lives in `apps/core/schemas.py` — do not redeclare it in other apps.
 - **targets**: Target/Seed CRUD APIs.
-- **scanners**: Unified scanner interface. Sub-apps: `nmap_scanner`, `subfinder`, `nuclei_scanner`, `get_all_url` — each has its own `tasks/` directory with Celery tasks.
-- **flaresolverr**: FlareSolverr/FlareProxyGo integration for anti-bot protected pages. Includes JS/security analysis parsers.
+- **scanners**: Unified scanner interface. Sub-apps: `nmap_scanner`, `subfinder`, `nuclei_scanner`, `get_all_url`, `katana_scanner` — each has its own `tasks/` directory with Celery tasks.
+- **flaresolverr**: FlareSolverr integration for anti-bot protected pages. Includes JS/security analysis parsers.
 - **analyze_ai**: AI triage and analysis dispatch to LLM providers via LangChain.
-- **auto**: 3-tier AI agent orchestration (ReconAgent, ExploitAgent, StrategyAgent). Uses LangChain or custom CAI depending on feature flags. See `apps/auto/cai_tool_implementation_guide.md`. Agent-driven memory compression via `review_chunks → decide_chunk → apply_compression` tools in `apps/auto/tools/memory_tools.py` (MemoryMixin). Configure compression LLM via `compression_agent` in AgentLLMConfig (recommend a cheap model like `mistral-small`). Default Anthropic model: `claude-sonnet-4-6` (env: `AUTO_ANTHROPIC_MODEL`).
-- **scheduler**: Celery Beat periodic task management (ScheduleDefinition, ScheduleLog, watchdog, cleanup). `apps/scheduler/tasks/watchdog.py` recovers stalled Overviews; `apps/scheduler/tasks/cleanup.py` removes orphaned assets. Shared `async_post_batch(url, payloads, timeout)` helper in `apps/scheduler/tasks/utils.py` — use this for all concurrent HTTP fan-out in scheduler tasks instead of local `_post_all` copies.
+- **auto**: 3-tier AI agent orchestration (ReconAgent, PostExploitAgent, ReportingAgent, AutomationAgent). Internal automation framework — no public REST API (legacy `apps/auto/api.py` and `/api/auto/` route fully removed). Uses LangChain or custom CAI depending on feature flags. See `apps/auto/cai_tool_implementation_guide.md`. Agent-driven memory compression via `review_chunks → decide_chunk → apply_compression` tools in `apps/auto/tools/memory_tools.py` (MemoryMixin). Configure compression LLM via `compression_agent` in AgentLLMConfig (recommend a cheap model like `mistral-small`). Default Anthropic model: `claude-sonnet-4-6` (env: `AUTO_ANTHROPIC_MODEL`).
+- **scheduler**: Celery Beat periodic task management (uses `django_celery_beat` PeriodicTask/IntervalSchedule/CrontabSchedule), watchdog, cleanup). `apps/scheduler/tasks/watchdog.py` recovers stalled Overviews; `apps/scheduler/tasks/cleanup.py` removes orphaned assets. Shared `async_post_batch(url, payloads, timeout)` helper in `apps/scheduler/tasks/utils.py` — use this for all concurrent HTTP fan-out in scheduler tasks instead of local `_post_all` copies.
 - **api_keys**: Encrypted storage for external service API keys.
 - **http_sender**: HTTP request helpers and payload fuzzing. See `apps/http_sender/PayloadMapping.md`.
 - **ai_assistant**: Assistant/Thread/Message APIs with LangChain integration. SSE streaming for real-time responses.
@@ -88,13 +111,13 @@ Each app's router is defined in its `api.py` using Django Ninja's `Router` class
 - Broker and result backend: Redis (`redis://localhost:6379/0`)
 - Beat scheduler: `django_celery_beat.schedulers:DatabaseScheduler` (persistent, survives restart)
 - Autodiscovery via `app.autodiscover_tasks()` plus explicit `CELERY_IMPORTS` in `c2_core/settings.py`
-- Task modules that must be in `CELERY_IMPORTS`: `apps.scanners.nmap_scanner.tasks`, `apps.flaresolverr.tasks.spider`, `apps.scanners.get_all_url.tasks`, `apps.scanners.subfinder.tasks`, `apps.analyze_ai.tasks`, `apps.scanners.nuclei_scanner.tasks`, `apps.scheduler.tasks`, `apps.auto.tasks`
+- Task modules that must be in `CELERY_IMPORTS`: `apps.scanners.nmap_scanner.tasks`, `apps.flaresolverr.tasks.spider`, `apps.scanners.get_all_url.tasks`, `apps.scanners.subfinder.tasks`, `apps.analyze_ai.tasks`, `apps.scanners.nuclei_scanner.tasks`, `apps.scheduler.tasks`, `apps.auto.tasks`, `apps.scanners.cve_intelligence.tasks.enrichment_tasks`, `apps.scanners.cve_intelligence.tasks.scheduled_sync`, `apps.scanners.katana_scanner.tasks`
 
 When adding new Celery tasks, add the module path to `CELERY_IMPORTS` in `c2_core/settings.py` or they won't be discovered.
 
 ### Frontend
 
-React 19 + TypeScript 5.8 + Vite 7. Apollo Client for Hasura GraphQL, Axios for Django Ninja REST. Key dependencies: `react-router-dom`, `react-markdown`, `graphql-ws`.
+React 19 + TypeScript 5.8 + Vite 7. Custom `useHasuraQuery`/`useHasuraSubscription` hooks for Hasura GraphQL (via `graphql-ws`), Axios for Django Ninja REST. Key dependencies: `react-router-dom`, `react-markdown`, `graphql-ws`.
 
 ### Logging
 
@@ -113,6 +136,17 @@ Copy `.env.example` to `.env`. Key variable groups:
 
 Note: `c2_core/settings.py` has hardcoded fallback values for database credentials (`mydb`/`myuser`/`secret`) used in development.
 
+## Git Workflow
+
+Autonomous commits are expected behavior in this repo — do not pause to ask "should I commit?" when a unit of work is complete and verified.
+
+- **Trigger**: When a logical unit (plan checkbox, bug fix, feature) is complete and tests/checks pass.
+- **Atomicity**: One commit per logical change. Never bundle unrelated changes into a single commit.
+- **Style**: Conventional Commits prefixes (`feat:`, `fix:`, `refactor:`, `docs:`, `chore:`) with Chinese descriptions — see `git log --oneline` for established patterns.
+- **Scope**: Stage only files relevant to the current change. Never use `git add -A` / `git add .` in a dirty worktree — always stage explicit paths.
+- **No push**: Local commits only unless explicitly asked to push to remote.
+- **Hooks**: Never skip git hooks (`--no-verify`) unless explicitly requested.
+
 ## Key Patterns
 
 - **API schemas**: Django Ninja uses Pydantic-based schemas for request/response validation (defined in each app's `schemas.py`). Always use `.model_dump()` / `.model_dump(exclude_unset=True)` (Pydantic v2) — never `.dict()`.
@@ -120,7 +154,7 @@ Note: `c2_core/settings.py` has hardcoded fallback values for database credentia
 - **ScanRecord base model**: All scan record models inherit from `ScanRecord` (abstract, `apps/core/models/scans_record_models.py`). It provides `status` (PENDING/RUNNING/COMPLETED/FAILED with `db_index=True`), `started_at`, `completed_at`, `error_message`, `created_at`. `URLScan` overrides `status` with English labels. `ScannerLifecycle` context manager (`apps/scanners/base_task.py`) uses these fields for the PENDING→RUNNING→COMPLETED/FAILED state machine.
 - **Authentication**: DRF TokenAuthentication is the default (`REST_FRAMEWORK` in settings). CSRF middleware is disabled for dev (commented out in MIDDLEWARE).
 - **Model primary keys**: `BigAutoField` as default.
-- **Docker infrastructure**: `docker/docker-compose.yml` runs PostgreSQL, Redis, Hasura, NocoDB, FlareSolverr, FlareProxyGo.
+- **Docker infrastructure**: `docker/docker-compose.yml` runs PostgreSQL, Redis, Hasura, NocoDB, FlareSolverr.
 - **ExecutionGraph-first monitoring**: The legacy `Step`/`StepLog`/`ScriptExecution` models and `callback_step_id` parameter have been fully removed. All scan and agent execution monitoring now uses `ExecutionGraph` → `ExecutionNode` → `ExecutionEvent` → `ExecutionArtifact` (defined in `apps/core/models/execution.py`). Backend API: `/api/core/executions` (list with `target_id`/`thread_id`/`status` filters), `/api/core/executions/{id}` (detail with nodes/events/artifacts). Frontend uses `executionApi` service + `ExecutionTimelineViewer` component + `useExecutionEventStream` SSE hook. Hasura GraphQL subscriptions are limited to a single top-level field per subscription (Hasura constraint).
 - **Agent-Driven Memory Compression**: The agent self-manages context via three tools in `MemoryMixin` (`apps/auto/tools/memory_tools.py`):
   1. `review_chunks()` — reads all messages, generates GlobalContextOverview via LLM, divides into THINK→ACT→RESULT chunks

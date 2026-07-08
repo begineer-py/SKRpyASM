@@ -59,7 +59,7 @@ interface EditForm {
   description: string;
 }
 
-const KNOWN_PROVIDERS = ['openai', 'anthropic', 'mistral', 'deepseek', 'ollama'];
+const KNOWN_PROVIDERS = ['openai', 'anthropic', 'mistral', 'deepseek', 'opencode', 'ollama'];
 const CUSTOM_PROVIDER = '__custom__';
 const NO_KEY_VALUE = '__none__';
 const apiBase = GLOBAL_CONFIG.DJANGO_API_BASE;

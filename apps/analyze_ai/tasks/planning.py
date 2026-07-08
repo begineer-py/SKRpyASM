@@ -27,7 +27,7 @@ def propose_next_steps(overview_id: int) -> dict:
     """
     try:
         overview = Overview.objects.prefetch_related(
-            "ips", "subdomains", "url_results", "steps", "attack_vectors"
+            "ips", "subdomains", "url_results", "attack_vectors"
         ).get(id=overview_id)
     except Overview.DoesNotExist:
         logger.error(f"[Planning] Overview#{overview_id} 不存在。")
@@ -45,70 +45,21 @@ def propose_next_steps(overview_id: int) -> dict:
     overview.status = "PLANNING"
     overview.save(update_fields=["status", "updated_at"])
 
-    context = _build_global_context(overview)
-    user_prompt = _build_strategy_prompt(overview, context)
+    # CAI strategy agent framework 尚未實作（apps.auto.cai.core 不存在）。
+    # 直接將 Overview 推進到 EXECUTING，由 Layer 3 AutomationAgent 接管策略規劃與執行。
+    logger.info(
+        f"[Planning] CAI strategy agent not available — "
+        f"advancing Overview#{overview_id} directly to EXECUTING"
+    )
+    overview.status = "EXECUTING"
+    overview.save(update_fields=["status", "updated_at"])
 
-    try:
-        from apps.auto.cai.core.agent import run_agent
-        from apps.auto.cai.agent_configs import STRATEGY_AGENT_CONFIG
+    # 鏈式觸發：交給 Layer 3 執行
+    from apps.auto.tasks import auto_execute_plan
+    logger.info(f"[Chain] 策略規劃跳過，自動觸發 auto_execute_plan")
+    auto_execute_plan.delay()
 
-        result = run_agent(
-            config=STRATEGY_AGENT_CONFIG,
-            user_message=user_prompt,
-            system_message=STRATEGY_AGENT_CONFIG["instructions"],
-        )
-
-        actions = result.get("command_actions", [])
-        if not actions:
-            logger.info(f"[Planning] AI 未建議更多步驟（Overview#{overview_id}）。")
-            overview.status = "COMPLETED"
-            overview.plan = result.get("analysis", "AI 判斷此階段已完成。")
-            overview.save(update_fields=["status", "plan", "updated_at"])
-            return {
-                "ok": True,
-                "message": "No more steps proposed",
-                "analysis": overview.plan,
-            }
-
-        overview.plan = result.get("analysis", "")
-        overview.status = "EXECUTING"
-
-        # --- 自動更新 Overview 知識庫 (新增) ---
-        new_knowledge = result.get("updated_knowledge")
-        if new_knowledge and isinstance(new_knowledge, dict):
-            knowledge = overview.knowledge or {}
-            knowledge.update(new_knowledge)
-            overview.knowledge = knowledge
-
-        new_techs = result.get("updated_techs")
-        if new_techs and isinstance(new_techs, list):
-            techs = overview.techs or []
-            # 合併去重
-            techs = list(set(techs + new_techs))
-            overview.techs = techs
-
-        overview.save(
-            update_fields=["plan", "status", "knowledge", "techs", "updated_at"]
-        )
-
-        logger.info(
-            f"[Planning] ✅ Overview#{overview_id} 已保存 {len(actions)} 個計畫 action，"
-            f"交由 LangGraph runtime 執行。"
-        )
-
-        # 鏈式觸發：規劃完成且有新步驟，自動交給 Layer 3 執行
-        if overview.status == "EXECUTING" and actions:
-            from apps.auto.tasks import auto_execute_plan
-            logger.info(f"[Chain] 策略規劃完成，自動觸發 auto_execute_plan")
-            auto_execute_plan.delay()
-
-        return {"ok": True, "planned_actions_count": len(actions)}
-
-    except Exception as e:
-        logger.exception(f"[Planning] 執行異常: {e}")
-        overview.status = "STALLED"
-        overview.save(update_fields=["status", "updated_at"])
-        return {"ok": False, "error": str(e)}
+    return {"ok": True, "message": "Skipped CAI strategy agent, advanced to EXECUTING"}
 
 
 def _build_global_context(overview: Overview) -> dict:

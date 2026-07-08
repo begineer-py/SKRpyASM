@@ -56,6 +56,7 @@ SUPPORTED_SERVICES = [
     "mistral",
     "gemini",
     "deepseek",
+    "opencode",
     "ollama",
     "langchain",
     "vulncheck",

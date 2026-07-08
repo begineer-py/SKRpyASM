@@ -13,6 +13,43 @@ from langchain_core.language_models.chat_models import BaseChatModel
 logger = logging.getLogger(__name__)
 
 
+def _get_request_payload_with_reasoning(self, input_, *, stop=None, **kwargs):
+    """
+    DeepSeek 官方 API 規格：tool-call 流程中，assistant message 的 reasoning_content
+    必須在後續請求中原樣傳回，否則 API 回 400。
+
+    ChatDeepSeek 捕獲 reasoning_content 到 additional_kwargs，
+    但繼承的 _convert_message_to_dict 不會把它放回請求 dict。
+    此 wrapper 在 payload 建構後把 reasoning_content 補回每個 assistant message。
+    """
+    from langchain_core.messages import AIMessage
+
+    payload = self._original_get_request_payload(input_, stop=stop, **kwargs)
+    messages = self._convert_input(input_).to_messages()
+    msg_dicts = payload.get("messages", [])
+
+    for lc_msg, msg_dict in zip(messages, msg_dicts):
+        if isinstance(lc_msg, AIMessage) and msg_dict.get("role") == "assistant":
+            rc = lc_msg.additional_kwargs.get("reasoning_content")
+            if rc:
+                msg_dict["reasoning_content"] = rc
+
+    return payload
+
+
+def _make_deepseek_with_reasoning():
+    """建立 ChatDeepSeek 子類，覆寫 _get_request_payload 以保留 reasoning_content。"""
+    from langchain_deepseek import ChatDeepSeek
+
+    class ChatDeepSeekWithReasoning(ChatDeepSeek):
+        def _get_request_payload(self, input_, *, stop=None, **kwargs):
+            return _get_request_payload_with_reasoning(self, input_, stop=stop, **kwargs)
+
+        _original_get_request_payload = ChatDeepSeek._get_request_payload
+
+    return ChatDeepSeekWithReasoning
+
+
 def get_llm_instance(
     model_name: Optional[str] = None,
     temperature: float = 0,
@@ -154,6 +191,9 @@ def get_llm_instance(
         from langchain_openai import ChatOpenAI
         if not final_model:
             final_model = "gpt-4o"
+        # max_retries=5:讓 OpenAI SDK 自動重試 APIConnectionError / 429 / 5xx。
+        # SDK 預設只重試 5xx/429，不包含連線層錯誤；顯式設高值確保瞬態網路故障能撐過去。
+        kwargs.setdefault("max_retries", 5)
         return ChatOpenAI(
             model=final_model,
             temperature=temperature,
@@ -182,17 +222,17 @@ def get_llm_instance(
             **kwargs
         )
     elif provider == "deepseek":
-        from langchain_openai import ChatOpenAI
         if not final_model:
             final_model = "deepseek-chat"
-        # DeepSeek uses OpenAI schema
-        return ChatOpenAI(
+        kwargs.setdefault("max_retries", 5)
+        cls = _make_deepseek_with_reasoning()
+        return cls(
             model=final_model,
             temperature=temperature,
             api_key=api_key,
-            base_url=api_base or "https://api.deepseek.com/v1",
-            **kwargs
-            )
+            api_base=api_base or "https://api.deepseek.com/v1",
+            **kwargs,
+        )
     elif provider == "mistral":
         from langchain_mistralai import ChatMistralAI
         if not final_model:
@@ -209,6 +249,7 @@ def get_llm_instance(
         from langchain_openai import ChatOpenAI
         if not final_model:
             final_model = provider
+        kwargs.setdefault("max_retries", 5)
         return ChatOpenAI(
             model=final_model,
             temperature=temperature,
