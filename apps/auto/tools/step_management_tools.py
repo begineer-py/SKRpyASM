@@ -24,21 +24,22 @@ class StepManagementMixin:
         return graph, node
 
     @method_tool
-    def update_overview_status(self, overview_id: int = None, new_status: str = None, new_summary: str = None, new_knowledge: dict = None, new_plan: dict = None, new_risk_score: int = None) -> str:
+    def update_overview_status(self, overview_id: int = None, new_status: str = None, new_summary: str = None, new_knowledge: dict = None, new_risk_score: int = None) -> str:
         """
         更新目標 Overview（專案概覽）的多個欄位。可同時更新以下任意組合：
         - status: 狀態轉換 ('PLANNING' → 'EXECUTING' → 'COMPLETED' → 'STALLED')。
         - summary: 當前目標的文字筆記/總結 (自由文字)。
         - knowledge: 威脅情報與知識 (JSON dict)。
-        - plan: 攻擊藍圖 (JSON dict)。
         - risk_score: 風險評分 (0-100)。
-        
+
+        ⚠️ 攻擊計劃 (Plan) 已改用 AttackPlan + Action DB 模型管理，不再透過此工具寫入。
+        請使用 create_attack_plan / add_action / update_action 等專用工具管理計劃。
+
         Args:
             overview_id: (Optional) The ID of the Overview. Automatically injected if session is bound.
             new_status: 新的狀態值 ('PLANNING', 'EXECUTING', 'COMPLETED', 'STALLED')。
             new_summary: 更新的文字筆記或總結。
             new_knowledge: A JSON dictionary representing discovered intelligence.
-            new_plan: A JSON dictionary outlining the strategic attack plan.
             new_risk_score: 偵測到的風險評分 (0-100)。
         """
         try:
@@ -46,12 +47,82 @@ class StepManagementMixin:
             if not Overview.objects.filter(id=overview_id).exists():
                 return f"CRITICAL_FAILURE: overview_id={overview_id} does not exist. DO NOT RETRY. Use only IDs given in your starting context."
             overview = Overview.objects.get(id=overview_id)
+
+            # ════════════════════════════════════════════════════════════
+            # Thread Ownership Gate: 只有 Overview 的擁有者 thread 才能改狀態。
+            # Sub-agent（非擁有者）呼叫時拒絕，防止殭屍 sub-agent 反覆把
+            # COMPLETED 的 Overview 改回 EXECUTING 導致無限 spawn 循環。
+            # ════════════════════════════════════════════════════════════
+            current_thread_id = getattr(self, "_current_invoke_thread_id", None)
+            if current_thread_id and overview.thread_id and current_thread_id != overview.thread_id:
+                # 這是一個 sub-agent（非擁有者）試圖改不屬於它的 Overview
+                return (
+                    f"⚠️ Permission denied: Thread#{current_thread_id} is not the owner "
+                    f"of Overview#{overview_id} (owner=Thread#{overview.thread_id}). "
+                    f"Sub-agents cannot modify Overview status. "
+                    f"If you have findings, use notify_caller_agent to report back."
+                )
+
             update_fields = []
 
             valid_statuses = ['PLANNING', 'EXECUTING', 'COMPLETED', 'STALLED', 'NEEDS_GUIDANCE']
             if new_status is not None:
                 if new_status not in valid_statuses:
                     return f"CRITICAL_FAILURE: Invalid status '{new_status}'. Must be one of {valid_statuses}."
+
+                # ════════════════════════════════════════════════════════════
+                # VerificationAgent Gate（PoC 審查）
+                # 攔截 new_status == "COMPLETED" → 先過 LLM-as-judge 審查
+                # ════════════════════════════════════════════════════════════
+                if new_status == "COMPLETED":
+                    from apps.auto.verification_service import VerificationService
+
+                    verifier = VerificationService()
+                    review = verifier.review_mission_completion(
+                        overview_id=overview_id,
+                        triggered_by="update_overview_status",
+                        triggered_by_agent=getattr(self, "id", "unknown"),
+                    )
+
+                    if review.verdict == "REJECTED":
+                        # 退回 EXECUTING + 注入駁回理由到 thread + wake agent
+                        overview.status = "EXECUTING"
+                        overview.save(update_fields=["status", "updated_at"])
+                        self._inject_review_feedback(overview, review, verdict_label="REJECTED")
+                        return (
+                            f"⛔ VerificationAgent 駁回 COMPLETED（confidence={review.confidence_score}/100）。\n"
+                            f"MissionReview#{review.id}\n"
+                            f"分析：{review.reasoning}\n"
+                            f"具體問題：{review.rejection_reasons}\n"
+                            f"建議動作：{review.suggested_actions}\n"
+                            f"Overview 已退回 EXECUTING。請依建議補強後再嘗試 COMPLETED。"
+                        )
+                    elif review.verdict == "INCONCLUSIVE":
+                        # 放行 COMPLETED 但標記 needs_human_review（已設於 review）
+                        overview.status = "COMPLETED"
+                        overview.save(update_fields=["status", "updated_at"])
+                        self._complete_active_graphs(overview)
+                        self._inject_review_feedback(overview, review, verdict_label="INCONCLUSIVE")
+                        return (
+                            f"⚠️ VerificationAgent 無法確認（confidence={review.confidence_score}/100），已放行但標記需人工複查。\n"
+                            f"MissionReview#{review.id}（needs_human_review=True）\n"
+                            f"分析：{review.reasoning}\n"
+                            f"建議動作：{review.suggested_actions}\n"
+                            f"Overview 已標記 COMPLETED。"
+                        )
+                    # APPROVED → 正常流程（設 COMPLETED + complete graphs）
+                    overview.status = "COMPLETED"
+                    overview.save(update_fields=["status", "updated_at"])
+                    self._complete_active_graphs(overview)
+                    self._inject_review_feedback(overview, review, verdict_label="APPROVED")
+                    return (
+                        f"✅ VerificationAgent 審查通過（confidence={review.confidence_score}/100）。\n"
+                        f"MissionReview#{review.id}\n"
+                        f"分析：{review.reasoning}\n"
+                        f"成功更新 Overview#{overview_id} 的 status！"
+                    )
+
+                # 非 COMPLETED 的 status 變更（PLANNING/EXECUTING/STALLED/NEEDS_GUIDANCE）直接通過
                 overview.status = new_status
                 update_fields.append('status')
             if new_summary is not None:
@@ -60,9 +131,6 @@ class StepManagementMixin:
             if new_knowledge is not None:
                 overview.knowledge = new_knowledge
                 update_fields.append('knowledge')
-            if new_plan is not None:
-                overview.plan = new_plan
-                update_fields.append('plan')
             if new_risk_score is not None:
                 overview.risk_score = new_risk_score
                 update_fields.append('risk_score')
@@ -73,6 +141,90 @@ class StepManagementMixin:
         except Exception as e:
             logger.error(f"Failed to update Overview#{overview_id}: {e}")
             return f"更新 Overview 時發生錯誤: {e}"
+
+    def _complete_active_graphs(self, overview) -> None:
+        """Overview 切到 COMPLETED 時，連動完成 thread 對應的 active graph。
+
+        語意：Overview.status=COMPLETED 是 mission 真完成的訊號 → graph 才能 SUCCEEDED。
+        """
+        try:
+            from apps.core.models import ExecutionGraph
+            from apps.core.services import ExecutionService
+
+            active_graphs = ExecutionGraph.objects.filter(
+                thread_id=overview.thread_id,
+                status__in=[
+                    ExecutionGraph.Status.RUNNING,
+                    ExecutionGraph.Status.WAITING,
+                ],
+            )
+            for g in active_graphs:
+                ExecutionService.complete_graph(
+                    g, content=f"Overview {overview.id} marked COMPLETED"
+                )
+        except Exception as graph_err:
+            logger.warning(
+                f"_complete_active_graphs: failed for Overview#{overview.id}: {graph_err}"
+            )
+
+    def _inject_review_feedback(self, overview, review, verdict_label: str) -> None:
+        """把審查結果注入 thread（讓 agent 被喚醒後看到具體回饋）。
+
+        - REJECTED: 寫入駁回理由 + 觸發 wake（複用 L2 wake 機制）
+        - INCONCLUSIVE/APPROVED: 寫入摘要（不 wake，因為已經放行）
+        """
+        try:
+            from apps.core.models.ai_models import Thread as AIThread
+            from apps.core.models import Message as DjangoMessage
+            from langchain_core.messages import HumanMessage, message_to_dict
+
+            thread = AIThread.objects.filter(id=overview.thread_id).first()
+            if not thread:
+                return
+
+            if verdict_label == "REJECTED":
+                lines = [
+                    f"[SYSTEM: VerificationAgent REJECTED COMPLETED]",
+                    f"Confidence: {review.confidence_score}/100",
+                    f"Analysis: {review.reasoning}",
+                    "Issues found:",
+                ]
+                for r in (review.rejection_reasons or []):
+                    lines.append(f"- {r}")
+                lines.append("Suggested actions:")
+                for a in (review.suggested_actions or []):
+                    lines.append(f"- {a}")
+                content = "\n".join(lines)
+            elif verdict_label == "INCONCLUSIVE":
+                content = (
+                    f"[SYSTEM: VerificationAgent INCONCLUSIVE (confidence={review.confidence_score})]\n"
+                    f"Mission 放行但已標記 needs_human_review。\n"
+                    f"Analysis: {review.reasoning}\n"
+                    f"Suggested follow-up: {review.suggested_actions}"
+                )
+            else:  # APPROVED
+                content = (
+                    f"[SYSTEM: VerificationAgent APPROVED (confidence={review.confidence_score})]\n"
+                    f"{review.reasoning}"
+                )
+
+            DjangoMessage.objects.create(
+                thread=thread,
+                role="human",
+                message=message_to_dict(HumanMessage(content=content)),
+            )
+
+            # REJECTED 時觸發 wake agent（讓 agent 立刻看到駁回理由並繼續）
+            if verdict_label == "REJECTED":
+                try:
+                    from apps.auto.tasks import wake_agent_on_scan_completion
+                    wake_agent_on_scan_completion.delay(thread_id=thread.id)
+                except Exception as wake_err:
+                    logger.warning(
+                        f"_inject_review_feedback: wake failed for thread={thread.id}: {wake_err}"
+                    )
+        except Exception as e:
+            logger.error(f"_inject_review_feedback failed for Overview#{overview.id}: {e}")
 
     @method_tool
     def update_step_note(
@@ -178,117 +330,6 @@ class StepManagementMixin:
             return f"查詢 executions 失敗: {e}"
 
     @method_tool
-    def create_step(
-        self,
-        overview_id: int = None,
-        tool_name: str = None,
-        command_name: str = None,
-        command_template_str: str = None,
-        description: str = "",
-        asset_fk_field: str = None,
-        asset_fk_value_id: int = None,
-        parent_step_id: int = None,
-        note: str = None,
-        ai_thoughts: str = None,
-    ) -> str:
-        """
-        [Workflow] 建立一個 execution planning artifact 與關聯的攻擊向量。
-        這會同步建立 ExecutionArtifact、AttackVector 以及 CommandTemplate。
-
-        Args:
-            overview_id: (Optional) 關聯的 Overview ID。自動注入。
-            command_name: 命令的簡稱。
-            command_template_str: 要執行的 CLI 命令（例如 'nmap -sV -p 80 {{ip}}'）。
-            description: 這個步驟的說明與目的。
-            asset_fk_field: 關聯的資產類型 ('ip', 'subdomain', 或 'url_result')。
-            asset_fk_value_id: 關聯的資產主鍵 ID。
-            parent_step_id: (Optional) 父 ExecutionNode ID。
-            tool_name: (Optional) 使用的工具名稱 (nmap, nuclei 等)。
-            note: (Optional) AI寫給人類看的進度筆記。
-            ai_thoughts: (Optional) AI內部推理過程筆記。
-        """
-        try:
-            from apps.core.models import AttackVector, Overview
-            from apps.core.models.analyze.AttackVector import CommandTemplate
-            from apps.core.services import ExecutionService
-            
-            # Overview ID 前置驗證：AI 幻覺防火牆
-            if not Overview.objects.filter(id=overview_id).exists():
-                logger.error(f"Hallucinated overview_id={overview_id}, does not exist in DB.")
-                return f"CRITICAL_FAILURE: overview_id={overview_id} does not exist. DO NOT RETRY. Use only the overview_id given in your starting context."
-            
-            graph, node = self._get_current_execution_context()
-            if graph is not None:
-                ExecutionService.emit_event(
-                    graph=graph,
-                    node=node,
-                    event_type="execution_plan_item_created",
-                    status="planned",
-                    content=description or command_name or tool_name or "Execution plan item created",
-                    payload={
-                        "overview_id": overview_id,
-                        "tool_name": tool_name,
-                        "command_name": command_name,
-                        "command": command_template_str,
-                        "asset_fk_field": asset_fk_field,
-                        "asset_fk_value_id": asset_fk_value_id,
-                        "parent_execution_node_id_param": parent_step_id,
-                    },
-                )
-                artifact = ExecutionService.attach_artifact(
-                    graph=graph,
-                    node=node,
-                    artifact_type="execution_plan_item",
-                    name=(command_name or tool_name or "Execution Plan Item")[:255],
-                    content=note or description or command_template_str or "",
-                    data={
-                        "overview_id": overview_id,
-                        "tool_name": tool_name,
-                        "command_name": command_name,
-                        "command": command_template_str,
-                        "ai_thoughts": ai_thoughts,
-                    },
-                )
-            else:
-                artifact = None
-            
-            if asset_fk_field and asset_fk_value_id:
-                # 資產 ID 前置驗證：在寫入 M2M 前先確認資產存在
-                _asset_model_map = {
-                    "ip": ("apps.core.models", "IP"),
-                    "subdomain": ("apps.core.models", "Subdomain"),
-                    "url_result": ("apps.core.models.url_assets", "URLResult"),
-                }
-                _model_info = _asset_model_map.get(asset_fk_field)
-                if _model_info:
-                    import importlib
-                    _mod = importlib.import_module(_model_info[0])
-                    _AssetModel = getattr(_mod, _model_info[1])
-                    if not _AssetModel.objects.filter(id=asset_fk_value_id).exists():
-                        logger.warning(f"Hallucinated asset {asset_fk_field}_id={asset_fk_value_id}. Returning CRITICAL_FAILURE.")
-                        return f"CRITICAL_FAILURE: asset {asset_fk_field}_id={asset_fk_value_id} does not exist in the database. Use ONLY IDs from your starting context. DO NOT RETRY with the same ID."
-
-            vector = AttackVector.objects.create(
-                overview_id=overview_id,
-                name=f"Attack Vector via {tool_name or 'Tool'}",
-                description=description,
-                status="IDENTIFIED"
-            )
-            
-            cmd = CommandTemplate.objects.create(
-                attack_vector=vector,
-                name=command_name,
-                description=description,
-                tool_name=tool_name,
-                command=command_template_str
-            )
-            
-            return f"成功建立 ExecutionArtifact#{getattr(artifact, 'id', 'N/A')}, AttackVector#{vector.id}, 與 CommandTemplate#{cmd.id}！"
-        except Exception as e:
-            logger.error(f"Failed to create step: {e}")
-            return f"建立 execution plan item 時發生錯誤: {e}"
-
-    @method_tool
     def update_step_status(
         self,
         step_id: int,
@@ -392,24 +433,24 @@ class StepManagementMixin:
     @method_tool
     def get_exhausted_attack_vectors(
         self,
-        overview_id: int,
+        overview_id: int = None,
         limit: int = 50,
         offset: int = 0
     ) -> str:
         """
         取得此 Overview 中所有狀態為 EXHAUSTED (失敗) 或 MITIGATED (已緩解) 的攻擊向量（支持分页）。
+        同時顯示每個向量曾被哪些 Action 操作過，幫助你理解「試了什麼、怎麼試的、為何失敗」。
 
         AI 在規劃新行動前應先呼叫此工具，避免重複使用已經失敗的攻擊向量！
 
         Args:
-            overview_id: Overview ID
+            overview_id: (Optional) Overview ID。自動注入。
             limit: 返回数量上限（默认 50，最大 100）
             offset: 分页偏移（默认 0）
-
-        Returns:
-            格式化的失败攻击向量列表
         """
         try:
+            if not overview_id:
+                return "Error: overview_id 未提供且 session 未綁定。請先呼叫 get_target_context 或 bind_to_target。"
             from apps.core.models import AttackVector
 
             query = AttackVector.objects.filter(
@@ -417,24 +458,31 @@ class StepManagementMixin:
                 status__in=["EXHAUSTED", "MITIGATED"]
             )
 
-            # 限制最大值
             limit = min(limit, 100)
-
-            # 获取总数
             total = query.count()
 
             if total == 0:
                 return "目前沒有已失敗或無效的攻擊向量。可自由進行測試。"
 
-            # 获取分页数据
             vectors = query.order_by('-created_at')[offset:offset+limit]
 
             summary = f"Exhausted Attack Vectors (showing {len(vectors)}/{total}):\n\n"
 
             for v in vectors:
-                cmds = list(v.command_templates.values_list('command', flat=True))
                 summary += f"[{v.id}] {v.name} - {v.status}\n"
-                summary += f"  Commands tried: {cmds}\n\n"
+                cmds = list(v.command_templates.values_list('command', flat=True))
+                if cmds:
+                    summary += f"  Commands tried: {cmds}\n"
+                actions = v.actions.all().order_by('order')
+                if actions:
+                    action_lines = []
+                    for act in actions:
+                        action_lines.append(
+                            f"    Action#{act.id} [{act.status}]: {(act.purpose_text or '')[:80]}"
+                        )
+                    summary += f"  Actions ({actions.count()}):\n" + "\n".join(action_lines) + "\n"
+                else:
+                    summary += f"  Actions: (無關聯 Action — 舊版 create_step 建立的向量)\n"
 
             if total > offset + limit:
                 summary += f"\n💡 Tip: Use offset={offset+limit} to see next {limit} vectors\n"
@@ -443,54 +491,8 @@ class StepManagementMixin:
         except Exception as e:
             return f"獲取失敗的攻擊向量時發生錯誤: {e}"
 
-    @method_tool
-    def notify_caller_agent(self, overview_id: int, message: str) -> str:
-        """
-        [Layered Intelligence] 向發起任務的父層 Agent (HackerAssistant) 報告關鍵進度或最終結果。
-        
-        ⚠️ 強烈建議：
-        1. 當你完成了一個階段 (Phase) 的任務時使用。
-        2. 當你發現了高嚴重度漏洞 (SQLi, RCE, Data Leak) 時使用。
-        3. 當你決定結束整個測試流程 (COMPLETED) 時使用。
-        
-        這會讓你的父層 Agent 能夠即時感知進度，並在需要時向使用者進行總結報告。
-
-        Args:
-            overview_id: 當前 Overview 的 ID。
-            message: 你要報告的內容（包含具體發現、數據、與下一步建議）。
-        """
-        try:
-            from apps.core.models import Overview
-            from apps.ai_assistant.helpers.use_cases import create_message
-            from django.contrib.auth import get_user_model
-
-            overview = Overview.objects.filter(id=overview_id).first()
-            if not overview:
-                return f"CRITICAL_FAILURE: overview_id={overview_id} does not exist."
-
-            if not overview.parent_thread_id:
-                return "ℹ️ 此任務沒有關聯的父層 Thread，訊息已記錄在當前日誌中，但未發送至父層。"
-
-            User = get_user_model()
-            system_user = User.objects.filter(is_superuser=True).first()
-
-            # 發送訊息至父層 Thread
-            create_message(
-                assistant_id="hacker_assistant_agent",
-                thread_id=overview.parent_thread_id,
-                user=system_user,
-                content=(
-                    f"📢 **Intelligence Report from AutomationAgent (Overview #{overview_id})**\n\n"
-                    f"{message}\n\n"
-                    f"---\n"
-                    f"*Reported from autonomous execution layer.*"
-                )
-            )
-
-            return f"✅ 成功將報告發送至父層 Thread (ID: {overview.parent_thread_id})。"
-        except Exception as e:
-            logger.error(f"notify_caller_agent failed: {e}")
-            return f"報告發送失敗: {e}"
+    # notify_caller_agent 已統一由 ReconnaissanceMixin 提供（SubAgentDispatch 路由），
+    # 舊版直接 create_message 到 hacker_assistant_agent 的邏輯已刪除。
 
     @method_tool
     def record_vulnerability(
@@ -501,14 +503,23 @@ class StepManagementMixin:
         matched_at: str = "",
         description: str = "",
         vector_id: int = None,
+        action_id: int = None,
         extracted_results: dict = None,
         request_raw: str = "",
         response_raw: str = "",
-        tool_source: str = "automation-agent"
+        tool_source: str = "automation-agent",
+        verification_id: int = None
     ) -> str:
         """
         [Final Achievement] 當 AI 成功驗證並確認一個漏洞時，呼叫此工具將其記錄到資料庫。
-        這會將漏洞與當前的 Overview 以及發現它的 AttackVector 關聯起來。
+        這會將漏洞與當前的 Overview、發現它的 AttackVector 以及執行的 Action 關聯起來。
+
+        標準工作流：
+        1. add_action(...) → 建立 Action + AttackVector
+        2. update_action(action_id, status="IN_PROGRESS") → 開始執行
+        3. create_verification(vector_id, observation_prompt) → 建立 Verification
+        4. 若驗證通過 → record_vulnerability(action_id=..., vector_id=...)
+        5. generate_poc_for_vulnerability(vuln_id) → 生成 PoC
 
         Args:
             overview_id: (Optional) 當前任務的 Overview ID。自動注入。
@@ -517,13 +528,15 @@ class StepManagementMixin:
             matched_at: 發現漏洞的具體位置（例如 URL 或 IP:PORT）。
             description: 漏洞的詳細描述與影響。
             vector_id: (選填) 關聯的攻擊向量 ID。
+            action_id: (選填) 發現此漏洞的 Action ID，用於追蹤「哪次行動發現的」。
             extracted_results: (選填) 漏洞 Payload 或版本號等結構化數據。
             request_raw: (選填) 觸發漏洞的原始請求內容。
             response_raw: (選填) 包含漏洞證據的原始響應內容。
             tool_source: 來源工具，預設為 "automation-agent"。
+            verification_id: (選填) 已通過的 Verification ID，用於反向關聯驗證記錄。
         """
         try:
-            from apps.core.models import Vulnerability, Overview, AttackVector
+            from apps.core.models import Vulnerability, Overview, AttackVector, Action
             
             overview = Overview.objects.filter(id=overview_id).first()
             if not overview:
@@ -533,10 +546,15 @@ class StepManagementMixin:
             if vector_id:
                 vector = AttackVector.objects.filter(id=vector_id).first()
 
+            action = None
+            if action_id:
+                action = Action.objects.filter(id=action_id).first()
+
             # 建立漏洞記錄
             vuln = Vulnerability.objects.create(
                 overview=overview,
                 source_attack_vector=vector,
+                action=action,
                 name=name,
                 severity=severity.lower(),
                 matched_at=matched_at,
@@ -549,8 +567,23 @@ class StepManagementMixin:
                 status="confirmed"
             )
 
+            # 若提供 verification_id，反向關聯到建立的漏洞
+            verification_msg = ""
+            if verification_id:
+                from apps.core.models.analyze.Verification import Verification
+                updated = Verification.objects.filter(
+                    id=verification_id, created_vulnerability__isnull=True
+                ).update(created_vulnerability=vuln)
+                if updated:
+                    verification_msg = f" 已關聯 Verification#{verification_id}。"
+                else:
+                    verification_msg = f" (Warning: Verification#{verification_id} 不存在或已關聯其他漏洞。)"
+
             logger.info(f"[Automation] Recorded confirmed vulnerability: {name} (ID: {vuln.id})")
-            return f"✅ 已成功將漏洞 '{name}' 記錄至資料庫 (ID: {vuln.id})，狀態標記為 'confirmed'。"
+            return (
+                f"✅ 已成功將漏洞 '{name}' 記錄至資料庫 (ID: {vuln.id})，狀態標記為 'confirmed'。{verification_msg}\n"
+                f"建議下一步：generate_poc_for_vulnerability(vulnerability_id={vuln.id}) 生成 PoC。"
+            )
         except Exception as e:
             logger.error(f"record_vulnerability failed: {e}")
             return f"記錄漏洞時發生錯誤: {e}"

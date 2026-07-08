@@ -176,17 +176,15 @@ class MemoryMixin:
                 thread=thread,
                 id__gte=chunk.start_message_id,
                 id__lte=chunk.end_message_id,
-                is_tool_output=True
+                role="tool_result",
             )
             discarded = 0
             for msg in messages:
-                msg_data = msg.message
-                tool_name = msg_data.get('name', 'unknown')
-                msg.compressed_content = {
-                    'type': 'tool',
-                    'name': tool_name,
-                    'content': f'[Agent discarded this tool output]',
-                }
+                from apps.auto.compression.message_utils import build_compressed_tool_dict
+                msg.compressed_content = build_compressed_tool_dict(
+                    msg,
+                    compressed_content_str="[Agent discarded this tool output]",
+                )
                 msg.compression_applied = True
                 msg.save(update_fields=['compressed_content', 'compression_applied'])
                 discarded += 1
@@ -202,29 +200,30 @@ class MemoryMixin:
                 thread=thread,
                 id__gte=chunk.start_message_id,
                 id__lte=chunk.end_message_id,
-                is_tool_output=True
+                role="tool_result",
             )
             textualized = 0
             total_size = 0
             compressed_size = 0
 
             for msg in messages:
-                msg_data = msg.message
-                tool_name = msg_data.get('name', 'unknown')
-                output_content = str(msg_data.get('content', ''))
+                from apps.auto.compression.message_utils import extract_msg_fields, build_compressed_tool_dict
+                fields = extract_msg_fields(msg)
+                tool_name = fields.get("name") or "unknown"
+                output_content = fields.get("content") or ""
                 output_size = len(output_content)
                 total_size += output_size
 
                 summary = self._generate_tool_summary(tool_name, output_content, guidance, llm)
 
-                msg.compressed_content = {
-                    'type': 'tool',
-                    'name': tool_name,
-                    'content': (
-                        f'[Agent compressed - original: {output_size} chars]\n'
-                        f'Summary: {summary}'
+                msg.compressed_content = build_compressed_tool_dict(
+                    msg,
+                    compressed_content_str=(
+                        f"[Agent compressed - original: {output_size} chars]\n"
+                        f"Summary: {summary}"
                     ),
-                }
+                    tool_name=tool_name,
+                )
                 msg.compression_applied = True
                 msg.save(update_fields=['compressed_content', 'compression_applied'])
                 compressed_size += len(summary)
@@ -463,6 +462,9 @@ class MemoryMixin:
         快速將偵察發現（例如 curl 的回應、表單結構、注入測試結果）儲存為 execution artifact。
         在完成任何手動操作（如 run_command 執行 curl）後，立刻呼叫此工具保存結果。
 
+        此工具只記錄 ExecutionArtifact，不建立 AttackVector。
+        若需要追蹤攻擊向量，請使用 add_action 建立結構化的 Action + AttackVector。
+
         Args:
             overview_id: (Optional) 當前 Overview 的 ID。自動注入。
             title: 此發現的簡短標題 (e.g., 'POST /register – SQLi 測試結果')。
@@ -471,7 +473,6 @@ class MemoryMixin:
         try:
             from apps.core.models import ExecutionGraph
             from apps.core.services import ExecutionService
-            from apps.core.models.analyze.AttackVector import AttackVector
             from apps.core.models.analyze.overview import Overview
             if not Overview.objects.filter(id=overview_id).exists():
                 return f"❌ 錯誤: Overview ID {overview_id} 不存在。請確認你使用 get_target_context 拿到的 Active Overview ID。"
@@ -502,16 +503,7 @@ class MemoryMixin:
             else:
                 artifact = None
 
-            # Auto-create AttackVector so the step is findable by get_target_context,
-            # get_exhausted_attack_vectors, and visible in the frontend as purple tags.
-            vector = AttackVector.objects.create(
-                overview_id=overview_id,
-                name=title[:500],
-                description=content[:5000],
-                status="IDENTIFIED",
-                vector_type="OTHER",
-            )
-            return f"✅ 已記錄偵察發現至 ExecutionArtifact#{getattr(artifact, 'id', 'N/A')} (AttackVector#{vector.id} auto-created)。"
+            return f"✅ 已記錄偵察發現至 ExecutionArtifact#{getattr(artifact, 'id', 'N/A')}。"
         except Exception as e:
             logger.error(f"Failed to write recon note for overview {overview_id}: {e}")
             return f"記錄偵察筆記失敗: {e}"
