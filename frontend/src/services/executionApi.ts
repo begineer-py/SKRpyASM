@@ -165,4 +165,102 @@ export const executionApi = {
     const response = await api.get<ContentBlobPage>(`/blobs/${blobId}/page/${pageNum}/`);
     return response.data;
   },
+
+  getTargetTopology: async (targetId: number | string): Promise<TargetTopology> => {
+    const response = await api.get<TargetTopology>(`/targets/${targetId}/topology/`);
+    return response.data;
+  },
+
+  getAssetPentestRecords: async (
+    assetType: string,
+    assetId: number | string,
+  ): Promise<AssetPentestRecords> => {
+    const response = await api.get<AssetPentestRecords>(
+      `/assets/${assetType}/${assetId}/pentest-records/`,
+    );
+    return response.data;
+  },
+
+  getDispatchTree: async (rootThreadId: number | string): Promise<AgentInteractionTree> => {
+    const response = await api.get<AgentInteractionTree>(
+      `/threads/${rootThreadId}/dispatch-tree/`,
+    );
+    return response.data;
+  },
 };
+
+export interface TopologyNode {
+  id: string;
+  type: string;
+  label: string;
+  asset_id?: number | null;
+  meta?: Record<string, unknown>;
+  is_active_attack?: boolean;
+}
+
+export interface TopologyEdge {
+  id: string;
+  source: string;
+  target: string;
+  edge_type: string;
+  source_kind?: string;
+}
+
+export interface TopologyActiveAttack {
+  node_id?: string | null;
+  asset_type?: string | null;
+  asset_id?: number | null;
+  thread_id?: number | null;
+  agent_role?: string | null;
+  source?: string;
+}
+
+export interface TargetTopology {
+  target_id: number;
+  target_name: string;
+  nodes: TopologyNode[];
+  edges: TopologyEdge[];
+  active_attacks: TopologyActiveAttack[];
+}
+
+export interface PentestRecord {
+  action_id: number;
+  purpose: string;
+  purpose_text: string;
+  status: string;
+  result_summary: string;
+  plan_id?: number | null;
+  execution_graph_id?: number | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  attack_vector_ids: number[];
+}
+
+export interface AssetPentestRecords {
+  asset_type: string;
+  asset_id: number;
+  label: string;
+  records: PentestRecord[];
+  cves: Array<Record<string, unknown>>;
+  vulnerabilities: Array<Record<string, unknown>>;
+}
+
+export interface AgentInteractionNode {
+  thread_id: number;
+  dispatch_id?: number | null;
+  agent_id: string;
+  status: string;
+  depth: number;
+  round: number;
+  objective: string;
+  dispatched_at?: string | null;
+  completed_at?: string | null;
+  graph_id?: number | null;
+  children: AgentInteractionNode[];
+}
+
+export interface AgentInteractionTree {
+  root_thread_id: number;
+  root_agent_id: string;
+  nodes: AgentInteractionNode[];
+}

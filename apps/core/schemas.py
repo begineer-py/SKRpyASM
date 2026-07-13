@@ -269,6 +269,89 @@ class ExecutionGraphDetailSchema(ExecutionGraphSchema):
     artifacts: List[ExecutionArtifactSchema]
 
 
+# --- Topology / Agent interaction ---
+
+
+class TopologyNodeSchema(Schema):
+    id: str  # e.g. "subdomain:12"
+    type: str  # target | seed | subdomain | ip | url | vulnerability | port | endpoint
+    label: str
+    asset_id: Optional[int] = None
+    meta: dict = {}
+    is_active_attack: bool = False
+
+
+class TopologyEdgeSchema(Schema):
+    id: str
+    source: str
+    target: str
+    edge_type: str
+    source_kind: str = "inferred"  # inferred | asset_edge
+
+
+class TopologyActiveAttackSchema(Schema):
+    node_id: Optional[str] = None
+    asset_type: Optional[str] = None
+    asset_id: Optional[int] = None
+    thread_id: Optional[int] = None
+    agent_role: Optional[str] = None
+    source: str = ""  # asset_lock | walk_cursor | none
+
+
+class TargetTopologySchema(Schema):
+    target_id: int
+    target_name: str
+    nodes: List[TopologyNodeSchema]
+    edges: List[TopologyEdgeSchema]
+    active_attacks: List[TopologyActiveAttackSchema] = []
+
+
+class PentestRecordSchema(Schema):
+    action_id: int
+    purpose: str = ""
+    purpose_text: str = ""
+    status: str = ""
+    result_summary: str = ""
+    plan_id: Optional[int] = None
+    execution_graph_id: Optional[int] = None
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    attack_vector_ids: List[int] = []
+
+
+class AssetPentestRecordsSchema(Schema):
+    asset_type: str
+    asset_id: int
+    label: str = ""
+    records: List[PentestRecordSchema] = []
+    cves: List[dict] = []
+    vulnerabilities: List[dict] = []
+
+
+class AgentInteractionNodeSchema(Schema):
+    thread_id: int
+    dispatch_id: Optional[int] = None
+    agent_id: str = ""
+    status: str = ""
+    depth: int = 0
+    round: int = 1
+    objective: str = ""
+    dispatched_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    graph_id: Optional[int] = None
+    children: List["AgentInteractionNodeSchema"] = []
+
+
+class AgentInteractionTreeSchema(Schema):
+    root_thread_id: int
+    root_agent_id: str = ""
+    nodes: List[AgentInteractionNodeSchema] = []
+
+
+# Pydantic v2 recursive model
+AgentInteractionNodeSchema.model_rebuild()
+
+
 # 1. 單個 IP 的 Schema
 class IPSchema(ModelSchema):
     class Meta:

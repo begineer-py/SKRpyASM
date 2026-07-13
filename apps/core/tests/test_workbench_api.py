@@ -180,3 +180,53 @@ class AutomationDispatchRecordTests(TestCase):
         self.assertEqual(dispatch.sub_thread_id, sub.id)
         self.assertEqual(dispatch.status, "COMPLETED")
         self.assertTrue(dispatch.objective.startswith("scan example"))
+
+
+class TopologyAndDispatchTreeApiTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(username="topo_tester")
+        self.target = Target.objects.create(name="topo-target.example")
+        self.overview = Overview.objects.create(target=self.target, status="EXECUTING")
+        self.root = Thread.objects.create(
+            name="ha-root",
+            created_by=self.user,
+            assistant_id="hacker_assistant_agent",
+        )
+        self.auto = Thread.objects.create(
+            name="auto-child",
+            created_by=self.user,
+            assistant_id="automation_agent",
+            is_hidden=True,
+        )
+        SubAgentDispatch.objects.create(
+            overview=self.overview,
+            dispatcher_thread=self.root,
+            sub_agent_type="automation_agent",
+            sub_thread=self.auto,
+            objective="full recon",
+            status="RUNNING",
+        )
+
+    def test_target_topology(self):
+        response = self.client.get(f"/api/core/targets/{self.target.id}/topology/")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["target_id"], self.target.id)
+        self.assertTrue(any(n["type"] == "target" for n in payload["nodes"]))
+
+    def test_dispatch_tree(self):
+        response = self.client.get(f"/api/core/threads/{self.root.id}/dispatch-tree/")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["root_thread_id"], self.root.id)
+        self.assertEqual(len(payload["nodes"]), 1)
+        self.assertEqual(payload["nodes"][0]["agent_id"], "automation_agent")
+        self.assertEqual(payload["nodes"][0]["thread_id"], self.auto.id)
+
+    def test_asset_pentest_records_empty(self):
+        response = self.client.get("/api/core/assets/subdomain/99999/pentest-records/")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["records"], [])
+        self.assertEqual(payload["asset_type"], "subdomain")

@@ -18,8 +18,17 @@ import SubAgentContainerBlock, {
   dispatchToView,
   type DispatchedGraphView,
 } from '../../components/SubAgentContainerBlock';
+import AgentInteractionTimeline from '../../components/AgentInteractionTimeline';
+import AssetTopologyMap from '../../components/AssetTopologyMap';
+import AssetDetailPanel from '../../components/AssetDetailPanel';
 import { executionApi } from '../../services/executionApi';
-import type { ExecutionGraph, SubAgentDispatchItem } from '../../services/executionApi';
+import type {
+  AgentInteractionTree,
+  ExecutionGraph,
+  SubAgentDispatchItem,
+  TargetTopology,
+  TopologyNode,
+} from '../../services/executionApi';
 import { OverviewService, type OverviewData } from '../../services/overviewService';
 import { GET_AGENT_TREE_SUBSCRIPTION } from '../../queries';
 import {
@@ -258,6 +267,10 @@ const AICenterPage: React.FC = () => {
   const [agentTree, setAgentTree] = useState<TreeNode[]>([]);
   const [showTreePanel, setShowTreePanel] = useState(true);
   const [activeNodeThreadId, setActiveNodeThreadId] = useState<string | null>(null);
+  const [agentPanelTab, setAgentPanelTab] = useState<'tree' | 'interaction' | 'topology'>('tree');
+  const [dispatchTree, setDispatchTree] = useState<AgentInteractionTree | null>(null);
+  const [topology, setTopology] = useState<TargetTopology | null>(null);
+  const [selectedTopoNode, setSelectedTopoNode] = useState<TopologyNode | null>(null);
 
   // Execution graph panel state
   const [selectedGraphId, setSelectedGraphId] = useState<number | null>(null);
@@ -379,6 +392,47 @@ const AICenterPage: React.FC = () => {
       cancelled = true;
     };
   }, [selectedThreadId]);
+
+  // Agent interaction tree (Phase 3)
+  useEffect(() => {
+    let cancelled = false;
+    if (!rootThreadId) {
+      setDispatchTree(null);
+      return;
+    }
+    void executionApi
+      .getDispatchTree(rootThreadId)
+      .then((tree) => {
+        if (!cancelled) setDispatchTree(tree);
+      })
+      .catch(() => {
+        if (!cancelled) setDispatchTree(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [rootThreadId, dispatchedGraphs.length]);
+
+  // Asset topology for bound target
+  useEffect(() => {
+    let cancelled = false;
+    if (!boundTargetId) {
+      setTopology(null);
+      setSelectedTopoNode(null);
+      return;
+    }
+    void executionApi
+      .getTargetTopology(boundTargetId)
+      .then((t) => {
+        if (!cancelled) setTopology(t);
+      })
+      .catch(() => {
+        if (!cancelled) setTopology(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [boundTargetId]);
 
   // ── Overview fetch ─────────────────────────────────────────────────────
 
@@ -1138,11 +1192,11 @@ const AICenterPage: React.FC = () => {
         </div>
       </main>
 
-      {/* ─── Agent tree panel ────────────────────────────────────────── */}
+      {/* ─── Agent / Topology panel ──────────────────────────────────── */}
       {showTree && (
-        <aside className="agent-tree-panel">
+        <aside className="agent-tree-panel agent-tree-panel--wide">
           <div className="tree-panel-header">
-            <h4>AGENT TREE</h4>
+            <h4>AGENTS</h4>
             <div className="tree-panel-actions">
               <span
                 className={`tree-live-dot ${treeConnected ? 'connected' : 'disconnected'}`}
@@ -1152,18 +1206,86 @@ const AICenterPage: React.FC = () => {
             </div>
           </div>
 
+          <div className="agent-panel-tabs">
+            {([
+              ['tree', 'Tree'],
+              ['interaction', 'Interaction'],
+              ['topology', 'Topology'],
+            ] as const).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                className={`agent-panel-tab ${agentPanelTab === key ? 'active' : ''}`}
+                onClick={() => setAgentPanelTab(key)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
           <div className="tree-body">
-            {agentTree.length === 0 && (
-              <div className="tree-empty">No sub-agents yet</div>
+            {agentPanelTab === 'tree' && (
+              <>
+                {agentTree.length === 0 && (
+                  <div className="tree-empty">No sub-agents yet</div>
+                )}
+                {rootNode && (
+                  <TreeNodeItem
+                    node={rootNode}
+                    depth={0}
+                    allNodes={agentTree}
+                    activeNodeThreadId={activeNodeThreadId}
+                    onSelect={handleSelectTreeNode}
+                  />
+                )}
+              </>
             )}
-            {rootNode && (
-              <TreeNodeItem
-                node={rootNode}
-                depth={0}
-                allNodes={agentTree}
-                activeNodeThreadId={activeNodeThreadId}
-                onSelect={handleSelectTreeNode}
+
+            {agentPanelTab === 'interaction' && (
+              <AgentInteractionTimeline
+                tree={dispatchTree}
+                selectedThreadId={activeNodeThreadId ? Number(activeNodeThreadId) : null}
+                onSelectNode={(n) => {
+                  if (!n.thread_id) return;
+                  handleSelectTreeNode({
+                    thread_id: n.thread_id,
+                    thread_name: n.agent_id || `Thread ${n.thread_id}`,
+                    assistant_id: n.agent_id || 'automation_agent',
+                    is_hidden: true,
+                    bound_target_id: boundTargetId,
+                    parent_thread_id: null,
+                    overview_id: null,
+                    overview_status: null,
+                    overview_risk_score: null,
+                    target_name: null,
+                    created_at: n.dispatched_at || '',
+                  });
+                  if (n.graph_id) {
+                    setSelectedGraphId(n.graph_id);
+                    setShowLogsPanel(true);
+                  }
+                }}
               />
+            )}
+
+            {agentPanelTab === 'topology' && (
+              <div className="topology-panel-stack">
+                <AssetTopologyMap
+                  topology={topology}
+                  selectedNodeId={selectedTopoNode?.id ?? null}
+                  onSelectNode={setSelectedTopoNode}
+                />
+                {selectedTopoNode && (
+                  <AssetDetailPanel
+                    node={selectedTopoNode}
+                    onClose={() => setSelectedTopoNode(null)}
+                    onOpenGraph={(gid) => {
+                      setSelectedGraphId(gid);
+                      setShowLogsPanel(true);
+                    }}
+                  />
+                )}
+              </div>
             )}
           </div>
         </aside>

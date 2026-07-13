@@ -21,6 +21,8 @@ from .models import (
     SubAgentDispatch,
 )
 from .schemas import (
+    AgentInteractionTreeSchema,
+    AssetPentestRecordsSchema,
     ContentBlobPageSchema,
     ContentBlobSummarySchema,
     DispatchGraphSchema,
@@ -37,8 +39,14 @@ from .schemas import (
     SubAgentDispatchSchema,
     TargetRequestConfigOut,
     TargetRequestConfigUpdate,
+    TargetTopologySchema,
 )
 from .header_injection import resolve_request_config
+from .services.topology import (
+    build_dispatch_tree,
+    build_target_topology,
+    get_asset_pentest_records,
+)
 
 
 @router.get("/pentest-config", response=PentestHeaderConfigOut, tags=["Core - Pentest Config"])
@@ -331,6 +339,45 @@ def get_content_blob_page(request, blob_id: int, page_num: int):
         "title": page.get("title") or "Untitled",
         "content": page.get("content") or "",
     }
+
+
+@router.get(
+    "/targets/{target_id}/topology/",
+    response={200: TargetTopologySchema, 404: ErrorSchema},
+    tags=["Core - Topology"],
+)
+def get_target_topology(request, target_id: int):
+    """資產拓撲圖資料：節點 + 邊 + 當前 AI 攻擊位置（AssetLock / WalkCursor）。"""
+    data = build_target_topology(target_id)
+    if data is None:
+        raise HttpError(404, f"Target {target_id} 不存在")
+    return data
+
+
+@router.get(
+    "/assets/{asset_type}/{asset_id}/pentest-records/",
+    response={200: AssetPentestRecordsSchema, 404: ErrorSchema},
+    tags=["Core - Topology"],
+)
+def get_asset_pentest_records_api(request, asset_type: str, asset_id: int):
+    """資產滲透記錄：Action 列表 + 相關 Vulnerability / CVE。"""
+    data = get_asset_pentest_records(asset_type, asset_id)
+    if data is None:
+        raise HttpError(404, f"不支援的資產類型: {asset_type}")
+    return data
+
+
+@router.get(
+    "/threads/{root_thread_id}/dispatch-tree/",
+    response={200: AgentInteractionTreeSchema, 404: ErrorSchema},
+    tags=["Core - SubAgent Dispatches"],
+)
+def get_dispatch_tree(request, root_thread_id: int):
+    """Agent 互動樹：從 root thread 展開所有 SubAgentDispatch 層級。"""
+    data = build_dispatch_tree(root_thread_id)
+    if data is None:
+        raise HttpError(404, f"Thread {root_thread_id} 不存在")
+    return data
 
 
 @router.get("/target-request-config/{target_id}/resolved", response=ResolvedRequestConfigOut, tags=["Core - Target Request Config"])
