@@ -36,13 +36,13 @@ export function dispatchToView(d: SubAgentDispatchItem): DispatchedGraphView {
     title: d.graph?.title || d.sub_agent_type,
     dispatch_instruction: d.objective || d.result_summary || '',
     sub_agent_type: d.sub_agent_type,
-    callee_thread_id: d.callee_thread_id,
+    callee_thread_id: d.callee_thread_id ?? null,
     result_summary: d.result_summary,
     content_blobs: (d.content_blobs || []).map((b) => ({
       blob_id: b.blob_id,
       ai_summary: b.ai_summary || '',
       content_size: b.content_size || 0,
-      page_count: b.page_count,
+      page_count: b.page_count ?? null,
       created_at: b.created_at,
     })),
   };

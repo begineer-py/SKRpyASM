@@ -3,6 +3,8 @@
   border: 1px solid #1e293b;
   border-radius: 10px;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .atm-header {
@@ -12,6 +14,7 @@
   padding: 8px 12px;
   border-bottom: 1px solid #1e293b;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .atm-title {
@@ -32,45 +35,119 @@
   font-size: 0.78rem;
 }
 
-.atm-edge {
-  stroke: #334155;
-  stroke-width: 1.2;
+.atm-rf-viewport {
+  width: 100%;
+  height: 360px;
+  min-height: 280px;
+}
+
+.atm-rf-canvas {
+  background: #0b1220;
+}
+
+/* Custom asset node */
+.atm-rf-node {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 148px;
+  max-width: 180px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1.5px solid #475569;
+  background: linear-gradient(180deg, #0f172a 0%, #0b1220 100%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  position: relative;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.atm-rf-node--selected {
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.45), 0 4px 14px rgba(0, 0, 0, 0.4);
+  background: #111827;
+}
+
+.atm-rf-node--attack {
+  animation: atm-attack-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes atm-attack-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(244, 114, 182, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(244, 114, 182, 0.28);
+  }
+}
+
+.atm-rf-attack-badge {
+  position: absolute;
+  top: -8px;
+  right: -6px;
+  font-size: 11px;
+  line-height: 1;
+  filter: drop-shadow(0 0 4px rgba(244, 114, 182, 0.7));
+}
+
+.atm-rf-icon {
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.atm-rf-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.atm-rf-type {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--atm-color, #94a3b8);
+  font-weight: 600;
+}
+
+.atm-rf-label {
+  font-size: 11px;
+  color: #e2e8f0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: 'Fira Code', ui-monospace, monospace;
+}
+
+.atm-rf-handle {
+  width: 6px !important;
+  height: 6px !important;
+  background: #334155 !important;
+  border: 1px solid #64748b !important;
   opacity: 0.7;
 }
 
-.atm-edge--active {
-  stroke: #22c55e;
-  stroke-width: 1.8;
-  opacity: 1;
+.atm-rf-controls {
+  background: #0f172a !important;
+  border: 1px solid #1e293b !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
 }
 
-.atm-dot {
-  stroke: #0f172a;
-  stroke-width: 1.5;
+.atm-rf-controls button {
+  background: #0f172a !important;
+  border-bottom-color: #1e293b !important;
+  fill: #94a3b8 !important;
 }
 
-.atm-node--selected .atm-dot {
-  stroke: #fff;
-  stroke-width: 2;
+.atm-rf-controls button:hover {
+  background: #1e293b !important;
 }
 
-.atm-attack-ring {
-  fill: none;
-  stroke: #f472b6;
-  stroke-width: 2;
-  animation: atm-pulse 1.4s ease-in-out infinite;
-}
-
-@keyframes atm-pulse {
-  0%, 100% { opacity: 0.35; r: 16; }
-  50% { opacity: 1; r: 20; }
-}
-
-.atm-label {
-  fill: #94a3b8;
-  font-size: 9px;
-  font-family: 'Inter', sans-serif;
-  pointer-events: none;
+.atm-rf-minimap {
+  background: #0f172a !important;
+  border: 1px solid #1e293b !important;
+  border-radius: 8px !important;
 }
 
 .atm-legend {
@@ -79,6 +156,7 @@
   gap: 8px 12px;
   padding: 6px 12px 10px;
   border-top: 1px solid #1e293b;
+  flex-shrink: 0;
 }
 
 .atm-legend-item {
@@ -95,4 +173,13 @@
   height: 8px;
   border-radius: 50%;
   display: inline-block;
+}
+
+/* React Flow edge labels on dark bg */
+.asset-topology-map .react-flow__edge-textbg {
+  fill: #0b1220;
+}
+
+.asset-topology-map .react-flow__edge-text {
+  fill: #64748b;
 }
