@@ -1,3 +1,4 @@
+import logging
 from typing import Any, List
 
 from django.http import Http404
@@ -24,6 +25,9 @@ from apps.core.models import Message as MessageModel
 from apps.core.models import Thread as ThreadModel
 from apps.core.models import ThreadEvent
 from apps.core.schemas import ThreadEventSchema
+
+
+logger = logging.getLogger(__name__)
 
 
 class API(NinjaAPI):
@@ -137,10 +141,35 @@ def delete_thread(request, thread_id: Any):
     url_name="messages_list_create",
 )
 @with_cast_id
-def list_thread_messages(request, thread_id: Any):
+def list_thread_messages(request, thread_id: Any, include_tools: bool = False):
+    """List messages in a thread.
+
+    Query params:
+      include_tools: if true, include tool_call / tool_result / system messages
+                     (maps to include_extra_messages on the model layer).
+    """
     thread = get_object_or_404(ThreadModel, id=thread_id)
-    messages = use_cases.get_thread_messages(thread=thread, user=request.user, request=request)
-    return [message_to_dict(m)["data"] for m in messages]
+    messages = use_cases.get_thread_messages(
+        thread=thread,
+        user=request.user,
+        request=request,
+        include_extra_messages=bool(include_tools),
+    )
+    result = []
+    for m in messages:
+        try:
+            serialized = message_to_dict(m)
+            data = serialized.get("data") if isinstance(serialized, dict) else None
+        except Exception:
+            data = None
+        if isinstance(data, dict):
+            result.append(data)
+        else:
+            logger.warning(
+                "list_thread_messages: message id=%s missing 'data' key; skipping",
+                getattr(getattr(m, "id", None), "__str__", lambda: "unknown")(),
+            )
+    return result
 
 
 # TODO: Support content streaming
@@ -212,9 +241,17 @@ class BindTargetIn(Schema):
 @with_cast_id
 def bind_target(request, thread_id: Any, payload: BindTargetIn):
     """Bind a target to a thread. The AI agent will use this target by default."""
+    # FK 欄位命名為 bound_target_id（非 Django 慣例的 bound_target），
+    # 因此 Python 層的 ID 屬性是 bound_target_id_id（Django 自動加 _id 後綴）。
+    # 用 filter().update() 直接走 DB 層 db_column，最穩妥且與 assistants.py 的
+    # bind_to_target tool 行為一致。
+    from apps.core.models import Target
     thread = get_object_or_404(ThreadModel, id=thread_id)
-    thread.bound_target_id = payload.target_id
-    thread.save(update_fields=["bound_target_id", "updated_at"])
+    get_object_or_404(Target, id=payload.target_id)  # 驗證 target 存在
+    ThreadModel.objects.filter(id=thread_id).update(
+        bound_target_id=payload.target_id,
+    )
+    thread.refresh_from_db()
     return thread
 
 
@@ -225,8 +262,9 @@ def bind_target(request, thread_id: Any, payload: BindTargetIn):
 )
 @with_cast_id
 def unbind_target(request, thread_id: Any):
-    """Remove the target binding from a thread."""
+    """Remove the target binding from this thread."""
+    ThreadModel.objects.filter(id=thread_id).update(
+        bound_target_id=None,
+    )
     thread = get_object_or_404(ThreadModel, id=thread_id)
-    thread.bound_target_id = None
-    thread.save(update_fields=["bound_target_id", "updated_at"])
     return 200, thread

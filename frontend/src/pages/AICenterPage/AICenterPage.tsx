@@ -4,12 +4,29 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { assistantApi } from '../../services/assistantApi';
 import { useHasuraSubscription } from '../../hooks/useHasuraSubscription';
+import { useDraftInput } from '../../hooks/useDraftInput';
+import { usePersistentState } from '../../hooks/usePersistentState';
 import ExecutionTimelineViewer from '../../components/ExecutionTimelineViewer';
 import ThreadEventTimeline from '../../components/ThreadEventTimeline';
+import MessageFilterBar, {
+  DEFAULT_MSG_FILTER,
+  messagePassesFilter,
+  type MessageFilterState,
+} from '../../components/MessageFilterBar';
+import ToolCallGroup from '../../components/ToolCallGroup';
+import SubAgentContainerBlock, {
+  dispatchToView,
+  type DispatchedGraphView,
+} from '../../components/SubAgentContainerBlock';
 import { executionApi } from '../../services/executionApi';
-import type { ExecutionGraph } from '../../services/executionApi';
+import type { ExecutionGraph, SubAgentDispatchItem } from '../../services/executionApi';
 import { OverviewService, type OverviewData } from '../../services/overviewService';
 import { GET_AGENT_TREE_SUBSCRIPTION } from '../../queries';
+import {
+  groupMessagesForRender,
+  parseRawMessages,
+  type DisplayMessage,
+} from '../../types/messages';
 import './AICenter.css';
 
 // ── Constants ─────────────────────────────────────────────────────────────
@@ -23,6 +40,15 @@ const STATUS_CLASS: Record<string, string> = {
   FAILED:            'tree-badge--failed',
   NEEDS_GUIDANCE:    'tree-badge--needs-guidance',
   WAITING_FOR_ASYNC: 'tree-badge--waiting',
+};
+
+const STATUS_ICON: Record<string, string> = {
+  EXECUTING:         '⟳',  // spin
+  PLANNING:          '◯',  // circle
+  COMPLETED:         '✓',  // check
+  FAILED:            '✗',  // cross
+  NEEDS_GUIDANCE:    '?',
+  WAITING_FOR_ASYNC: '⏳',
 };
 
 const riskClass = (score: number) =>
@@ -61,7 +87,10 @@ function TreeNodeItem({
 }) {
   const isActive = activeNodeThreadId === String(node.thread_id);
   const icon = node.assistant_id === 'hacker_assistant_agent' ? 'HA' : 'AI';
-  const children = allNodes.filter(n => n.parent_thread_id === node.thread_id);
+  const children =
+    node.thread_id != null
+      ? allNodes.filter(n => n.parent_thread_id === node.thread_id)
+      : [];
 
   return (
     <div className="tree-node-group">
@@ -70,6 +99,9 @@ function TreeNodeItem({
         style={{ paddingLeft: `${8 + depth * 20}px` }}
         onClick={() => onSelect(node)}
         title={node.thread_name}
+        data-testid={`tree-node-${node.thread_id}`}
+        data-status={node.overview_status || 'unknown'}
+        data-depth={depth}
       >
         {depth > 0 && <span className="tree-connector" />}
         <div className="tree-node-label">
@@ -78,7 +110,20 @@ function TreeNodeItem({
             {node.target_name && depth > 0 ? node.target_name : node.thread_name}
           </span>
         </div>
+        {node.overview_status && (
+          <span
+            className={`tree-node-status-icon tree-node-status-icon--${(STATUS_CLASS[node.overview_status] || 'tree-badge--default').replace('tree-badge--', '')}`}
+          >
+            {STATUS_ICON[node.overview_status] || '•'}
+          </span>
+        )}
         <div className="tree-node-meta">
+          {isActive && !node.overview_status && (
+            <span
+              className="tree-node-skeleton"
+              data-testid={`skeleton-${node.thread_id}`}
+            />
+          )}
           {node.overview_status && (
             <span className={`tree-badge ${STATUS_CLASS[node.overview_status] || 'tree-badge--default'}`}>
               {node.overview_status.replace(/_/g, ' ')}
@@ -133,7 +178,7 @@ function _ingestThreadFromOv(
     created_at: t.created_at,
   });
   // Recurse into this thread's own overviews (grandchildren)
-  for (const childOv of t.core_overviews ?? []) {
+  for (const childOv of Array.isArray(t.core_overviews) ? t.core_overviews : []) {
     const childT = childOv.aiAssistantThreadByThreadId;
     if (childT) _ingestThreadFromOv(childT, childOv, tid, nodes, seen);
   }
@@ -161,7 +206,7 @@ function buildTreeNodes(rawData: any, rootThreadId: string): TreeNode[] {
   });
   seen.add(Number(root.id));
 
-  for (const ov of root.core_overviews ?? []) {
+  for (const ov of Array.isArray(root.core_overviews) ? root.core_overviews : []) {
     const t = ov.aiAssistantThreadByThreadId;
     if (t) _ingestThreadFromOv(t, ov, Number(rootThreadId), nodes, seen);
   }
@@ -181,11 +226,20 @@ const AICenterPage: React.FC = () => {
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(initialThreadId);
   const [selectedThreadData, setSelectedThreadData] = useState<any>(null);
   const [activeAssistantId, setActiveAssistantId] = useState<string>('hacker_assistant_agent');
-  const [messages, setMessages] = useState<any[]>([]);
-  const [inputVal, setInputVal] = useState('');
+  const [messages, setMessages] = useState<DisplayMessage[]>([]);
+  const [inputVal, setInputVal, clearDraft] = useDraftInput(selectedThreadId);
   const [isSending, setIsSending] = useState(false);
   const [streamingText, setStreamingText] = useState<string | null>(null);
   const [displayLimit, setDisplayLimit] = useState(50);
+  const [msgFilter, setMsgFilter] = usePersistentState<MessageFilterState>(
+    'aiCenter_msgFilter',
+    DEFAULT_MSG_FILTER,
+  );
+  const [dispatchedGraphs, setDispatchedGraphs] = useState<DispatchedGraphView[]>([]);
+  const [graphPage, setGraphPage] = useState(1);
+  const [graphStatusFilter, setGraphStatusFilter] = useState('');
+  const [graphHasMore, setGraphHasMore] = useState(false);
+  const GRAPHS_PER_PAGE = 5;
 
   // Sidebar state
   const [threadsLoading, setThreadsLoading] = useState(true);
@@ -265,24 +319,37 @@ const AICenterPage: React.FC = () => {
     setAgentTree(nodes);
   }, [treeRawData, rootThreadId]);
 
+  // Lazy-load execution graphs (paginated + status filter)
   useEffect(() => {
     let cancelled = false;
     if (!activeNodeThreadId) {
       setActiveThreadGraphs([]);
       setSelectedGraphId(null);
+      setGraphPage(1);
+      setGraphHasMore(false);
       return;
     }
 
-    void executionApi.listGraphs({ thread_id: Number(activeNodeThreadId), limit: 20 })
+    const offset = (graphPage - 1) * GRAPHS_PER_PAGE;
+    void executionApi
+      .listGraphs({
+        thread_id: Number(activeNodeThreadId),
+        limit: GRAPHS_PER_PAGE,
+        offset,
+        status: graphStatusFilter || undefined,
+      })
       .then((graphs) => {
         if (cancelled) return;
-        setActiveThreadGraphs(graphs);
-        const running = graphs.find((graph) => graph.status === 'RUNNING' || graph.status === 'WAITING');
-        setSelectedGraphId((current) => current ?? running?.id ?? graphs[0]?.id ?? null);
-        setShowLogsPanel(graphs.length > 0);
+        setActiveThreadGraphs((prev) => (graphPage === 1 ? graphs : [...prev, ...graphs]));
+        setGraphHasMore(graphs.length >= GRAPHS_PER_PAGE);
+        if (graphPage === 1) {
+          const running = graphs.find((graph) => graph.status === 'RUNNING' || graph.status === 'WAITING');
+          setSelectedGraphId((current) => current ?? running?.id ?? graphs[0]?.id ?? null);
+          setShowLogsPanel(graphs.length > 0);
+        }
       })
       .catch(() => {
-        if (!cancelled) {
+        if (!cancelled && graphPage === 1) {
           setActiveThreadGraphs([]);
           setSelectedGraphId(null);
         }
@@ -291,7 +358,27 @@ const AICenterPage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [activeNodeThreadId]);
+  }, [activeNodeThreadId, graphPage, graphStatusFilter]);
+
+  // Load SubAgentDispatch records for container blocks
+  useEffect(() => {
+    let cancelled = false;
+    if (!selectedThreadId) {
+      setDispatchedGraphs([]);
+      return;
+    }
+    void executionApi
+      .listDispatches(selectedThreadId)
+      .then((items: SubAgentDispatchItem[]) => {
+        if (!cancelled) setDispatchedGraphs(items.map(dispatchToView));
+      })
+      .catch(() => {
+        if (!cancelled) setDispatchedGraphs([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedThreadId]);
 
   // ── Overview fetch ─────────────────────────────────────────────────────
 
@@ -361,21 +448,9 @@ const AICenterPage: React.FC = () => {
 
   const loadMessagesForThread = async (threadId: string) => {
     try {
-      const msgArray: any[] = await assistantApi.getMessages(threadId);
-      const parsed = msgArray.map(m => {
-        let textContent = '';
-        const role = m.type === 'human' ? 'user' : 'assistant';
-        if (typeof m.content === 'string') textContent = m.content;
-        else if (Array.isArray(m.content))
-          textContent = m.content.map((c: any) => c.text || JSON.stringify(c)).join('\n');
-        if (!textContent.trim()) {
-          if (m.tool_calls?.length > 0)
-            textContent = `[Tool Call: ${m.tool_calls.map((tc: any) => tc.name).join(', ')}]`;
-          else if (m.type === 'tool') textContent = '[Tool Execution Completed]';
-          else textContent = '[Empty Message]';
-        }
-        return { id: m.id, role, textContent };
-      });
+      // include_tools=true unlocks tool_call / tool_result rendering (G5)
+      const msgArray = await assistantApi.getMessages(threadId, true);
+      const parsed = parseRawMessages(msgArray);
       setDisplayLimit(50);
       setMessages(parsed);
       return parsed;
@@ -383,6 +458,47 @@ const AICenterPage: React.FC = () => {
       console.error('Failed to load messages', err);
       setMessages([]);
       return [];
+    }
+  };
+
+  const matchDispatchForMessage = useCallback(
+    (msg: DisplayMessage): DispatchedGraphView | undefined => {
+      if (dispatchedGraphs.length === 0) return undefined;
+      const toolNames = new Set(
+        (msg.toolCalls ?? []).map((tc) => tc.name).concat(msg.toolName ? [msg.toolName] : []),
+      );
+      // Prefer exact agent-type match; fall back to first unmatched dispatch
+      const byType = dispatchedGraphs.find((g) => toolNames.has(g.sub_agent_type));
+      if (byType) return byType;
+      if (toolNames.has('automation_agent')) {
+        return dispatchedGraphs.find((g) => g.sub_agent_type === 'automation_agent')
+          ?? dispatchedGraphs[0];
+      }
+      return dispatchedGraphs[0];
+    },
+    [dispatchedGraphs],
+  );
+
+  const handleArchiveGraph = async (graphId: number) => {
+    try {
+      await executionApi.archiveGraph(graphId, true);
+      setActiveThreadGraphs((prev) => prev.filter((g) => g.id !== graphId));
+      if (selectedGraphId === graphId) {
+        setSelectedGraphId(null);
+      }
+    } catch (err) {
+      console.error('Failed to archive graph', err);
+    }
+  };
+
+  const handleDeleteGraph = async (graphId: number) => {
+    if (!window.confirm(`Delete execution graph #${graphId}?`)) return;
+    try {
+      await executionApi.deleteGraph(graphId);
+      setActiveThreadGraphs((prev) => prev.filter((g) => g.id !== graphId));
+      if (selectedGraphId === graphId) setSelectedGraphId(null);
+    } catch (err) {
+      console.error('Failed to delete graph', err);
     }
   };
 
@@ -480,6 +596,8 @@ const AICenterPage: React.FC = () => {
     setShowEventsPanel(false);
     setSelectedGraphId(null);
     setActiveThreadGraphs([]);
+    setGraphPage(1);
+    setGraphStatusFilter('');
   };
 
   const handleSelectTreeNode = useCallback((node: TreeNode) => {
@@ -497,8 +615,10 @@ const AICenterPage: React.FC = () => {
 
     setSelectedGraphId(null);
     setActiveThreadGraphs([]);
+    setGraphPage(1);
+    setGraphStatusFilter('');
     setShowLogsPanel(node.assistant_id !== 'hacker_assistant_agent');
-  }, []);
+  }, [selectThread]);
 
   // ── Create / delete ───────────────────────────────────────────────────
 
@@ -534,10 +654,18 @@ const AICenterPage: React.FC = () => {
     if (!selectedThreadData) { alert('This conversation was deleted'); selectThread(null); return; }
 
     const userMsg = inputVal;
-    setInputVal('');
+    clearDraft();
     setIsSending(true);
     setStreamingText('');
-    setMessages(prev => [...prev, { role: 'user', textContent: userMsg }]);
+    setMessages(prev => [
+      ...prev,
+      {
+        id: `local-user-${Date.now()}`,
+        role: 'user',
+        category: 'user',
+        textContent: userMsg,
+      },
+    ]);
     cleanupStreamRef.current?.();
 
     const shouldAutoRename =
@@ -566,16 +694,25 @@ const AICenterPage: React.FC = () => {
         setStreamingText(null);
         setIsSending(false);
         cleanupStreamRef.current = null;
-        setMessages(prev => [...prev, { role: 'assistant', textContent: `Error: ${errMsg}`, isError: true }]);
+        setMessages(prev => [
+          ...prev,
+          {
+            id: `local-err-${Date.now()}`,
+            role: 'assistant',
+            category: 'ai_response',
+            textContent: `Error: ${errMsg}`,
+            isError: true,
+          },
+        ]);
         await loadMessagesForThread(selectedThreadId);
       },
       () => { /* onStats noop */ }
     );
     cleanupStreamRef.current = cleanup;
-  }, [inputVal, selectedThreadId, selectedThreadData, activeAssistantId, streamingText]);
+  }, [inputVal, selectedThreadId, selectedThreadData, activeAssistantId, streamingText, clearDraft]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    if (e.currentTarget.scrollTop === 0 && displayLimit < messages.length) {
+    if (e.currentTarget.scrollTop === 0 && displayLimit < filteredMessages.length) {
       const container = e.currentTarget;
       const prevScrollHeight = container.scrollHeight;
       setDisplayLimit(prev => prev + 50);
@@ -585,7 +722,18 @@ const AICenterPage: React.FC = () => {
 
   // ── Derived ───────────────────────────────────────────────────────────
 
-  const displayedMessages = messages.slice(-displayLimit);
+  const filteredMessages = useMemo(
+    () =>
+      messages.filter((m) =>
+        messagePassesFilter(m.category, msgFilter, m.assistantId || activeAssistantId),
+      ),
+    [messages, msgFilter, activeAssistantId],
+  );
+  const displayedMessages = filteredMessages.slice(-displayLimit);
+  const renderItems = useMemo(
+    () => groupMessagesForRender(displayedMessages),
+    [displayedMessages],
+  );
   const rootNode = agentTree.find(n => n.parent_thread_id === null) ?? null;
   const showTree = showTreePanel && rootThreadId !== null;
 
@@ -778,27 +926,74 @@ const AICenterPage: React.FC = () => {
 
               {/* Upper area: messages + input */}
               <div className="chat-upper">
+                <MessageFilterBar filter={msgFilter} onChange={setMsgFilter} />
                 <div className="messages-area" onScroll={handleScroll}>
-                  {messages.length === 0 && !streamingText && (
+                  {filteredMessages.length === 0 && !streamingText && (
                     <div className="empty-chat">
                       <div className="empty-icon">AI</div>
-                      <div className="empty-text">Start a conversation</div>
-                    </div>
-                  )}
-                  {displayLimit < messages.length && (
-                    <div className="loading-older">Loading older messages...</div>
-                  )}
-                  {displayedMessages.map((msg: any) => (
-                    <div key={msg.id || Math.random()} className={`message message-${msg.role}`}>
-                      <div className="message-content">
-                        {msg.role === 'user' ? (
-                          <div className="user-text">{msg.textContent}</div>
-                        ) : (
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.textContent}</ReactMarkdown>
-                        )}
+                      <div className="empty-text">
+                        {messages.length === 0 ? 'Start a conversation' : 'No messages match current filters'}
                       </div>
                     </div>
-                  ))}
+                  )}
+                  {displayLimit < filteredMessages.length && (
+                    <div className="loading-older">Loading older messages...</div>
+                  )}
+                  {renderItems.map((item, idx) => {
+                    if (item.kind === 'tool_group') {
+                      return (
+                        <ToolCallGroup
+                          key={`tg-${item.calls[0]?.id ?? idx}`}
+                          calls={item.calls}
+                          results={item.results}
+                        />
+                      );
+                    }
+                    if (item.kind === 'subagent') {
+                      const matched = matchDispatchForMessage(item.message);
+                      if (matched) {
+                        return (
+                          <SubAgentContainerBlock
+                            key={`sa-${item.message.id}`}
+                            graph={matched}
+                            onViewGraph={(gid) => {
+                              setSelectedGraphId(gid);
+                              setShowLogsPanel(true);
+                            }}
+                            onViewThread={(tid) => {
+                              handleSelectSidebarThread({
+                                id: tid,
+                                name: `Sub-agent #${tid}`,
+                                assistant_id: matched.sub_agent_type,
+                                is_hidden: true,
+                                bound_target_id: boundTargetId,
+                              });
+                            }}
+                          />
+                        );
+                      }
+                      // Fallback: no dispatch record yet — show tool call group style
+                      return (
+                        <ToolCallGroup
+                          key={`sa-fallback-${item.message.id}`}
+                          calls={[item.message]}
+                          results={[]}
+                        />
+                      );
+                    }
+                    const msg = item.message;
+                    return (
+                      <div key={msg.id || idx} className={`message message-${msg.role}${msg.isError ? ' message-error' : ''}`}>
+                        <div className="message-content">
+                          {msg.role === 'user' ? (
+                            <div className="user-text">{msg.textContent}</div>
+                          ) : (
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.textContent}</ReactMarkdown>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                   {streamingText && (
                     <div className="message message-assistant">
                       <div className="message-content">
@@ -841,7 +1036,22 @@ const AICenterPage: React.FC = () => {
                     </div>
 
                     <div className="logs-panel-controls">
-                      {activeThreadGraphs.length > 1 && (
+                      <select
+                        className="graph-picker"
+                        value={graphStatusFilter}
+                        onChange={(e) => {
+                          setGraphStatusFilter(e.target.value);
+                          setGraphPage(1);
+                        }}
+                        title="Filter by status"
+                      >
+                        <option value="">All</option>
+                        <option value="RUNNING">Running</option>
+                        <option value="WAITING">Waiting</option>
+                        <option value="SUCCEEDED">Succeeded</option>
+                        <option value="FAILED">Failed</option>
+                      </select>
+                      {activeThreadGraphs.length > 0 && (
                         <select
                           className="graph-picker"
                           value={selectedGraphId ?? ''}
@@ -853,6 +1063,20 @@ const AICenterPage: React.FC = () => {
                             </option>
                           ))}
                         </select>
+                      )}
+                      {selectedGraphId && (
+                        <>
+                          <button
+                            className="logs-close-btn"
+                            onClick={() => handleArchiveGraph(selectedGraphId)}
+                            title="Archive graph"
+                          >Archive</button>
+                          <button
+                            className="logs-close-btn"
+                            onClick={() => handleDeleteGraph(selectedGraphId)}
+                            title="Delete graph"
+                          >Delete</button>
+                        </>
                       )}
                       <button
                         className="logs-close-btn"
@@ -867,6 +1091,16 @@ const AICenterPage: React.FC = () => {
                       <ExecutionTimelineViewer graphId={selectedGraphId} compact autoScroll />
                     ) : (
                       <div className="logs-empty">No execution graph selected</div>
+                    )}
+                    {graphHasMore && (
+                      <div style={{ padding: 8, textAlign: 'center' }}>
+                        <button
+                          className="c2-btn c2-btn--ghost c2-btn--sm"
+                          onClick={() => setGraphPage((p) => p + 1)}
+                        >
+                          Load More
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>

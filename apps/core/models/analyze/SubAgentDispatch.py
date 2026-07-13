@@ -19,6 +19,7 @@ class SubAgentDispatch(models.Model):
     """
 
     DISPATCH_AGENT_CHOICES = [
+        ("automation_agent", "Automation Agent"),
         ("recon_agent", "Recon Agent"),
         ("post_exploit_agent", "Post-Exploit Agent"),
         ("reporting_agent", "Reporting Agent"),

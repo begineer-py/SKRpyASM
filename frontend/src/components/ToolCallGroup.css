@@ -1,0 +1,86 @@
+.tool-call-group {
+  margin: 8px 12px;
+  border: 1px solid #1e293b;
+  border-radius: 10px;
+  background: rgba(30, 41, 59, 0.55);
+  overflow: hidden;
+}
+
+.tcg-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  color: #cbd5e1;
+  font-size: 0.78rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.tcg-header:hover {
+  background: rgba(51, 65, 85, 0.4);
+}
+
+.tcg-icon {
+  flex-shrink: 0;
+}
+
+.tcg-names {
+  flex: 1;
+  min-width: 0;
+  color: #64748b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.72rem;
+}
+
+.tcg-toggle {
+  color: #64748b;
+  font-size: 0.7rem;
+}
+
+.tcg-body {
+  border-top: 1px solid #1e293b;
+  padding: 8px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tcg-item {
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #0f172a;
+  border: 1px solid #1e293b;
+}
+
+.tcg-item--call {
+  border-left: 3px solid #38bdf8;
+}
+
+.tcg-item--result {
+  border-left: 3px solid #22c55e;
+}
+
+.tcg-item-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #94a3b8;
+  margin-bottom: 4px;
+}
+
+.tcg-item-body {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.7rem;
+  color: #e2e8f0;
+  max-height: 240px;
+  overflow: auto;
+}

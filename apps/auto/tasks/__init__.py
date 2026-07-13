@@ -454,6 +454,76 @@ def auto_execute_plan():
         except Exception as e:
             logger.error(f"[AutoExecution] Failed executing plan for {target.name}: {e}")
 
+def _resolve_overview_id_for_automation(agent, caller_thread_id):
+    """從 agent / sub_thread / caller_thread 解析 overview_id（供 SubAgentDispatch 記錄）。"""
+    overview_id = getattr(agent, "_agent_overview_id", None)
+    if overview_id:
+        return overview_id
+
+    sub_thread = getattr(agent, "_thread", None)
+    if sub_thread is not None:
+        bound = getattr(sub_thread, "bound_overview_id", None)
+        if bound is not None:
+            return getattr(bound, "id", bound)
+
+    if caller_thread_id:
+        try:
+            from apps.core.models import Thread
+            parent = Thread.objects.filter(id=caller_thread_id).first()
+            if parent is not None:
+                bound = getattr(parent, "bound_overview_id", None)
+                if bound is not None:
+                    return getattr(bound, "id", bound)
+                # FK raw id 欄位（避免 lazy load 差異）
+                raw_id = getattr(parent, "bound_overview_id_id", None)
+                if raw_id:
+                    return raw_id
+        except Exception as e:
+            logger.warning(f"[run_automation_agent_async] overview resolve failed: {e}")
+    return None
+
+
+def _record_automation_dispatch(agent, message, caller_thread_id, status="COMPLETED", result_summary=""):
+    """HackerAgent → AutomationAgent 派發追蹤（G1 gap fix）。"""
+    overview_id = _resolve_overview_id_for_automation(agent, caller_thread_id)
+    if not overview_id:
+        logger.info(
+            f"[run_automation_agent_async] Skip SubAgentDispatch: no overview_id "
+            f"(caller_thread_id={caller_thread_id})"
+        )
+        return None
+
+    sub_thread = getattr(agent, "_thread", None)
+    sub_thread_id = getattr(sub_thread, "id", None) if sub_thread is not None else None
+    dispatch = _record_dispatch(
+        overview_id=overview_id,
+        dispatcher_thread_id=caller_thread_id,
+        sub_agent_type="automation_agent",
+        sub_thread_id=sub_thread_id,
+        objective=(message or "")[:500],
+        task_label="run_automation_agent_async",
+        status=status,
+    )
+    if dispatch is not None and (status in ("COMPLETED", "FAILED") or result_summary):
+        try:
+            from django.utils import timezone
+            update_fields = []
+            if status in ("COMPLETED", "FAILED"):
+                dispatch.status = status
+                update_fields.append("status")
+                if not dispatch.completed_at:
+                    dispatch.completed_at = timezone.now()
+                    update_fields.append("completed_at")
+            if result_summary:
+                dispatch.result_summary = result_summary[:2000]
+                update_fields.append("result_summary")
+            if update_fields:
+                dispatch.save(update_fields=update_fields)
+        except Exception as e:
+            logger.warning(f"[run_automation_agent_async] Failed to finalize dispatch: {e}")
+    return dispatch
+
+
 @shared_task(name="apps.auto.tasks.run_automation_agent_async", bind=True, max_retries=3, default_retry_delay=30)
 @log_function_call()
 def run_automation_agent_async(self, message: str, caller_thread_id: int = None):
@@ -463,6 +533,13 @@ def run_automation_agent_async(self, message: str, caller_thread_id: int = None)
     agent = AutomationAgent(caller_thread_id=caller_thread_id)
     try:
         result = agent._run_as_tool(message, caller_thread_id=caller_thread_id)
+        # G1: 記錄 HackerAgent → AutomationAgent 派發，供前端 Dispatch API 追蹤
+        summary = ""
+        if isinstance(result, dict):
+            summary = str(result.get("output") or result.get("error") or "")[:500]
+        _record_automation_dispatch(
+            agent, message, caller_thread_id, status="COMPLETED", result_summary=summary
+        )
         agent._auto_notify_parent(result=result)
         return result
     except GraphRecursionError:
@@ -470,6 +547,13 @@ def run_automation_agent_async(self, message: str, caller_thread_id: int = None)
         logger.warning(
             f"[run_automation_agent_async] GraphRecursionError (caller_thread_id={caller_thread_id}); "
             f"notifying parent and skipping retry."
+        )
+        _record_automation_dispatch(
+            agent,
+            message,
+            caller_thread_id,
+            status="FAILED",
+            result_summary="GraphRecursionError: agent hit recursion limit.",
         )
         agent._auto_notify_parent(
             error="Agent 已達思考步驟上限（GraphRecursionError），任務中止以免無限重試。"
@@ -502,6 +586,9 @@ def run_automation_agent_async(self, message: str, caller_thread_id: int = None)
         else:
             # 非瞬態錯誤（程式 bug / 邏輯錯誤 / 認證失敗）：通知 parent + 重試
             logger.exception(f"[run_automation_agent_async] Non-transient failure ({error_type}): {e}")
+            _record_automation_dispatch(
+                agent, message, caller_thread_id, status="FAILED", result_summary=error_msg[:500]
+            )
             agent._auto_notify_parent(error=error_msg)
             raise self.retry(exc=e)
 

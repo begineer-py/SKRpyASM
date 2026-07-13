@@ -48,4 +48,10 @@ class ThreadMessageTypeEnum(str, Enum):
 class ThreadMessage(Schema):
     id: str | None = None  # noqa: A003
     type: ThreadMessageTypeEnum  # noqa: A003
-    content: str
+    content: str | list | dict | None = None
+    # Tool call / tool result fields (present when ?include_tools=true)
+    tool_calls: list | None = None
+    tool_call_id: str | None = None
+    name: str | None = None
+    additional_kwargs: dict | None = None
+    response_metadata: dict | None = None

@@ -1,12 +1,7 @@
-import ninja
 from ninja import Router
 from ninja.errors import HttpError
 from typing import List, Optional
 from datetime import datetime
-import requests
-import os
-from django.core.exceptions import ObjectDoesNotExist
-from c2_core.config.logging import log_function_call
 import logging
 
 router = Router()
@@ -16,18 +11,32 @@ logger = logging.getLogger(__name__)
 from .models.pentest_config import PentestHeaderConfig
 from .models.target_request_config import TargetRequestConfig
 from .models.base import Target
-from .models import ExecutionArtifact, ExecutionEvent, ExecutionGraph, ExecutionNode, Overview
+from .models import (
+    ContentBlob,
+    ExecutionArtifact,
+    ExecutionEvent,
+    ExecutionGraph,
+    ExecutionNode,
+    Overview,
+    SubAgentDispatch,
+)
 from .schemas import (
+    ContentBlobPageSchema,
+    ContentBlobSummarySchema,
+    DispatchGraphSchema,
+    ErrorSchema,
     ExecutionArtifactSchema,
     ExecutionEventSchema,
     ExecutionGraphDetailSchema,
     ExecutionGraphSchema,
+    ExecutionGraphUpdateSchema,
     ExecutionNodeSchema,
     PentestHeaderConfigOut,
     PentestHeaderConfigUpdate,
+    ResolvedRequestConfigOut,
+    SubAgentDispatchSchema,
     TargetRequestConfigOut,
     TargetRequestConfigUpdate,
-    ResolvedRequestConfigOut,
 )
 from .header_injection import resolve_request_config
 
@@ -98,8 +107,12 @@ def list_execution_graphs(
     target_id: Optional[int] = None,
     status: Optional[str] = None,
     limit: int = 50,
+    offset: int = 0,
+    include_archived: bool = False,
+    search: Optional[str] = None,
 ):
     limit = max(1, min(limit, 200))
+    offset = max(0, offset)
     queryset = ExecutionGraph.objects.all().order_by("-started_at")
     if thread_id is not None:
         queryset = queryset.filter(thread_id=thread_id)
@@ -114,7 +127,14 @@ def list_execution_graphs(
         queryset = queryset.filter(thread_id__in=thread_ids) if thread_ids else queryset.none()
     if status:
         queryset = queryset.filter(status=status)
-    return list(queryset[:limit])
+    if search:
+        queryset = queryset.filter(title__icontains=search)
+    # archived 標記存在 metadata JSONField（不新增 DB 欄位）
+    # 注意：exclude(metadata__archived=True) 在 PostgreSQL 會因 NULL 三值邏輯
+    # 把「沒有 archived key」的列一併排除，故改用 contains。
+    if not include_archived:
+        queryset = queryset.exclude(metadata__contains={"archived": True})
+    return list(queryset[offset : offset + limit])
 
 
 @router.get("/executions/{graph_id}", response=ExecutionGraphDetailSchema, tags=["Core - Executions"])
@@ -138,6 +158,34 @@ def get_execution_graph(request, graph_id: int):
         "events": list(graph.events.all()),
         "artifacts": list(graph.artifacts.all()),
     }
+
+
+@router.patch("/executions/{graph_id}", response=ExecutionGraphSchema, tags=["Core - Executions"])
+def update_execution_graph(request, graph_id: int, data: ExecutionGraphUpdateSchema):
+    """更新 ExecutionGraph 的 title，或以 metadata.archived 標記封存。"""
+    try:
+        graph = ExecutionGraph.objects.get(id=graph_id)
+    except ExecutionGraph.DoesNotExist:
+        raise HttpError(404, f"ExecutionGraph {graph_id} 不存在")
+
+    updated = data.model_dump(exclude_unset=True)
+    if "title" in updated and updated["title"] is not None:
+        graph.title = updated["title"]
+    if "archived" in updated and updated["archived"] is not None:
+        meta = dict(graph.metadata or {})
+        meta["archived"] = bool(updated["archived"])
+        graph.metadata = meta
+    graph.save()
+    return graph
+
+
+@router.delete("/executions/{graph_id}", response={200: dict, 404: ErrorSchema}, tags=["Core - Executions"])
+def delete_execution_graph(request, graph_id: int):
+    """刪除 ExecutionGraph（CASCADE 清理 nodes/events/artifacts）。"""
+    deleted, _ = ExecutionGraph.objects.filter(id=graph_id).delete()
+    if deleted == 0:
+        raise HttpError(404, f"ExecutionGraph {graph_id} 不存在")
+    return {"detail": f"ExecutionGraph {graph_id} 已刪除"}
 
 
 @router.get("/executions/{graph_id}/nodes", response=List[ExecutionNodeSchema], tags=["Core - Executions"])
@@ -166,6 +214,123 @@ def list_execution_artifacts(request, graph_id: int, node_id: Optional[int] = No
     if node_id is not None:
         queryset = queryset.filter(node_id=node_id)
     return list(queryset)
+
+
+def _blob_summary(blob: ContentBlob) -> dict:
+    page_breakdown = blob.page_breakdown or []
+    page_count = len(page_breakdown) if page_breakdown else None
+    return {
+        "blob_id": blob.id,
+        "ai_summary": blob.ai_summary or "",
+        "content_size": blob.content_size or 0,
+        "page_count": page_count,
+        "source_type": blob.source_type,
+        "created_at": blob.created_at,
+    }
+
+
+@router.get(
+    "/threads/{caller_thread_id}/dispatches/",
+    response=List[SubAgentDispatchSchema],
+    tags=["Core - SubAgent Dispatches"],
+)
+def list_thread_dispatches(request, caller_thread_id: int):
+    """列出 caller thread 透過 SubAgentDispatch 派發的所有子代理記錄。
+
+    每筆附帶對應 ExecutionGraph 與 ContentBlob 摘要（從 ExecutionArtifact 聚合）。
+    此 API 是 query_dispatched_agents AI 工具的 REST 等價物（以 dispatcher_thread 查詢）。
+    """
+    dispatches = (
+        SubAgentDispatch.objects.filter(dispatcher_thread_id=caller_thread_id)
+        .select_related("sub_thread", "overview")
+        .order_by("-dispatched_at")
+    )
+    result = []
+    for d in dispatches:
+        graph_data = None
+        content_blobs: list = []
+        if d.sub_thread_id:
+            graph = (
+                ExecutionGraph.objects.filter(thread_id=d.sub_thread_id)
+                .order_by("-started_at")
+                .first()
+            )
+            if graph:
+                graph_data = {
+                    "graph_id": graph.id,
+                    "status": graph.status,
+                    "title": graph.title or "",
+                    "assistant_id": graph.assistant_id or "",
+                }
+                # 聚合 ContentBlob（透過 ExecutionArtifact FK 或 data.blob_id）
+                artifacts = (
+                    ExecutionArtifact.objects.filter(graph_id=graph.id)
+                    .select_related("content_blob")
+                    .order_by("created_at", "id")
+                )
+                seen_blob_ids = set()
+                for art in artifacts:
+                    blob = art.content_blob
+                    if blob is None:
+                        blob_id = (art.data or {}).get("blob_id")
+                        if blob_id and blob_id not in seen_blob_ids:
+                            blob = ContentBlob.objects.filter(id=blob_id).first()
+                    if blob is None or blob.id in seen_blob_ids:
+                        continue
+                    seen_blob_ids.add(blob.id)
+                    content_blobs.append(_blob_summary(blob))
+
+        result.append(
+            {
+                "dispatch_id": d.id,
+                "sub_agent_type": d.sub_agent_type,
+                "objective": d.objective or "",
+                "result_summary": d.result_summary or "",
+                "synthesized": d.synthesized,
+                "dispatched_at": d.dispatched_at,
+                "completed_at": d.completed_at,
+                "status": d.status,
+                "dispatcher_thread_id": d.dispatcher_thread_id,
+                "callee_thread_id": d.sub_thread_id,
+                "overview_id": d.overview_id,
+                "graph": graph_data,
+                "content_blobs": content_blobs,
+            }
+        )
+    return result
+
+
+@router.get(
+    "/blobs/{blob_id}/page/{page_num}/",
+    response={200: ContentBlobPageSchema, 404: ErrorSchema},
+    tags=["Core - Content Blobs"],
+)
+def get_content_blob_page(request, blob_id: int, page_num: int):
+    """讀取 ContentBlob.page_breakdown 的指定頁（1-indexed）。
+
+    直接從 DB 讀取，不觸發 LLM。底層邏輯與 apps.core.services.pagination.read_page 一致。
+    """
+    try:
+        blob = ContentBlob.objects.get(id=blob_id)
+    except ContentBlob.DoesNotExist:
+        raise HttpError(404, f"ContentBlob {blob_id} 不存在")
+
+    page_breakdown = blob.page_breakdown or []
+    if not page_breakdown:
+        raise HttpError(404, f"ContentBlob {blob_id} 沒有 page_breakdown")
+
+    total = len(page_breakdown)
+    if page_num < 1 or page_num > total:
+        raise HttpError(404, f"Page {page_num} out of range (1-{total})")
+
+    page = page_breakdown[page_num - 1] or {}
+    return {
+        "blob_id": blob_id,
+        "page": page_num,
+        "total_pages": total,
+        "title": page.get("title") or "Untitled",
+        "content": page.get("content") or "",
+    }
 
 
 @router.get("/target-request-config/{target_id}/resolved", response=ResolvedRequestConfigOut, tags=["Core - Target Request Config"])

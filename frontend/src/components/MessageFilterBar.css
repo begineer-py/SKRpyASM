@@ -1,0 +1,82 @@
+.msg-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid #1e293b;
+  background: rgba(15, 23, 42, 0.85);
+  flex-shrink: 0;
+}
+
+.filter-presets,
+.filter-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.filter-preset-btn {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #94a3b8;
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.filter-preset-btn:hover {
+  border-color: #22c55e;
+  color: #e2e8f0;
+}
+
+.filter-chip {
+  background: transparent;
+  border: 1px solid #334155;
+  color: #64748b;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.filter-chip.active {
+  background: rgba(34, 197, 94, 0.12);
+  border-color: #22c55e;
+  color: #86efac;
+}
+
+.filter-chip:hover {
+  border-color: #64748b;
+  color: #cbd5e1;
+}
+
+.filter-agents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-left: auto;
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+
+.filter-agents-label {
+  color: #64748b;
+}
+
+.filter-agent-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  color: #94a3b8;
+}
+
+.filter-agent-item input {
+  accent-color: #22c55e;
+}

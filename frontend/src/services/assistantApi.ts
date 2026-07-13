@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { GLOBAL_CONFIG } from '../config';
+import type { RawMessage } from '../types/messages';
 
 const api = axios.create({
   baseURL: `${GLOBAL_CONFIG.DJANGO_API_BASE}/assistant`,
@@ -34,9 +35,14 @@ export const assistantApi = {
     return response.data;
   },
 
-  // Get messages for a thread
-  getMessages: async (threadId: number | string): Promise<any[]> => {
-    const response = await api.get(`/threads/${threadId}/messages/`);
+  /**
+   * Get messages for a thread.
+   * @param includeTools — when true, pass ?include_tools=true so tool_call/tool_result are returned
+   */
+  getMessages: async (threadId: number | string, includeTools = false): Promise<RawMessage[]> => {
+    const response = await api.get(`/threads/${threadId}/messages/`, {
+      params: includeTools ? { include_tools: true } : undefined,
+    });
     return Array.isArray(response.data) ? response.data : [];
   },
 

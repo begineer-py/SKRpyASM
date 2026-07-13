@@ -70,14 +70,79 @@ export interface ExecutionGraphDetail extends ExecutionGraph {
   artifacts: ExecutionArtifact[];
 }
 
+export interface ContentBlobSummary {
+  blob_id: number;
+  ai_summary?: string | null;
+  content_size: number;
+  page_count?: number | null;
+  source_type?: string | null;
+  created_at?: string | null;
+}
+
+export interface DispatchGraphInfo {
+  graph_id: number;
+  status: string;
+  title: string;
+  assistant_id?: string;
+}
+
+export interface SubAgentDispatchItem {
+  dispatch_id: number;
+  sub_agent_type: string;
+  objective: string;
+  result_summary: string;
+  synthesized: boolean;
+  dispatched_at?: string | null;
+  completed_at?: string | null;
+  status: string;
+  dispatcher_thread_id?: number | null;
+  callee_thread_id?: number | null;
+  overview_id?: number | null;
+  graph?: DispatchGraphInfo | null;
+  content_blobs: ContentBlobSummary[];
+}
+
+export interface ContentBlobPage {
+  blob_id: number;
+  page: number;
+  total_pages: number;
+  title: string;
+  content: string;
+}
+
 export const executionApi = {
-  listGraphs: async (params?: { thread_id?: number; target_id?: number; status?: string; limit?: number }): Promise<ExecutionGraph[]> => {
+  listGraphs: async (params?: {
+    thread_id?: number;
+    target_id?: number;
+    status?: string;
+    limit?: number;
+    offset?: number;
+    include_archived?: boolean;
+    search?: string;
+  }): Promise<ExecutionGraph[]> => {
     const response = await api.get<ExecutionGraph[]>('/executions', { params });
     return Array.isArray(response.data) ? response.data : [];
   },
 
   getGraph: async (graphId: number | string): Promise<ExecutionGraphDetail> => {
     const response = await api.get<ExecutionGraphDetail>(`/executions/${graphId}`);
+    return response.data;
+  },
+
+  updateGraph: async (
+    graphId: number | string,
+    data: { title?: string; archived?: boolean },
+  ): Promise<ExecutionGraph> => {
+    const response = await api.patch<ExecutionGraph>(`/executions/${graphId}`, data);
+    return response.data;
+  },
+
+  deleteGraph: async (graphId: number | string): Promise<void> => {
+    await api.delete(`/executions/${graphId}`);
+  },
+
+  archiveGraph: async (graphId: number | string, archived = true): Promise<ExecutionGraph> => {
+    const response = await api.patch<ExecutionGraph>(`/executions/${graphId}`, { archived });
     return response.data;
   },
 
@@ -89,5 +154,15 @@ export const executionApi = {
   listArtifacts: async (graphId: number | string, params?: { node_id?: number }): Promise<ExecutionArtifact[]> => {
     const response = await api.get<ExecutionArtifact[]>(`/executions/${graphId}/artifacts`, { params });
     return Array.isArray(response.data) ? response.data : [];
+  },
+
+  listDispatches: async (callerThreadId: number | string): Promise<SubAgentDispatchItem[]> => {
+    const response = await api.get<SubAgentDispatchItem[]>(`/threads/${callerThreadId}/dispatches/`);
+    return Array.isArray(response.data) ? response.data : [];
+  },
+
+  getBlobPage: async (blobId: number | string, pageNum: number): Promise<ContentBlobPage> => {
+    const response = await api.get<ContentBlobPage>(`/blobs/${blobId}/page/${pageNum}/`);
+    return response.data;
   },
 };

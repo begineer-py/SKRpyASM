@@ -215,6 +215,54 @@ class ThreadEventSchema(ModelSchema):
         ]
 
 
+# --- SubAgentDispatch / ContentBlob / ExecutionGraph management ---
+
+
+class ContentBlobSummarySchema(Schema):
+    blob_id: int
+    ai_summary: Optional[str] = None
+    content_size: int = 0
+    page_count: Optional[int] = None
+    source_type: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+
+class DispatchGraphSchema(Schema):
+    graph_id: int
+    status: str
+    title: str = ""
+    assistant_id: str = ""
+
+
+class SubAgentDispatchSchema(Schema):
+    dispatch_id: int
+    sub_agent_type: str
+    objective: str = ""
+    result_summary: str = ""
+    synthesized: bool = False
+    dispatched_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    status: str
+    dispatcher_thread_id: Optional[int] = None
+    callee_thread_id: Optional[int] = None
+    overview_id: Optional[int] = None
+    graph: Optional[DispatchGraphSchema] = None
+    content_blobs: List[ContentBlobSummarySchema] = []
+
+
+class ContentBlobPageSchema(Schema):
+    blob_id: int
+    page: int
+    total_pages: int
+    title: str = ""
+    content: str = ""
+
+
+class ExecutionGraphUpdateSchema(Schema):
+    title: Optional[str] = None
+    archived: Optional[bool] = None
+
+
 class ExecutionGraphDetailSchema(ExecutionGraphSchema):
     nodes: List[ExecutionNodeSchema]
     events: List[ExecutionEventSchema]
