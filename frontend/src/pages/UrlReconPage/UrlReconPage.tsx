@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { gqlFetcher } from "../../services/api";
-import "../SeedReconPageSub/SeedReconPage.css"; // Reuse styling variables
+import { cn } from '@/lib/utils';
 
 const GET_URL_SEED_DATA = `
   query GetUrlSeedData($seed_id: bigint!) {
@@ -108,16 +108,16 @@ function UrlReconPage() {
     }
   };
 
-  if (loading) return <div className="recon-container">INITIALIZING URL RECON ENVIRONMENT...</div>;
-  if (!seedVal) return <div className="recon-container">ERROR: SEED DATA NOT FOUND.</div>;
+  if (loading) return <div className="max-w-[1400px] mx-auto p-5 font-mono text-[#e0e0e0]">INITIALIZING URL RECON ENVIRONMENT...</div>;
+  if (!seedVal) return <div className="max-w-[1400px] mx-auto p-5 font-mono text-[#e0e0e0]">ERROR: SEED DATA NOT FOUND.</div>;
 
   return (
-    <div className="recon-container">
+    <div className="max-w-[1400px] mx-auto p-5 font-mono text-[#e0e0e0]">
       {/* Target Module */}
-      <div className="recon-header-card border-l-4 border-red">
+      <div className="bg-[#1e1e1e] border border-[#333] px-[30px] py-[25px] rounded-md mb-[30px] flex justify-between items-center border-l-4 border-red">
         <div>
           <div className="text-red font-bold tracking-wider mb-2 text-[0.8rem] uppercase">TARGET URL</div>
-          <div className="seed-info-large">{seedVal}</div>
+          <div className="text-3xl font-bold text-white mb-1 tracking-[1px]">{seedVal}</div>
           <div className="text-text-muted mt-1.5 flex gap-4">
             <span>SEED ID: {nSeedId}</span>
             <span>INTERNAL URL ID: {urlId || "INITIALIZING..."}</span>
@@ -128,11 +128,11 @@ function UrlReconPage() {
       <div className="grid grid-cols-[2fr_1fr] gap-5 mt-5">
         {/* Left Column: Command Center */}
         <div>
-          <div className="assets-card">
-            <div className="assets-header cursor-default">
-              <div className="assets-title text-blue">🚀 NUCLEI COMMAND CENTER</div>
+          <div className="bg-[#1e1e1e] border border-[#333] rounded-md mb-5 overflow-hidden">
+            <div className="flex justify-between items-center px-5 py-[15px] cursor-default bg-[#2a2a2a] transition-colors duration-200 hover:bg-[#383838]">
+              <div className="text-lg font-bold uppercase tracking-[0.5px] text-blue">🚀 NUCLEI COMMAND CENTER</div>
             </div>
-            <div className="assets-content">
+            <div className="max-h-[600px] overflow-y-auto border-t border-[#333]">
               <p className="text-text-secondary text-[0.9rem] mb-4">
                 URL templates are unique and highly specialized for web application endpoints. Select payload tags to inject into the Nuclei engine.
               </p>
@@ -159,7 +159,7 @@ function UrlReconPage() {
 
               <div className="flex gap-3 items-center">
                 <button 
-                  className="btn-fire bg-red border-red"
+                  className="bg-red text-white font-mono text-base font-bold px-6 py-3 rounded cursor-pointer transition-all duration-200 uppercase tracking-[1px] shadow-[0_0_5px_rgba(211,47,47,0.4)] hover:bg-[#b71c1c] hover:-translate-y-0.5 hover:shadow-[0_4px_20px_rgba(211,47,47,0.6)] disabled:bg-[#555] disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none"
                   onClick={handleRunNuclei}
                   disabled={triggering || !urlId}
                 >
@@ -170,11 +170,11 @@ function UrlReconPage() {
             </div>
           </div>
 
-          <div className="assets-card opacity-60 pointer-events-none">
-            <div className="assets-header">
-              <div className="assets-title text-purple">🔒 SQLMAP INTEGRATION (IN DEVELOPMENT)</div>
+          <div className="bg-[#1e1e1e] border border-[#333] rounded-md mb-5 overflow-hidden opacity-60 pointer-events-none">
+            <div className="flex justify-between items-center px-5 py-[15px] cursor-pointer bg-[#2a2a2a] transition-colors duration-200 hover:bg-[#383838]">
+              <div className="text-lg font-bold uppercase tracking-[0.5px] text-purple">🔒 SQLMAP INTEGRATION (IN DEVELOPMENT)</div>
             </div>
-            <div className="assets-content">
+            <div className="max-h-[600px] overflow-y-auto border-t border-[#333]">
               Module unmounted. Specialized SQL injection automation will be deployed here.
             </div>
           </div>
@@ -182,21 +182,27 @@ function UrlReconPage() {
 
         {/* Right Column: Execution History */}
         <div>
-          <div className="assets-card">
-            <div className="assets-header cursor-default">
-              <div className="assets-title">EXECUTION HISTORY</div>
-              <span className="assets-count">{urlResult?.core_nucleiscans?.length || 0}</span>
+          <div className="bg-[#1e1e1e] border border-[#333] rounded-md mb-5 overflow-hidden">
+            <div className="flex justify-between items-center px-5 py-[15px] cursor-default bg-[#2a2a2a] transition-colors duration-200 hover:bg-[#383838]">
+              <div className="text-lg font-bold uppercase tracking-[0.5px]">EXECUTION HISTORY</div>
+              <span className="bg-[#2196f3] text-white px-2.5 py-1 rounded-full text-sm font-bold mr-[15px]">{urlResult?.core_nucleiscans?.length || 0}</span>
             </div>
-            <div className="assets-content p-0">
+            <div className="max-h-[600px] overflow-y-auto border-t border-[#333] p-0">
               {(!urlResult?.core_nucleiscans || urlResult.core_nucleiscans.length === 0) ? (
-                <div className="empty-state-message">No scan deployments recorded.</div>
+                <div className="p-10 text-center text-[#a0a0a0]">No scan deployments recorded.</div>
               ) : (
                 <div className="flex flex-col">
                   {urlResult.core_nucleiscans.map((scan: any) => (
                     <div key={scan.id} className="px-5 py-4 border-b border-border-subtle">
                       <div className="flex justify-between mb-1.5">
                         <span className="text-blue font-mono text-[0.85rem]">#SCAN-{scan.id}</span>
-                        <span className={`status-badge status-${scan.status}`}>{scan.status}</span>
+                        <span className={cn(
+                          "px-2.5 py-1 rounded text-sm font-bold text-center min-w-[90px] inline-block",
+                          scan.status === 'PENDING' && "bg-[#ffab00] text-black",
+                          scan.status === 'RUNNING' && "bg-[#2196f3] text-white animate-pulse",
+                          scan.status === 'COMPLETED' && "bg-[#00c853] text-black",
+                          scan.status === 'FAILED' && "bg-[#d32f2f] text-white",
+                        )}>{scan.status}</span>
                       </div>
                       <div className="text-text-secondary text-[0.75rem]">
                         DISPATCHED: {new Date(scan.created_at).toLocaleString()}
