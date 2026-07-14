@@ -1,6 +1,14 @@
 import { useState, useEffect } from 'react';
 import { GLOBAL_CONFIG } from '../../config';
 import './APIKeyManager.css';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 
 interface APIKey {
   id: number;
@@ -320,70 +328,70 @@ const APIKeyManagerPage: React.FC = () => {
       </div>
 
       {/* Add Single Modal */}
-      {showAddModal && (
-        <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <h3>ADD NEW API KEY</h3>
+      <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
+        <DialogContent className="bg-bg-elevated border-border-subtle text-text-primary max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-text-primary font-body">ADD NEW API KEY</DialogTitle>
+          </DialogHeader>
 
-            <label className="modal-label">SERVICE NAME</label>
-            <ServiceSelect
-              value={newKey.service_name}
-              onChange={v => setNewKey({ ...newKey, service_name: v })}
-              placeholder="Select a service…"
-            />
+          <label className="modal-label">SERVICE NAME</label>
+          <ServiceSelect
+            value={newKey.service_name}
+            onChange={v => setNewKey({ ...newKey, service_name: v })}
+            placeholder="Select a service…"
+          />
 
-            <label className="modal-label">API KEY VALUE</label>
-            <input
-              type="text"
-              placeholder="Paste your API key here"
-              value={newKey.key_value}
-              onChange={e => setNewKey({ ...newKey, key_value: e.target.value })}
-            />
+          <label className="modal-label">API KEY VALUE</label>
+          <input
+            type="text"
+            placeholder="Paste your API key here"
+            value={newKey.key_value}
+            onChange={e => setNewKey({ ...newKey, key_value: e.target.value })}
+          />
 
-            <label className="modal-label">DESCRIPTION (optional)</label>
-            <input
-              type="text"
-              placeholder="e.g. Shodan API (Premium)"
-              value={newKey.description}
-              onChange={e => setNewKey({ ...newKey, description: e.target.value })}
-            />
+          <label className="modal-label">DESCRIPTION (optional)</label>
+          <input
+            type="text"
+            placeholder="e.g. Shodan API (Premium)"
+            value={newKey.description}
+            onChange={e => setNewKey({ ...newKey, description: e.target.value })}
+          />
 
-            <div className="modal-actions">
-              <button className="btn btn-secondary" onClick={() => setShowAddModal(false)}>CANCEL</button>
-              <button className="btn btn-primary" onClick={handleAddSingle}>ADD KEY</button>
-            </div>
-          </div>
-        </div>
-      )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowAddModal(false)}>CANCEL</Button>
+            <Button variant="default" onClick={handleAddSingle}>ADD KEY</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Bulk Import Modal */}
-      {showBulkModal && (
-        <div className="modal-overlay" onClick={() => setShowBulkModal(false)}>
-          <div className="modal bulk-modal" onClick={e => e.stopPropagation()}>
-            <h3>BULK IMPORT KEYS</h3>
+      <Dialog open={showBulkModal} onOpenChange={setShowBulkModal}>
+        <DialogContent className="bg-bg-elevated border-border-subtle text-text-primary max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-text-primary font-body">BULK IMPORT KEYS</DialogTitle>
+          </DialogHeader>
 
-            <label className="modal-label">SERVICE NAME</label>
-            <ServiceSelect
-              value={bulkService}
-              onChange={setBulkService}
-              placeholder="Select a service…"
-            />
+          <label className="modal-label">SERVICE NAME</label>
+          <ServiceSelect
+            value={bulkService}
+            onChange={setBulkService}
+            placeholder="Select a service…"
+          />
 
-            <label className="modal-label">KEYS (ONE PER LINE)</label>
-            <textarea
-              placeholder="key1&#10;key2&#10;key3"
-              value={bulkText}
-              onChange={e => setBulkText(e.target.value)}
-              rows={8}
-            />
+          <label className="modal-label">KEYS (ONE PER LINE)</label>
+          <textarea
+            placeholder="key1&#10;key2&#10;key3"
+            value={bulkText}
+            onChange={e => setBulkText(e.target.value)}
+            rows={8}
+          />
 
-            <div className="modal-actions">
-              <button className="btn btn-secondary" onClick={() => setShowBulkModal(false)}>CANCEL</button>
-              <button className="btn btn-primary" onClick={handleBulkImport}>IMPORT</button>
-            </div>
-          </div>
-        </div>
-      )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowBulkModal(false)}>CANCEL</Button>
+            <Button variant="default" onClick={handleBulkImport}>IMPORT</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

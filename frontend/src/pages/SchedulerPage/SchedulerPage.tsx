@@ -5,524 +5,19 @@ import {
   type CreateTaskPayload,
   type UpdateTaskPayload,
   type RegisteredTask,
+  type WatchdogStatus,
 } from '../../services/api_scheduler';
-import { GLOBAL_CONFIG } from '../../config';
+import { TaskRow, DeleteConfirm } from './components/TaskRow';
+import { TaskForm, type FormState, DEFAULT_FORM, taskToForm } from './components/TaskForm';
+import WatchdogPanel from './components/WatchdogPanel';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
-interface TaskRequirements {
-  task: string;
-  requires_api: boolean;
-  agent_id: string | null;
-  provider: string | null;
-  has_key: boolean;
-  description: string | null;
-  missing_key_hint: string | null;
-}
-
-// ─── helpers ──────────────────────────────────────────────────────────────────
-
-function formatSchedule(task: PeriodicTask): string {
-  if (task.interval) {
-    const { every, period } = task.interval;
-    return `every ${every} ${period}`;
-  }
-  if (task.crontab) {
-    const { minute, hour, day_of_week, day_of_month, month_of_year } = task.crontab;
-    return `${minute} ${hour} ${day_of_month} ${month_of_year} ${day_of_week}`;
-  }
-  return '—';
-}
-
-function formatTime(iso: string | null): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  const now = Date.now();
-  const diffMs = now - d.getTime();
-  const diffM = Math.floor(diffMs / 60000);
-  if (diffM < 1) return 'just now';
-  if (diffM < 60) return `${diffM}m ago`;
-  const diffH = Math.floor(diffM / 60);
-  if (diffH < 24) return `${diffH}h ago`;
-  return d.toLocaleDateString();
-}
-
-const PERIOD_OPTIONS = ['seconds', 'minutes', 'hours', 'days'] as const;
-type Period = typeof PERIOD_OPTIONS[number];
-
-// ─── form state (used for both create and edit) ───────────────────────────────
-
-interface FormState {
-  name: string;
-  task: string;
-  description: string;
-  enabled: boolean;
-  scheduleType: 'interval' | 'crontab';
-  intervalEvery: number;
-  intervalPeriod: Period;
-  crontabMinute: string;
-  crontabHour: string;
-  crontabDow: string;
-  crontabDom: string;
-  crontabMoy: string;
-  args: string;
-  kwargs: string;
-}
-
-const DEFAULT_FORM: FormState = {
-  name: '',
-  task: '',
-  description: '',
-  enabled: true,
-  scheduleType: 'interval',
-  intervalEvery: 5,
-  intervalPeriod: 'minutes',
-  crontabMinute: '*',
-  crontabHour: '*',
-  crontabDow: '*',
-  crontabDom: '*',
-  crontabMoy: '*',
-  args: '[]',
-  kwargs: '{}',
-};
-
-function taskToForm(t: PeriodicTask): FormState {
-  return {
-    name: t.name,
-    task: t.task,
-    description: t.description,
-    enabled: t.enabled,
-    scheduleType: t.crontab ? 'crontab' : 'interval',
-    intervalEvery: t.interval?.every ?? 5,
-    intervalPeriod: (t.interval?.period as Period) ?? 'minutes',
-    crontabMinute: t.crontab?.minute ?? '*',
-    crontabHour: t.crontab?.hour ?? '*',
-    crontabDow: t.crontab?.day_of_week ?? '*',
-    crontabDom: t.crontab?.day_of_month ?? '*',
-    crontabMoy: t.crontab?.month_of_year ?? '*',
-    args: t.args || '[]',
-    kwargs: t.kwargs || '{}',
-  };
-}
-
-// ─── sub-components ───────────────────────────────────────────────────────────
-
-interface TaskRowProps {
-  task: PeriodicTask;
-  toggling: boolean;
-  deleting: boolean;
-  onToggle: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
-}
-
-function TaskRow({ task, toggling, deleting, onToggle, onEdit, onDelete }: TaskRowProps) {
-  const statusColor = task.enabled ? 'var(--text-green)' : 'var(--text-muted)';
-
-  return (
-    <div
-      className="c2-card"
-      style={{
-        padding: '12px 16px',
-        opacity: task.enabled ? 1 : 0.65,
-        transition: 'opacity 0.2s',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-        {/* Enabled toggle dot */}
-        <button
-          title={task.enabled ? 'Click to disable' : 'Click to enable'}
-          onClick={onToggle}
-          disabled={toggling}
-          style={{
-            background: 'none',
-            border: 'none',
-            cursor: toggling ? 'wait' : 'pointer',
-            padding: '2px 0 0',
-            flexShrink: 0,
-          }}
-        >
-          <span style={{ fontSize: '0.9rem', color: statusColor }}>
-            {toggling ? '…' : task.enabled ? '●' : '○'}
-          </span>
-        </button>
-
-        {/* Main info */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-            <span style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: '0.85rem',
-              fontWeight: 700,
-              color: 'var(--text-primary)',
-            }}>
-              {task.name}
-            </span>
-            {task.one_off && (
-              <span className="c2-badge" style={{ fontSize: '0.65rem' }}>ONE-OFF</span>
-            )}
-          </div>
-
-          <div style={{
-            fontSize: '0.72rem',
-            color: 'var(--text-muted)',
-            fontFamily: 'var(--font-mono)',
-            marginTop: 2,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-            title={task.task}
-          >
-            {task.task}
-          </div>
-
-          {task.description && (
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 4 }}>
-              {task.description}
-            </div>
-          )}
-
-          {task.task_doc && !task.description && (
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 4 }}>
-              {task.task_doc.split('\n')[0]}
-            </div>
-          )}
-        </div>
-
-        {/* Schedule + stats */}
-        <div style={{
-          display: 'flex',
-          gap: 20,
-          alignItems: 'center',
-          flexShrink: 0,
-          flexWrap: 'wrap',
-          justifyContent: 'flex-end',
-        }}>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: '0.75rem',
-              color: 'var(--text-cyan)',
-            }}>
-              {formatSchedule(task)}
-            </div>
-            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: 2 }}>
-              Last: {formatTime(task.last_run_at)} · ×{task.total_run_count}
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button
-              className="c2-btn c2-btn--sm"
-              onClick={onEdit}
-              style={{ fontSize: '0.7rem' }}
-            >
-              Edit
-            </button>
-            <button
-              className="c2-btn c2-btn--sm"
-              onClick={onDelete}
-              disabled={deleting}
-              style={{
-                fontSize: '0.7rem',
-                color: 'var(--red)',
-                borderColor: 'var(--red)',
-              }}
-            >
-              {deleting ? '…' : 'Del'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── task form (create + edit) ─────────────────────────────────────────────────
-
-interface TaskFormProps {
-  mode: 'create' | 'edit';
-  initial: FormState;
-  saving: boolean;
-  registeredTasks: RegisteredTask[];
-  onSubmit: (f: FormState) => void;
-  onCancel: () => void;
-}
-
-function TaskForm({ mode, initial, saving, registeredTasks, onSubmit, onCancel }: TaskFormProps) {
-  const [f, setF] = useState<FormState>(initial);
-  const [taskReq, setTaskReq] = useState<TaskRequirements | null>(null);
-
-  const set = <K extends keyof FormState>(key: K, val: FormState[K]) =>
-    setF(prev => ({ ...prev, [key]: val }));
-
-  // 選擇任務路徑時，查詢 AI API 密鑰需求（400ms debounce 防止頻繁請求）
-  useEffect(() => {
-    if (!f.task) { setTaskReq(null); return; }
-    const timer = setTimeout(async () => {
-      try {
-        const res = await fetch(
-          `${GLOBAL_CONFIG.DJANGO_API_BASE}/scheduler/task-requirements?task=${encodeURIComponent(f.task)}`
-        );
-        if (res.ok) setTaskReq(await res.json());
-      } catch { setTaskReq(null); }
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [f.task]);
-
-  const hasApiBlock = taskReq?.requires_api === true && taskReq?.has_key === false;
-
-  return (
-    <div className="c2-card" style={{ padding: '16px 18px', marginBottom: 16 }}>
-      <div style={{
-        fontFamily: 'var(--font-mono)',
-        fontSize: '0.75rem',
-        color: 'var(--text-green)',
-        marginBottom: 14,
-        textTransform: 'uppercase',
-        letterSpacing: '0.06em',
-      }}>
-        {mode === 'create' ? '+ New Task' : `Edit: ${initial.name}`}
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-        <div>
-          <label style={labelStyle}>Task Name *</label>
-          <input
-            className="c2-input"
-            style={{ width: '100%' }}
-            placeholder="my_task_name"
-            value={f.name}
-            onChange={e => set('name', e.target.value)}
-          />
-        </div>
-        <div>
-          <label style={labelStyle}>Task Path *</label>
-          <input
-            className="c2-input"
-            list="registered-tasks-list"
-            style={{ width: '100%', fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}
-            placeholder="apps.auto.tasks.my_task"
-            value={f.task}
-            onChange={e => set('task', e.target.value)}
-          />
-          {registeredTasks.length > 0 && (
-            <datalist id="registered-tasks-list">
-              {registeredTasks.map(t => (
-                <option key={t.name} value={t.name} label={t.doc ?? undefined} />
-              ))}
-            </datalist>
-          )}
-          {/* AI API 密鑰需求警告 */}
-          {taskReq?.requires_api && (
-            <div style={{
-              marginTop: 6,
-              padding: '6px 10px',
-              borderRadius: 4,
-              fontSize: '0.72rem',
-              fontFamily: 'var(--font-mono)',
-              background: taskReq.has_key ? 'rgba(20, 83, 45, 0.5)' : 'rgba(69, 10, 10, 0.5)',
-              color: taskReq.has_key ? '#86efac' : '#fca5a5',
-              border: `1px solid ${taskReq.has_key ? '#166534' : '#7f1d1d'}`,
-              lineHeight: 1.5,
-            }}>
-              {taskReq.has_key
-                ? `✓ API 密鑰已配置（${taskReq.agent_id || taskReq.provider}）`
-                : `⚠ ${taskReq.description} — 請至 /agent-config 或 /api-keys 配置後再創建`}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div style={{ marginBottom: 10 }}>
-        <label style={labelStyle}>Description</label>
-        <input
-          className="c2-input"
-          style={{ width: '100%' }}
-          placeholder="Optional description"
-          value={f.description}
-          onChange={e => set('description', e.target.value)}
-        />
-      </div>
-
-      {/* Schedule type toggle */}
-      <div style={{ marginBottom: 10 }}>
-        <label style={labelStyle}>Schedule Type</label>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            type="button"
-            className={`c2-btn c2-btn--sm${f.scheduleType === 'interval' ? ' c2-btn--active' : ''}`}
-            style={{ opacity: f.scheduleType === 'interval' ? 1 : 0.5 }}
-            onClick={() => set('scheduleType', 'interval')}
-          >
-            Interval
-          </button>
-          <button
-            type="button"
-            className={`c2-btn c2-btn--sm${f.scheduleType === 'crontab' ? ' c2-btn--active' : ''}`}
-            style={{ opacity: f.scheduleType === 'crontab' ? 1 : 0.5, ...(mode === 'create' ? { cursor: 'not-allowed' } : {}) }}
-            onClick={() => mode === 'edit' && set('scheduleType', 'crontab')}
-            title={mode === 'create' ? 'Crontab only available when editing an existing task' : undefined}
-          >
-            Crontab{mode === 'create' ? ' (edit only)' : ''}
-          </button>
-        </div>
-      </div>
-
-      {/* Interval fields */}
-      {f.scheduleType === 'interval' && (
-        <div style={{ display: 'flex', gap: 10, marginBottom: 10, alignItems: 'flex-end' }}>
-          <div style={{ flex: 1 }}>
-            <label style={labelStyle}>Every</label>
-            <input
-              className="c2-input"
-              type="number"
-              min={1}
-              style={{ width: '100%' }}
-              value={f.intervalEvery}
-              onChange={e => set('intervalEvery', Math.max(1, parseInt(e.target.value) || 1))}
-            />
-          </div>
-          <div style={{ flex: 1 }}>
-            <label style={labelStyle}>Period</label>
-            <select
-              className="c2-input"
-              style={{ width: '100%' }}
-              value={f.intervalPeriod}
-              onChange={e => set('intervalPeriod', e.target.value as Period)}
-            >
-              {PERIOD_OPTIONS.map(p => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      )}
-
-      {/* Crontab fields */}
-      {f.scheduleType === 'crontab' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 10 }}>
-          {(
-            [
-              { key: 'crontabMinute' as const, label: 'Minute' },
-              { key: 'crontabHour' as const, label: 'Hour' },
-              { key: 'crontabDom' as const, label: 'Day/Month' },
-              { key: 'crontabMoy' as const, label: 'Month' },
-              { key: 'crontabDow' as const, label: 'Day/Week' },
-            ] as const
-          ).map(({ key, label }) => (
-            <div key={key}>
-              <label style={labelStyle}>{label}</label>
-              <input
-                className="c2-input"
-                style={{ width: '100%', fontFamily: 'var(--font-mono)' }}
-                value={f[key]}
-                onChange={e => set(key, e.target.value)}
-              />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Args / Kwargs */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-        <div>
-          <label style={labelStyle}>Args (JSON)</label>
-          <input
-            className="c2-input"
-            style={{ width: '100%', fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}
-            value={f.args}
-            onChange={e => set('args', e.target.value)}
-          />
-        </div>
-        <div>
-          <label style={labelStyle}>Kwargs (JSON)</label>
-          <input
-            className="c2-input"
-            style={{ width: '100%', fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}
-            value={f.kwargs}
-            onChange={e => set('kwargs', e.target.value)}
-          />
-        </div>
-      </div>
-
-      {/* Enabled + submit row */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <label style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          fontSize: '0.8rem',
-          color: 'var(--text-secondary)',
-          cursor: 'pointer',
-        }}>
-          <input
-            type="checkbox"
-            checked={f.enabled}
-            onChange={e => set('enabled', e.target.checked)}
-          />
-          Enabled
-        </label>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-          <button className="c2-btn c2-btn--sm" onClick={onCancel} style={{ opacity: 0.6 }}>
-            Cancel
-          </button>
-          <button
-            className="c2-btn"
-            onClick={() => onSubmit(f)}
-            disabled={saving || !f.name.trim() || !f.task.trim() || hasApiBlock}
-            title={hasApiBlock ? '請先配置所需的 AI API 密鑰' : undefined}
-          >
-            {saving ? 'SAVING…' : mode === 'create' ? 'CREATE' : 'SAVE'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  fontSize: '0.68rem',
-  color: 'var(--text-muted)',
-  textTransform: 'uppercase',
-  letterSpacing: '0.05em',
-  marginBottom: 4,
-};
-
-// ─── delete confirmation inline ───────────────────────────────────────────────
-
-interface DeleteConfirmProps {
-  taskName: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-}
-
-function DeleteConfirm({ taskName, onConfirm, onCancel }: DeleteConfirmProps) {
-  return (
-    <div style={{
-      padding: '10px 14px',
-      border: '1px solid var(--red)',
-      borderRadius: 4,
-      fontSize: '0.8rem',
-      color: 'var(--text-secondary)',
-      display: 'flex',
-      alignItems: 'center',
-      gap: 12,
-      marginBottom: 8,
-    }}>
-      <span>Delete <strong style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{taskName}</strong>?</span>
-      <button className="c2-btn c2-btn--sm" onClick={onConfirm} style={{ color: 'var(--red)', borderColor: 'var(--red)', marginLeft: 'auto' }}>
-        Confirm Delete
-      </button>
-      <button className="c2-btn c2-btn--sm" onClick={onCancel} style={{ opacity: 0.6 }}>
-        Cancel
-      </button>
-    </div>
-  );
-}
-
-// ─── page ──────────────────────────────────────────────────────────────────────
+// ─── page ──────────────────────────────────────────────────────
 
 export default function SchedulerPage() {
   const [tasks, setTasks] = useState<PeriodicTask[]>([]);
@@ -538,6 +33,7 @@ export default function SchedulerPage() {
   const [togglingId, setTogglingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const [watchdogStatus, setWatchdogStatus] = useState<WatchdogStatus | null>(null);
 
   const loadTasks = useCallback(async () => {
     setLoading(true);
@@ -557,7 +53,11 @@ export default function SchedulerPage() {
     // 載入已登記的 Celery 任務（用於 task path datalist）
     SchedulerService.listRegisteredTasks()
       .then(data => setRegisteredTasks(data))
-      .catch(() => { /* non-critical, datalist just won't show */ });
+      .catch(() => { /* non-critical */ });
+    // 載入看門狗狀態
+    SchedulerService.getWatchdogStatus()
+      .then(setWatchdogStatus)
+      .catch(() => { /* non-critical */ });
   }, [loadTasks]);
 
   const handleToggle = async (task: PeriodicTask) => {
@@ -566,7 +66,7 @@ export default function SchedulerPage() {
       const updated = await SchedulerService.updateTask(task.id, { enabled: !task.enabled });
       setTasks(prev => prev.map(t => t.id === task.id ? { ...t, enabled: updated.enabled } : t));
     } catch {
-      // ignore — keep original state
+      // ignore
     } finally {
       setTogglingId(null);
     }
@@ -681,9 +181,27 @@ export default function SchedulerPage() {
         </div>
       </div>
 
+      {/* Watchdog Status Panel */}
+      {watchdogStatus && (
+        <WatchdogPanel
+          status={watchdogStatus}
+          onRefresh={() => {
+            SchedulerService.getWatchdogStatus()
+              .then(setWatchdogStatus)
+              .catch(() => {});
+          }}
+        />
+      )}
+
       {/* Create / Edit Form */}
-      {formMode !== 'hidden' && (
-        <>
+      <Dialog open={formMode !== 'hidden'} onOpenChange={(open) => { if (!open) { setFormMode('hidden'); setEditingTask(null); setFormError(null); } }}>
+        <DialogContent className="bg-bg-elevated border-border-subtle text-text-primary max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-text-primary font-body" style={{ color: 'var(--text-green)', fontFamily: 'var(--font-mono)' }}>
+              {formMode === 'create' ? '+ New Task' : `Edit: ${editingTask?.name ?? ''}`}
+            </DialogTitle>
+          </DialogHeader>
+
           {formError && (
             <div style={{
               color: 'var(--red)',
@@ -696,16 +214,18 @@ export default function SchedulerPage() {
               {formError}
             </div>
           )}
-          <TaskForm
-            mode={formMode === 'create' ? 'create' : 'edit'}
-            initial={formMode === 'edit' && editingTask ? taskToForm(editingTask) : DEFAULT_FORM}
-            saving={saving}
-            registeredTasks={registeredTasks}
-            onSubmit={handleFormSubmit}
-            onCancel={() => { setFormMode('hidden'); setEditingTask(null); setFormError(null); }}
-          />
-        </>
-      )}
+          {formMode !== 'hidden' && (
+            <TaskForm
+              mode={formMode === 'create' ? 'create' : 'edit'}
+              initial={formMode === 'edit' && editingTask ? taskToForm(editingTask) : DEFAULT_FORM}
+              saving={saving}
+              registeredTasks={registeredTasks}
+              onSubmit={handleFormSubmit}
+              onCancel={() => { setFormMode('hidden'); setEditingTask(null); setFormError(null); }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Page-level error */}
       {pageError && (
@@ -797,4 +317,3 @@ export default function SchedulerPage() {
     </div>
   );
 }
-

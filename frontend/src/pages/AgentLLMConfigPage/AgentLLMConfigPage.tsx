@@ -1,6 +1,14 @@
 import { useState, useEffect } from 'react';
 import { GLOBAL_CONFIG } from '../../config';
 import './AgentLLMConfig.css';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 
 interface APIKeyBrief {
   id: number;
@@ -63,6 +71,20 @@ const KNOWN_PROVIDERS = ['openai', 'anthropic', 'mistral', 'deepseek', 'opencode
 const CUSTOM_PROVIDER = '__custom__';
 const NO_KEY_VALUE = '__none__';
 const apiBase = GLOBAL_CONFIG.DJANGO_API_BASE;
+
+// Provider-specific hints and default settings
+const PROVIDER_HINTS: Record<string, { hint: string; defaultBaseUrl?: string; defaultModel?: string }> = {
+  opencode: {
+    hint: '✦ OpenCode Zen Gateway — OpenAI-compatible，支援 deepseek-v4-flash / deepseek-v4-pro 等模型',
+    defaultBaseUrl: 'https://opencode.ai/zen/go/v1',
+    defaultModel: 'deepseek-v4-flash',
+  },
+  openai: { hint: 'OpenAI 官方 API', defaultModel: 'gpt-4o' },
+  anthropic: { hint: 'Anthropic Claude API', defaultModel: 'claude-sonnet-4-6' },
+  mistral: { hint: 'Mistral AI API', defaultModel: 'mistral-small-2603' },
+  deepseek: { hint: 'DeepSeek 官方 API', defaultBaseUrl: 'https://api.deepseek.com/v1', defaultModel: 'deepseek-chat' },
+  ollama: { hint: '本地 Ollama 服務（無需 API Key）', defaultBaseUrl: 'http://localhost:11434', defaultModel: 'llama3' },
+};
 
 function StatusBadge({ config }: { config: AgentEffectiveConfig }) {
   if (config.has_db_config) {
@@ -345,114 +367,134 @@ const AgentLLMConfigPage: React.FC = () => {
       )}
 
       {/* Edit Modal */}
-      {editingAgentId && (
-        <div className="modal-overlay" onClick={() => setEditingAgentId(null)}>
-          <div className="agent-modal" onClick={e => e.stopPropagation()}>
-            <h3>EDIT: {editingAgentId}</h3>
+      <Dialog open={!!editingAgentId} onOpenChange={(open) => { if (!open) setEditingAgentId(null); }}>
+        <DialogContent className="bg-bg-elevated border-border-subtle text-text-primary max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-text-primary font-body">EDIT: {editingAgentId}</DialogTitle>
+          </DialogHeader>
 
-            <label className="modal-label">PROVIDER</label>
-            <select
-              value={editForm.provider}
-              onChange={e => setEditForm({ ...editForm, provider: e.target.value, custom_provider: '' })}
-            >
-              <option value="">— inherit global default —</option>
-              {KNOWN_PROVIDERS.map(p => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-              <option value={CUSTOM_PROVIDER}>── Custom… ──</option>
-            </select>
+          <label className="modal-label">PROVIDER</label>
+          <select
+            value={editForm.provider}
+            onChange={e => {
+              const newProvider = e.target.value;
+              const hint = PROVIDER_HINTS[newProvider];
+              setEditForm(prev => ({
+                ...prev,
+                provider: newProvider,
+                custom_provider: '',
+                // Auto-fill api_base_url if empty and provider has a default
+                api_base_url: prev.api_base_url || (hint?.defaultBaseUrl ?? ''),
+              }));
+            }}
+          >
+            <option value="">— inherit global default —</option>
+            {KNOWN_PROVIDERS.map(p => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+            <option value={CUSTOM_PROVIDER}>── Custom… ──</option>
+          </select>
 
-            {editForm.provider === CUSTOM_PROVIDER && (
-              <div className="provider-custom-input">
-                <input
-                  type="text"
-                  placeholder="e.g. groq, together, lmstudio, vllm"
-                  value={editForm.custom_provider}
-                  onChange={e => setEditForm({ ...editForm, custom_provider: e.target.value })}
-                  autoFocus
-                />
-                <span className="provider-custom-hint">
-                  ⚠ 自定義 provider 需提供 API Base URL，將以 OpenAI-compatible 方式呼叫
-                </span>
-              </div>
-            )}
+          {/* Provider-specific hint */}
+          {KNOWN_PROVIDERS.includes(editForm.provider) && PROVIDER_HINTS[editForm.provider] && (
+            <span className="provider-custom-hint" style={{ color: editForm.provider === 'opencode' ? '#7c3aed' : undefined }}>
+              {PROVIDER_HINTS[editForm.provider].hint}
+            </span>
+          )}
 
-            <label className="modal-label">MODEL NAME</label>
-            <input
-              type="text"
-              placeholder="e.g. gpt-4o, claude-3-5-sonnet-20241022, llama-3.1-8b-instant"
-              value={editForm.model_name}
-              onChange={e => setEditForm({ ...editForm, model_name: e.target.value })}
-            />
-
-            <label className="modal-label">TEMPERATURE (0.0 – 2.0)</label>
-            <input
-              type="number"
-              min="0"
-              max="2"
-              step="0.1"
-              value={editForm.temperature}
-              onChange={e => setEditForm({ ...editForm, temperature: e.target.value })}
-            />
-
-            <label className="modal-label">API BASE URL (optional)</label>
-            <input
-              type="text"
-              placeholder="https://api.groq.com/openai/v1"
-              value={editForm.api_base_url}
-              onChange={e => setEditForm({ ...editForm, api_base_url: e.target.value })}
-            />
-
-            <label className="modal-label">
-              API KEY REFERENCE
-              {effectiveProviderInForm ? ` (${effectiveProviderInForm} keys shown first)` : ' (all active keys)'}
-            </label>
-            <select
-              value={editForm.api_key_id}
-              onChange={e => setEditForm({ ...editForm, api_key_id: e.target.value })}
-            >
-              <option value={NO_KEY_VALUE}>— Use Global Provider Key —</option>
-              {relevantKeys.length > 0 && <option disabled>── Matched ──</option>}
-              {relevantKeys.map(k => (
-                <option key={k.id} value={String(k.id)}>
-                  [{k.service_name}] ••••{k.key_value.slice(-4)}
-                  {k.description ? ` — ${k.description}` : ''}
-                </option>
-              ))}
-              {/* Show other keys if no match found */}
-              {relevantKeys.length === 0 && allKeys.filter(k => k.is_active).map(k => (
-                <option key={k.id} value={String(k.id)}>
-                  [{k.service_name}] ••••{k.key_value.slice(-4)}
-                  {k.description ? ` — ${k.description}` : ''}
-                </option>
-              ))}
-            </select>
-
-            <label className="modal-label">DESCRIPTION (optional)</label>
-            <input
-              type="text"
-              placeholder="e.g. Uses GPT-4o for complex exploit analysis"
-              value={editForm.description}
-              onChange={e => setEditForm({ ...editForm, description: e.target.value })}
-            />
-
-            {/* Test result display */}
-            {modalTestResult && <TestResultDisplay result={modalTestResult} />}
-
-            <div className="modal-actions">
-              <button className="btn btn-secondary" onClick={() => setEditingAgentId(null)}>
-                CANCEL
-              </button>
-              <button className="btn btn-test" onClick={handleModalTest} disabled={modalTesting}>
-                {modalTesting ? 'TESTING...' : '⚡ TEST'}
-              </button>
-              <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-                {saving ? 'SAVING...' : 'SAVE CONFIG'}
-              </button>
+          {editForm.provider === CUSTOM_PROVIDER && (
+            <div className="provider-custom-input">
+              <input
+                type="text"
+                placeholder="e.g. groq, together, lmstudio, vllm"
+                value={editForm.custom_provider}
+                onChange={e => setEditForm({ ...editForm, custom_provider: e.target.value })}
+                autoFocus
+              />
+              <span className="provider-custom-hint">
+                ⚠ 自定義 provider 需提供 API Base URL，將以 OpenAI-compatible 方式呼叫
+              </span>
             </div>
-          </div>
-        </div>
-      )}
+          )}
+
+          <label className="modal-label">MODEL NAME</label>
+          <input
+            type="text"
+            placeholder="e.g. gpt-4o, claude-3-5-sonnet-20241022, llama-3.1-8b-instant"
+            value={editForm.model_name}
+            onChange={e => setEditForm({ ...editForm, model_name: e.target.value })}
+          />
+
+          <label className="modal-label">TEMPERATURE (0.0 – 2.0)</label>
+          <input
+            type="number"
+            min="0"
+            max="2"
+            step="0.1"
+            value={editForm.temperature}
+            onChange={e => setEditForm({ ...editForm, temperature: e.target.value })}
+          />
+
+          <label className="modal-label">API BASE URL (optional)</label>
+          <input
+            type="text"
+            placeholder={
+              PROVIDER_HINTS[editForm.provider]?.defaultBaseUrl ??
+              'https://api.groq.com/openai/v1'
+            }
+            value={editForm.api_base_url}
+            onChange={e => setEditForm({ ...editForm, api_base_url: e.target.value })}
+          />
+
+          <label className="modal-label">
+            API KEY REFERENCE
+            {effectiveProviderInForm ? ` (${effectiveProviderInForm} keys shown first)` : ' (all active keys)'}
+          </label>
+          <select
+            value={editForm.api_key_id}
+            onChange={e => setEditForm({ ...editForm, api_key_id: e.target.value })}
+          >
+            <option value={NO_KEY_VALUE}>— Use Global Provider Key —</option>
+            {relevantKeys.length > 0 && <option disabled>── Matched ──</option>}
+            {relevantKeys.map(k => (
+              <option key={k.id} value={String(k.id)}>
+                [{k.service_name}] ••••{k.key_value.slice(-4)}
+                {k.description ? ` — ${k.description}` : ''}
+              </option>
+            ))}
+            {/* Show other keys if no match found */}
+            {relevantKeys.length === 0 && allKeys.filter(k => k.is_active).map(k => (
+              <option key={k.id} value={String(k.id)}>
+                [{k.service_name}] ••••{k.key_value.slice(-4)}
+                {k.description ? ` — ${k.description}` : ''}
+              </option>
+            ))}
+          </select>
+
+          <label className="modal-label">DESCRIPTION (optional)</label>
+          <input
+            type="text"
+            placeholder="e.g. Uses GPT-4o for complex exploit analysis"
+            value={editForm.description}
+            onChange={e => setEditForm({ ...editForm, description: e.target.value })}
+          />
+
+          {/* Test result display */}
+          {modalTestResult && <TestResultDisplay result={modalTestResult} />}
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setEditingAgentId(null)}>
+              CANCEL
+            </Button>
+            <Button variant="secondary" onClick={handleModalTest} disabled={modalTesting}>
+              {modalTesting ? 'TESTING...' : '⚡ TEST'}
+            </Button>
+            <Button variant="default" onClick={handleSave} disabled={saving}>
+              {saving ? 'SAVING...' : 'SAVE CONFIG'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
