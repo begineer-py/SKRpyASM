@@ -19,6 +19,9 @@ interface Props {
   onApplyTemplate: (template: SkillTemplateDef) => void;
 }
 
+const codeClasses =
+  'bg-[rgba(0,255,200,0.08)] border border-[rgba(0,255,200,0.18)] rounded-[3px] px-[5px] py-[1px] text-cyan font-mono text-[11.5px]';
+
 export default function ScriptTab({
   scriptBody,
   language,
@@ -97,42 +100,20 @@ export default function ScriptTab({
         ref={fileInputRef}
         type="file"
         accept=".py,.sh"
-        style={{ display: 'none' }}
+        className="hidden"
         onChange={handleImportScript}
       />
       <input
         ref={jsonInputRef}
         type="file"
         accept=".json"
-        style={{ display: 'none' }}
+        className="hidden"
         onChange={handleImportJson}
       />
 
       {/* Template Gallery */}
-      <div
-        className="template-gallery"
-        style={{
-          display: 'flex',
-          gap: 10,
-          overflowX: 'auto',
-          paddingBottom: 8,
-          marginBottom: 12,
-        }}
-      >
-        <div
-          style={{
-            flex: '0 0 auto',
-            display: 'flex',
-            alignItems: 'center',
-            padding: '0 10px',
-            color: '#7df9ff',
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: 12,
-            textTransform: 'uppercase',
-            letterSpacing: 1,
-            whiteSpace: 'nowrap',
-          }}
-        >
+      <div className="template-gallery flex gap-2.5 overflow-x-auto pb-2 mb-3">
+        <div className="flex-none flex items-center px-[10px] text-cyan font-mono text-xs uppercase tracking-[1px] whitespace-nowrap">
           Templates ▸
         </div>
         {SKILL_TEMPLATES.map((tpl) => {
@@ -143,23 +124,14 @@ export default function ScriptTab({
               type="button"
               onClick={() => onApplyTemplate(tpl)}
               title={tpl.description}
+              className="flex-none min-w-[180px] max-w-[240px] rounded-md px-3 py-[10px] cursor-pointer text-left text-[#cfe8e0] font-mono transition-all duration-150"
               style={{
-                flex: '0 0 auto',
-                minWidth: 180,
-                maxWidth: 240,
                 background: active
                   ? 'linear-gradient(135deg, rgba(0,255,136,0.12), rgba(0,255,200,0.06))'
                   : 'rgba(15,25,35,0.85)',
                 border: active
                   ? '1px solid rgba(0,255,136,0.55)'
                   : '1px solid rgba(0,255,200,0.18)',
-                borderRadius: 6,
-                padding: '10px 12px',
-                cursor: 'pointer',
-                textAlign: 'left',
-                color: '#cfe8e0',
-                fontFamily: "'JetBrains Mono', monospace",
-                transition: 'all 0.15s ease',
                 boxShadow: active ? '0 0 12px rgba(0,255,136,0.18)' : 'none',
               }}
               onMouseEnter={(e) => {
@@ -173,21 +145,11 @@ export default function ScriptTab({
                 e.currentTarget.style.transform = 'translateY(0)';
               }}
             >
-              <div style={{ fontSize: 13, marginBottom: 4, color: '#e8fff5' }}>
-                <span style={{ marginRight: 6 }}>{tpl.icon}</span>
+              <div className="text-[13px] mb-1 text-text-primary">
+                <span className="mr-1.5">{tpl.icon}</span>
                 <strong>{tpl.name}</strong>
               </div>
-              <div
-                style={{
-                  fontSize: 11,
-                  color: '#8aa39b',
-                  lineHeight: 1.35,
-                  overflow: 'hidden',
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical',
-                }}
-              >
+              <div className="text-[11px] text-text-muted leading-[1.35] overflow-hidden line-clamp-2">
                 {tpl.description}
               </div>
             </button>
@@ -197,24 +159,10 @@ export default function ScriptTab({
 
       {/* Bash warning banner */}
       {isBash && (
-        <div
-          className="bash-warning"
-          style={{
-            background: 'rgba(255,180,0,0.10)',
-            border: '1px solid rgba(255,180,0,0.45)',
-            borderLeft: '4px solid #ffb400',
-            borderRadius: 4,
-            padding: '10px 14px',
-            marginBottom: 12,
-            color: '#ffd479',
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: 12.5,
-            lineHeight: 1.5,
-          }}
-        >
+        <div className="bash-warning bg-[rgba(255,180,0,0.10)] border border-[rgba(255,180,0,0.45)] border-l-4 border-l-[#ffb400] rounded px-[14px] py-[10px] mb-3 text-amber font-mono text-[12.5px] leading-normal">
           <strong>⚠ Bash skills do NOT get Pydantic I/O validation.</strong>{' '}
-          Schemas defined in the I/O SCHEMA tab will be ignored. Use <code>$1</code> for
-          JSON input and <code>echo</code>/<code>printf</code> for output.
+          Schemas defined in the I/O SCHEMA tab will be ignored. Use <code className={codeClasses}>$1</code> for
+          JSON input and <code className={codeClasses}>echo</code>/<code className={codeClasses}>printf</code> for output.
         </div>
       )}
 
@@ -235,7 +183,7 @@ export default function ScriptTab({
         <span className="monaco-status">Monaco Editor • {language}</span>
       </div>
 
-      <div className="script-editor-wrapper" style={{ height: 'calc(100vh - 320px)', minHeight: 400 }}>
+      <div className="script-editor-wrapper h-[calc(100vh-320px)] min-h-[400px]">
         <Editor
           height="100%"
           language={language === 'bash' ? 'shell' : 'python'}
@@ -260,102 +208,88 @@ export default function ScriptTab({
       </div>
 
       {/* Comprehensive I/O Contract hint */}
-      <div
-        className="script-hint"
-        style={{
-          marginTop: 12,
-          background: 'rgba(10,18,26,0.9)',
-          border: '1px solid rgba(0,255,200,0.18)',
-          borderLeft: '4px solid #00ffae',
-          borderRadius: 4,
-          padding: '14px 16px',
-          color: '#9fb8b0',
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: 12,
-          lineHeight: 1.6,
-        }}
-      >
+      <div className="script-hint mt-3 bg-[rgba(10,18,26,0.9)] border border-[rgba(0,255,200,0.18)] border-l-4 border-l-[#00ffae] rounded px-4 py-[14px] text-text-muted font-mono text-xs leading-[1.6]">
         {isBash ? (
           <>
-            <div style={{ color: '#ffb400', fontWeight: 700, marginBottom: 8, fontSize: 13 }}>
+            <div className="text-amber font-bold mb-2 text-[13px]">
               ⚠ BASH SKILLS — I/O CONTRACT BYPASSED
             </div>
-            <ul style={{ margin: 0, paddingLeft: 18 }}>
+            <ul className="m-0 pl-[18px]">
               <li>
-                <strong style={{ color: '#e8fff5' }}>No Pydantic validation</strong> — the
-                auto-prepended <code style={codeStyle}>SkillInput</code> /{' '}
-                <code style={codeStyle}>SkillOutput</code> /{' '}
-                <code style={codeStyle}>_emit_output()</code> do NOT apply.
+                <strong className="text-text-primary">No Pydantic validation</strong> — the
+                auto-prepended <code className={codeClasses}>SkillInput</code> /{' '}
+                <code className={codeClasses}>SkillOutput</code> /{' '}
+                <code className={codeClasses}>_emit_output()</code> do NOT apply.
               </li>
               <li>
-                <strong style={{ color: '#e8fff5' }}>Input:</strong> arrives as a JSON string in{' '}
-                <code style={codeStyle}>$1</code>. Parse with{' '}
-                <code style={codeStyle}>jq</code> or manual tools.
+                <strong className="text-text-primary">Input:</strong> arrives as a JSON string in{' '}
+                <code className={codeClasses}>$1</code>. Parse with{' '}
+                <code className={codeClasses}>jq</code> or manual tools.
               </li>
               <li>
-                <strong style={{ color: '#e8fff5' }}>Output:</strong> write to stdout via{' '}
-                <code style={codeStyle}>echo</code> / <code style={codeStyle}>printf</code>.
+                <strong className="text-text-primary">Output:</strong> write to stdout via{' '}
+                <code className={codeClasses}>echo</code> / <code className={codeClasses}>printf</code>.
               </li>
               <li>
-                <strong style={{ color: '#e8fff5' }}>Schemas</strong> (if defined in the I/O SCHEMA tab)
+                <strong className="text-text-primary">Schemas</strong> (if defined in the I/O SCHEMA tab)
                 are <strong>ignored</strong> for Bash skills.
               </li>
               <li>
-                <strong style={{ color: '#e8fff5' }}>No function wrapper</strong> — your script runs
+                <strong className="text-text-primary">No function wrapper</strong> — your script runs
                 top-to-bottom as a raw shell program.
               </li>
             </ul>
           </>
         ) : (
           <>
-            <div style={{ color: '#00ffae', fontWeight: 700, marginBottom: 8, fontSize: 13 }}>
+            <div className="text-green font-bold mb-2 text-[13px]">
               🐍 PYTHON SKILLS — I/O CONTRACT
             </div>
-            <ul style={{ margin: 0, paddingLeft: 18 }}>
+            <ul className="m-0 pl-[18px]">
               <li>
-                <strong style={{ color: '#e8fff5' }}>Function signature</strong> (required):
+                <strong className="text-text-primary">Function signature</strong> (required):
                 <br />
-                <code style={codeStyle}>def main(inputs: SkillInput) -&gt; None:</code> — if you have
+                <code className={codeClasses}>def main(inputs: SkillInput) -&gt; None:</code> — if you have
                 an input_schema
                 <br />
-                <code style={codeStyle}>def main() -&gt; None:</code> — if NO input_schema is defined
+                <code className={codeClasses}>def main() -&gt; None:</code> — if NO input_schema is defined
               </li>
               <li>
-                <strong style={{ color: '#e8fff5' }}>Accessing inputs:</strong>{' '}
-                <code style={codeStyle}>inputs.target_url</code> — fields come from your INPUT SCHEMA,
-                already validated as a <code style={codeStyle}>SkillInput</code> Pydantic model.
+                <strong className="text-text-primary">Accessing inputs:</strong>{' '}
+                <code className={codeClasses}>inputs.target_url</code> — fields come from your INPUT SCHEMA,
+                already validated as a <code className={codeClasses}>SkillInput</code> Pydantic model.
               </li>
               <li>
-                <strong style={{ color: '#e8fff5' }}>Emitting output</strong> (the ONLY valid channel):
+                <strong className="text-text-primary">Emitting output</strong> (the ONLY valid channel):
                 <br />
-                <code style={codeStyle}>_emit_output({'{ "key": value }'})</code> — keys MUST match your
-                OUTPUT SCHEMA. <code style={codeStyle}>print()</code> is hijacked and will NOT work.
+                <code className={codeClasses}>_emit_output({'{ "key": value }'})</code> — keys MUST match your
+                OUTPUT SCHEMA. <code className={codeClasses}>print()</code> is hijacked and will NOT work.
               </li>
               <li>
-                <strong style={{ color: '#e8fff5' }}>Available in scope (auto-injected):</strong>{' '}
-                <code style={codeStyle}>SkillInput</code>, <code style={codeStyle}>SkillOutput</code>,{' '}
-                <code style={codeStyle}>_emit_output()</code>,{' '}
-                <code style={codeStyle}>_parse_and_validate_input()</code>.
+                <strong className="text-text-primary">Available in scope (auto-injected):</strong>{' '}
+                <code className={codeClasses}>SkillInput</code>, <code className={codeClasses}>SkillOutput</code>,{' '}
+                <code className={codeClasses}>_emit_output()</code>,{' '}
+                <code className={codeClasses}>_parse_and_validate_input()</code>.
               </li>
               <li>
-                <strong style={{ color: '#e8fff5' }}>Imports allowed at top:</strong>{' '}
-                <code style={codeStyle}>requests</code>, <code style={codeStyle}>bs4</code>,{' '}
-                <code style={codeStyle}>json</code>, <code style={codeStyle}>sys</code>, etc.
+                <strong className="text-text-primary">Imports allowed at top:</strong>{' '}
+                <code className={codeClasses}>requests</code>, <code className={codeClasses}>bs4</code>,{' '}
+                <code className={codeClasses}>json</code>, <code className={codeClasses}>sys</code>, etc.
               </li>
               <li>
-                <strong style={{ color: '#e8fff5' }}>Do NOT use:</strong>{' '}
-                <code style={codeStyle}>print()</code>, <code style={codeStyle}>sys.argv</code>,{' '}
-                <code style={codeStyle}>argparse</code> — the system handles all I/O.
+                <strong className="text-text-primary">Do NOT use:</strong>{' '}
+                <code className={codeClasses}>print()</code>, <code className={codeClasses}>sys.argv</code>,{' '}
+                <code className={codeClasses}>argparse</code> — the system handles all I/O.
               </li>
               <li>
-                <strong style={{ color: '#e8fff5' }}>Helper functions</strong> may be defined before or
-                after <code style={codeStyle}>main()</code> — only{' '}
-                <code style={codeStyle}>main()</code> is the entrypoint.
+                <strong className="text-text-primary">Helper functions</strong> may be defined before or
+                after <code className={codeClasses}>main()</code> — only{' '}
+                <code className={codeClasses}>main()</code> is the entrypoint.
               </li>
               <li>
-                <strong style={{ color: '#e8fff5' }}>On save:</strong> the backend's{' '}
-                <code style={codeStyle}>assemble_full_script()</code> auto-prepends the Pydantic models +
-                a generated entrypoint that calls <code style={codeStyle}>main()</code>.
+                <strong className="text-text-primary">On save:</strong> the backend's{' '}
+                <code className={codeClasses}>assemble_full_script()</code> auto-prepends the Pydantic models +
+                a generated entrypoint that calls <code className={codeClasses}>main()</code>.
               </li>
             </ul>
           </>
@@ -364,13 +298,3 @@ export default function ScriptTab({
     </div>
   );
 }
-
-const codeStyle: React.CSSProperties = {
-  background: 'rgba(0,255,200,0.08)',
-  border: '1px solid rgba(0,255,200,0.18)',
-  borderRadius: 3,
-  padding: '1px 5px',
-  color: '#7df9ff',
-  fontFamily: "'JetBrains Mono', monospace",
-  fontSize: 11.5,
-};

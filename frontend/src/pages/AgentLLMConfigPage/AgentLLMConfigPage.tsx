@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { GLOBAL_CONFIG } from '../../config';
-import './AgentLLMConfig.css';
+import { cn } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -58,8 +58,8 @@ interface TestResult {
 }
 
 interface EditForm {
-  provider: string;          // KNOWN_PROVIDERS value or CUSTOM_PROVIDER sentinel
-  custom_provider: string;   // actual value when provider === CUSTOM_PROVIDER
+  provider: string;
+  custom_provider: string;
   model_name: string;
   temperature: string;
   api_base_url: string;
@@ -72,7 +72,6 @@ const CUSTOM_PROVIDER = '__custom__';
 const NO_KEY_VALUE = '__none__';
 const apiBase = GLOBAL_CONFIG.DJANGO_API_BASE;
 
-// Provider-specific hints and default settings
 const PROVIDER_HINTS: Record<string, { hint: string; defaultBaseUrl?: string; defaultModel?: string }> = {
   opencode: {
     hint: '✦ OpenCode Zen Gateway — OpenAI-compatible，支援 deepseek-v4-flash / deepseek-v4-pro 等模型',
@@ -88,18 +87,22 @@ const PROVIDER_HINTS: Record<string, { hint: string; defaultBaseUrl?: string; de
 
 function StatusBadge({ config }: { config: AgentEffectiveConfig }) {
   if (config.has_db_config) {
-    return <span className="agent-status-badge db-override">CONFIGURED</span>;
+    return <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-green-900 text-green-300 border border-green-800">CONFIGURED</span>;
   }
-  return <span className="agent-status-badge default">DEFAULT</span>;
+  return <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-500 border border-slate-700">DEFAULT</span>;
 }
 
 function TestResultDisplay({ result }: { result: TestResult }) {
-  const cls = result.success ? 'success' : 'failure';
   const icon = result.success ? '✓' : '✗';
   const latency = result.latency_ms != null ? ` — ${result.latency_ms}ms` : '';
   const msg = result.message.length > 120 ? result.message.slice(0, 120) + '…' : result.message;
   return (
-    <div className={`test-result ${cls}`}>
+    <div className={cn(
+      "text-xs mt-2.5 px-3 py-2 rounded leading-relaxed break-words",
+      result.success
+        ? "bg-green-900 text-green-300 border border-green-800"
+        : "bg-[#450a0a] text-red-300 border border-red-900"
+    )}>
       {icon} {msg}{latency}
     </div>
   );
@@ -123,11 +126,9 @@ const AgentLLMConfigPage: React.FC = () => {
   });
   const [saving, setSaving] = useState(false);
 
-  // Per-modal test state
   const [modalTesting, setModalTesting] = useState(false);
   const [modalTestResult, setModalTestResult] = useState<TestResult | null>(null);
 
-  // Per-card inline test state
   const [cardTestState, setCardTestState] = useState<Record<string, { loading: boolean; result: TestResult | null }>>({});
 
   const fetchData = async () => {
@@ -152,7 +153,6 @@ const AgentLLMConfigPage: React.FC = () => {
 
   useEffect(() => { fetchData(); }, []);
 
-  // Derive actual provider value from form state
   const getEffectiveProvider = (form: EditForm): string =>
     form.provider === CUSTOM_PROVIDER ? form.custom_provider.trim() : form.provider;
 
@@ -216,7 +216,6 @@ const AgentLLMConfigPage: React.FC = () => {
     }
   };
 
-  // Test from Edit Modal (uses current form values, no save required)
   const handleModalTest = async () => {
     const effectiveProvider = getEffectiveProvider(editForm);
     if (!effectiveProvider) { alert('Please enter a provider first.'); return; }
@@ -244,14 +243,12 @@ const AgentLLMConfigPage: React.FC = () => {
     }
   };
 
-  // Test from Agent card (uses effective config already saved)
   const handleCardTest = async (agentId: string) => {
     setCardTestState(prev => ({ ...prev, [agentId]: { loading: true, result: null } }));
     try {
       const res = await fetch(`${apiBase}/api_keys/agent-configs/${agentId}/test`, { method: 'POST' });
       const data: TestResult = await res.json();
       setCardTestState(prev => ({ ...prev, [agentId]: { loading: false, result: data } }));
-      // Auto-clear after 6 seconds
       setTimeout(() => setCardTestState(prev => ({ ...prev, [agentId]: { loading: false, result: null } })), 6000);
     } catch (e: any) {
       const result: TestResult = { success: false, message: e.message, latency_ms: null, model_used: null, provider_used: agentId };
@@ -260,101 +257,106 @@ const AgentLLMConfigPage: React.FC = () => {
     }
   };
 
-  // Keys filtered by effective provider for dropdown
   const effectiveProviderInForm = getEffectiveProvider(editForm);
   const relevantKeys = effectiveProviderInForm
     ? allKeys.filter(k => k.service_name.toLowerCase() === effectiveProviderInForm.toLowerCase() && k.is_active)
     : allKeys.filter(k => k.is_active);
 
+  const modalInputCls = "w-full mb-1 px-3 py-2.5 bg-slate-900 border border-slate-600 rounded-md text-slate-200 font-mono text-[13px] outline-none box-border";
+  const modalLabelCls = "block text-[10px] text-slate-500 mb-1 mt-3 tracking-[0.8px]";
+
   return (
-    <div className="c2-page agent-config-container">
-      <div className="agent-config-header">
-        <div className="agent-config-header-left">
-          <h1 className="agent-config-title">
-            <span className="agent-bracket">[</span>
+    <div className="pt-20 px-6 pb-6 max-w-6xl mx-auto text-slate-200 font-mono">
+      <div className="flex justify-between items-center mb-4">
+        <div className="flex flex-col">
+          <h1 className="text-[28px] font-bold tracking-[2px] m-0 text-slate-100">
+            <span className="text-slate-500">[</span>
             AGENT_LLM_CONFIG
-            <span className="agent-bracket">]</span>
+            <span className="text-slate-500">]</span>
           </h1>
-          <span className="agent-config-subtitle">
+          <span className="text-[13px] text-slate-500 mt-1">
             Agent 獨立模型配置 — DB 覆蓋 / Env Var / 全域默認
           </span>
         </div>
-        <button className="btn btn-secondary" onClick={fetchData} disabled={loading}>
+        <button className="px-[18px] py-2 rounded-md text-[13px] font-semibold cursor-pointer border border-slate-600 transition-all duration-200 bg-[#1e2937] text-slate-200 hover:bg-slate-700" onClick={fetchData} disabled={loading}>
           {loading ? '...' : '↺ REFRESH'}
         </button>
       </div>
 
       {/* Priority Legend */}
-      <div className="agent-priority-bar">
-        <span className="priority-label">PRIORITY:</span>
-        <span className="agent-status-badge db-override">CONFIGURED</span>
-        <span className="priority-arrow">&gt;</span>
-        <span className="agent-status-badge default">DEFAULT</span>
-        <span className="priority-tip">— 在 EDIT 中設定後生效；自定義 provider 視為 OpenAI-compatible API</span>
+      <div className="bg-[#1e2937] border border-slate-600 rounded-lg px-5 py-2.5 mb-6 flex items-center gap-2.5 flex-wrap">
+        <span className="text-slate-500 text-[11px] tracking-[1px] mr-1">PRIORITY:</span>
+        <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-green-900 text-green-300 border border-green-800">CONFIGURED</span>
+        <span className="text-slate-600 text-sm">&gt;</span>
+        <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-500 border border-slate-700">DEFAULT</span>
+        <span className="text-slate-500 text-[11px] ml-2">— 在 EDIT 中設定後生效；自定義 provider 視為 OpenAI-compatible API</span>
       </div>
 
-      {loading && <div className="agent-loading">LOADING AGENT CONFIGS...</div>}
-      {error && <div className="agent-error">⚠ {error}</div>}
+      {loading && <div className="text-center py-[60px] px-5 text-slate-500 text-sm">LOADING AGENT CONFIGS...</div>}
+      {error && <div className="text-center py-[60px] px-5 text-red-500 text-sm">⚠ {error}</div>}
 
       {!loading && !error && (
-        <div className="agent-list">
+        <div className="flex flex-col gap-3">
           {configs.map(cfg => {
             const cardState = cardTestState[cfg.agent_id];
             const canTest = cfg.has_db_config || cfg.has_env_override;
             return (
-              <div key={cfg.agent_id} className={`agent-card ${cfg.has_db_config ? 'has-db' : ''}`}>
-                <div className="agent-card-header">
-                  <div className="agent-id-row">
-                    <span className="agent-id">{cfg.agent_id}</span>
+              <div key={cfg.agent_id} className={cn(
+                "bg-[#1e2937] border border-slate-600 rounded-lg overflow-hidden transition-colors duration-200",
+                cfg.has_db_config && "border-green-800"
+              )}>
+                <div className="px-5 py-3.5 flex justify-between items-center border-b border-slate-600">
+                  <div className="flex items-center gap-3">
+                    <span className="text-[15px] font-bold text-slate-100 tracking-[0.5px]">{cfg.agent_id}</span>
                     <StatusBadge config={cfg} />
                   </div>
-                  <div className="agent-card-actions">
+                  <div className="flex gap-2">
                     {canTest && (
                       <button
-                        className="btn btn-test btn-sm"
+                        className="px-3 py-1 text-xs rounded-md font-semibold cursor-pointer border transition-all duration-200 bg-[#1e3a5f] text-cyan-300 border-[#1e4d7b] hover:bg-[#1e4d7b] hover:text-cyan-200 disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed"
                         onClick={() => handleCardTest(cfg.agent_id)}
                         disabled={cardState?.loading}
                       >
                         {cardState?.loading ? '...' : '⚡ TEST'}
                       </button>
                     )}
-                    <button className="btn btn-secondary btn-sm" onClick={() => openEdit(cfg)}>
+                    <button className="px-3 py-1 text-xs rounded-md font-semibold cursor-pointer border border-slate-600 transition-all duration-200 bg-[#1e2937] text-slate-200 hover:bg-slate-700" onClick={() => openEdit(cfg)}>
                       EDIT
                     </button>
                     {cfg.has_db_config && (
-                      <button className="btn btn-danger btn-sm" onClick={() => handleReset(cfg.agent_id)}>
+                      <button className="px-3 py-1 text-xs rounded-md font-semibold cursor-pointer border transition-all duration-200 bg-[#1e2937] text-red-400 border-red-900 hover:bg-red-900 hover:text-red-300" onClick={() => handleReset(cfg.agent_id)}>
                         RESET
                       </button>
                     )}
                   </div>
                 </div>
 
-                <div className="agent-card-body">
-                  <div className="agent-info-grid">
-                    <div className="agent-info-item">
-                      <span className="info-label">PROVIDER</span>
-                      <span className="info-value provider-value">{cfg.effective_provider}</span>
+                <div className="px-5 py-3.5 bg-slate-900">
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-x-6 gap-y-3">
+                    <div className="flex flex-col gap-[3px]">
+                      <span className="text-[10px] text-slate-500 tracking-[1px]">PROVIDER</span>
+                      <span className="text-[13px] text-cyan-300 uppercase">{cfg.effective_provider}</span>
                     </div>
-                    <div className="agent-info-item">
-                      <span className="info-label">MODEL</span>
-                      <span className="info-value model-value">{cfg.effective_model}</span>
+                    <div className="flex flex-col gap-[3px]">
+                      <span className="text-[10px] text-slate-500 tracking-[1px]">MODEL</span>
+                      <span className="text-[13px] text-purple-300">{cfg.effective_model}</span>
                     </div>
-                    <div className="agent-info-item">
-                      <span className="info-label">TEMP</span>
-                      <span className="info-value">{cfg.effective_temperature.toFixed(1)}</span>
+                    <div className="flex flex-col gap-[3px]">
+                      <span className="text-[10px] text-slate-500 tracking-[1px]">TEMP</span>
+                      <span className="text-[13px] text-slate-400">{cfg.effective_temperature.toFixed(1)}</span>
                     </div>
-                    <div className="agent-info-item">
-                      <span className="info-label">API KEY</span>
-                      <span className="info-value key-ref-value">
+                    <div className="flex flex-col gap-[3px]">
+                      <span className="text-[10px] text-slate-500 tracking-[1px]">API KEY</span>
+                      <span className="text-[13px] text-amber-400">
                         {cfg.db_config?.api_key_ref
                           ? `${cfg.db_config.api_key_ref.service_name} #${cfg.db_config.api_key_ref.id}`
                           : '— global fallback —'}
                       </span>
                     </div>
                     {cfg.effective_api_base_url && (
-                      <div className="agent-info-item full-width">
-                        <span className="info-label">BASE URL</span>
-                        <span className="info-value url-value">{cfg.effective_api_base_url}</span>
+                      <div className="flex flex-col gap-[3px] col-span-full">
+                        <span className="text-[10px] text-slate-500 tracking-[1px]">BASE URL</span>
+                        <span className="text-slate-400 text-xs break-all">{cfg.effective_api_base_url}</span>
                       </div>
                     )}
                   </div>
@@ -373,8 +375,9 @@ const AgentLLMConfigPage: React.FC = () => {
             <DialogTitle className="text-text-primary font-body">EDIT: {editingAgentId}</DialogTitle>
           </DialogHeader>
 
-          <label className="modal-label">PROVIDER</label>
+          <label className={modalLabelCls}>PROVIDER</label>
           <select
+            className={modalInputCls}
             value={editForm.provider}
             onChange={e => {
               const newProvider = e.target.value;
@@ -383,7 +386,6 @@ const AgentLLMConfigPage: React.FC = () => {
                 ...prev,
                 provider: newProvider,
                 custom_provider: '',
-                // Auto-fill api_base_url if empty and provider has a default
                 api_base_url: prev.api_base_url || (hint?.defaultBaseUrl ?? ''),
               }));
             }}
@@ -395,38 +397,40 @@ const AgentLLMConfigPage: React.FC = () => {
             <option value={CUSTOM_PROVIDER}>── Custom… ──</option>
           </select>
 
-          {/* Provider-specific hint */}
           {KNOWN_PROVIDERS.includes(editForm.provider) && PROVIDER_HINTS[editForm.provider] && (
-            <span className="provider-custom-hint" style={{ color: editForm.provider === 'opencode' ? '#7c3aed' : undefined }}>
+            <span className="block text-[11px] text-amber-500 mt-1 mb-2" style={{ color: editForm.provider === 'opencode' ? '#7c3aed' : undefined }}>
               {PROVIDER_HINTS[editForm.provider].hint}
             </span>
           )}
 
           {editForm.provider === CUSTOM_PROVIDER && (
-            <div className="provider-custom-input">
+            <div className="mb-1">
               <input
+                className={modalInputCls}
                 type="text"
                 placeholder="e.g. groq, together, lmstudio, vllm"
                 value={editForm.custom_provider}
                 onChange={e => setEditForm({ ...editForm, custom_provider: e.target.value })}
                 autoFocus
               />
-              <span className="provider-custom-hint">
+              <span className="block text-[11px] text-amber-500 mt-1 mb-2">
                 ⚠ 自定義 provider 需提供 API Base URL，將以 OpenAI-compatible 方式呼叫
               </span>
             </div>
           )}
 
-          <label className="modal-label">MODEL NAME</label>
+          <label className={modalLabelCls}>MODEL NAME</label>
           <input
+            className={modalInputCls}
             type="text"
             placeholder="e.g. gpt-4o, claude-3-5-sonnet-20241022, llama-3.1-8b-instant"
             value={editForm.model_name}
             onChange={e => setEditForm({ ...editForm, model_name: e.target.value })}
           />
 
-          <label className="modal-label">TEMPERATURE (0.0 – 2.0)</label>
+          <label className={modalLabelCls}>TEMPERATURE (0.0 – 2.0)</label>
           <input
+            className={modalInputCls}
             type="number"
             min="0"
             max="2"
@@ -435,8 +439,9 @@ const AgentLLMConfigPage: React.FC = () => {
             onChange={e => setEditForm({ ...editForm, temperature: e.target.value })}
           />
 
-          <label className="modal-label">API BASE URL (optional)</label>
+          <label className={modalLabelCls}>API BASE URL (optional)</label>
           <input
+            className={modalInputCls}
             type="text"
             placeholder={
               PROVIDER_HINTS[editForm.provider]?.defaultBaseUrl ??
@@ -446,11 +451,12 @@ const AgentLLMConfigPage: React.FC = () => {
             onChange={e => setEditForm({ ...editForm, api_base_url: e.target.value })}
           />
 
-          <label className="modal-label">
+          <label className={modalLabelCls}>
             API KEY REFERENCE
             {effectiveProviderInForm ? ` (${effectiveProviderInForm} keys shown first)` : ' (all active keys)'}
           </label>
           <select
+            className={modalInputCls}
             value={editForm.api_key_id}
             onChange={e => setEditForm({ ...editForm, api_key_id: e.target.value })}
           >
@@ -462,7 +468,6 @@ const AgentLLMConfigPage: React.FC = () => {
                 {k.description ? ` — ${k.description}` : ''}
               </option>
             ))}
-            {/* Show other keys if no match found */}
             {relevantKeys.length === 0 && allKeys.filter(k => k.is_active).map(k => (
               <option key={k.id} value={String(k.id)}>
                 [{k.service_name}] ••••{k.key_value.slice(-4)}
@@ -471,15 +476,15 @@ const AgentLLMConfigPage: React.FC = () => {
             ))}
           </select>
 
-          <label className="modal-label">DESCRIPTION (optional)</label>
+          <label className={modalLabelCls}>DESCRIPTION (optional)</label>
           <input
+            className={modalInputCls}
             type="text"
             placeholder="e.g. Uses GPT-4o for complex exploit analysis"
             value={editForm.description}
             onChange={e => setEditForm({ ...editForm, description: e.target.value })}
           />
 
-          {/* Test result display */}
           {modalTestResult && <TestResultDisplay result={modalTestResult} />}
 
           <DialogFooter>

@@ -97,8 +97,8 @@ export default function PlanTab({ targetId }: PlanTabProps) {
 
   if (loading) {
     return (
-      <div style={emptyStyle}>
-        <span style={{ color: '#60a5fa' }}>Loading attack plans...</span>
+      <div className="flex flex-col items-center justify-center min-h-[180px] text-[#64748b]">
+        <span className="text-[#60a5fa]">Loading attack plans...</span>
       </div>
     );
   }
@@ -107,9 +107,9 @@ export default function PlanTab({ targetId }: PlanTabProps) {
 
   if (error) {
     return (
-      <div style={{ ...emptyStyle, color: '#ef4444' }}>
-        <div style={{ marginBottom: 8 }}>Failed to load attack plans</div>
-        <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{error}</div>
+      <div className="flex flex-col items-center justify-center min-h-[180px] text-[#ef4444]">
+        <div className="mb-2">Failed to load attack plans</div>
+        <div className="text-[0.75rem] text-[#94a3b8]">{error}</div>
       </div>
     );
   }
@@ -118,9 +118,9 @@ export default function PlanTab({ targetId }: PlanTabProps) {
 
   if (plans.length === 0) {
     return (
-      <div style={emptyStyle}>
-        <div style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: 4 }}>No attack plans for this target.</div>
-        <div style={{ fontSize: '0.72rem', color: '#475569' }}>
+      <div className="flex flex-col items-center justify-center min-h-[180px] text-[#64748b]">
+        <div className="text-[0.85rem] text-[#64748b] mb-1">No attack plans for this target.</div>
+        <div className="text-[0.72rem] text-[#475569]">
           Plans are created by the AI agent during reconnaissance and analysis.
         </div>
       </div>
@@ -130,27 +130,26 @@ export default function PlanTab({ targetId }: PlanTabProps) {
   // ─── Toggle buttons ───────────────────────────────────────────────────────
 
   const renderToggle = (): React.ReactNode => (
-    <div
-      style={{
-        display: 'flex',
-        gap: 4,
-        padding: 4,
-        background: 'rgba(0,0,0,0.3)',
-        borderRadius: 4,
-        border: '1px solid rgba(255,255,255,0.05)',
-      }}
-    >
+    <div className="flex gap-1 p-1 bg-[rgba(0,0,0,0.3)] rounded border border-[rgba(255,255,255,0.05)]">
       <button
         type="button"
         onClick={() => setViewMode('visual')}
-        style={toggleBtnStyle(viewMode === 'visual')}
+        className="border-none px-2.5 py-1 rounded-[3px] text-[0.65rem] font-bold tracking-[0.08em] cursor-pointer"
+        style={{
+          background: viewMode === 'visual' ? 'rgba(0,255,0,0.1)' : 'transparent',
+          color: viewMode === 'visual' ? '#00ff00' : '#64748b',
+        }}
       >
         VISUAL
       </button>
       <button
         type="button"
         onClick={() => setViewMode('json')}
-        style={toggleBtnStyle(viewMode === 'json')}
+        className="border-none px-2.5 py-1 rounded-[3px] text-[0.65rem] font-bold tracking-[0.08em] cursor-pointer"
+        style={{
+          background: viewMode === 'json' ? 'rgba(0,255,0,0.1)' : 'transparent',
+          color: viewMode === 'json' ? '#00ff00' : '#64748b',
+        }}
       >
         JSON
       </button>
@@ -169,21 +168,11 @@ export default function PlanTab({ targetId }: PlanTabProps) {
           setSelectedPlanId(isNaN(val) ? null : val);
           setViewMode('visual');
         }}
-        style={{
-          background: 'rgba(0,0,0,0.3)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          color: '#e2e8f0',
-          padding: '4px 8px',
-          borderRadius: 4,
-          fontSize: '0.72rem',
-          fontWeight: 600,
-          cursor: 'pointer',
-          outline: 'none',
-        }}
+        className="bg-[rgba(0,0,0,0.3)] border border-[rgba(255,255,255,0.1)] text-[#e2e8f0] px-2 py-1 rounded text-[0.72rem] font-semibold cursor-pointer outline-none"
       >
         {plans.map((p) => (
           <option key={p.id} value={p.id}>
-            #{p.id} — {p.status} — {p.objective.slice(0, 60)}{p.objective.length > 60 ? '…' : ''}
+            #{p.id} — {p.status} — {p.objective.slice(0, 60)}{p.objective.length > 60 ? '\u2026' : ''}
           </option>
         ))}
       </select>
@@ -193,16 +182,7 @@ export default function PlanTab({ targetId }: PlanTabProps) {
   // ─── Toolbar ──────────────────────────────────────────────────────────────
 
   const renderToolbar = (): React.ReactNode => (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'flex-end',
-        alignItems: 'center',
-        gap: 8,
-        padding: '6px 12px',
-        borderBottom: '1px solid rgba(255,255,255,0.05)',
-      }}
-    >
+    <div className="flex justify-end items-center gap-2 px-3 py-1.5 border-b border-[rgba(255,255,255,0.05)]">
       {renderPlanSelector()}
       {renderToggle()}
     </div>
@@ -212,18 +192,18 @@ export default function PlanTab({ targetId }: PlanTabProps) {
 
   if (viewMode === 'visual') {
     return (
-      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <div className="h-full flex flex-col">
         {renderToolbar()}
-        <div style={{ flex: 1, overflow: 'hidden' }}>
+        <div className="flex-1 overflow-hidden">
           {detailLoading && !selectedPlan ? (
-            <div style={emptyStyle}>
-              <span style={{ color: '#60a5fa' }}>Loading plan details...</span>
+            <div className="flex flex-col items-center justify-center min-h-[180px] text-[#64748b]">
+              <span className="text-[#60a5fa]">Loading plan details...</span>
             </div>
           ) : selectedPlan ? (
             <PlanRenderer plan={selectedPlan} />
           ) : (
-            <div style={emptyStyle}>
-              <span style={{ color: '#475569' }}>No plan selected.</span>
+            <div className="flex flex-col items-center justify-center min-h-[180px] text-[#64748b]">
+              <span className="text-[#475569]">No plan selected.</span>
             </div>
           )}
         </div>
@@ -234,9 +214,9 @@ export default function PlanTab({ targetId }: PlanTabProps) {
   // ─── JSON mode ────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div className="h-full flex flex-col">
       {renderToolbar()}
-      <div style={{ flex: 1, overflow: 'hidden' }}>
+      <div className="flex-1 overflow-hidden">
         <JsonMonacoEditor
           value={jsonStr}
           onChange={() => { /* read-only — no-op */ }}
@@ -246,29 +226,4 @@ export default function PlanTab({ targetId }: PlanTabProps) {
       </div>
     </div>
   );
-}
-
-// ─── Styles ─────────────────────────────────────────────────────────────────
-
-const emptyStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  minHeight: 180,
-  color: '#64748b',
-};
-
-function toggleBtnStyle(active: boolean): React.CSSProperties {
-  return {
-    background: active ? 'rgba(0,255,0,0.1)' : 'transparent',
-    border: 'none',
-    color: active ? '#00ff00' : '#64748b',
-    padding: '4px 10px',
-    borderRadius: 3,
-    fontSize: '0.65rem',
-    fontWeight: 700,
-    letterSpacing: '0.08em',
-    cursor: 'pointer',
-  };
 }

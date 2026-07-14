@@ -136,18 +136,8 @@ export function WaveformChart({
   if (samples.length === 0) {
     return (
       <div
-        style={{
-          height: `${height}px`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: 'rgba(15, 23, 42, 0.3)',
-          borderRadius: '4px',
-          color: '#4b5563',
-          fontSize: '0.8rem',
-          fontFamily: 'monospace',
-          border: '1px dashed rgba(148, 163, 184, 0.2)',
-        }}
+        className="flex items-center justify-center bg-[rgba(15,23,42,0.3)] rounded text-[#4b5563] text-[0.8rem] font-mono border border-dashed border-[rgba(148,163,184,0.2)]"
+        style={{ height: `${height}px` }}
       >
         No execution data
       </div>
@@ -157,13 +147,8 @@ export function WaveformChart({
   return (
     <canvas
       ref={canvasRef}
-      style={{
-        width: '100%',
-        height: `${height}px`,
-        border: '1px solid rgba(148, 163, 184, 0.1)',
-        borderRadius: '4px',
-        background: 'transparent',
-      }}
+      className="w-full border border-[rgba(148,163,184,0.1)] rounded bg-transparent"
+      style={{ height: `${height}px` }}
     />
   );
 }

@@ -11,9 +11,8 @@ import type {
   IP,
   UrlResult,
 } from "../../type";
-import "./SeedReconPage.css";
+import { cn } from '@/lib/utils';
 
-// 可折疊卡片組件
 const AssetCard: React.FC<{
   title: string;
   count: number;
@@ -21,22 +20,21 @@ const AssetCard: React.FC<{
 }> = ({ title, count, children }) => {
   const [isOpen, setIsOpen] = useState(true);
   return (
-    <div className="assets-card">
-      <div className="assets-header" onClick={() => setIsOpen(!isOpen)}>
-        <div className="assets-title">{title}</div>
+    <div className="bg-[#1e1e1e] border border-[#333] rounded-md mb-5 overflow-hidden">
+      <div className="flex justify-between items-center px-5 py-[15px] cursor-pointer bg-[#2a2a2a] transition-colors duration-200 hover:bg-[#383838]" onClick={() => setIsOpen(!isOpen)}>
+        <div className="text-lg font-bold uppercase tracking-[0.5px]">{title}</div>
         <div>
-          <span className="assets-count">{count}</span>
-          <span className={`assets-toggle ${isOpen ? "expanded" : ""}`}>▼</span>
+          <span className="bg-[#2196f3] text-white px-2.5 py-1 rounded-full text-sm font-bold mr-[15px]">{count}</span>
+          <span className={cn("text-2xl text-[#a0a0a0] transition-transform duration-200", isOpen && "rotate-180")}>▼</span>
         </div>
       </div>
-      {isOpen && <div className="assets-content">{children}</div>}
+      {isOpen && <div className="p-0 max-h-[600px] overflow-y-auto border-t border-[#333]">{children}</div>}
     </div>
   );
 };
 
 function SeedReconPage() {
   const { targetId, seedId } = useParams();
-  // navigate was previously unused; keep page non-navigational for now.
   const nSeedId = Number(seedId);
 
   const [intel, setIntel] = useState<SeedIntelligenceResponse | null>(null);
@@ -79,55 +77,47 @@ function SeedReconPage() {
 
   if (loading) return <div>LOADING INTEL...</div>;
 
-  // 1. 取得 Seed 本體 (安全取值)
   const seedData = intel?.core_seed?.[0];
   if (!seedData) return <div>SEED NOT FOUND</div>;
 
-  // =========================================================================
-  // 資料清洗區 (這裡全是地雷，但我幫你掃乾淨了)
-  // =========================================================================
-
-  // [防禦性編碼] 所有的 Array 在使用前都先 || []，確保不是 undefined
-
-  // 2. 檢查掃描狀態
   const subfinderScans = seedData.core_subfinderscans || [];
   const isSubfinderRunning = subfinderScans.some(
     (s: any) => s.status === "PENDING" || s.status === "RUNNING"
   );
   const isRunning = isSubfinderRunning;
 
-  // 3. 洗出 IP
-  // 根據 Type: core_ip_which_seeds 是一個包裝物件的陣列，這裡你的邏輯是對的
   const allIPs = (seedData.core_ip_which_seeds || []).map(
     (item: any) => item.core_ip
   );
 
-  // 4. 洗出 Subdomains
-  // 透過 SubdomainSeed 中間表提取 `core_subdomain` 物件
   const allSubdomains = (seedData.core_subdomainseeds || []).map(
     (item: any) => item.core_subdomain
   );
 
-  // 5. 洗出 URLs
-  // 這裡要用 optional chaining (?.) 防止 Subdomain 裡面的關聯也是空的
   const allURLs = allSubdomains.flatMap((sub: Subdomain) =>
     (sub.core_urlresult_related_subdomains || []).map(
       (rel: any) => rel.core_urlresult
     )
   );
 
-  // =========================================================================
+  const statusBadgeCls = (status: string) => cn(
+    "px-2.5 py-1 rounded text-sm font-bold text-center min-w-[90px] inline-block",
+    status === 'PENDING' && "bg-[#ffab00] text-black",
+    status === 'RUNNING' && "bg-[#2196f3] text-white animate-pulse",
+    status === 'COMPLETED' && "bg-[#00c853] text-black",
+    status === 'FAILED' && "bg-[#d32f2f] text-white",
+  );
 
   return (
-    <div className="recon-container">
+    <div className="max-w-[1400px] mx-auto p-5 font-mono text-[#e0e0e0]">
       {/* Header */}
-      <div className="recon-header-card">
+      <div className="bg-[#1e1e1e] border border-[#333] px-[30px] py-[25px] rounded-md mb-[30px] flex justify-between items-center border-l-4 border-l-[#2196f3]">
         <div>
-          <div className="seed-info-large">{seedData.value}</div>
-          <div style={{ color: "#666" }}>ID: {seedData.id}</div>
+          <div className="text-3xl font-bold text-white mb-1 tracking-[1px]">{seedData.value}</div>
+          <div className="text-[#666]">ID: {seedData.id}</div>
         </div>
         <button
-          className="btn-fire"
+          className="bg-[#d32f2f] text-white font-mono text-base font-bold px-6 py-3 rounded cursor-pointer transition-all duration-200 uppercase tracking-[1px] shadow-[0_0_5px_rgba(211,47,47,0.4)] hover:bg-[#b71c1c] hover:-translate-y-0.5 hover:shadow-[0_4px_20px_rgba(211,47,47,0.6)] disabled:bg-[#555] disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none"
           onClick={handleStartScan}
           disabled={triggering || isRunning}
         >
@@ -140,91 +130,87 @@ function SeedReconPage() {
       </div>
 
       {/* 掃描記錄 */}
-      <AssetCard
-        title="Subdomain Scans"
-        count={subfinderScans.length} // 這裡已經在上面定義時確保是陣列了，安全
-      >
+      <AssetCard title="Subdomain Scans" count={subfinderScans.length}>
         {subfinderScans.length > 0 ? (
           <div className="scan-history-list">
             {subfinderScans.map((scan) => (
-              <div key={scan.id} className="scan-item">
-                <span style={{ fontFamily: "monospace", color: "#666" }}>
+              <div key={scan.id} className="flex justify-between items-center px-5 py-[15px] border-b border-[#333] last:border-b-0 [&>*]:basis-1/4">
+                <span className="font-mono text-[#666]">
                   #{scan.id}
                 </span>
-                <span className={`status-badge status-${scan.status}`}>
+                <span className={statusBadgeCls(scan.status)}>
                   {scan.status}
                 </span>
                 <span>New Found: {scan.added_count}</span>
-                <span style={{ color: "#888", fontSize: "0.9em" }}>
+                <span className="text-[#888] text-[0.9em]">
                   {new Date(scan.created_at).toLocaleString()}
                 </span>
               </div>
             ))}
           </div>
         ) : (
-          <div className="empty-state-message">No scan records.</div>
+          <div className="p-10 text-center text-[#a0a0a0]">No scan records.</div>
         )}
       </AssetCard>
 
-      <h3 style={{ marginTop: 30 }}>DISCOVERED ASSETS</h3>
+      <h3 className="mt-[30px]">DISCOVERED ASSETS</h3>
 
       {/* 子域名資產 */}
       <AssetCard title="Subdomains" count={allSubdomains.length}>
         {allSubdomains.length > 0 ? (
-          <table className="assets-table">
+          <table className="w-full border-collapse [&_tr:nth-child(even)]:bg-black/20 [&_tr:last-child_td]:border-b-0">
             <thead>
               <tr>
-                <th>NAME</th>
-                <th>DISCOVERED AT</th>
-                <th>TO DETAIL</th>
-                <th>ID</th>
+                <th className="text-left px-5 py-[14px] border-b border-[#333] text-[#a0a0a0] text-sm uppercase">NAME</th>
+                <th className="text-left px-5 py-[14px] border-b border-[#333] text-[#a0a0a0] text-sm uppercase">DISCOVERED AT</th>
+                <th className="text-left px-5 py-[14px] border-b border-[#333] text-[#a0a0a0] text-sm uppercase">TO DETAIL</th>
+                <th className="text-left px-5 py-[14px] border-b border-[#333] text-[#a0a0a0] text-sm uppercase">ID</th>
               </tr>
             </thead>
             <tbody>
               {allSubdomains.map((sub: Subdomain) => (
                 <tr key={sub.id}>
-                  <td>{sub.name}</td>
-                  <td>{new Date(sub.created_at).toLocaleString()}</td>
-                  <td>
+                  <td className="text-left px-5 py-[14px] border-b border-[#333]">{sub.name}</td>
+                  <td className="text-left px-5 py-[14px] border-b border-[#333]">{new Date(sub.created_at).toLocaleString()}</td>
+                  <td className="text-left px-5 py-[14px] border-b border-[#333]">
                     <a
                       href={`/target/${targetId}/subdomain/${sub.id}`}
                       className="btn btn-ghost btn-sm"
-                      style={{ textDecoration: "none" }}
+                      className="no-underline"
                     >
                       Detail
                     </a>
                   </td>
-                  <td>{sub.id}</td>
+                  <td className="text-left px-5 py-[14px] border-b border-[#333]">{sub.id}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         ) : (
-          <div className="empty-state-message">No subdomains found.</div>
+          <div className="p-10 text-center text-[#a0a0a0]">No subdomains found.</div>
         )}
       </AssetCard>
 
       {/* IP 資產 */}
       <AssetCard title="IP Addresses" count={allIPs.length}>
         {allIPs.length > 0 ? (
-          <table className="assets-table">
+          <table className="w-full border-collapse [&_tr:nth-child(even)]:bg-black/20 [&_tr:last-child_td]:border-b-0">
             <thead>
               <tr>
-                <th>ID</th>
-                <th>IP ADDRESS</th>
+                <th className="text-left px-5 py-[14px] border-b border-[#333] text-[#a0a0a0] text-sm uppercase">ID</th>
+                <th className="text-left px-5 py-[14px] border-b border-[#333] text-[#a0a0a0] text-sm uppercase">IP ADDRESS</th>
               </tr>
             </thead>
             <tbody>
               {allIPs.map((ip: IP) => (
                 <tr key={ip.id}>
-                  <td>{ip.id}</td>
-                  <td>
+                  <td className="text-left px-5 py-[14px] border-b border-[#333]">{ip.id}</td>
+                  <td className="text-left px-5 py-[14px] border-b border-[#333]">
                     <a
                       href={`/target/${targetId}/ip/${ip.id}`}
                       className="asset-link ip-link"
                     >
                       {ip.address || 'Unknown'}
-
                     </a>
                   </td>
                 </tr>
@@ -232,30 +218,30 @@ function SeedReconPage() {
             </tbody>
           </table>
         ) : (
-          <div className="empty-state-message">No IP addresses found.</div>
+          <div className="p-10 text-center text-[#a0a0a0]">No IP addresses found.</div>
         )}
       </AssetCard>
 
       {/* URL 資產 */}
       <AssetCard title="URLs Found" count={allURLs.length}>
         {allURLs.length > 0 ? (
-          <table className="assets-table">
+          <table className="w-full border-collapse [&_tr:nth-child(even)]:bg-black/20 [&_tr:last-child_td]:border-b-0">
             <thead>
               <tr>
-                <th>STATUS</th>
-                <th>URL</th>
-                <th>DETAILS</th>
+                <th className="text-left px-5 py-[14px] border-b border-[#333] text-[#a0a0a0] text-sm uppercase">STATUS</th>
+                <th className="text-left px-5 py-[14px] border-b border-[#333] text-[#a0a0a0] text-sm uppercase">URL</th>
+                <th className="text-left px-5 py-[14px] border-b border-[#333] text-[#a0a0a0] text-sm uppercase">DETAILS</th>
               </tr>
             </thead>
             <tbody>
               {allURLs.map((url: UrlResult) => (
                 <tr key={url.id}>
-                  <td>
-                    <span style={{ fontFamily: "monospace", fontSize: "0.78rem", opacity: 0.8 }}>
+                  <td className="text-left px-5 py-[14px] border-b border-[#333]">
+                    <span className="font-mono text-[0.78rem] opacity-80">
                       {(url as any).status_code || "—"}
                     </span>
                   </td>
-                  <td>
+                  <td className="text-left px-5 py-[14px] border-b border-[#333]">
                     <a
                       href={url.url}
                       target="_blank"
@@ -265,11 +251,11 @@ function SeedReconPage() {
                       {url.url}
                     </a>
                   </td>
-                  <td>
+                  <td className="text-left px-5 py-[14px] border-b border-[#333]">
                     <a
                       href={`/target/${targetId}/url/${url.id}`}
                       className="btn btn-ghost btn-sm"
-                      style={{ textDecoration: "none" }}
+                      className="no-underline"
                     >
                       Detail
                     </a>
@@ -279,7 +265,7 @@ function SeedReconPage() {
             </tbody>
           </table>
         ) : (
-          <div className="empty-state-message">No URLs found.</div>
+          <div className="p-10 text-center text-[#a0a0a0]">No URLs found.</div>
         )}
       </AssetCard>
     </div>

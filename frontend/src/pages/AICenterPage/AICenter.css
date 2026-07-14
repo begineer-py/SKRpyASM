@@ -6,7 +6,7 @@
 
 .aicenter-container {
   display: flex;
-  height: calc(100vh - var(--navbar-height, 58px));
+  height: calc(100vh - var(--navbar-height, 58px)+12px);
   width: 100%;
   margin-top: var(--navbar-height, 58px);
   background: linear-gradient(135deg, #0f172a 0%, #0a0e27 100%);

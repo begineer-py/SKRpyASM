@@ -6,8 +6,6 @@ import { assistantApi } from '../../services/assistantApi';
 import { useHasuraSubscription } from '../../hooks/useHasuraSubscription';
 import { useDraftInput } from '../../hooks/useDraftInput';
 import { usePersistentState } from '../../hooks/usePersistentState';
-import ExecutionTimelineViewer from '../../components/ExecutionTimelineViewer';
-import ThreadEventTimeline from '../../components/ThreadEventTimeline';
 import MessageFilterBar, {
   DEFAULT_MSG_FILTER,
   messagePassesFilter,
@@ -36,192 +34,13 @@ import {
   parseRawMessages,
   type DisplayMessage,
 } from '../../types/messages';
-import './AICenter.css';
-
-// ── Constants ─────────────────────────────────────────────────────────────
-
-// ── Status badge helpers ──────────────────────────────────────────────────
-
-const STATUS_CLASS: Record<string, string> = {
-  EXECUTING:         'tree-badge--executing',
-  PLANNING:          'tree-badge--planning',
-  COMPLETED:         'tree-badge--completed',
-  FAILED:            'tree-badge--failed',
-  NEEDS_GUIDANCE:    'tree-badge--needs-guidance',
-  WAITING_FOR_ASYNC: 'tree-badge--waiting',
-};
-
-const STATUS_ICON: Record<string, string> = {
-  EXECUTING:         '⟳',  // spin
-  PLANNING:          '◯',  // circle
-  COMPLETED:         '✓',  // check
-  FAILED:            '✗',  // cross
-  NEEDS_GUIDANCE:    '?',
-  WAITING_FOR_ASYNC: '⏳',
-};
-
-const riskClass = (score: number) =>
-  score > 66 ? 'high' : score > 33 ? 'medium' : 'low';
-
-// ── Types ─────────────────────────────────────────────────────────────────
-
-interface TreeNode {
-  thread_id: number;
-  thread_name: string;
-  assistant_id: string;
-  is_hidden: boolean;
-  bound_target_id: number | null;
-  parent_thread_id: number | null;
-  overview_id: number | null;
-  overview_status: string | null;
-  overview_risk_score: number | null;
-  target_name: string | null;
-  created_at: string;
-}
-
-// ── Tree node component ───────────────────────────────────────────────────
-
-function TreeNodeItem({
-  node,
-  depth,
-  allNodes,
-  activeNodeThreadId,
-  onSelect,
-}: {
-  node: TreeNode;
-  depth: number;
-  allNodes: TreeNode[];
-  activeNodeThreadId: string | null;
-  onSelect: (node: TreeNode) => void;
-}) {
-  const isActive = activeNodeThreadId === String(node.thread_id);
-  const icon = node.assistant_id === 'hacker_assistant_agent' ? 'HA' : 'AI';
-  const children =
-    node.thread_id != null
-      ? allNodes.filter(n => n.parent_thread_id === node.thread_id)
-      : [];
-
-  return (
-    <div className="tree-node-group">
-      <div
-        className={`tree-node ${isActive ? 'tree-node--active' : ''}`}
-        style={{ paddingLeft: `${8 + depth * 20}px` }}
-        onClick={() => onSelect(node)}
-        title={node.thread_name}
-        data-testid={`tree-node-${node.thread_id}`}
-        data-status={node.overview_status || 'unknown'}
-        data-depth={depth}
-      >
-        {depth > 0 && <span className="tree-connector" />}
-        <div className="tree-node-label">
-          <span className="tree-node-icon">{icon}</span>
-          <span className="tree-node-name">
-            {node.target_name && depth > 0 ? node.target_name : node.thread_name}
-          </span>
-        </div>
-        {node.overview_status && (
-          <span
-            className={`tree-node-status-icon tree-node-status-icon--${(STATUS_CLASS[node.overview_status] || 'tree-badge--default').replace('tree-badge--', '')}`}
-          >
-            {STATUS_ICON[node.overview_status] || '•'}
-          </span>
-        )}
-        <div className="tree-node-meta">
-          {isActive && !node.overview_status && (
-            <span
-              className="tree-node-skeleton"
-              data-testid={`skeleton-${node.thread_id}`}
-            />
-          )}
-          {node.overview_status && (
-            <span className={`tree-badge ${STATUS_CLASS[node.overview_status] || 'tree-badge--default'}`}>
-              {node.overview_status.replace(/_/g, ' ')}
-            </span>
-          )}
-          {node.overview_risk_score !== null && (
-            <span className={`tree-badge tree-badge--risk ${riskClass(node.overview_risk_score)}`}>
-              Risk {node.overview_risk_score}
-            </span>
-          )}
-        </div>
-      </div>
-      {children.map(child => (
-        <TreeNodeItem
-          key={child.thread_id}
-          node={child}
-          depth={depth + 1}
-          allNodes={allNodes}
-          activeNodeThreadId={activeNodeThreadId}
-          onSelect={onSelect}
-        />
-      ))}
-    </div>
-  );
-}
-
-// ── Helper: build flat TreeNode[] from GQL subscription data ─────────────
-
-// Push a thread node from an overview's aiAssistantThreadByThreadId relationship.
-// Also recurse into that thread's own overviews to discover grandchildren.
-function _ingestThreadFromOv(
-  t: any,
-  ov: any,
-  parentThreadId: number,
-  nodes: TreeNode[],
-  seen: Set<number>,
-) {
-  const tid = Number(t.id);
-  if (seen.has(tid)) return;
-  seen.add(tid);
-  nodes.push({
-    thread_id: tid,
-    thread_name: t.name,
-    assistant_id: t.assistant_id,
-    is_hidden: t.is_hidden,
-    bound_target_id: t.bound_target_id,
-    parent_thread_id: parentThreadId,
-    overview_id: Number(ov.id),
-    overview_status: ov.status,
-    overview_risk_score: ov.risk_score,
-    target_name: ov.core_target?.name ?? null,
-    created_at: t.created_at,
-  });
-  // Recurse into this thread's own overviews (grandchildren)
-  for (const childOv of Array.isArray(t.core_overviews) ? t.core_overviews : []) {
-    const childT = childOv.aiAssistantThreadByThreadId;
-    if (childT) _ingestThreadFromOv(childT, childOv, tid, nodes, seen);
-  }
-}
-
-function buildTreeNodes(rawData: any, rootThreadId: string): TreeNode[] {
-  if (!rawData?.ai_assistant_thread_by_pk) return [];
-
-  const root = rawData.ai_assistant_thread_by_pk;
-  const nodes: TreeNode[] = [];
-  const seen = new Set<number>();
-
-  nodes.push({
-    thread_id: Number(root.id),
-    thread_name: root.name,
-    assistant_id: root.assistant_id,
-    is_hidden: root.is_hidden,
-    bound_target_id: root.bound_target_id,
-    parent_thread_id: null,
-    overview_id: null,
-    overview_status: null,
-    overview_risk_score: null,
-    target_name: null,
-    created_at: root.created_at,
-  });
-  seen.add(Number(root.id));
-
-  for (const ov of Array.isArray(root.core_overviews) ? root.core_overviews : []) {
-    const t = ov.aiAssistantThreadByThreadId;
-    if (t) _ingestThreadFromOv(t, ov, Number(rootThreadId), nodes, seen);
-  }
-
-  return nodes;
-}
+import { cn } from '@/lib/utils';
+import { TreeNode, buildTreeNodes } from './components/TreePanel';
+import { Sidebar } from './components/Sidebar';
+import { AgentPanel } from './components/AgentPanel';
+import ChatHeader from './components/ChatHeader';
+import ExecutionLogsPanel from './components/ExecutionLogsPanel';
+import ThreadEventsPanel from './components/ThreadEventsPanel';
 
 // ── Main page ─────────────────────────────────────────────────────────────
 
@@ -801,197 +620,68 @@ const AICenterPage: React.FC = () => {
   // ── Render ────────────────────────────────────────────────────────────
 
   return (
-    <div className="aicenter-container">
-      {/* ─── Sidebar ─────────────────────────────────────────────────── */}
-      <aside className={`sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
-        <div className="sidebar-header">
-          <h3>CONVERSATIONS</h3>
-          <button className="sidebar-toggle" onClick={() => setSidebarOpen(false)} title="Collapse">✕</button>
-        </div>
-
-        <button className="new-chat-btn" onClick={createNewThread} disabled={threadsLoading}>
-          + New Chat
-        </button>
-
-        <div className="sidebar-filter">
-          <input
-            type="text"
-            placeholder="Filter by Target ID..."
-            value={targetSearchId}
-            onChange={e => setTargetSearchId(e.target.value)}
-          />
-          {targetSearchId && (
-            <button className="clear-filter" onClick={() => setTargetSearchId('')}>✕</button>
-          )}
-        </div>
-
-        <div style={{ padding: '4px 8px 8px' }}>
-          <button
-            className={`c2-btn c2-btn--sm ${showInternal ? 'c2-btn--primary' : 'c2-btn--ghost'}`}
-            onClick={() => { const next = !showInternal; setShowInternal(next); localStorage.setItem('aiCenter_showInternal', String(next)); }}
-            style={{ width: '100%', justifyContent: 'center', fontSize: '0.7rem' }}
-          >
-            {showInternal ? 'Show system threads' : 'User conversations only'}
-          </button>
-        </div>
-
-        {threadsLoading && <div className="sidebar-loading"><span className="pulse">●</span> Loading...</div>}
-        {threadsError && <div className="sidebar-error">Error: {threadsError}</div>}
-
-        <div className="sidebar-tabs" style={{ display: 'flex', gap: 4, padding: '4px 8px 0' }}>
-          <button
-            className={`c2-btn c2-btn--sm ${sidebarTab === 'threads' ? 'c2-btn--primary' : 'c2-btn--ghost'}`}
-            style={{ flex: 1, justifyContent: 'center', fontSize: '0.7rem' }}
-            onClick={() => setSidebarTab('threads')}
-          >
-            THREADS
-          </button>
-          <button
-            className={`c2-btn c2-btn--sm ${sidebarTab === 'overviews' ? 'c2-btn--primary' : 'c2-btn--ghost'}`}
-            style={{ flex: 1, justifyContent: 'center', fontSize: '0.7rem' }}
-            onClick={() => setSidebarTab('overviews')}
-          >
-            OVERVIEWS{overviews.length > 0 ? ' ✓' : ''}
-          </button>
-        </div>
-
-        {sidebarTab === 'threads' && (
-          <div className="threads-list">
-            {allThreads.length === 0 && !threadsLoading && (
-              <div className="empty-state">No conversations yet</div>
-            )}
-            {allThreads.map(thread => (
-              <div
-                key={thread.id}
-                className={`thread-item ${selectedThreadId === String(thread.id) ? 'active' : ''}`}
-                onClick={() => handleSelectSidebarThread(thread)}
-              >
-                <div className="thread-name">{thread.name || 'Untitled'}</div>
-                {selectedThreadId === String(thread.id) && (
-                  <button
-                    className="delete-btn"
-                    onClick={e => { e.stopPropagation(); handleDeleteThread(String(thread.id)); }}
-                    title="Delete conversation"
-                  >
-                    Delete
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {sidebarTab === 'overviews' && (
-          <div className="threads-list">
-            {overviewsLoading && <div className="sidebar-loading"><span className="pulse">●</span> Loading...</div>}
-            {!boundTargetId && !overviewsLoading && (
-              <div className="empty-state">Select a thread bound to a target to see its overviews</div>
-            )}
-            {overviews.map(ov => (
-              <div key={ov.id} className="thread-item" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <div className="thread-name">Overview #{ov.id}</div>
-                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{ov.status} · risk {ov.risk_score}</div>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  {ov.thread_id && (
-                    <button
-                      className="c2-btn c2-btn--ghost c2-btn--sm"
-                      style={{ flex: 1, fontSize: '0.65rem' }}
-                      onClick={() => handleSelectSidebarThread({
-                        id: ov.thread_id,
-                        name: `Overview #${ov.id}`,
-                        assistant_id: 'automation_agent',
-                        is_hidden: true,
-                        bound_target_id: null,
-                      })}
-                    >
-                      VIEW THREAD
-                    </button>
-                  )}
-                  <button
-                    className="c2-btn c2-btn--ghost c2-btn--sm"
-                    style={{ flex: 1, fontSize: '0.65rem' }}
-                    onClick={() => navigate(`/overviews/${ov.id}`)}
-                  >
-                    EDIT DETAIL
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {boundTargetId && (
-          <div className="sidebar-footer">
-            <div className="target-badge">
-              <span>Target: {boundTargetId}</span>
-              <button
-                onClick={async () => { if (!selectedThreadId) return; await assistantApi.unbindTarget(selectedThreadId); setBoundTargetId(null); }}
-                title="Release target"
-              >✕</button>
-            </div>
-          </div>
-        )}
-      </aside>
+    <>
+      <style>{`@keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+    <div className="flex h-[calc(100vh-var(--navbar-height)+12px)] w-full mt-[var(--navbar-height)] bg-[linear-gradient(135deg,#0f172a_0%,#0a0e27_100%)] text-slate-50 relative overflow-hidden">
+      <Sidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        targetSearchId={targetSearchId}
+        onTargetSearchChange={setTargetSearchId}
+        showInternal={showInternal}
+        onShowInternalChange={(next) => { setShowInternal(next); localStorage.setItem('aiCenter_showInternal', String(next)); }}
+        threadsLoading={threadsLoading}
+        threadsError={threadsError}
+        sidebarTab={sidebarTab}
+        onSidebarTabChange={setSidebarTab}
+        threads={allThreads}
+        selectedThreadId={selectedThreadId}
+        onSelectThread={handleSelectSidebarThread}
+        onDeleteThread={handleDeleteThread}
+        onCreateThread={createNewThread}
+        overviews={overviews}
+        overviewsLoading={overviewsLoading}
+        boundTargetId={boundTargetId}
+        onNavigate={navigate}
+        onUnbindTarget={async () => { if (!selectedThreadId) return; await assistantApi.unbindTarget(selectedThreadId); setBoundTargetId(null); }}
+      />
 
       {/* ─── Main chat ───────────────────────────────────────────────── */}
-      <main className="chat-main">
+      <main className="flex-1 flex flex-col relative overflow-hidden">
         {!sidebarOpen && (
-          <button className="sidebar-toggle-main" onClick={() => setSidebarOpen(true)} title="Open sidebar">☰</button>
+          <button className="absolute top-4 left-4 bg-transparent border-0 text-slate-400 text-2xl cursor-pointer p-1 z-50 transition-colors duration-200 hover:text-slate-300" onClick={() => setSidebarOpen(true)} title="Open sidebar">☰</button>
         )}
 
-        <div className="chat-container">
+        <div className="flex flex-col h-full relative">
           {selectedThreadId ? (
             <>
-              {/* Chat header */}
-              <div className="chat-header-bar">
-                <div className="chat-header-label">{chatTargetLabel}</div>
-                <div className="chat-header-actions">
-                  {activeThreadGraphs.length > 0 && (
-                    <button
-                      className={`tool-log-toggle-btn ${showLogsPanel ? 'active' : ''}`}
-                      onClick={() => setShowLogsPanel(v => !v)}
-                      title="Toggle execution timeline"
-                    >
-                      {activeThreadGraphs.length} graph{activeThreadGraphs.length > 1 ? 's' : ''}
-                    </button>
-                  )}
-                  <button
-                    className={`tool-log-toggle-btn ${showEventsPanel ? 'active' : ''}`}
-                    onClick={() => setShowEventsPanel(v => !v)}
-                    title="Toggle thread events"
-                  >
-                    Events
-                  </button>
-                  {rootThreadId && (
-                    <button
-                      className={`tree-toggle-btn ${showTreePanel ? 'active' : ''}`}
-                      onClick={() => setShowTreePanel(v => !v)}
-                      title="Toggle Agent Tree"
-                    >
-                      {agentTree.length > 1 ? `${agentTree.length - 1} agent${agentTree.length > 2 ? 's' : ''}` : 'Tree'}
-                    </button>
-                  )}
-                </div>
-              </div>
+              <ChatHeader
+                label={chatTargetLabel}
+                graphCount={activeThreadGraphs.length}
+                showLogs={showLogsPanel}
+                showEvents={showEventsPanel}
+                showTree={showTreePanel}
+                treeAgentCount={agentTree.length}
+                hasTree={!!rootThreadId}
+                onToggleLogs={() => setShowLogsPanel(v => !v)}
+                onToggleEvents={() => setShowEventsPanel(v => !v)}
+                onToggleTree={() => setShowTreePanel(v => !v)}
+              />
 
               {/* Upper area: messages + input */}
-              <div className="chat-upper">
+              <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
                 <MessageFilterBar filter={msgFilter} onChange={setMsgFilter} />
-                <div className="messages-area" onScroll={handleScroll}>
+                <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4" onScroll={handleScroll}>
                   {filteredMessages.length === 0 && !streamingText && (
-                    <div className="empty-chat">
-                      <div className="empty-icon">AI</div>
-                      <div className="empty-text">
+                    <div className="flex-1 flex flex-col items-center justify-center gap-4 text-slate-500">
+                      <div className="text-5xl">AI</div>
+                      <div className="text-base font-medium">
                         {messages.length === 0 ? 'Start a conversation' : 'No messages match current filters'}
                       </div>
                     </div>
                   )}
                   {displayLimit < filteredMessages.length && (
-                    <div className="loading-older">Loading older messages...</div>
+                    <div className="text-center p-[10px] text-slate-500 text-sm">Loading older messages...</div>
                   )}
                   {renderItems.map((item, idx) => {
                     if (item.kind === 'tool_group') {
@@ -1037,10 +727,18 @@ const AICenterPage: React.FC = () => {
                     }
                     const msg = item.message;
                     return (
-                      <div key={msg.id || idx} className={`message message-${msg.role}${msg.isError ? ' message-error' : ''}`}>
-                        <div className="message-content">
+                      <div key={msg.id || idx} className={cn(
+                            "w-full max-w-[900px] mx-auto flex",
+                            msg.role === 'user' ? 'justify-end' : 'justify-start'
+                          )}>
+                        <div className={cn(
+                          "px-4 py-3 break-words text-[0.95rem] leading-relaxed",
+                          msg.role === 'user'
+                            ? 'bg-green text-[#020617] rounded-[12px_12px_4px_12px] max-w-[70%]'
+                            : 'bg-slate-800 text-slate-300 rounded-[12px_12px_12px_4px] border border-slate-700 max-w-[90%]'
+                        )}>
                           {msg.role === 'user' ? (
-                            <div className="user-text">{msg.textContent}</div>
+                            <div className="whitespace-pre-wrap">{msg.textContent}</div>
                           ) : (
                             <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.textContent}</ReactMarkdown>
                           )}
@@ -1049,8 +747,8 @@ const AICenterPage: React.FC = () => {
                     );
                   })}
                   {streamingText && (
-                    <div className="message message-assistant">
-                      <div className="message-content">
+                    <div className="w-full max-w-[900px] mx-auto flex justify-start">
+                      <div className="px-4 py-3 break-words text-[0.95rem] leading-relaxed bg-slate-800 text-slate-300 rounded-[12px_12px_12px_4px] border border-slate-700 max-w-[90%]">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingText}</ReactMarkdown>
                       </div>
                     </div>
@@ -1058,9 +756,10 @@ const AICenterPage: React.FC = () => {
                   <div ref={messagesEndRef} />
                 </div>
 
-                <div className="input-area">
-                  <div className="input-wrapper">
+                <div className="px-6 pt-4 pb-6 bg-[linear-gradient(180deg,rgba(15,23,42,0)_0%,rgba(15,23,42,0.8)_100%)] border-t border-slate-800">
+                  <div className="flex gap-3 max-w-[900px] mx-auto w-full">
                     <textarea
+                      className="flex-1 px-4 py-3 bg-slate-900 border border-slate-800 rounded-lg text-slate-50 text-[0.95rem] resize-none outline-none transition-all duration-200 leading-relaxed placeholder:text-slate-500 hover:border-slate-700 hover:bg-[#0a0f1f] focus:border-green focus:bg-[#0a0f1f] focus:shadow-[0_0_0_2px_rgba(34,197,94,0.15),0_0_16px_rgba(34,197,94,0.2)] disabled:opacity-50 disabled:cursor-not-allowed"
                       placeholder="Type your message... (Shift+Enter for new line)"
                       value={inputVal}
                       onChange={e => setInputVal(e.target.value)}
@@ -1069,7 +768,7 @@ const AICenterPage: React.FC = () => {
                       rows={3}
                     />
                     <button
-                      className="send-btn"
+                      className="px-6 py-3 bg-green text-[#020617] border-0 rounded-lg font-semibold text-[0.95rem] cursor-pointer transition-all duration-200 whitespace-nowrap min-w-[100px] hover:bg-green-400 hover:shadow-[0_0_16px_rgba(34,197,94,0.3)] hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed"
                       onClick={handleSend}
                       disabled={isSending || !inputVal.trim() || !selectedThreadId}
                       title={isSending ? 'Sending...' : 'Send message (Enter)'}
@@ -1082,109 +781,32 @@ const AICenterPage: React.FC = () => {
 
               {/* ── Execution timeline panel ─────────────────────────── */}
               {showLogsPanel && (
-                <div className="logs-panel">
-                  <div className="logs-panel-header">
-                    <div className="logs-panel-title">
-                      <span>EXECUTION GRAPH</span>
-                      {selectedGraphId && <span className="logs-graph-status">Graph #{selectedGraphId}</span>}
-                    </div>
-
-                    <div className="logs-panel-controls">
-                      <select
-                        className="graph-picker"
-                        value={graphStatusFilter}
-                        onChange={(e) => {
-                          setGraphStatusFilter(e.target.value);
-                          setGraphPage(1);
-                        }}
-                        title="Filter by status"
-                      >
-                        <option value="">All</option>
-                        <option value="RUNNING">Running</option>
-                        <option value="WAITING">Waiting</option>
-                        <option value="SUCCEEDED">Succeeded</option>
-                        <option value="FAILED">Failed</option>
-                      </select>
-                      {activeThreadGraphs.length > 0 && (
-                        <select
-                          className="graph-picker"
-                          value={selectedGraphId ?? ''}
-                          onChange={e => setSelectedGraphId(Number(e.target.value))}
-                        >
-                          {activeThreadGraphs.map(graph => (
-                            <option key={graph.id} value={graph.id}>
-                              #{graph.id} [{graph.status}] {graph.title || graph.assistant_id}
-                            </option>
-                          ))}
-                        </select>
-                      )}
-                      {selectedGraphId && (
-                        <>
-                          <button
-                            className="logs-close-btn"
-                            onClick={() => handleArchiveGraph(selectedGraphId)}
-                            title="Archive graph"
-                          >Archive</button>
-                          <button
-                            className="logs-close-btn"
-                            onClick={() => handleDeleteGraph(selectedGraphId)}
-                            title="Delete graph"
-                          >Delete</button>
-                        </>
-                      )}
-                      <button
-                        className="logs-close-btn"
-                        onClick={() => setShowLogsPanel(false)}
-                        title="Close logs panel"
-                      >✕</button>
-                    </div>
-                  </div>
-
-                  <div className="logs-panel-body">
-                    {selectedGraphId ? (
-                      <ExecutionTimelineViewer graphId={selectedGraphId} compact autoScroll />
-                    ) : (
-                      <div className="logs-empty">No execution graph selected</div>
-                    )}
-                    {graphHasMore && (
-                      <div style={{ padding: 8, textAlign: 'center' }}>
-                        <button
-                          className="c2-btn c2-btn--ghost c2-btn--sm"
-                          onClick={() => setGraphPage((p) => p + 1)}
-                        >
-                          Load More
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <ExecutionLogsPanel
+                  selectedGraphId={selectedGraphId}
+                  activeThreadGraphs={activeThreadGraphs}
+                  graphStatusFilter={graphStatusFilter}
+                  graphHasMore={graphHasMore}
+                  onSelectGraph={setSelectedGraphId}
+                  onStatusFilterChange={(filter) => { setGraphStatusFilter(filter); setGraphPage(1); }}
+                  onArchiveGraph={handleArchiveGraph}
+                  onDeleteGraph={handleDeleteGraph}
+                  onLoadMore={() => setGraphPage((p) => p + 1)}
+                  onClose={() => setShowLogsPanel(false)}
+                />
               )}
 
               {/* ── Thread events panel ──────────────────────────────── */}
               {showEventsPanel && (
-                <div className="logs-panel">
-                  <div className="logs-panel-header">
-                    <div className="logs-panel-title">
-                      <span>THREAD EVENTS</span>
-                    </div>
-                    <div className="logs-panel-controls">
-                      <button
-                        className="logs-close-btn"
-                        onClick={() => setShowEventsPanel(false)}
-                        title="Close events panel"
-                      >✕</button>
-                    </div>
-                  </div>
-                  <div className="logs-panel-body">
-                    <ThreadEventTimeline threadId={selectedThreadId} autoScroll />
-                  </div>
-                </div>
+                <ThreadEventsPanel
+                  threadId={selectedThreadId}
+                  onClose={() => setShowEventsPanel(false)}
+                />
               )}
             </>
           ) : (
-            <div className="no-thread">
-              <div className="no-thread-icon">AI</div>
-              <div className="no-thread-text">
+            <div className="flex-1 flex flex-col items-center justify-center gap-4 text-slate-500">
+              <div className="text-5xl">AI</div>
+              <div className="text-base font-medium">
                 {allThreads.length === 0 ? 'Create a new conversation to get started' : 'Select a conversation'}
               </div>
             </div>
@@ -1192,105 +814,27 @@ const AICenterPage: React.FC = () => {
         </div>
       </main>
 
-      {/* ─── Agent / Topology panel ──────────────────────────────────── */}
-      {showTree && (
-        <aside className="agent-tree-panel agent-tree-panel--wide">
-          <div className="tree-panel-header">
-            <h4>AGENTS</h4>
-            <div className="tree-panel-actions">
-              <span
-                className={`tree-live-dot ${treeConnected ? 'connected' : 'disconnected'}`}
-                title={treeConnected ? 'Live — auto-updating' : 'Disconnected'}
-              />
-              <button className="tree-action-btn" onClick={() => setShowTreePanel(false)} title="Close">✕</button>
-            </div>
-          </div>
-
-          <div className="agent-panel-tabs">
-            {([
-              ['tree', 'Tree'],
-              ['interaction', 'Interaction'],
-              ['topology', 'Topology'],
-            ] as const).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                className={`agent-panel-tab ${agentPanelTab === key ? 'active' : ''}`}
-                onClick={() => setAgentPanelTab(key)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          <div className="tree-body">
-            {agentPanelTab === 'tree' && (
-              <>
-                {agentTree.length === 0 && (
-                  <div className="tree-empty">No sub-agents yet</div>
-                )}
-                {rootNode && (
-                  <TreeNodeItem
-                    node={rootNode}
-                    depth={0}
-                    allNodes={agentTree}
-                    activeNodeThreadId={activeNodeThreadId}
-                    onSelect={handleSelectTreeNode}
-                  />
-                )}
-              </>
-            )}
-
-            {agentPanelTab === 'interaction' && (
-              <AgentInteractionTimeline
-                tree={dispatchTree}
-                selectedThreadId={activeNodeThreadId ? Number(activeNodeThreadId) : null}
-                onSelectNode={(n) => {
-                  if (!n.thread_id) return;
-                  handleSelectTreeNode({
-                    thread_id: n.thread_id,
-                    thread_name: n.agent_id || `Thread ${n.thread_id}`,
-                    assistant_id: n.agent_id || 'automation_agent',
-                    is_hidden: true,
-                    bound_target_id: boundTargetId,
-                    parent_thread_id: null,
-                    overview_id: null,
-                    overview_status: null,
-                    overview_risk_score: null,
-                    target_name: null,
-                    created_at: n.dispatched_at || '',
-                  });
-                  if (n.graph_id) {
-                    setSelectedGraphId(n.graph_id);
-                    setShowLogsPanel(true);
-                  }
-                }}
-              />
-            )}
-
-            {agentPanelTab === 'topology' && (
-              <div className="topology-panel-stack">
-                <AssetTopologyMap
-                  topology={topology}
-                  selectedNodeId={selectedTopoNode?.id ?? null}
-                  onSelectNode={setSelectedTopoNode}
-                />
-                {selectedTopoNode && (
-                  <AssetDetailPanel
-                    node={selectedTopoNode}
-                    onClose={() => setSelectedTopoNode(null)}
-                    onOpenGraph={(gid) => {
-                      setSelectedGraphId(gid);
-                      setShowLogsPanel(true);
-                    }}
-                  />
-                )}
-              </div>
-            )}
-          </div>
-        </aside>
-      )}
+      <AgentPanel
+        showTree={showTree}
+        showTreePanel={showTreePanel}
+        onClose={() => setShowTreePanel(false)}
+        treeConnected={treeConnected}
+        agentPanelTab={agentPanelTab}
+        onTabChange={setAgentPanelTab}
+        agentTree={agentTree}
+        rootNode={rootNode}
+        activeNodeThreadId={activeNodeThreadId}
+        onSelectTreeNode={handleSelectTreeNode}
+        dispatchTree={dispatchTree}
+        boundTargetId={boundTargetId}
+        onOpenGraph={setSelectedGraphId}
+        onOpenLogsPanel={() => setShowLogsPanel(true)}
+        topology={topology}
+        selectedTopoNode={selectedTopoNode}
+        onSelectTopoNode={setSelectedTopoNode}
+      />
     </div>
+    </>
   );
 };
 

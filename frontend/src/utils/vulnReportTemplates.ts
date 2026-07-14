@@ -1,0 +1,259 @@
+import type { VulnerabilityData, PoCRecord } from '../services/api_vulnerabilities';
+
+// ==========================================
+// Constants (as const for type safety)
+// ==========================================
+
+export const SEVERITY_LABEL = {
+  critical: '嚴重 (Critical)',
+  high: '高危 (High)',
+  medium: '中危 (Medium)',
+  low: '低危 (Low)',
+  info: '資訊 (Info)',
+} as const;
+
+export const STATUS_LABEL = {
+  unverified: '未驗證',
+  confirmed: '已確認',
+  false_positive: '誤報',
+} as const;
+
+export const ENRICHMENT_LABEL = {
+  pending: '待豐富化',
+  enriched: '已豐富化',
+  no_cve: '無 CVE 關聯',
+  failed: '豐富化失敗',
+} as const;
+
+export const POC_LANGUAGE_LABEL = {
+  curl: 'cURL',
+  python: 'Python',
+  bash: 'Bash',
+  http_request: 'HTTP Request',
+  manual: '手動步驟',
+} as const;
+
+const POC_LANG_TO_MD = {
+  curl: 'bash',
+  python: 'python',
+  bash: 'bash',
+  http_request: 'http',
+  manual: 'markdown',
+} as const;
+
+// ==========================================
+// Helper functions
+// ==========================================
+
+export function slugifyFilename(input: string, fallback = 'vulnerability'): string {
+  if (!input) return fallback;
+  const trimmed = input.trim().toLowerCase();
+  const slug = trimmed
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60);
+  return slug || fallback;
+}
+
+function fmtDate(iso: string | null): string {
+  if (!iso) return '—';
+  try {
+    return new Date(iso).toLocaleString('zh-TW', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return iso;
+  }
+}
+
+function fenceForPoc(poc: PoCRecord): string {
+  return POC_LANG_TO_MD[poc.language] || 'text';
+}
+
+function labelOrRaw<T extends string>(
+  map: Readonly<Record<string, string>>,
+  key: T | string,
+): string {
+  return map[key] ?? key;
+}
+
+// ==========================================
+// Template sections (each returns a string block)
+// ==========================================
+
+function headerSection(v: VulnerabilityData): string {
+  return `# 漏洞報告：${v.name || '未命名漏洞'}
+
+---
+`;
+}
+
+function basicInfoSection(v: VulnerabilityData): string {
+  const rows = [
+    `| **漏洞 ID** | #${v.id} |`,
+    `| **嚴重程度** | ${labelOrRaw(SEVERITY_LABEL, v.severity)} |`,
+    `| **驗證狀態** | ${labelOrRaw(STATUS_LABEL, v.status)} |`,
+    v.target_name ? `| **目標資產** | ${v.target_name} |` : null,
+    `| **發現位置** | \`${v.matched_at || '—'}\` |`,
+    v.tool_source ? `| **偵測工具** | ${v.tool_source} |` : null,
+    v.template_id ? `| **模板 ID** | \`${v.template_id}\` |` : null,
+    `| **CVE 豐富化** | ${labelOrRaw(ENRICHMENT_LABEL, v.enrichment_status)} |`,
+    v.cve_intelligence_id ? `| **關聯 CVE** | #${v.cve_intelligence_id} |` : null,
+    `| **首次發現** | ${fmtDate(v.created_at)} |`,
+    `| **最後發現** | ${fmtDate(v.last_seen)} |`,
+    `| **最後更新** | ${fmtDate(v.updated_at)} |`,
+  ]
+    .filter((row): row is string => row !== null)
+    .join('\n');
+
+  return `## 基本資訊
+
+| 項目 | 內容 |
+|---|---|
+${rows}
+`;
+}
+
+function assetsSection(v: VulnerabilityData): string {
+  const assets: string[] = [];
+  if (v.ip_asset) assets.push(`IP: \`${v.ip_asset.label}\``);
+  if (v.subdomain_asset) assets.push(`子域名: \`${v.subdomain_asset.label}\``);
+  if (v.url_asset) assets.push(`URL: \`${v.url_asset.label}\``);
+
+  if (assets.length === 0) return '';
+
+  return `## 關聯資產
+
+${assets.map(a => `- ${a}`).join('\n')}
+`;
+}
+
+function descriptionSection(v: VulnerabilityData): string {
+  const desc = v.description?.trim();
+  if (!desc) return '';
+
+  return `## 漏洞描述
+
+${desc}
+`;
+}
+
+function pocBlock(poc: PoCRecord, idx: number): string {
+  const verified = poc.is_verified ? ' ✓' : '';
+  const fence = fenceForPoc(poc);
+  const lang = labelOrRaw(POC_LANGUAGE_LABEL, poc.language);
+
+  const resultBlock = poc.result?.trim()
+    ? `
+**執行結果**:
+
+\`\`\`
+${poc.result.trim()}
+\`\`\`
+`
+    : '';
+
+  return `### ${idx + 1}. ${poc.title}${verified}
+
+**語言/類型**: ${lang}
+
+\`\`\`${fence}
+${poc.content}
+\`\`\`
+${resultBlock}
+`;
+}
+
+function pocsSection(v: VulnerabilityData): string {
+  if (!v.pocs || v.pocs.length === 0) return '';
+
+  const blocks = v.pocs.map((poc, idx) => pocBlock(poc, idx)).join('\n');
+
+  return `## POC（Proof of Concept）
+
+${blocks}
+`;
+}
+
+function rawRequestSection(v: VulnerabilityData): string {
+  const raw = v.request_raw?.trim();
+  if (!raw) return '';
+
+  return `## 原始請求 (Request)
+
+\`\`\`http
+${raw}
+\`\`\`
+`;
+}
+
+function rawResponseSection(v: VulnerabilityData): string {
+  const raw = v.response_raw?.trim();
+  if (!raw) return '';
+
+  return `## 原始回應 (Response)
+
+\`\`\`http
+${raw}
+\`\`\`
+`;
+}
+
+function extractedResultsSection(v: VulnerabilityData): string {
+  if (v.extracted_results == null) return '';
+
+  const ext =
+    typeof v.extracted_results === 'string'
+      ? v.extracted_results
+      : JSON.stringify(v.extracted_results, null, 2);
+
+  if (!ext || !ext.trim() || ext.trim() === 'null') return '';
+
+  return `## 擷取結果
+
+\`\`\`json
+${ext.trim()}
+\`\`\`
+`;
+}
+
+function remediationSection(v: VulnerabilityData): string {
+  const rem = v.remediation?.trim();
+  if (!rem) return '';
+
+  return `## 修復建議
+
+${rem}
+`;
+}
+
+function footerSection(): string {
+  return `---
+
+*本報告由 SKRpyASM 漏洞管理系統自動產生 — ${fmtDate(new Date().toISOString())}*`;
+}
+
+// ==========================================
+// Main template function
+// ==========================================
+
+export function vulnToMarkdown(v: VulnerabilityData): string {
+  const sections = [
+    headerSection(v),
+    basicInfoSection(v),
+    assetsSection(v),
+    descriptionSection(v),
+    pocsSection(v),
+    rawRequestSection(v),
+    rawResponseSection(v),
+    extractedResultsSection(v),
+    remediationSection(v),
+    footerSection(),
+  ];
+
+  return sections.filter(s => s !== '').join('\n');
+}

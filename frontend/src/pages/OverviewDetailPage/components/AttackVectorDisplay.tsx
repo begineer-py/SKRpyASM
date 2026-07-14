@@ -60,10 +60,10 @@ export default function AttackVectorDisplay({ vector }: AttackVectorDisplayProps
   const barWidth = Math.min(100, Math.max(0, vector.risk_score));
 
   return (
-    <div style={containerStyle}>
+    <div className="flex flex-col gap-1 py-1.5 border-b border-[rgba(255,255,255,0.04)]">
       {/* Row 1: name + badges */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <span style={{ color: '#e2e8f0', fontSize: '0.8rem', fontWeight: 600 }}>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-[#e2e8f0] text-[0.8rem] font-semibold">
           {vector.name}
         </span>
         <span style={{ ...pillBase, ...VECTOR_TYPE_STYLE[vector.vector_type] }}>
@@ -73,11 +73,11 @@ export default function AttackVectorDisplay({ vector }: AttackVectorDisplayProps
           {vector.status}
         </span>
         {/* Risk score bar */}
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+        <span className="inline-flex items-center gap-1">
           <span style={{ ...pillBase, color: riskBarColor(vector.risk_score), background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.08)' }}>
             RISK {vector.risk_score}
           </span>
-          <span style={{ width: 48, height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden', display: 'inline-block' }}>
+          <span className="w-[48px] h-1 bg-[rgba(255,255,255,0.08)] rounded overflow-hidden inline-block">
             <span style={{ display: 'block', height: '100%', width: `${barWidth}%`, background: riskBarColor(vector.risk_score), borderRadius: 2, transition: 'width 0.3s' }} />
           </span>
         </span>
@@ -88,13 +88,13 @@ export default function AttackVectorDisplay({ vector }: AttackVectorDisplayProps
         <button
           type="button"
           onClick={() => setShowDesc(!showDesc)}
-          style={toggleBtnStyle}
+          className="bg-transparent border-none text-[#64748b] text-[0.7rem] cursor-pointer text-left py-0.5 font-semibold"
         >
           {showDesc ? '▼' : '▶'} Description
         </button>
       )}
       {showDesc && vector.description && (
-        <div style={descBoxStyle}>
+        <div className="text-[#94a3b8] text-[0.75rem] px-2 py-1 bg-[rgba(255,255,255,0.02)] rounded border border-[rgba(255,255,255,0.04)] leading-[1.5]">
           {vector.description}
         </div>
       )}
@@ -104,62 +104,16 @@ export default function AttackVectorDisplay({ vector }: AttackVectorDisplayProps
         <button
           type="button"
           onClick={() => setShowEvidence(!showEvidence)}
-          style={toggleBtnStyle}
+          className="bg-transparent border-none text-[#64748b] text-[0.7rem] cursor-pointer text-left py-0.5 font-semibold"
         >
           {showEvidence ? '▼' : '▶'} Evidence
         </button>
       )}
       {showEvidence && vector.evidence && (
-        <pre style={evidencePreStyle}>
+        <pre className="m-0 px-[10px] py-1.5 bg-[rgba(0,0,0,0.4)] text-[#e2e8f0] rounded text-[0.7rem] font-mono overflow-auto max-h-40 whitespace-pre-wrap break-words leading-[1.4]">
           {vector.evidence}
         </pre>
       )}
     </div>
   );
 }
-
-// ─── Styles ─────────────────────────────────────────────────────────────────
-
-const containerStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 4,
-  padding: '6px 0',
-  borderBottom: '1px solid rgba(255,255,255,0.04)',
-};
-
-const toggleBtnStyle: React.CSSProperties = {
-  background: 'transparent',
-  border: 'none',
-  color: '#64748b',
-  fontSize: '0.7rem',
-  cursor: 'pointer',
-  textAlign: 'left',
-  padding: '2px 0',
-  fontWeight: 600,
-};
-
-const descBoxStyle: React.CSSProperties = {
-  color: '#94a3b8',
-  fontSize: '0.75rem',
-  padding: '4px 8px',
-  background: 'rgba(255,255,255,0.02)',
-  borderRadius: 4,
-  border: '1px solid rgba(255,255,255,0.04)',
-  lineHeight: 1.5,
-};
-
-const evidencePreStyle: React.CSSProperties = {
-  margin: 0,
-  padding: '6px 10px',
-  background: 'rgba(0,0,0,0.4)',
-  color: '#e2e8f0',
-  borderRadius: 4,
-  fontSize: '0.7rem',
-  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-  overflow: 'auto',
-  maxHeight: 160,
-  whiteSpace: 'pre-wrap',
-  wordBreak: 'break-word',
-  lineHeight: 1.4,
-};

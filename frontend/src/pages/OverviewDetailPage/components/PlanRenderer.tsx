@@ -41,7 +41,7 @@ const pillBase: React.CSSProperties = {
 };
 
 function formatTimestamp(ts: string | null): string {
-  if (!ts) return '—';
+  if (!ts) return '\u2014';
   try {
     return new Date(ts).toLocaleTimeString();
   } catch {
@@ -49,43 +49,7 @@ function formatTimestamp(ts: string | null): string {
   }
 }
 
-// ─── Styles ─────────────────────────────────────────────────────────────────
-
-const headerStyle: React.CSSProperties = {
-  marginBottom: 20,
-};
-
-const objectiveStyle: React.CSSProperties = {
-  fontSize: '1.05rem',
-  fontWeight: 700,
-  color: '#e2e8f0',
-  lineHeight: 1.4,
-};
-
-const metaRowStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 10,
-  marginTop: 8,
-  flexWrap: 'wrap',
-};
-
-const actionCardStyle: React.CSSProperties = {
-  background: 'rgba(255,255,255,0.02)',
-  border: '1px solid rgba(255,255,255,0.06)',
-  borderRadius: 8,
-  overflow: 'hidden',
-};
-
-const actionHeaderStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 10,
-  padding: '10px 14px',
-  background: 'rgba(0,0,0,0.25)',
-  borderBottom: '1px solid rgba(255,255,255,0.05)',
-  flexWrap: 'wrap',
-};
+// ─── Dynamic style helpers ─────────────────────────────────────────────────
 
 const dotPulseStyle = (color: string, pulsing: boolean): React.CSSProperties => ({
   width: 8,
@@ -118,29 +82,24 @@ function ActionCard({ action, expanded, onToggle }: ActionCardProps) {
       : '(no purpose)');
 
   return (
-    <div style={actionCardStyle}>
-      {/* Collapsed header — always visible */}
+    <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-lg overflow-hidden">
+      {/* Collapsed header \u2014 always visible */}
       <button
         type="button"
         onClick={onToggle}
+        className="flex items-center gap-2.5 px-3.5 py-2.5 flex-wrap cursor-pointer w-full text-left border-none text-inherit"
         style={{
-          ...actionHeaderStyle,
-          cursor: 'pointer',
-          width: '100%',
-          textAlign: 'left',
           background: expanded ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.25)',
-          border: 'none',
-          color: 'inherit',
         }}
       >
         {/* Status dot */}
         <div style={dotPulseStyle(dotColor, isPulsing)} title={action.status} />
 
         {/* Order + purpose */}
-        <span style={{ color: '#475569', fontSize: '0.7rem', fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}>
+        <span className="text-[#475569] text-[0.7rem] font-mono font-bold">
           #{action.order}
         </span>
-        <span style={{ color: '#e2e8f0', fontSize: '0.85rem', fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span className="flex-1 min-w-0 truncate text-[#e2e8f0] text-[0.85rem] font-semibold">
           {purposeText}
         </span>
 
@@ -171,15 +130,15 @@ function ActionCard({ action, expanded, onToggle }: ActionCardProps) {
         )}
 
         {/* Timestamps */}
-        <span style={{ color: '#475569', fontSize: '0.65rem', marginLeft: 'auto' }}>
+        <span className="text-[#475569] text-[0.65rem] ml-auto">
           {formatTimestamp(action.created_at)}
-          {action.completed_at && ` → ${formatTimestamp(action.completed_at)}`}
+          {action.completed_at && ` \u2192 ${formatTimestamp(action.completed_at)}`}
         </span>
       </button>
 
       {/* Expanded detail */}
       {expanded && (
-        <div style={{ padding: '4px 14px 12px' }}>
+        <div className="px-3.5 pb-3 pt-1">
           <ActionDetail action={action} />
         </div>
       )}
@@ -204,7 +163,7 @@ export default function PlanRenderer({ plan }: PlanRendererProps) {
   const sortedActions = [...plan.actions].sort((a, b) => a.order - b.order);
 
   return (
-    <div style={{ padding: 20, height: '100%', overflowY: 'auto' }}>
+    <div className="p-5 h-full overflow-y-auto">
       {/* Inject keyframes for dot pulse */}
       <style>{`
         @keyframes planDotPulse {
@@ -214,29 +173,29 @@ export default function PlanRenderer({ plan }: PlanRendererProps) {
       `}</style>
 
       {/* Header */}
-      <div style={headerStyle}>
-        <div style={objectiveStyle}>{plan.objective}</div>
-        <div style={metaRowStyle}>
+      <div className="mb-5">
+        <div className="text-[1.05rem] font-bold text-[#e2e8f0] leading-[1.4]">{plan.objective}</div>
+        <div className="flex items-center gap-2.5 mt-2 flex-wrap">
           <span style={{ ...pillBase, ...PLAN_STATUS_STYLE[plan.status] }}>
             {plan.status}
           </span>
-          <span style={{ color: '#475569', fontSize: '0.7rem', fontFamily: "'JetBrains Mono', monospace" }}>
+          <span className="text-[#475569] text-[0.7rem] font-mono">
             PLAN #{plan.id}
           </span>
           {plan.thread_id && (
-            <span style={{ color: '#475569', fontSize: '0.7rem' }}>
+            <span className="text-[#475569] text-[0.7rem]">
               thread #{plan.thread_id}
             </span>
           )}
           {plan.parent_plan_id && (
-            <span style={{ color: '#475569', fontSize: '0.7rem' }}>
+            <span className="text-[#475569] text-[0.7rem]">
               parent #{plan.parent_plan_id}
             </span>
           )}
         </div>
         {/* Scope preview (if any keys) */}
         {Object.keys(plan.scope).length > 0 && (
-          <div style={{ marginTop: 8, color: '#475569', fontSize: '0.72rem' }}>
+          <div className="mt-2 text-[#475569] text-[0.72rem]">
             Scope: {Object.entries(plan.scope).map(([k, v]) => `${k}=${typeof v === 'string' ? v : JSON.stringify(v)}`).join(', ')}
           </div>
         )}
@@ -244,11 +203,11 @@ export default function PlanRenderer({ plan }: PlanRendererProps) {
 
       {/* Actions */}
       {sortedActions.length === 0 ? (
-        <div style={{ color: '#64748b', fontSize: '0.85rem', padding: '24px 0', textAlign: 'center' }}>
+        <div className="text-[#64748b] text-[0.85rem] py-6 text-center">
           No actions in this plan yet.
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div className="flex flex-col gap-2.5">
           {sortedActions.map((action) => (
             <ActionCard
               key={action.id}

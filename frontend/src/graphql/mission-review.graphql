@@ -1,0 +1,76 @@
+# ===== MissionReview =====
+
+query GetMissionReviewsByOverview($overviewId: bigint!) {
+  mission_review(
+    where: { overview_id: { _eq: $overviewId } }
+    order_by: { created_at: desc }
+  ) {
+    id
+    overview_id
+    verdict
+    confidence_score
+    reasoning
+    rejection_reasons
+    suggested_actions
+    needs_human_review
+    vuln_count
+    confirmed_vuln_count
+    high_severity_count
+    has_poc_evidence
+    scan_coverage_pct
+    triggered_by
+    triggered_by_agent
+    reviewed_at
+    created_at
+  }
+}
+
+query GetMissionReview($id: bigint!) {
+  mission_review_by_pk(id: $id) {
+    id
+    overview_id
+    verdict
+    confidence_score
+    reasoning
+    rejection_reasons
+    suggested_actions
+    needs_human_review
+    vuln_count
+    confirmed_vuln_count
+    high_severity_count
+    has_poc_evidence
+    scan_coverage_pct
+    triggered_by
+    triggered_by_agent
+    reviewed_at
+    created_at
+  }
+}
+
+query GetMissionReviews(
+  $where: mission_review_bool_exp
+  $orderBy: [mission_review_order_by!]
+  $limit: Int
+) {
+  mission_review(
+    where: $where
+    order_by: $orderBy
+    limit: $limit
+  ) {
+    id
+    overview_id
+    verdict
+    confidence_score
+    reasoning
+    needs_human_review
+    vuln_count
+    confirmed_vuln_count
+    high_severity_count
+    has_poc_evidence
+    scan_coverage_pct
+    triggered_by
+    triggered_by_agent
+    reviewed_at
+    created_at
+  }
+}

@@ -15,106 +15,96 @@ interface TutorialPanelProps {
 export function TutorialPanel({ viewMode = 'MAIN' }: TutorialPanelProps) {
   return (
     <div
-      style={{
-        padding: '16px',
-        color: '#94a3b8',
-        fontFamily: 'monospace',
-        fontSize: '0.8rem',
-        lineHeight: '1.6',
-      }}
+      className="p-4 text-text-secondary font-mono text-[0.8rem] leading-[1.6]"
     >
       {/* Header */}
       <div
-        style={{
-          marginBottom: '20px',
-          paddingBottom: '12px',
-          borderBottom: '1px dashed rgba(148, 163, 184, 0.2)',
-        }}
+        className="mb-5 pb-3 border-b border-dashed border-border-subtle"
       >
-        <div style={{ color: '#a78bfa', fontWeight: 700, marginBottom: '4px' }}>
+        <div className="text-purple font-bold mb-1">
           ⌨️ KEYBOARD SHORTCUTS
         </div>
-        <div style={{ color: '#4b5563', fontSize: '0.75rem' }}>
+        <div className="text-[#4b5563] text-xs">
           Quick reference guide for power users
         </div>
       </div>
 
       {/* Navigation Shortcuts */}
-      <div style={{ marginBottom: '16px' }}>
-        <div style={{ color: '#fbbf24', fontSize: '0.75rem', fontWeight: 700, marginBottom: '8px' }}>
+      <div className="mb-4">
+        <div className="text-amber text-xs font-bold mb-2">
           NAVIGATION
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span><kbd style={{ background: 'rgba(0,0,0,0.4)', padding: '2px 6px', borderRadius: '3px' }}>Tab</kbd></span>
-            <span style={{ color: '#6b7280' }}>Switch between MAIN/AUTO views</span>
+        <div className="flex flex-col gap-1.5">
+          <div className="flex justify-between">
+            <span><kbd className="bg-black/40 px-1.5 py-0.5 rounded">Tab</kbd></span>
+            <span className="text-text-muted">Switch between MAIN/AUTO views</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span><kbd style={{ background: 'rgba(0,0,0,0.4)', padding: '2px 6px', borderRadius: '3px' }}>Ctrl+1</kbd></span>
-            <span style={{ color: '#6b7280' }}>Focus Hacker Assistant</span>
+          <div className="flex justify-between">
+            <span><kbd className="bg-black/40 px-1.5 py-0.5 rounded">Ctrl+1</kbd></span>
+            <span className="text-text-muted">Focus Hacker Assistant</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span><kbd style={{ background: 'rgba(0,0,0,0.4)', padding: '2px 6px', borderRadius: '3px' }}>Ctrl+2</kbd></span>
-            <span style={{ color: '#6b7280' }}>Focus Automation Agent</span>
+          <div className="flex justify-between">
+            <span><kbd className="bg-black/40 px-1.5 py-0.5 rounded">Ctrl+2</kbd></span>
+            <span className="text-text-muted">Focus Automation Agent</span>
           </div>
         </div>
       </div>
 
       {/* Message Shortcuts */}
-      <div style={{ marginBottom: '16px' }}>
-        <div style={{ color: '#fbbf24', fontSize: '0.75rem', fontWeight: 700, marginBottom: '8px' }}>
+      <div className="mb-4">
+        <div className="text-amber text-xs font-bold mb-2">
           MESSAGE ACTIONS
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span><kbd style={{ background: 'rgba(0,0,0,0.4)', padding: '2px 6px', borderRadius: '3px' }}>Enter</kbd></span>
-            <span style={{ color: '#6b7280' }}>Send command</span>
+        <div className="flex flex-col gap-1.5">
+          <div className="flex justify-between">
+            <span><kbd className="bg-black/40 px-1.5 py-0.5 rounded">Enter</kbd></span>
+            <span className="text-text-muted">Send command</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span><kbd style={{ background: 'rgba(0,0,0,0.4)', padding: '2px 6px', borderRadius: '3px' }}>Shift+Enter</kbd></span>
-            <span style={{ color: '#6b7280' }}>New line (multi-line)</span>
+          <div className="flex justify-between">
+            <span><kbd className="bg-black/40 px-1.5 py-0.5 rounded">Shift+Enter</kbd></span>
+            <span className="text-text-muted">New line (multi-line)</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span><kbd style={{ background: 'rgba(0,0,0,0.4)', padding: '2px 6px', borderRadius: '3px' }}>Ctrl+↑/↓</kbd></span>
-            <span style={{ color: '#6b7280' }}>Navigate message history</span>
+          <div className="flex justify-between">
+            <span><kbd className="bg-black/40 px-1.5 py-0.5 rounded">Ctrl+↑/↓</kbd></span>
+            <span className="text-text-muted">Navigate message history</span>
           </div>
         </div>
       </div>
 
       {/* Getting Started Tips */}
-      <div style={{ marginBottom: '16px' }}>
-        <div style={{ color: '#fbbf24', fontSize: '0.75rem', fontWeight: 700, marginBottom: '8px' }}>
+      <div className="mb-4">
+        <div className="text-amber text-xs font-bold mb-2">
           💡 GETTING STARTED
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div className="flex flex-col gap-2">
           {viewMode === 'MAIN' ? (
             <>
               <div>
-                <div style={{ color: '#22c55e', marginBottom: '2px' }}>&gt; bind to target [ID]</div>
-                <div style={{ color: '#6b7280', fontSize: '0.75rem' }}>Lock an IP or target for focused operations</div>
+                <div className="text-green mb-0.5">&gt; bind to target [ID]</div>
+                <div className="text-text-muted text-xs">Lock an IP or target for focused operations</div>
               </div>
               <div>
-                <div style={{ color: '#22c55e', marginBottom: '2px' }}>&gt; start automation</div>
-                <div style={{ color: '#6b7280', fontSize: '0.75rem' }}>Launch background Automation Agent</div>
+                <div className="text-green mb-0.5">&gt; start automation</div>
+                <div className="text-text-muted text-xs">Launch background Automation Agent</div>
               </div>
               <div>
-                <div style={{ color: '#22c55e', marginBottom: '2px' }}>&gt; show progress</div>
-                <div style={{ color: '#6b7280', fontSize: '0.75rem' }}>Monitor active execution nodes and skill runs</div>
+                <div className="text-green mb-0.5">&gt; show progress</div>
+                <div className="text-text-muted text-xs">Monitor active execution nodes and skill runs</div>
               </div>
             </>
           ) : (
             <>
               <div>
-                <div style={{ color: '#ec4899', marginBottom: '2px' }}>&gt; status</div>
-                <div style={{ color: '#6b7280', fontSize: '0.75rem' }}>Check current execution progress</div>
+                <div className="text-[#ec4899] mb-0.5">&gt; status</div>
+                <div className="text-text-muted text-xs">Check current execution progress</div>
               </div>
               <div>
-                <div style={{ color: '#ec4899', marginBottom: '2px' }}>&gt; pause</div>
-                <div style={{ color: '#6b7280', fontSize: '0.75rem' }}>Temporarily halt Automation Agent</div>
+                <div className="text-[#ec4899] mb-0.5">&gt; pause</div>
+                <div className="text-text-muted text-xs">Temporarily halt Automation Agent</div>
               </div>
               <div>
-                <div style={{ color: '#ec4899', marginBottom: '2px' }}>&gt; log</div>
-                <div style={{ color: '#6b7280', fontSize: '0.75rem' }}>View detailed execution logs</div>
+                <div className="text-[#ec4899] mb-0.5">&gt; log</div>
+                <div className="text-text-muted text-xs">View detailed execution logs</div>
               </div>
             </>
           )}
@@ -123,36 +113,24 @@ export function TutorialPanel({ viewMode = 'MAIN' }: TutorialPanelProps) {
 
       {/* Pro Tips */}
       <div
-        style={{
-          padding: '12px',
-          background: 'rgba(167, 139, 250, 0.05)',
-          border: '1px solid rgba(167, 139, 250, 0.2)',
-          borderRadius: '4px',
-          marginBottom: '12px',
-        }}
+        className="p-3 bg-purple/5 border border-purple/20 rounded mb-3"
       >
-        <div style={{ color: '#a78bfa', fontSize: '0.75rem', fontWeight: 700, marginBottom: '6px' }}>
+        <div className="text-purple text-xs font-bold mb-1.5">
           🚀 PRO TIPS
         </div>
         <ul
-          style={{
-            margin: 0,
-            paddingLeft: '16px',
-            color: '#6b7280',
-            fontSize: '0.75rem',
-            listStyle: 'none',
-          }}
+          className="m-0 pl-4 text-text-muted text-xs list-none"
         >
-          <li style={{ marginBottom: '4px' }}>
-            <span style={{ marginRight: '4px' }}>→</span>
+          <li className="mb-1">
+            <span className="mr-1">→</span>
             Switch to Execution Monitor to see real-time execution events and performance
           </li>
-          <li style={{ marginBottom: '4px' }}>
-            <span style={{ marginRight: '4px' }}>→</span>
+          <li className="mb-1">
+            <span className="mr-1">→</span>
             Use [EDIT] button on previous commands to modify and re-run them
           </li>
           <li>
-            <span style={{ marginRight: '4px' }}>→</span>
+            <span className="mr-1">→</span>
             Keep an eye on Response Time in the telemetry sidebar — higher latency = slower agent
           </li>
         </ul>

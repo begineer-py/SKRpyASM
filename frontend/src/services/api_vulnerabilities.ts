@@ -1,18 +1,36 @@
-import axios from 'axios';
-import { GLOBAL_CONFIG } from '../config';
+import {
+  GetVulnerabilitiesDocument,
+  GetVulnerabilityDocument,
+  GetVulnerabilityCountsDocument,
+  CreateVulnerabilityDocument,
+  UpdateVulnerabilityDocument,
+  DeleteVulnerabilityDocument,
+  BatchUpdateVulnerabilityStatusDocument,
+  BatchDeleteVulnerabilitiesDocument,
+  GetPoCsDocument,
+  CreatePoCDocument,
+  UpdatePoCDocument,
+  DeletePoCDocument,
+} from '../gql/graphql';
+import type {
+  GetVulnerabilitiesQuery,
+  GetVulnerabilityQuery,
+  GetVulnerabilityCountsQuery,
+  CreateVulnerabilityMutation,
+  UpdateVulnerabilityMutation,
+  DeleteVulnerabilityMutation,
+  BatchUpdateVulnerabilityStatusMutation,
+  BatchDeleteVulnerabilitiesMutation,
+  GetPoCsQuery,
+  CreatePoCMutation,
+  UpdatePoCMutation,
+  DeletePoCMutation,
+} from '../gql/graphql';
+import { executeGraphQL } from './gqlClient';
 
 // ==========================================
-// 漏洞管理 REST API service
-// 對應後端 /api/core/vulnerabilities
+// Type definitions (keep backward compat)
 // ==========================================
-
-const vulnApi = axios.create({
-  baseURL: `${GLOBAL_CONFIG.DJANGO_API_BASE}/core/vulnerabilities`,
-  headers: { 'Content-Type': 'application/json' },
-  timeout: 30000,
-});
-
-// ===== 類型定義 =====
 
 export interface AssetRef {
   id: number;
@@ -47,12 +65,12 @@ export interface VulnerabilityData {
   id: number;
   target_id: number | null;
   target_name: string | null;
-  ip_asset: AssetRef | null;
-  subdomain_asset: AssetRef | null;
-  url_asset: AssetRef | null;
-  source_attack_vector_id: number | null;
-  overview_id: number | null;
-  cve_intelligence_id: number | null;
+  ip_asset_id?: number | null;
+  subdomain_asset_id?: number | null;
+  url_asset_id?: number | null;
+  source_attack_vector_id?: number | null;
+  overview_id?: number | null;
+  cve_intelligence_id?: number | null;
   enrichment_status: EnrichmentStatus;
   enrichment_attempted_at: string | null;
   tool_source: string;
@@ -67,7 +85,7 @@ export interface VulnerabilityData {
   status: VulnStatus | string;
   description: string | null;
   remediation: string | null;
-  pocs: PoCRecord[];
+  pocs?: PoCRecord[];
   created_at: string;
   updated_at: string;
   last_seen: string;
@@ -99,6 +117,7 @@ export interface VulnerabilityUpdatePayload {
   severity?: Severity;
   template_id?: string;
   matched_at?: string;
+  tool_source?: string;
   description?: string | null;
   remediation?: string | null;
   extracted_results?: unknown;
@@ -137,32 +156,131 @@ export interface VulnerabilityCounts {
   [key: string]: number | undefined;
 }
 
-// ===== API 方法 =====
+// ==========================================
+// Helper: transform GraphQL vuln to legacy shape
+// ==========================================
+
+function toVulnData(v: GetVulnerabilitiesQuery['core_vulnerability'][number]): VulnerabilityData;
+function toVulnData(v: GetVulnerabilityQuery['core_vulnerability_by_pk']): VulnerabilityData;
+function toVulnData(v: any): VulnerabilityData {
+  return {
+    id: v.id,
+    target_id: v.target_id,
+    target_name: v.core_target?.name ?? null,
+    ip_asset_id: v.ip_asset_id,
+    subdomain_asset_id: v.subdomain_asset_id,
+    url_asset_id: v.url_asset_id,
+    source_attack_vector_id: v.source_attack_vector_id,
+    overview_id: v.overview_id,
+    cve_intelligence_id: v.cve_intelligence_id,
+    enrichment_status: v.enrichment_status,
+    enrichment_attempted_at: v.enrichment_attempted_at,
+    tool_source: v.tool_source,
+    template_id: v.template_id,
+    name: v.name,
+    severity: v.severity,
+    matched_at: v.matched_at,
+    extracted_results: v.extracted_results,
+    request_raw: v.request_raw,
+    response_raw: v.response_raw,
+    fingerprint: v.fingerprint,
+    status: v.status,
+    description: v.description,
+    remediation: v.remediation,
+    pocs: v.core_pocrecords?.map(toPoCData),
+    created_at: v.created_at,
+    updated_at: v.updated_at,
+    last_seen: v.last_seen,
+  };
+}
+
+function toPoCData(p: GetPoCsQuery['core_pocrecord'][number]): PoCRecord {
+  return {
+    id: p.id,
+    vulnerability_id: p.vulnerability_id,
+    title: p.title,
+    content: p.content,
+    language: p.language as PoCRecord['language'],
+    result: p.result,
+    is_verified: p.is_verified,
+    created_at: p.created_at,
+    updated_at: p.updated_at,
+  };
+}
+
+// ==========================================
+// API methods
+// ==========================================
 
 export const VulnerabilityService = {
   list: async (params: VulnerabilityListParams = {}): Promise<VulnerabilityListResponse> => {
-    const response = await vulnApi.get<VulnerabilityListResponse>('', { params });
-    return response.data;
+    const where: Record<string, unknown> = {};
+    if (params.severity) where.severity = { _eq: params.severity };
+    if (params.status) where.status = { _eq: params.status };
+    if (params.target_id) where.target_id = { _eq: params.target_id };
+    if (params.overview_id) where.overview_id = { _eq: params.overview_id };
+    if (params.search) {
+      where._or = [
+        { name: { _ilike: `%${params.search}%` } },
+        { template_id: { _ilike: `%${params.search}%` } },
+        { matched_at: { _ilike: `%${params.search}%` } },
+      ];
+    }
+
+    const data = await executeGraphQL<GetVulnerabilitiesQuery, any>(
+      GetVulnerabilitiesDocument,
+      {
+        where: Object.keys(where).length > 0 ? where : undefined,
+        orderBy: [{ created_at: 'desc' }],
+        limit: params.limit ?? 50,
+        offset: params.offset ?? 0,
+      },
+    );
+
+    return {
+      items: (data.core_vulnerability ?? []).map(toVulnData),
+      total: data.core_vulnerability_aggregate?.aggregate?.count ?? 0,
+    };
   },
 
   getCounts: async (): Promise<VulnerabilityCounts> => {
-    const response = await vulnApi.get<VulnerabilityCounts>('/counts');
-    return response.data;
+    const data = await executeGraphQL<GetVulnerabilityCountsQuery>(
+      GetVulnerabilityCountsDocument,
+    );
+    const agg = (field: string) =>
+      (data as any)[field]?.aggregate?.count ?? 0;
+    return {
+      total: data.core_vulnerability_aggregate?.aggregate?.count ?? 0,
+      critical: agg('critical'),
+      high: agg('high'),
+      medium: agg('medium'),
+      low: agg('low'),
+      info: agg('info'),
+    };
   },
 
   get: async (id: number): Promise<VulnerabilityData> => {
-    const response = await vulnApi.get<VulnerabilityData>(`/${id}`);
-    return response.data;
+    const data = await executeGraphQL<GetVulnerabilityQuery, { id: number }>(
+      GetVulnerabilityDocument,
+      { id },
+    );
+    return toVulnData(data.core_vulnerability_by_pk);
   },
 
   create: async (payload: VulnerabilityCreatePayload): Promise<VulnerabilityData> => {
-    const response = await vulnApi.post<VulnerabilityData>('', payload);
-    return response.data;
+    const data = await executeGraphQL<CreateVulnerabilityMutation, { object: typeof payload }>(
+      CreateVulnerabilityDocument,
+      { object: payload },
+    );
+    return toVulnData(data.insert_core_vulnerability_one);
   },
 
   update: async (id: number, payload: VulnerabilityUpdatePayload): Promise<VulnerabilityData> => {
-    const response = await vulnApi.patch<VulnerabilityData>(`/${id}`, payload);
-    return response.data;
+    const data = await executeGraphQL<UpdateVulnerabilityMutation, { id: number; updates: typeof payload }>(
+      UpdateVulnerabilityDocument,
+      { id, updates: payload },
+    );
+    return toVulnData(data.update_core_vulnerability_by_pk);
   },
 
   updateStatus: async (id: number, status: string): Promise<VulnerabilityData> => {
@@ -170,39 +288,68 @@ export const VulnerabilityService = {
   },
 
   delete: async (id: number): Promise<{ deleted: number }> => {
-    const response = await vulnApi.delete<{ deleted: number }>(`/${id}`);
-    return response.data;
+    const data = await executeGraphQL<DeleteVulnerabilityMutation, { id: number }>(
+      DeleteVulnerabilityDocument,
+      { id },
+    );
+    return { deleted: data.delete_core_vulnerability_by_pk ? 1 : 0 };
   },
 
   batchUpdateStatus: async (ids: number[], status: string): Promise<{ updated: number }> => {
-    const response = await vulnApi.post<{ updated: number }>('/batch-status', { ids, status });
-    return response.data;
+    const data = await executeGraphQL<BatchUpdateVulnerabilityStatusMutation, { ids: number[]; status: string }>(
+      BatchUpdateVulnerabilityStatusDocument,
+      { ids, status },
+    );
+    return { updated: data.update_core_vulnerability_many?.[0]?.affected_rows ?? 0 };
   },
 
   batchDelete: async (ids: number[]): Promise<{ deleted: number }> => {
-    const response = await vulnApi.post<{ deleted: number }>('/batch-delete', { ids });
-    return response.data;
+    const data = await executeGraphQL<BatchDeleteVulnerabilitiesMutation, { ids: number[] }>(
+      BatchDeleteVulnerabilitiesDocument,
+      { ids },
+    );
+    return { deleted: data.delete_core_vulnerability?.affected_rows ?? 0 };
   },
 };
 
 export const PoCService = {
   list: async (vulnId: number): Promise<PoCRecord[]> => {
-    const response = await vulnApi.get<PoCRecord[]>(`/${vulnId}/pocs`);
-    return response.data;
+    const data = await executeGraphQL<GetPoCsQuery, { vulnId: number }>(
+      GetPoCsDocument,
+      { vulnId },
+    );
+    return (data.core_pocrecord ?? []).map(toPoCData);
   },
 
   create: async (vulnId: number, payload: PoCRecordPayload): Promise<PoCRecord> => {
-    const response = await vulnApi.post<PoCRecord>(`/${vulnId}/pocs`, payload);
-    return response.data;
+    const object = {
+      vulnerability_id: vulnId,
+      title: payload.title,
+      content: payload.content,
+      language: payload.language ?? 'manual',
+      result: payload.result ?? null,
+      is_verified: payload.is_verified ?? false,
+    };
+    const data = await executeGraphQL<CreatePoCMutation, { object: typeof object }>(
+      CreatePoCDocument,
+      { object },
+    );
+    return toPoCData(data.insert_core_pocrecord_one);
   },
 
   update: async (vulnId: number, pocId: number, payload: Partial<PoCRecordPayload>): Promise<PoCRecord> => {
-    const response = await vulnApi.patch<PoCRecord>(`/${vulnId}/pocs/${pocId}`, payload);
-    return response.data;
+    const data = await executeGraphQL<UpdatePoCMutation, { id: number; updates: typeof payload }>(
+      UpdatePoCDocument,
+      { id: pocId, updates: payload },
+    );
+    return toPoCData(data.update_core_pocrecord_by_pk);
   },
 
   delete: async (vulnId: number, pocId: number): Promise<{ deleted: number }> => {
-    const response = await vulnApi.delete<{ deleted: number }>(`/${vulnId}/pocs/${pocId}`);
-    return response.data;
+    const data = await executeGraphQL<DeletePoCMutation, { id: number }>(
+      DeletePoCDocument,
+      { id: pocId },
+    );
+    return { deleted: data.delete_core_pocrecord_by_pk ? 1 : 0 };
   },
 };

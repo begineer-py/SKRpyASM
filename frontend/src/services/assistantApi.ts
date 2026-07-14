@@ -1,23 +1,13 @@
-import axios from 'axios';
+import { createApiClient } from './apiClient';
 import { GLOBAL_CONFIG } from '../config';
 import type { RawMessage } from '../types/messages';
+import type { components } from '../types/api';
 
-const api = axios.create({
-  baseURL: `${GLOBAL_CONFIG.DJANGO_API_BASE}/assistant`,
-});
+const api = createApiClient('assistant');
 
-export interface ThreadEvent {
-  id: number;
-  thread_id: number;
-  event_type: string;
-  node_name: string | null;
-  tool_name: string | null;
-  status: string | null;
-  content: string;
-  payload: Record<string, unknown>;
-  sequence: number;
-  created_at: string;
-}
+type ThreadEvent = components['schemas']['ThreadEventSchema'];
+
+export type { ThreadEvent };
 
 export const assistantApi = {
   // Create a new thread assigned to hacker_assistant_agent

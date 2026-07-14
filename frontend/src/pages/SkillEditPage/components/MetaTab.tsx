@@ -9,7 +9,7 @@ export default function MetaTab({ form, onChange }: Props) {
   return (
     <div className="meta-form">
       <div className="meta-field">
-        <label>Name <span style={{ color: '#ef4444' }}>*</span></label>
+        <label>Name <span className="text-red">*</span></label>
         <input
           type="text"
           value={form.name}
@@ -20,7 +20,7 @@ export default function MetaTab({ form, onChange }: Props) {
       </div>
 
       <div className="meta-field">
-        <label>Description <span style={{ color: '#ef4444' }}>*</span></label>
+        <label>Description <span className="text-red">*</span></label>
         <textarea
           value={form.description}
           onChange={e => onChange({ description: e.target.value })}
@@ -39,11 +39,7 @@ export default function MetaTab({ form, onChange }: Props) {
           <option value="bash">Bash</option>
         </select>
         {form.language === 'bash' && (
-          <div style={{
-            marginTop: 6, padding: '8px 12px', borderRadius: 4, fontSize: '0.72rem',
-            background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.25)',
-            color: '#f59e0b', lineHeight: 1.5,
-          }}>
+          <div className="mt-1.5 p-2 px-3 rounded text-[0.72rem] bg-amber/[0.08] border border-amber/25 text-amber leading-[1.5]">
             ⚠ Bash skills bypass the I/O Contract entirely — no Pydantic validation, no <code>_emit_output()</code>.
             Input arrives as JSON in <code>$1</code>; output via stdout. Schemas in the I/O SCHEMA tab will be ignored.
           </div>

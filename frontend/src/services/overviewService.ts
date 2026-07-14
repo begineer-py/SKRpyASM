@@ -1,10 +1,6 @@
-import axios from 'axios';
-import { GLOBAL_CONFIG } from '../config';
+import { createCoreClient } from './apiClient';
 
-const coreApi = axios.create({
-  baseURL: `${GLOBAL_CONFIG.DJANGO_API_BASE}/core`,
-  headers: { 'Content-Type': 'application/json' },
-});
+const coreApi = createCoreClient();
 
 export interface OverviewUpdatePayload {
   summary?: string | null;

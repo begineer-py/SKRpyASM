@@ -17,7 +17,7 @@ export default function CVESeverityBadge({
   }[severity];
 
   return (
-    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+    <div className="flex gap-1 items-center">
       <span className={`c2-badge ${severityClass}`}>{severity}</span>
       {cisaKev && (
         <span className="c2-badge c2-badge--red" title="CISA Known Exploited Vulnerability">

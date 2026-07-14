@@ -1,16 +1,39 @@
-import axios from 'axios';
-import { GLOBAL_CONFIG } from '../config';
+import {
+  GetAttackPlansDocument,
+  GetAttackPlanDocument,
+  CreateAttackPlanDocument,
+  UpdateAttackPlanDocument,
+  GetPlanActionsDocument,
+  GetActionDocument,
+  UpdateActionDocument,
+  GetAttackVectorsDocument,
+  GetAttackVectorDocument,
+  UpdateAttackVectorDocument,
+} from '../gql/graphql';
 import type {
-  AttackPlanOut,
-  ActionOut,
-  AttackVectorOut,
-  PaginatedResponse,
-} from '../types/attackPlan';
+  GetAttackPlansQuery,
+  GetAttackPlanQuery,
+  CreateAttackPlanMutation,
+  UpdateAttackPlanMutation,
+  GetPlanActionsQuery,
+  GetActionQuery,
+  UpdateActionMutation,
+  GetAttackVectorsQuery,
+  GetAttackVectorQuery,
+  UpdateAttackVectorMutation,
+} from '../gql/graphql';
+import { executeGraphQL } from './gqlClient';
 
-const coreApi = axios.create({
-  baseURL: `${GLOBAL_CONFIG.DJANGO_API_BASE}/core`,
-  headers: { 'Content-Type': 'application/json' },
-});
+// ===== Re-export types for backward compatibility =====
+
+export type AttackPlanOut = GetAttackPlansQuery['core_attackplan'][number];
+export type ActionOut = GetPlanActionsQuery['core_action'][number];
+export type AttackVectorOut = GetAttackVectorsQuery['core_attackvector'][number];
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+}
 
 export type AttackPlanCreatePayload = {
   target_id: number;
@@ -45,56 +68,102 @@ export type AttackVectorUpdatePayload = {
 
 export const AttackPlanService = {
   listPlans: async (targetId?: number): Promise<PaginatedResponse<AttackPlanOut>> => {
-    const params: Record<string, unknown> = {};
-    if (targetId !== undefined) params.target_id = targetId;
-    const res = await coreApi.get<PaginatedResponse<AttackPlanOut>>('/attack-plans', { params });
-    return res.data;
+    const where: Record<string, unknown> = {};
+    if (targetId !== undefined) {
+      where.target_id = { _eq: targetId };
+    }
+    const data = await executeGraphQL<GetAttackPlansQuery, {
+      where?: Record<string, unknown>;
+      orderBy?: Record<string, string>[];
+    }>(GetAttackPlansDocument, {
+      where: Object.keys(where).length > 0 ? where : undefined,
+      orderBy: [{ created_at: 'desc' }],
+    });
+    return {
+      items: data.core_attackplan ?? [],
+      total: data.core_attackplan_aggregate?.aggregate?.count ?? 0,
+    };
   },
 
-  getPlan: async (id: number): Promise<AttackPlanOut> => {
-    const res = await coreApi.get<AttackPlanOut>(`/attack-plans/${id}`);
-    return res.data;
+  getPlan: async (id: number): Promise<GetAttackPlanQuery['core_attackplan_by_pk']> => {
+    const data = await executeGraphQL<GetAttackPlanQuery, { id: number }>(
+      GetAttackPlanDocument,
+      { id },
+    );
+    return data.core_attackplan_by_pk;
   },
 
-  createPlan: async (payload: AttackPlanCreatePayload): Promise<AttackPlanOut> => {
-    const res = await coreApi.post<AttackPlanOut>('/attack-plans', payload);
-    return res.data;
+  createPlan: async (payload: AttackPlanCreatePayload): Promise<CreateAttackPlanMutation['insert_core_attackplan_one']> => {
+    const data = await executeGraphQL<CreateAttackPlanMutation, { object: typeof payload }>(
+      CreateAttackPlanDocument,
+      { object: payload },
+    );
+    return data.insert_core_attackplan_one;
   },
 
-  updatePlan: async (id: number, payload: AttackPlanUpdatePayload): Promise<AttackPlanOut> => {
-    const res = await coreApi.patch<AttackPlanOut>(`/attack-plans/${id}`, payload);
-    return res.data;
+  updatePlan: async (id: number, payload: AttackPlanUpdatePayload): Promise<UpdateAttackPlanMutation['update_core_attackplan_by_pk']> => {
+    const data = await executeGraphQL<UpdateAttackPlanMutation, { id: number; updates: typeof payload }>(
+      UpdateAttackPlanDocument,
+      { id, updates: payload },
+    );
+    return data.update_core_attackplan_by_pk;
   },
 
   getPlanActions: async (planId: number): Promise<PaginatedResponse<ActionOut>> => {
-    const res = await coreApi.get<PaginatedResponse<ActionOut>>(`/attack-plans/${planId}/actions`);
-    return res.data;
+    const data = await executeGraphQL<GetPlanActionsQuery, { where: { plan_id: { _eq: number } } }>(
+      GetPlanActionsDocument,
+      { where: { plan_id: { _eq: planId } } },
+    );
+    return {
+      items: data.core_action ?? [],
+      total: data.core_action_aggregate?.aggregate?.count ?? 0,
+    };
   },
 
-  getAction: async (id: number): Promise<ActionOut> => {
-    const res = await coreApi.get<ActionOut>(`/actions/${id}`);
-    return res.data;
+  getAction: async (id: number): Promise<GetActionQuery['core_action_by_pk']> => {
+    const data = await executeGraphQL<GetActionQuery, { id: number }>(
+      GetActionDocument,
+      { id },
+    );
+    return data.core_action_by_pk;
   },
 
-  updateAction: async (id: number, payload: ActionUpdatePayload): Promise<ActionOut> => {
-    const res = await coreApi.patch<ActionOut>(`/actions/${id}`, payload);
-    return res.data;
+  updateAction: async (id: number, payload: ActionUpdatePayload): Promise<UpdateActionMutation['update_core_action_by_pk']> => {
+    const data = await executeGraphQL<UpdateActionMutation, { id: number; updates: typeof payload }>(
+      UpdateActionDocument,
+      { id, updates: payload },
+    );
+    return data.update_core_action_by_pk;
   },
 
   listVectors: async (overviewId?: number): Promise<PaginatedResponse<AttackVectorOut>> => {
-    const params: Record<string, unknown> = {};
-    if (overviewId !== undefined) params.overview_id = overviewId;
-    const res = await coreApi.get<PaginatedResponse<AttackVectorOut>>('/attack-vectors', { params });
-    return res.data;
+    const where: Record<string, unknown> = {};
+    if (overviewId !== undefined) {
+      where.overview_id = { _eq: overviewId };
+    }
+    const data = await executeGraphQL<GetAttackVectorsQuery, { where?: Record<string, unknown> }>(
+      GetAttackVectorsDocument,
+      { where: Object.keys(where).length > 0 ? where : undefined },
+    );
+    return {
+      items: data.core_attackvector ?? [],
+      total: data.core_attackvector_aggregate?.aggregate?.count ?? 0,
+    };
   },
 
-  getVector: async (id: number): Promise<AttackVectorOut> => {
-    const res = await coreApi.get<AttackVectorOut>(`/attack-vectors/${id}`);
-    return res.data;
+  getVector: async (id: number): Promise<GetAttackVectorQuery['core_attackvector_by_pk']> => {
+    const data = await executeGraphQL<GetAttackVectorQuery, { id: number }>(
+      GetAttackVectorDocument,
+      { id },
+    );
+    return data.core_attackvector_by_pk;
   },
 
-  updateVector: async (id: number, payload: AttackVectorUpdatePayload): Promise<AttackVectorOut> => {
-    const res = await coreApi.patch<AttackVectorOut>(`/attack-vectors/${id}`, payload);
-    return res.data;
+  updateVector: async (id: number, payload: AttackVectorUpdatePayload): Promise<UpdateAttackVectorMutation['update_core_attackvector_by_pk']> => {
+    const data = await executeGraphQL<UpdateAttackVectorMutation, { id: number; updates: typeof payload }>(
+      UpdateAttackVectorDocument,
+      { id, updates: payload },
+    );
+    return data.update_core_attackvector_by_pk;
   },
 };

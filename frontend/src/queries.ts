@@ -56,10 +56,16 @@ export const GET_SINGLE_OVERVIEW = `
       status
       risk_score
       summary
+      recon_summary
       business_impact
       plan
       knowledge
       techs
+      tech_stack
+      subdomain_intel
+      port_service
+      vuln_intel
+      seed_id
       created_at
       updated_at
       thread_id

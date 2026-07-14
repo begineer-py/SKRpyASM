@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { cn } from '@/lib/utils';
 
 interface SchemaField {
   name: string;
@@ -124,35 +125,20 @@ export default function SchemaEditor({ title, value, onChange }: Props) {
 
   return (
     <div className="schema-editor">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="flex justify-between items-center">
         <div className="schema-editor-title">{title}</div>
         <button
-          className="schema-field-add"
-          style={{ padding: '2px 8px', fontSize: '0.7rem' }}
+          className="schema-field-add py-0.5 px-2 text-[0.7rem]"
           onClick={() => setShowJson(s => !s)}
         >
           {showJson ? 'Hide JSON' : 'View JSON'}
         </button>
       </div>
-      <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginBottom: '8px' }}>
+      <div className="text-[0.7rem] text-[#94a3b8] mb-2">
         Types: string&rarr;str, integer&rarr;int, number&rarr;float, boolean&rarr;bool, array&rarr;list, object&rarr;dict
       </div>
       {showJson && (
-        <pre
-          style={{
-            background: 'rgba(0,0,0,0.4)',
-            color: '#94a3b8',
-            padding: '8px',
-            borderRadius: '4px',
-            fontSize: '0.7rem',
-            fontFamily: 'monospace',
-            margin: '0 0 8px 0',
-            overflowX: 'auto',
-            maxHeight: '240px',
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-          }}
-        >
+        <pre className="bg-black/40 text-[#94a3b8] p-2 rounded text-[0.7rem] font-mono mb-2 overflow-x-auto max-h-60 whitespace-pre-wrap break-words">
           {jsonPreview}
         </pre>
       )}
@@ -201,8 +187,8 @@ export default function SchemaEditor({ title, value, onChange }: Props) {
                 placeholder="pattern (regex)"
                 value={f.pattern}
                 disabled={hasEnum(f)}
-                onChange={e => updateField(i, { pattern: e.target.value })}
-                style={hasEnum(f) ? { opacity: 0.5 } : undefined}
+              onChange={e => updateField(i, { pattern: e.target.value })}
+                className={cn(hasEnum(f) && 'opacity-50')}
               />
             )}
             {showString(f) && (
@@ -214,7 +200,7 @@ export default function SchemaEditor({ title, value, onChange }: Props) {
                   value={f.minLength}
                   disabled={hasEnum(f)}
                   onChange={e => updateField(i, { minLength: e.target.value })}
-                  style={hasEnum(f) ? { opacity: 0.5 } : undefined}
+                  className={cn(hasEnum(f) && 'opacity-50')}
                 />
                 <input
                   type="number"
@@ -223,7 +209,7 @@ export default function SchemaEditor({ title, value, onChange }: Props) {
                   value={f.maxLength}
                   disabled={hasEnum(f)}
                   onChange={e => updateField(i, { maxLength: e.target.value })}
-                  style={hasEnum(f) ? { opacity: 0.5 } : undefined}
+                  className={cn(hasEnum(f) && 'opacity-50')}
                 />
               </>
             )}

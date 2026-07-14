@@ -1,0 +1,26 @@
+# ===== Target mutations =====
+# (Target reads already exist in src/services/api.ts via gqlFetcher)
+
+mutation CreateTarget($object: core_target_insert_input!) {
+  insert_core_target_one(object: $object) {
+    id
+    name
+    description
+    created_at
+  }
+}
+
+mutation UpdateTarget($id: bigint!, $updates: core_target_set_input!) {
+  update_core_target_by_pk(pk_columns: { id: $id }, _set: $updates) {
+    id
+    name
+    description
+    created_at
+  }
+}
+
+mutation DeleteTarget($id: bigint!) {
+  delete_core_target_by_pk(id: $id) {
+    id
+  }
+}

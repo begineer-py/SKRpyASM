@@ -23,6 +23,7 @@ import CVEIntelligencePage from "./pages/CVEIntelligencePage/CVEIntelligencePage
 import SchedulerPage from "./pages/SchedulerPage/SchedulerPage.tsx";
 import PentestConfigPage from "./pages/PentestConfigPage/PentestConfigPage.tsx";
 import VulnerabilityPage from "./pages/VulnerabilityPage/VulnerabilityPage";
+import VulnerabilityEditPage from "./pages/VulnerabilityEditPage/VulnerabilityEditPage";
 function App() {
   return (
     <BrowserRouter>
@@ -48,6 +49,7 @@ function App() {
           <Route path="/agent-config" element={<AgentLLMConfigPage />} />
           <Route path="/pentest-config" element={<PentestConfigPage />} />
           <Route path="/vulnerabilities" element={<VulnerabilityPage />} />
+          <Route path="/vulnerabilities/:vulnId/edit" element={<VulnerabilityEditPage />} />
         </Routes>
       </main>
     </BrowserRouter>

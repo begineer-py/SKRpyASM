@@ -1,0 +1,221 @@
+# ===== AttackPlan =====
+
+query GetAttackPlans(
+  $where: core_attackplan_bool_exp
+  $orderBy: [core_attackplan_order_by!]
+  $limit: Int
+  $offset: Int
+) {
+  core_attackplan(
+    where: $where
+    order_by: $orderBy
+    limit: $limit
+    offset: $offset
+  ) {
+    id
+    target_id
+    thread_id
+    objective
+    scope
+    status
+    parent_plan_id
+    created_at
+    updated_at
+  }
+  core_attackplan_aggregate(where: $where) {
+    aggregate {
+      count
+    }
+  }
+}
+
+query GetAttackPlan($id: bigint!) {
+  core_attackplan_by_pk(id: $id) {
+    id
+    target_id
+    thread_id
+    objective
+    scope
+    status
+    parent_plan_id
+    created_at
+    updated_at
+    core_actions(order_by: { order: asc }) {
+      id
+      target_id
+      plan_id
+      purpose
+      purpose_text
+      status
+      agent_thread_id
+      agent_role
+      execution_graph_id
+      result_summary
+      order
+      created_at
+      started_at
+      completed_at
+    }
+  }
+}
+
+mutation CreateAttackPlan($object: core_attackplan_insert_input!) {
+  insert_core_attackplan_one(object: $object) {
+    id
+    target_id
+    thread_id
+    objective
+    scope
+    status
+    parent_plan_id
+    created_at
+    updated_at
+  }
+}
+
+mutation UpdateAttackPlan($id: bigint!, $updates: core_attackplan_set_input!) {
+  update_core_attackplan_by_pk(pk_columns: { id: $id }, _set: $updates) {
+    id
+    target_id
+    thread_id
+    objective
+    scope
+    status
+    parent_plan_id
+    created_at
+    updated_at
+  }
+}
+
+# ===== Action =====
+
+query GetPlanActions(
+  $where: core_action_bool_exp
+  $orderBy: [core_action_order_by!]
+  $limit: Int
+  $offset: Int
+) {
+  core_action(
+    where: $where
+    order_by: $orderBy
+    limit: $limit
+    offset: $offset
+  ) {
+    id
+    target_id
+    plan_id
+    purpose
+    purpose_text
+    status
+    agent_thread_id
+    agent_role
+    execution_graph_id
+    result_summary
+    order
+    created_at
+    started_at
+    completed_at
+  }
+  core_action_aggregate(where: $where) {
+    aggregate {
+      count
+    }
+  }
+}
+
+query GetAction($id: bigint!) {
+  core_action_by_pk(id: $id) {
+    id
+    target_id
+    plan_id
+    purpose
+    purpose_text
+    status
+    agent_thread_id
+    agent_role
+    execution_graph_id
+    result_summary
+    order
+    created_at
+    started_at
+    completed_at
+  }
+}
+
+mutation UpdateAction($id: bigint!, $updates: core_action_set_input!) {
+  update_core_action_by_pk(pk_columns: { id: $id }, _set: $updates) {
+    id
+    target_id
+    plan_id
+    purpose
+    purpose_text
+    status
+    result_summary
+    order
+    created_at
+    started_at
+    completed_at
+  }
+}
+
+# ===== AttackVector =====
+
+query GetAttackVectors(
+  $where: core_attackvector_bool_exp
+  $orderBy: [core_attackvector_order_by!]
+  $limit: Int
+  $offset: Int
+) {
+  core_attackvector(
+    where: $where
+    order_by: $orderBy
+    limit: $limit
+    offset: $offset
+  ) {
+    id
+    overview_id
+    name
+    description
+    vector_type
+    status
+    risk_score
+    evidence
+    created_at
+    updated_at
+  }
+  core_attackvector_aggregate(where: $where) {
+    aggregate {
+      count
+    }
+  }
+}
+
+query GetAttackVector($id: bigint!) {
+  core_attackvector_by_pk(id: $id) {
+    id
+    overview_id
+    name
+    description
+    vector_type
+    status
+    risk_score
+    evidence
+    created_at
+    updated_at
+  }
+}
+
+mutation UpdateAttackVector($id: bigint!, $updates: core_attackvector_set_input!) {
+  update_core_attackvector_by_pk(pk_columns: { id: $id }, _set: $updates) {
+    id
+    overview_id
+    name
+    description
+    vector_type
+    status
+    risk_score
+    evidence
+    created_at
+    updated_at
+  }
+}

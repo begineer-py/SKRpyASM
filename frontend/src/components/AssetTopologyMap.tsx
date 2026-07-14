@@ -18,10 +18,10 @@ import {
   type NodeMouseHandler,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { cn } from '@/lib/utils';
 
 import type { TargetTopology, TopologyNode } from '../services/executionApi';
 import { layoutWithDagre } from '../utils/graphLayout';
-import './AssetTopologyMap.css';
 
 interface AssetTopologyMapProps {
   topology: TargetTopology | null;
@@ -87,27 +87,39 @@ type AssetFlowEdge = Edge<{ edgeType?: string }>;
 const AssetNode = memo(function AssetNode({ data, selected }: NodeProps<AssetFlowNode>) {
   return (
     <div
-      className={[
-        'atm-rf-node',
-        selected ? 'atm-rf-node--selected' : '',
-        data.isActiveAttack ? 'atm-rf-node--attack' : '',
-      ]
-        .filter(Boolean)
-        .join(' ')}
+      className={cn(
+        'flex items-center gap-2 min-w-[148px] max-w-[180px] px-2.5 py-2 rounded-[10px] border-[1.5px] border-[#475569] bg-gradient-to-b from-[#0f172a] to-[#0b1220] shadow-[0_2px_8px_rgba(0,0,0,0.35)] relative font-[Inter,system-ui,sans-serif]',
+        selected && 'shadow-[0_0_0_2px_rgba(34,197,94,0.45),0_4px_14px_rgba(0,0,0,0.4)] bg-[#111827]',
+        data.isActiveAttack && 'animate-[attackPulse_1.4s_ease-in-out_infinite]',
+      )}
       style={{ borderColor: data.color, ['--atm-color' as string]: data.color }}
     >
-      <Handle type="target" position={Position.Top} className="atm-rf-handle" />
-      {data.isActiveAttack && <span className="atm-rf-attack-badge" title="Active AI attack">🤖</span>}
-      <span className="atm-rf-icon" aria-hidden>
+      <Handle
+        type="target"
+        position={Position.Top}
+        className="!w-1.5 !h-1.5 !bg-[#334155] !border !border-[#64748b] opacity-70"
+      />
+      {data.isActiveAttack && (
+        <span className="absolute -top-2 -right-1.5 text-[11px] leading-none [filter:drop-shadow(0_0_4px_rgba(244,114,182,0.7))]" title="Active AI attack">
+          🤖
+        </span>
+      )}
+      <span className="text-sm leading-none shrink-0" aria-hidden>
         {data.icon}
       </span>
-      <div className="atm-rf-body">
-        <span className="atm-rf-type">{data.assetType}</span>
-        <span className="atm-rf-label" title={data.label}>
+      <div className="flex flex-col gap-0.5 min-w-0">
+        <span className="text-[9px] uppercase tracking-[0.04em] text-[var(--atm-color,#94a3b8)] font-semibold">
+          {data.assetType}
+        </span>
+        <span className="text-[11px] text-[#e2e8f0] whitespace-nowrap overflow-hidden text-ellipsis font-['Fira_Code',ui-monospace,monospace]" title={data.label}>
           {data.label.length > 22 ? `${data.label.slice(0, 20)}…` : data.label}
         </span>
       </div>
-      <Handle type="source" position={Position.Bottom} className="atm-rf-handle" />
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        className="!w-1.5 !h-1.5 !bg-[#334155] !border !border-[#64748b] opacity-70"
+      />
     </div>
   );
 });
@@ -229,12 +241,15 @@ function TopologyFlowInner({
       panOnScroll
       zoomOnScroll
       colorMode="dark"
-      className="atm-rf-canvas"
+      className="bg-[#0b1220]"
     >
       <Background variant={BackgroundVariant.Dots} gap={18} size={1} color="#1e293b" />
-      <Controls showInteractive={false} className="atm-rf-controls" />
+      <Controls
+        showInteractive={false}
+        className="!bg-[#0f172a] !border !border-[#1e293b] !rounded-lg !shadow-none [&_button]:!bg-[#0f172a] [&_button]:!border-b-[#1e293b] [&_button]:!fill-[#94a3b8] [&_button:hover]:!bg-[#1e293b]"
+      />
       <MiniMap
-        className="atm-rf-minimap"
+        className="!bg-[#0f172a] !border !border-[#1e293b] !rounded-lg"
         nodeColor={(n) => (n.data as AssetNodeData)?.color || '#475569'}
         maskColor="rgba(15, 23, 42, 0.75)"
         pannable
@@ -246,25 +261,30 @@ function TopologyFlowInner({
 
 export function AssetTopologyMap({ topology, onSelectNode, selectedNodeId }: AssetTopologyMapProps) {
   if (!topology) {
-    return <div className="atm-empty">Select a target-bound thread to view topology</div>;
+    return <div className="px-3 py-7 text-center text-[#64748b] text-[0.78rem]">Select a target-bound thread to view topology</div>;
   }
 
   if (topology.nodes.length === 0) {
-    return <div className="atm-empty">No assets for {topology.target_name}</div>;
+    return <div className="px-3 py-7 text-center text-[#64748b] text-[0.78rem]">No assets for {topology.target_name}</div>;
   }
 
   return (
-    <div className="asset-topology-map" data-testid="asset-topology-map">
-      <div className="atm-header">
-        <span className="atm-title">Topology · {topology.target_name}</span>
-        <span className="atm-stats">
+    <>
+      <style>{`@keyframes attackPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(244, 114, 182, 0.15); } 50% { box-shadow: 0 0 0 6px rgba(244, 114, 182, 0.28); } }`}</style>
+      <div
+        className="bg-[#0b1220] border border-[#1e293b] rounded-[10px] overflow-hidden flex flex-col [&_.react-flow__edge-textbg]:fill-[#0b1220] [&_.react-flow__edge-text]:fill-[#64748b]"
+        data-testid="asset-topology-map"
+      >
+      <div className="flex justify-between items-center px-3 py-2 border-b border-[#1e293b] gap-2 shrink-0">
+        <span className="text-[0.75rem] font-semibold text-[#e2e8f0]">Topology · {topology.target_name}</span>
+        <span className="text-[0.68rem] text-[#64748b]">
           {topology.nodes.length} nodes · {topology.edges.length} edges
           {topology.active_attacks?.length
             ? ` · 🤖 ${topology.active_attacks.length} active`
             : ''}
         </span>
       </div>
-      <div className="atm-rf-viewport">
+      <div className="w-full h-[360px] min-h-[280px]">
         <ReactFlowProvider>
           <TopologyFlowInner
             topology={topology}
@@ -273,15 +293,15 @@ export function AssetTopologyMap({ topology, onSelectNode, selectedNodeId }: Ass
           />
         </ReactFlowProvider>
       </div>
-      <div className="atm-legend">
+      <div className="flex flex-wrap gap-x-3 gap-y-2 px-3 py-1.5 pb-2.5 border-t border-[#1e293b] shrink-0">
         {Object.entries(TYPE_COLOR).map(([type, color]) => (
-          <span key={type} className="atm-legend-item">
-            <i style={{ background: color }} />
+          <span key={type} className="inline-flex items-center gap-1 text-[0.65rem] text-[#64748b] capitalize">
+            <i className="w-2 h-2 rounded-full inline-block" style={{ background: color }} />
             {type}
           </span>
         ))}
       </div>
-    </div>
+    </>
   );
 }
 

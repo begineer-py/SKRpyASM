@@ -1,9 +1,6 @@
-import axios from 'axios';
-import { GLOBAL_CONFIG } from '../config';
+import { createCoreClient } from './apiClient';
 
-const api = axios.create({
-  baseURL: `${GLOBAL_CONFIG.DJANGO_API_BASE}/core`,
-});
+const api = createCoreClient();
 
 export interface ExecutionGraph {
   id: number;

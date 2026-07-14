@@ -1,11 +1,6 @@
-import axios from 'axios';
-import { GLOBAL_CONFIG } from '../config';
+import { createApiClient } from './apiClient';
 
-const aiApi = axios.create({
-  baseURL: `${GLOBAL_CONFIG.DJANGO_API_BASE}/analyze_ai`, // 假設掛載路徑
-  headers: { 'Content-Type': 'application/json' },
-  timeout: 5000, 
-});
+const aiApi = createApiClient('analyze_ai');
 interface AnalyzeSubdomainsPayload {
   subdomains: string[];
 }

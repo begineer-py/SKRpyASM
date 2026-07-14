@@ -24,20 +24,13 @@ export default function CVECard({ cve }: CVECardProps) {
 
   return (
     <div
-      className="c2-card"
-      style={{ padding: '14px 16px', cursor: 'pointer' }}
+      className="c2-card p-[14px_16px] cursor-pointer"
       onClick={() => setExpanded(v => !v)}
     >
       {/* Top row: CVE ID + badges */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: '0.9rem',
-            fontWeight: 700,
-            color: 'var(--text-cyan)',
-            letterSpacing: '0.04em',
-          }}>
+      <div className="flex justify-between items-start mb-2">
+        <div className="flex gap-[10px] items-center flex-wrap">
+          <span className="font-mono text-[0.9rem] font-bold text-cyan tracking-[0.04em]">
             {cve.cve_id}
           </span>
           <CVESeverityBadge
@@ -46,18 +39,18 @@ export default function CVECard({ cve }: CVECardProps) {
             exploitAvailable={cve.exploit_available}
           />
         </div>
-        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', flexShrink: 0, marginLeft: 8 }}>
+        <span className="text-[0.7rem] text-text-muted shrink-0 ml-2">
           {expanded ? '▲' : '▼'}
         </span>
       </div>
 
       {/* Description */}
-      <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.5 }}>
+      <p className="text-[0.8rem] text-text-secondary m-0 mb-[10px] leading-[1.5]">
         {expanded ? cve.description : descShort}
       </p>
 
       {/* Metrics row */}
-      <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+      <div className="flex gap-5 flex-wrap text-[0.75rem] text-text-muted">
         {cve.cvss_score !== null && (
           <span>
             CVSS:&nbsp;
@@ -67,31 +60,30 @@ export default function CVECard({ cve }: CVECardProps) {
         {cve.epss_score !== null && (
           <span>
             EPSS:&nbsp;
-            <strong style={{ color: 'var(--text-primary)' }}>{(cve.epss_score * 100).toFixed(1)}%</strong>
+            <strong className="text-text-primary">{(cve.epss_score * 100).toFixed(1)}%</strong>
           </span>
         )}
         {cve.published_date && (
-          <span>Published:&nbsp;<strong style={{ color: 'var(--text-primary)' }}>{cve.published_date.slice(0, 10)}</strong></span>
+          <span>Published:&nbsp;<strong className="text-text-primary">{cve.published_date.slice(0, 10)}</strong></span>
         )}
         {cve.exploited_in_wild && (
-          <span style={{ color: 'var(--red)', fontWeight: 600 }}>⚠ Exploited in Wild</span>
+          <span className="text-red font-semibold">⚠ Exploited in Wild</span>
         )}
       </div>
 
       {/* Expanded: affected products + references */}
       {expanded && (
-        <div style={{ marginTop: 12, borderTop: '1px solid var(--border-color)', paddingTop: 10 }}>
+        <div className="mt-3 border-t border-border-subtle pt-[10px]">
           {cve.affected_products.length > 0 && (
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase' }}>
+            <div className="mb-2">
+              <div className="text-[0.7rem] text-text-muted mb-1 uppercase">
                 Affected Products
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              <div className="flex flex-wrap gap-1.5">
                 {cve.affected_products.map((p, i) => (
                   <span
                     key={i}
-                    className="c2-badge c2-badge--muted"
-                    style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}
+                    className="c2-badge c2-badge--muted font-mono text-[0.7rem]"
                   >
                     {p.vendor}/{p.product}{p.version ? ` ${p.version}` : ''}
                   </span>
@@ -102,10 +94,10 @@ export default function CVECard({ cve }: CVECardProps) {
 
           {cve.references.length > 0 && (
             <div>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase' }}>
+              <div className="text-[0.7rem] text-text-muted mb-1 uppercase">
                 References
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <div className="flex flex-col gap-[3px]">
                 {(expanded ? cve.references : cve.references.slice(0, 2)).map((ref, i) => (
                   <a
                     key={i}
@@ -113,15 +105,7 @@ export default function CVECard({ cve }: CVECardProps) {
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={e => e.stopPropagation()}
-                    style={{
-                      fontSize: '0.72rem',
-                      color: 'var(--text-cyan)',
-                      textDecoration: 'none',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      display: 'block',
-                    }}
+                    className="text-[0.72rem] text-cyan no-underline overflow-hidden text-ellipsis whitespace-nowrap block"
                   >
                     ↗ {ref.url}
                   </a>

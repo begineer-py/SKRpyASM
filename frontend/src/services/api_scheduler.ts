@@ -1,11 +1,6 @@
-import axios from 'axios';
-import { GLOBAL_CONFIG } from '../config';
+import { createApiClient } from './apiClient';
 
-const schedulerApi = axios.create({
-  baseURL: `${GLOBAL_CONFIG.DJANGO_API_BASE}/scheduler`,
-  headers: { 'Content-Type': 'application/json' },
-  timeout: 15000,
-});
+const schedulerApi = createApiClient('scheduler');
 
 export interface IntervalSchedule {
   id: number;
@@ -44,6 +39,37 @@ export interface PeriodicTask {
 export interface RegisteredTask {
   name: string;
   doc: string | null;
+}
+
+// ─── Watchdog Status ────────────────────────────────────────────────
+export interface StalledOverview {
+  id: number;
+  status: string;
+  rescue_count: number;
+  updated_at: string;
+  thread_id?: number | null;
+  target_name?: string | null;
+}
+
+export interface ZombieGraph {
+  id: number;
+  status: string;
+  thread_id?: number | null;
+  assistant_id?: string | null;
+  title?: string | null;
+  updated_at: string;
+}
+
+export interface WatchdogStatus {
+  watchdog_task_enabled: boolean;
+  watchdog_task_last_run_at?: string | null;
+  watchdog_task_total_runs: number;
+  watchdog_task_interval?: string | null;
+  stalled_overviews: StalledOverview[];
+  zombie_graphs: ZombieGraph[];
+  needs_guidance_overviews: StalledOverview[];
+  rescue_threshold_stalled: number;
+  rescue_threshold_needs_guidance: number;
 }
 
 export interface CreateTaskPayload {
@@ -100,6 +126,11 @@ export const SchedulerService = {
 
   listRegisteredTasks: async (): Promise<RegisteredTask[]> => {
     const res = await schedulerApi.get<RegisteredTask[]>('/registered_tasks');
+    return res.data;
+  },
+
+  getWatchdogStatus: async (): Promise<WatchdogStatus> => {
+    const res = await schedulerApi.get<WatchdogStatus>('/watchdog/status');
     return res.data;
   },
 };

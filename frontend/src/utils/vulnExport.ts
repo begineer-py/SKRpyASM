@@ -1,0 +1,25 @@
+import type { VulnerabilityData } from '../services/api_vulnerabilities';
+import { downloadBlob } from './skillFileIo';
+import { vulnToMarkdown, slugifyFilename } from './vulnReportTemplates';
+import { generateVulnPdf } from './vulnPdfGenerator';
+
+// Re-export for external consumers
+export { slugifyFilename, vulnToMarkdown } from './vulnReportTemplates';
+
+// ==========================================
+// Download Markdown file
+// ==========================================
+export function downloadVulnMarkdown(v: VulnerabilityData, content?: string): void {
+  const md = content ?? vulnToMarkdown(v);
+  const slug = slugifyFilename(v.name, `vuln_${v.id}`);
+  downloadBlob(md, `vuln_${v.id}_${slug}.md`, 'text/markdown;charset=utf-8');
+}
+
+// ==========================================
+// Vulnerability PDF export (jsPDF manual layout, no html2canvas)
+// ==========================================
+export function downloadVulnPdf(v: VulnerabilityData): void {
+  const doc = generateVulnPdf(v);
+  const slug = slugifyFilename(v.name, `vuln_${v.id}`);
+  doc.save(`vuln_${v.id}_${slug}.pdf`);
+}

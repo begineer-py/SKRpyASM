@@ -18,10 +18,10 @@ import {
   type NodeMouseHandler,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { cn } from '@/lib/utils';
 
 import type { AgentInteractionNode, AgentInteractionTree } from '../services/executionApi';
 import { layoutWithDagre } from '../utils/graphLayout';
-import './AgentInteractionTimeline.css';
 
 interface AgentInteractionTimelineProps {
   tree: AgentInteractionTree | null;
@@ -55,18 +55,32 @@ const NODE_H = 56;
 const AgentNode = memo(function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
   return (
     <div
-      className={['ait-rf-node', selected ? 'ait-rf-node--selected' : ''].filter(Boolean).join(' ')}
+      className={cn(
+        'min-w-[156px] max-w-[180px] py-2 px-2.5 pb-2.5 rounded-[10px] border-[1.5px] border-[#475569] bg-[#0f172a] shadow-[0_2px_10px_rgba(0,0,0,0.35)] font-[Inter,system-ui,sans-serif] cursor-pointer hover:bg-[#1e293b]',
+        selected && 'bg-[#1e293b] shadow-[0_0_0_2px_rgba(34,197,94,0.4),0_0_12px_rgba(34,197,94,0.2)]',
+      )}
       style={{ borderColor: data.color, ['--ait-color' as string]: data.color }}
     >
-      <Handle type="target" position={Position.Top} className="ait-rf-handle" />
-      <div className="ait-rf-title-row">
-        <span className="ait-rf-title" title={data.label}>
+      <Handle
+        type="target"
+        position={Position.Top}
+        className="!w-1.5 !h-1.5 !bg-[#334155] !border !border-[#64748b] opacity-75"
+      />
+      <div className="flex items-center justify-between gap-1.5">
+        <span
+          className="text-[#e2e8f0] text-[11px] font-['Fira_Code',ui-monospace,monospace] font-semibold whitespace-nowrap overflow-hidden text-ellipsis"
+          title={data.label}
+        >
           {data.label.length > 22 ? `${data.label.slice(0, 20)}…` : data.label}
         </span>
-        {data.status !== 'ROOT' && <span className="ait-rf-status-dot" style={{ background: data.color }} />}
+        {data.status !== 'ROOT' && <span className="w-2 h-2 rounded-full shrink-0" style={{ background: data.color }} />}
       </div>
-      <span className="ait-rf-meta">{data.meta}</span>
-      <Handle type="source" position={Position.Bottom} className="ait-rf-handle" />
+      <span className="block mt-1 text-[#64748b] text-[10px] whitespace-nowrap overflow-hidden text-ellipsis">{data.meta}</span>
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        className="!w-1.5 !h-1.5 !bg-[#334155] !border !border-[#64748b] opacity-75"
+      />
     </div>
   );
 });
@@ -229,12 +243,15 @@ function InteractionFlowInner({
       elementsSelectable
       panOnScroll
       colorMode="dark"
-      className="ait-rf-canvas"
+      className="bg-transparent"
     >
       <Background variant={BackgroundVariant.Dots} gap={16} size={1} color="#1e293b" />
-      <Controls showInteractive={false} className="ait-rf-controls" />
+      <Controls
+        showInteractive={false}
+        className="!bg-[#0f172a] !border !border-[#1e293b] !rounded-lg !shadow-none [&_button]:!bg-[#0f172a] [&_button]:!border-b-[#1e293b] [&_button]:!fill-[#94a3b8] [&_button:hover]:!bg-[#1e293b]"
+      />
       <MiniMap
-        className="ait-rf-minimap"
+        className="!bg-[#0f172a] !border !border-[#1e293b] !rounded-lg"
         nodeColor={(n) => (n.data as AgentNodeData)?.color || '#475569'}
         maskColor="rgba(15, 23, 42, 0.75)"
         pannable
@@ -250,20 +267,23 @@ export function AgentInteractionTimeline({
   selectedThreadId,
 }: AgentInteractionTimelineProps) {
   if (!tree) {
-    return <div className="ait-empty">No dispatch tree</div>;
+    return <div className="p-6 text-center text-[#64748b] text-[0.78rem]">No dispatch tree</div>;
   }
 
   if ((tree.nodes || []).length === 0) {
     return (
-      <div className="ait-empty">
+      <div className="p-6 text-center text-[#64748b] text-[0.78rem]">
         No sub-agent dispatches yet for Thread #{tree.root_thread_id}
       </div>
     );
   }
 
   return (
-    <div className="agent-interaction-timeline" data-testid="agent-interaction-timeline">
-      <div className="ait-rf-viewport">
+    <div
+      className="w-full bg-[radial-gradient(ellipse_at_top,rgba(30,41,59,0.6),transparent_70%),#0b1220] rounded-[10px] border border-[#1e293b] overflow-hidden"
+      data-testid="agent-interaction-timeline"
+    >
+      <div className="w-full h-[340px] min-h-[240px]">
         <ReactFlowProvider>
           <InteractionFlowInner
             tree={tree}

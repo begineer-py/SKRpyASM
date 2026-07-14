@@ -8,7 +8,7 @@ import { executionApi } from '../../services/executionApi';
 import MissionReviewList from '../../components/MissionReviewList';
 import PlanTab from './components/PlanTab';
 import JsonMonacoEditor from './components/JsonMonacoEditor';
-import './OverviewDetail.css';
+import { cn } from '@/lib/utils';
 
 interface HasuraOverview {
   id: number;
@@ -82,15 +82,14 @@ const OverviewDetailPage: React.FC = () => {
     }
   }, [overview]);
 
-  if (loading) return <div className="overview-detail-loading">LOADING_OVERVIEW_DATA...</div>;
-  if (error) return <div className="overview-detail-error">ERROR: {error.message}</div>;
-  if (!overview) return <div className="overview-detail-error">OVERVIEW_NOT_FOUND (ID: {id})</div>;
+  if (loading) return <div className="h-[calc(100vh-56px)] flex items-center justify-center text-base text-slate-500 tracking-[0.2em]">LOADING_OVERVIEW_DATA...</div>;
+  if (error) return <div className="h-[calc(100vh-56px)] flex items-center justify-center text-base text-red-500 tracking-[0.2em]">ERROR: {error.message}</div>;
+  if (!overview) return <div className="h-[calc(100vh-56px)] flex items-center justify-center text-base text-red-500 tracking-[0.2em]">OVERVIEW_NOT_FOUND (ID: {id})</div>;
 
   const handleSave = async () => {
     setIsSaving(true);
     setSaveError(null);
     try {
-      // Ensure JSON fields are parsed if edited as strings
       const payload: OverviewUpdatePayload = { ...editFields };
       if (typeof payload.knowledge === 'string') {
         try { payload.knowledge = JSON.parse(payload.knowledge); } catch (e) { throw new Error('Invalid JSON in Knowledge'); }
@@ -133,14 +132,19 @@ const OverviewDetailPage: React.FC = () => {
     );
   };
 
+  const tabBtnCls = (tab: string) => cn(
+    "px-6 py-3 bg-transparent border-none border-b-2 border-transparent text-slate-500 font-mono text-xs font-bold cursor-pointer transition-all duration-200 hover:text-slate-200 hover:bg-white/[0.02]",
+    activeTab === tab && "text-[#00ff00] border-b-[#00ff00] bg-green-500/[0.03]"
+  );
+
   return (
-    <div className="c2-page overview-detail-page">
-      <div className="overview-detail-header">
-        <div className="header-left">
-          <button className="back-btn" onClick={() => navigate(-1)}>← BACK</button>
-          <h1 className="overview-title">
-            OVERVIEW <span className="id-highlight">#{overview.id}</span>
-            <span className="target-name-sub">@{overview.core_target.name}</span>
+    <div className="c2-page min-h-[calc(100vh-56px)] bg-[#09090b] text-slate-200 font-mono p-8">
+      <div className="flex justify-between items-center mb-6 border-b border-[rgba(0,255,0,0.1)] pb-5">
+        <div className="flex items-center gap-5">
+          <button className="bg-white/5 border border-white/10 text-slate-400 px-3 py-1.5 rounded cursor-pointer text-xs font-bold transition-all duration-200 hover:bg-white/10 hover:text-slate-200" onClick={() => navigate(-1)}>← BACK</button>
+          <h1 className="text-2xl m-0 text-slate-200 flex items-center gap-3">
+            OVERVIEW <span className="text-[#00ff00] [text-shadow:0_0_10px_rgba(0,255,0,0.3)]">#{overview.id}</span>
+            <span className="text-sm text-slate-500 font-normal">@{overview.core_target.name}</span>
             {needsHumanReview && (
               <span
                 className="c2-badge c2-badge--amber"
@@ -153,10 +157,10 @@ const OverviewDetailPage: React.FC = () => {
           </h1>
         </div>
         <div className="header-actions">
-          {saveError && <span className="save-error">{saveError}</span>}
-          <button 
-            className="save-btn" 
-            onClick={handleSave} 
+          {saveError && <span className="text-red-500 text-xs mr-4">{saveError}</span>}
+          <button
+            className="bg-[rgba(0,255,0,0.1)] border border-[rgba(0,255,0,0.3)] text-[#00ff00] px-5 py-2 rounded cursor-pointer font-bold tracking-wider transition-all duration-200 hover:bg-[rgba(0,255,0,0.2)] hover:shadow-[0_0_15px_rgba(0,255,0,0.1)] disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={handleSave}
             disabled={isSaving}
           >
             {isSaving ? 'SAVING...' : 'SAVE_CHANGES'}
@@ -164,13 +168,14 @@ const OverviewDetailPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="overview-grid">
+      <div className="grid grid-cols-[320px_1fr] gap-6 h-[calc(100vh-180px)]">
         {/* Left Column: Metadata */}
-        <div className="overview-meta-card">
-          <div className="meta-section">
-            <label>STATUS</label>
-            <select 
-              value={editFields.status || ''} 
+        <div className="bg-white/[0.02] border border-white/[0.05] rounded-lg p-6 flex flex-col gap-6">
+          <div className="flex flex-col gap-2">
+            <label className="text-[0.65rem] font-bold text-slate-600 tracking-[0.1em]">STATUS</label>
+            <select
+              className="bg-black border border-white/10 text-slate-200 px-3 py-2 rounded font-mono text-sm outline-none focus:border-[rgba(0,255,0,0.3)]"
+              value={editFields.status || ''}
               onChange={(e) => setEditFields({ ...editFields, status: e.target.value })}
             >
               <option value="PLANNING">PLANNING</option>
@@ -181,20 +186,22 @@ const OverviewDetailPage: React.FC = () => {
             </select>
           </div>
 
-          <div className="meta-section">
-            <label>RISK_SCORE (0-100)</label>
-            <input 
-              type="number" 
+          <div className="flex flex-col gap-2">
+            <label className="text-[0.65rem] font-bold text-slate-600 tracking-[0.1em]">RISK_SCORE (0-100)</label>
+            <input
+              className="bg-black border border-white/10 text-slate-200 px-3 py-2 rounded font-mono text-sm outline-none focus:border-[rgba(0,255,0,0.3)]"
+              type="number"
               min="0" max="100"
               value={editFields.risk_score || 0}
               onChange={(e) => setEditFields({ ...editFields, risk_score: parseInt(e.target.value) })}
             />
           </div>
 
-          <div className="meta-section">
-            <label>BUSINESS_IMPACT</label>
-            <select 
-              value={editFields.business_impact || ''} 
+          <div className="flex flex-col gap-2">
+            <label className="text-[0.65rem] font-bold text-slate-600 tracking-[0.1em]">BUSINESS_IMPACT</label>
+            <select
+              className="bg-black border border-white/10 text-slate-200 px-3 py-2 rounded font-mono text-sm outline-none focus:border-[rgba(0,255,0,0.3)]"
+              value={editFields.business_impact || ''}
               onChange={(e) => setEditFields({ ...editFields, business_impact: e.target.value })}
             >
               <option value="Critical">Critical</option>
@@ -205,53 +212,53 @@ const OverviewDetailPage: React.FC = () => {
             </select>
           </div>
 
-          <div className="meta-info-footer">
-            <div className="info-row">
-              <span>CREATED:</span>
+          <div className="mt-auto border-t border-white/[0.05] pt-5 flex flex-col gap-3">
+            <div className="flex justify-between text-[0.7rem]">
+              <span className="text-slate-600">CREATED:</span>
               <span>{new Date(overview.created_at).toLocaleString()}</span>
             </div>
-            <div className="info-row">
-              <span>UPDATED:</span>
+            <div className="flex justify-between text-[0.7rem]">
+              <span className="text-slate-600">UPDATED:</span>
               <span>{new Date(overview.updated_at).toLocaleString()}</span>
             </div>
-            <div className="info-row">
-              <span>THREAD_ID:</span>
-              <code>{overview.thread_id || 'NONE'}</code>
+            <div className="flex justify-between text-[0.7rem]">
+              <span className="text-slate-600">THREAD_ID:</span>
+              <code className="text-purple-500">{overview.thread_id || 'NONE'}</code>
             </div>
-            <div className="info-row">
-              <span>PARENT_THREAD:</span>
-              <code>{overview.parent_thread_id || 'NONE'}</code>
+            <div className="flex justify-between text-[0.7rem]">
+              <span className="text-slate-600">PARENT_THREAD:</span>
+              <code className="text-purple-500">{overview.parent_thread_id || 'NONE'}</code>
             </div>
-            <div className="info-row">
-              <span>SEED_ID:</span>
-              <code>{overview.seed_id || 'NONE'}</code>
+            <div className="flex justify-between text-[0.7rem]">
+              <span className="text-slate-600">SEED_ID:</span>
+              <code className="text-purple-500">{overview.seed_id || 'NONE'}</code>
             </div>
             {restData?.ips && restData.ips.length > 0 && (
-              <div className="info-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
-                <span>IPS ({restData.ips.length}):</span>
+              <div className="flex justify-between text-[0.7rem]" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+                <span className="text-slate-600">IPS ({restData.ips.length}):</span>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                   {restData.ips.map((ipId: number) => (
-                    <code key={ipId} style={{ fontSize: 11 }}>#{ipId}</code>
+                    <code key={ipId} className="text-purple-500" style={{ fontSize: 11 }}>#{ipId}</code>
                   ))}
                 </div>
               </div>
             )}
             {restData?.subdomains && restData.subdomains.length > 0 && (
-              <div className="info-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
-                <span>SUBDOMAINS ({restData.subdomains.length}):</span>
+              <div className="flex justify-between text-[0.7rem]" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+                <span className="text-slate-600">SUBDOMAINS ({restData.subdomains.length}):</span>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                   {restData.subdomains.map((sdId: number) => (
-                    <code key={sdId} style={{ fontSize: 11 }}>#{sdId}</code>
+                    <code key={sdId} className="text-purple-500" style={{ fontSize: 11 }}>#{sdId}</code>
                   ))}
                 </div>
               </div>
             )}
             {restData?.url_results && restData.url_results.length > 0 && (
-              <div className="info-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
-                <span>URLS ({restData.url_results.length}):</span>
+              <div className="flex justify-between text-[0.7rem]" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+                <span className="text-slate-600">URLS ({restData.url_results.length}):</span>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                   {restData.url_results.map((urId: number) => (
-                    <code key={urId} style={{ fontSize: 11 }}>#{urId}</code>
+                    <code key={urId} className="text-purple-500" style={{ fontSize: 11 }}>#{urId}</code>
                   ))}
                 </div>
               </div>
@@ -269,82 +276,31 @@ const OverviewDetailPage: React.FC = () => {
         </div>
 
         {/* Right Column: Content Tabs */}
-        <div className="overview-content-card">
-          <div className="content-tabs">
-            <button 
-              className={activeTab === 'summary' ? 'active' : ''} 
-              onClick={() => setActiveTab('summary')}
-            >
-              SUMMARY
-            </button>
-            <button 
-              className={activeTab === 'plan' ? 'active' : ''} 
-              onClick={() => setActiveTab('plan')}
-            >
-              ATTACK_PLAN
-            </button>
-            <button 
-              className={activeTab === 'knowledge' ? 'active' : ''} 
-              onClick={() => setActiveTab('knowledge')}
-            >
-              KNOWLEDGE_BASE
-            </button>
-            <button
-              className={activeTab === 'techs' ? 'active' : ''}
-              onClick={() => setActiveTab('techs')}
-            >
-              TECH_STACK
-            </button>
-            <button
-              className={activeTab === 'subdomain_intel' ? 'active' : ''}
-              onClick={() => setActiveTab('subdomain_intel')}
-            >
-              SUB_INTEL
-            </button>
-            <button
-              className={activeTab === 'port_service' ? 'active' : ''}
-              onClick={() => setActiveTab('port_service')}
-            >
-              PORT_SVC
-            </button>
-            <button
-              className={activeTab === 'vuln_intel' ? 'active' : ''}
-              onClick={() => setActiveTab('vuln_intel')}
-            >
-              VULN_INTEL
-            </button>
-            <button
-              className={activeTab === 'executions' ? 'active' : ''}
-              onClick={() => setActiveTab('executions')}
-            >
-              EXECUTIONS
-            </button>
-            <button
-              className={activeTab === 'mission_reviews' ? 'active' : ''}
-              onClick={() => setActiveTab('mission_reviews')}
-            >
+        <div className="bg-white/[0.02] border border-white/[0.05] rounded-lg flex flex-col overflow-hidden">
+          <div className="flex bg-black/30 border-b border-white/[0.05]">
+            <button className={tabBtnCls('summary')} onClick={() => setActiveTab('summary')}>SUMMARY</button>
+            <button className={tabBtnCls('plan')} onClick={() => setActiveTab('plan')}>ATTACK_PLAN</button>
+            <button className={tabBtnCls('knowledge')} onClick={() => setActiveTab('knowledge')}>KNOWLEDGE_BASE</button>
+            <button className={tabBtnCls('techs')} onClick={() => setActiveTab('techs')}>TECH_STACK</button>
+            <button className={tabBtnCls('subdomain_intel')} onClick={() => setActiveTab('subdomain_intel')}>SUB_INTEL</button>
+            <button className={tabBtnCls('port_service')} onClick={() => setActiveTab('port_service')}>PORT_SVC</button>
+            <button className={tabBtnCls('vuln_intel')} onClick={() => setActiveTab('vuln_intel')}>VULN_INTEL</button>
+            <button className={tabBtnCls('executions')} onClick={() => setActiveTab('executions')}>EXECUTIONS</button>
+            <button className={tabBtnCls('mission_reviews')} onClick={() => setActiveTab('mission_reviews')}>
               MISSION_REVIEWS
               {needsHumanReview && (
-                <span
-                  style={{
-                    marginLeft: 6,
-                    color: 'var(--amber)',
-                    fontSize: 10,
-                  }}
-                >
-                  ●
-                </span>
+                <span style={{ marginLeft: 6, color: 'var(--amber)', fontSize: 10 }}>●</span>
               )}
             </button>
           </div>
 
-          <div className="tab-body">
+          <div className="flex-1 p-0 overflow-hidden">
             {activeTab === 'summary' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div>
                   <label style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>SUMMARY</label>
                   <textarea
-                    className="overview-summary-editor"
+                    className="w-full h-full bg-transparent border-none text-slate-200 p-6 font-mono text-[0.95rem] leading-relaxed outline-none resize-none"
                     value={editFields.summary || ''}
                     onChange={(e) => setEditFields({ ...editFields, summary: e.target.value })}
                     placeholder="Write target summary/notes here..."
@@ -354,7 +310,7 @@ const OverviewDetailPage: React.FC = () => {
                 <div>
                   <label style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>RECON SUMMARY</label>
                   <textarea
-                    className="overview-summary-editor"
+                    className="w-full h-full bg-transparent border-none text-slate-200 p-6 font-mono text-[0.95rem] leading-relaxed outline-none resize-none"
                     value={editFields.recon_summary || ''}
                     onChange={(e) => setEditFields({ ...editFields, recon_summary: e.target.value })}
                     placeholder="Reconnaissance phase summary (subdomains, open ports, tech stack)..."
@@ -364,9 +320,7 @@ const OverviewDetailPage: React.FC = () => {
               </div>
             )}
             {activeTab === 'plan' && (
-              <PlanTab
-                targetId={overview.core_target.id}
-              />
+              <PlanTab targetId={overview.core_target.id} />
             )}
             {activeTab === 'knowledge' && renderMonacoJson('knowledge')}
             {activeTab === 'techs' && (

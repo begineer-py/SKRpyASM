@@ -40,6 +40,10 @@ export function useHasuraSubscription(query: string, variables?: Record<string, 
           { query, variables },
           {
             next: (res) => {
+              if (res.data === undefined || res.data === null) {
+                setLoading(false);
+                return;
+              }
               setData(res.data);
               setLoading(false);
               setError(null);

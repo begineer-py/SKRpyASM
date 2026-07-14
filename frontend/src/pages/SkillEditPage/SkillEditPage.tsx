@@ -7,7 +7,7 @@ import ScriptTab from './components/ScriptTab';
 import SchemaTab from './components/SchemaTab';
 import TestTab from './components/TestTab';
 import type { SkillTemplateDef } from './skillTemplates';
-import './SkillEditPage.css';
+import { cn } from '@/lib/utils';
 
 export interface FormState {
   name: string;
@@ -142,8 +142,8 @@ export default function SkillEditPage() {
 
   if (loading) {
     return (
-      <div className="skill-edit-page">
-        <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-muted)' }}>
+      <div className="flex flex-col mt-[calc(var(--navbar-height)+12px)] h-[calc(100vh-var(--navbar-height)-12px)] bg-bg-base text-text-primary">
+        <div className="p-12 text-center text-text-muted">
           Loading skill...
         </div>
       </div>
@@ -153,38 +153,41 @@ export default function SkillEditPage() {
   const valid = form.name.trim().length > 0 && form.description.trim().length > 0;
 
   return (
-    <div className="skill-edit-page">
+    <div className="flex flex-col mt-[calc(var(--navbar-height)+12px)] h-[calc(100vh-var(--navbar-height)-12px)] bg-bg-base text-text-primary">
       {/* Header */}
-      <div className="skill-edit-header">
-        <button className="skill-edit-back" onClick={() => navigate('/skills')}>
+      <div className="flex items-center gap-3 px-6 py-3 bg-bg-surface border-b border-border-subtle shrink-0 z-10">
+        <button className="bg-transparent border-0 text-text-muted cursor-pointer text-sm px-[10px] py-1.5 rounded transition-all duration-150 hover:text-text-primary hover:bg-bg-card" onClick={() => navigate('/skills')}>
           ← BACK
         </button>
-        <div className="skill-edit-title">
+        <div className="flex-1 text-[0.9rem] font-bold tracking-wider text-text-cyan">
           {isNew ? 'CREATE NEW SKILL' : `EDIT: ${original?.name || ''}`}
-          <span className="mode-tag">{isNew ? 'NEW' : `v${original?.version || 1}`}</span>
+          <span className="text-green text-xs bg-green/[0.16] px-2 py-0.5 rounded-sm ml-2">{isNew ? 'NEW' : `v${original?.version || 1}`}</span>
         </div>
-        {error && <span style={{ color: '#ef4444', fontSize: '0.7rem' }}>⚠ {error}</span>}
-        <button className="skill-edit-save" onClick={handleSave} disabled={saving || !valid}>
+        {error && <span className="text-red text-xs">⚠ {error}</span>}
+        <button className="px-6 py-[7px] rounded bg-green/[0.12] border border-green/30 text-green text-xs font-bold tracking-wider cursor-pointer transition-all duration-150 hover:bg-green/20 disabled:opacity-40 disabled:cursor-not-allowed" onClick={handleSave} disabled={saving || !valid}>
           {saving ? 'SAVING...' : 'SAVE'}
         </button>
       </div>
 
       {/* Tabs */}
-      <div className="skill-edit-tabs">
+      <div className="flex px-6 bg-bg-surface border-b border-border-subtle shrink-0">
         {TABS.map(tab => (
           <button
             key={tab.key}
-            className={`skill-edit-tab ${activeTab === tab.key ? 'active' : ''}`}
+            className={cn(
+              "px-5 py-[10px] bg-transparent border-0 border-b-2 border-transparent text-text-muted text-xs font-semibold tracking-wider cursor-pointer transition-all duration-200 hover:text-text-primary hover:bg-bg-card/50",
+              activeTab === tab.key && "text-green border-b-green"
+            )}
             onClick={() => setActiveTab(tab.key)}
           >
-            <span className="tab-icon">{tab.icon}</span>
+            <span className="mr-1.5">{tab.icon}</span>
             {tab.label}
           </button>
         ))}
       </div>
 
       {/* Content */}
-      <div className="skill-edit-content">
+      <div className="flex-1 overflow-y-auto p-6">
         {activeTab === 'meta' && <MetaTab form={form} onChange={patch} />}
         {activeTab === 'script' && (
           <ScriptTab

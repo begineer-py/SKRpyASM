@@ -3,7 +3,35 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import { gqlFetcher } from "../../services/api";
 import { GET_URL_DETAIL_QUERY } from "../../services/url_detail";
-import "./UrlDetailPage.css";
+import { cn } from "@/lib/utils";
+
+// ─── Constants ─────────────────────────────────────────────────────────────────
+const badgeBase = "inline-flex items-center gap-1 px-2.5 py-[3px] rounded-full text-[0.72rem] font-bold tracking-wide uppercase border";
+
+const badgeStatus: Record<string, string> = {
+  "2xx": "bg-[rgba(35,134,54,0.15)] text-[#3fb950] border-[rgba(63,185,80,0.3)]",
+  "3xx": "bg-[rgba(210,153,34,0.15)] text-[#d29922] border-[rgba(210,153,34,0.3)]",
+  "4xx": "bg-[rgba(248,81,73,0.15)] text-[#f85149] border-[rgba(248,81,73,0.3)]",
+  "5xx": "bg-[rgba(248,81,73,0.2)] text-[#ff7b72] border-[rgba(248,81,73,0.4)]",
+  unknown: "bg-[rgba(110,118,129,0.15)] text-[#8b949e] border-[rgba(110,118,129,0.3)]",
+};
+
+const badgeMethod: Record<string, string> = {
+  GET: "bg-[rgba(88,166,255,0.1)] text-[#58a6ff] border-[rgba(88,166,255,0.3)]",
+  POST: "bg-[rgba(63,185,80,0.1)] text-[#3fb950] border-[rgba(63,185,80,0.3)]",
+  other: "bg-[rgba(210,153,34,0.1)] text-[#d29922] border-[rgba(210,153,34,0.3)]",
+};
+
+const badgeVuln: Record<string, string> = {
+  critical: "bg-[rgba(188,10,10,0.25)] text-[#ff7b72] border-[rgba(188,10,10,0.5)]",
+  high: "bg-[rgba(248,81,73,0.15)] text-[#f85149] border-[rgba(248,81,73,0.3)]",
+  medium: "bg-[rgba(210,153,34,0.15)] text-[#d29922] border-[rgba(210,153,34,0.3)]",
+  low: "bg-[rgba(88,166,255,0.1)] text-[#58a6ff] border-[rgba(88,166,255,0.3)]",
+  info: "bg-[rgba(110,118,129,0.15)] text-[#8b949e] border-[rgba(110,118,129,0.3)]",
+};
+
+const badgeInfo = "bg-[rgba(110,118,129,0.12)] text-[#8b949e] border-[rgba(110,118,129,0.2)]";
+const badgeImportant = "bg-[rgba(255,166,0,0.15)] text-[#e3b341] border-[rgba(255,166,0,0.3)]";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface TechStack {
@@ -78,45 +106,40 @@ interface UrlDetailResponse {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function StatusBadge({ code }: { code?: number }) {
-  if (!code) return <span className="badge badge-status-unknown">N/A</span>;
-  const cls =
-    code >= 500 ? "badge-status-5xx"
-    : code >= 400 ? "badge-status-4xx"
-    : code >= 300 ? "badge-status-3xx"
-    : code >= 200 ? "badge-status-2xx"
-    : "badge-status-unknown";
-  return <span className={`badge ${cls}`}>{code}</span>;
+  if (!code) return <span className={cn(badgeBase, badgeStatus.unknown)}>N/A</span>;
+  const style =
+    code >= 500 ? badgeStatus["5xx"]
+    : code >= 400 ? badgeStatus["4xx"]
+    : code >= 300 ? badgeStatus["3xx"]
+    : code >= 200 ? badgeStatus["2xx"]
+    : badgeStatus.unknown;
+  return <span className={cn(badgeBase, style)}>{code}</span>;
 }
 
 function MethodBadge({ method }: { method?: string }) {
   if (!method) return null;
-  const cls = method === "GET" ? "badge-method-get" : method === "POST" ? "badge-method-post" : "badge-method-other";
-  return <span className={`badge ${cls}`}>{method}</span>;
+  const style = method === "GET" ? badgeMethod.GET : method === "POST" ? badgeMethod.POST : badgeMethod.other;
+  return <span className={cn(badgeBase, style)}>{method}</span>;
 }
 
 function VulnBadge({ severity }: { severity: string }) {
   const s = severity.toLowerCase();
-  const cls =
-    s === "critical" ? "badge-vuln-critical"
-    : s === "high" ? "badge-vuln-high"
-    : s === "medium" ? "badge-vuln-medium"
-    : s === "low" ? "badge-vuln-low"
-    : "badge-vuln-info";
-  return <span className={`badge ${cls}`}>{severity}</span>;
+  const style = badgeVuln[s] || badgeVuln.info;
+  return <span className={cn(badgeBase, style)}>{severity}</span>;
 }
 
 function Collapsible({ title, icon, count, children }: { title: string; icon: string; count?: number; children: React.ReactNode }) {
   const [open, setOpen] = useState(true);
   return (
-    <div className="url-section">
-      <div className="url-section-header" onClick={() => setOpen(!open)}>
-        <span className="url-section-title"><span>{icon}</span>{title}</span>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          {count !== undefined && <span className="url-section-count">{count}</span>}
-          <span className={`url-section-toggle ${open ? "open" : ""}`}>▾</span>
+    <div className="bg-[#0d1117] border border-[#21262d] rounded-lg mb-4 overflow-hidden">
+      <div className="flex justify-between items-center px-4 py-3 bg-[#161b22] border-b border-[#21262d] cursor-pointer select-none" onClick={() => setOpen(!open)}>
+        <span className="text-[0.75rem] font-bold uppercase tracking-widest text-[#8b949e]"><span className="text-[#58a6ff] mr-1.5">{icon}</span>{title}</span>
+        <div className="flex items-center gap-2">
+          {count !== undefined && <span className="text-[0.7rem] text-[#484f58] bg-[#21262d] px-2 py-0.5 rounded-full">{count}</span>}
+          <span className={cn("text-[#484f58] text-[0.75rem] transition-transform duration-200", open && "rotate-180")}>▾</span>
         </div>
       </div>
-      {open && <div className="url-section-body">{children}</div>}
+      {open && <div className="px-4 py-4">{children}</div>}
     </div>
   );
 }
@@ -180,12 +203,12 @@ export default function UrlDetailPage() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   if (loading) return (
-    <div className="url-detail-container" style={{ color: "#8b949e", paddingTop: 60, textAlign: "center" }}>
+    <div className="max-w-[1280px] mx-auto px-6 pt-[60px] pb-7 font-mono text-text-muted text-center">
       Loading URL intel...
     </div>
   );
   if (error || !data) return (
-    <div className="url-detail-container" style={{ color: "#f85149", paddingTop: 60, textAlign: "center" }}>
+    <div className="max-w-[1280px] mx-auto px-6 pt-[60px] pb-7 font-mono text-red text-center">
       {error || "URL not found."}
     </div>
   );
@@ -197,35 +220,34 @@ export default function UrlDetailPage() {
     : {};
 
   return (
-    <div className="url-detail-container">
+    <div className="max-w-[1280px] mx-auto px-6 py-7 font-mono">
       {/* ── Hero Header ── */}
-      <div className="url-detail-hero">
-        <div className="url-detail-breadcrumb">
-          <Link to={`/target/${targetId}`}>Target</Link>
+      <div className="relative overflow-hidden bg-gradient-to-br from-[#0d1117] to-[#161b22] border border-[#21262d] rounded-xl px-7 py-6 mb-6 before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-r before:from-[rgba(0,255,180,0.04)] before:to-transparent before:pointer-events-none">
+        <div className="text-[0.72rem] text-[#484f58] mb-2.5 uppercase tracking-wider">
+          <Link to={`/target/${targetId}`} className="text-[#58a6ff] no-underline hover:underline">Target</Link>
           {" / "}
           URL Detail
         </div>
 
-        <div className="url-detail-title">
-          <a href={d.url} target="_blank" rel="noopener noreferrer">{d.url}</a>
+        <div className="text-[1.15rem] font-semibold text-[#e6edf3] break-all mb-3 leading-normal">
+          <a href={d.url} target="_blank" rel="noopener noreferrer" className="text-[#58a6ff] no-underline hover:underline">{d.url}</a>
         </div>
 
-        <div className="url-meta-bar">
+        <div className="flex flex-wrap gap-2.5 items-center">
           <StatusBadge code={d.status_code ?? undefined} />
           <MethodBadge method={d.method ?? undefined} />
-          {d.is_important && <span className="badge badge-important">⭐ IMPORTANT</span>}
-          {d.used_flaresolverr && <span className="badge badge-info">FlareSolverr</span>}
-          {d.is_external_redirect && <span className="badge badge-status-3xx">→ Redirect</span>}
-          {d.discovery_source && <span className="badge badge-info">{d.discovery_source}</span>}
+          {d.is_important && <span className={cn(badgeBase, badgeImportant)}>⭐ IMPORTANT</span>}
+          {d.used_flaresolverr && <span className={cn(badgeBase, badgeInfo)}>FlareSolverr</span>}
+          {d.is_external_redirect && <span className={cn(badgeBase, badgeStatus["3xx"])}>→ Redirect</span>}
+          {d.discovery_source && <span className={cn(badgeBase, badgeInfo)}>{d.discovery_source}</span>}
           {d.content_length !== undefined && d.content_length !== null && (
-            <span className="badge badge-info">{(d.content_length / 1024).toFixed(1)} KB</span>
+            <span className={cn(badgeBase, badgeInfo)}>{(d.content_length / 1024).toFixed(1)} KB</span>
           )}
-          <span className="badge badge-info" style={{ marginLeft: "auto" }}>
+          <span className={cn(badgeBase, badgeInfo, "ml-auto")}>
             {new Date(d.created_at).toLocaleString()}
           </span>
           <button 
-            className="btn-copy-sm" 
-            style={{ padding: "4px 12px", background: "#f85149", color: "white", border: "none", cursor: "pointer", marginLeft: 10, fontWeight: "bold" }}
+            className="shrink-0 text-[0.68rem] font-mono uppercase tracking-wide px-3 py-1 bg-[#f85149] text-white border-0 cursor-pointer ml-2.5 font-bold"
             onClick={() => setShowScanPanel(!showScanPanel)}
           >
             {showScanPanel ? "CANCEL" : "LAUNCH NUCLEI"}
@@ -235,14 +257,14 @@ export default function UrlDetailPage() {
 
       {/* ── Scan Panel ── */}
       {showScanPanel && (
-        <div style={{ background: "#161b22", border: "1px solid #f85149", borderRadius: 8, padding: 16, marginBottom: 20 }}>
-          <div style={{ color: "#f85149", fontWeight: "bold", marginBottom: 10 }}>Configure Nuclei Scan</div>
-          <div style={{ marginBottom: 10, color: "#8b949e", fontSize: "0.85rem" }}>
+        <div className="bg-bg-surface border border-red rounded-lg p-4 mb-5">
+          <div className="text-red font-bold mb-2.5">Configure Nuclei Scan</div>
+          <div className="mb-2.5 text-text-muted text-[0.85rem]">
             Select specific templates to run. If none selected, default active templates run.
           </div>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
+          <div className="flex gap-2.5 flex-wrap mb-4">
             {["cves", "sqli", "xss", "lfi", "rce", "misconfiguration", "auth-bypass", "exposure"].map(tag => (
-              <label key={tag} style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", color: "#c9d1d9", fontSize: "0.85rem" }}>
+              <label key={tag} className="flex items-center gap-1 cursor-pointer text-text-secondary text-[0.85rem]">
                 <input 
                   type="checkbox" 
                   checked={selectedTags.includes(tag)}
@@ -266,40 +288,40 @@ export default function UrlDetailPage() {
       )}
 
       {/* ── Two-column layout ── */}
-      <div className="url-detail-layout">
+      <div className="grid grid-cols-[1fr_340px] gap-5 items-start">
         {/* LEFT column */}
         <div>
 
           {/* Basic Info */}
           <Collapsible title="Basic Information" icon="🔍">
-            <div className="info-grid">
-              <span className="info-label">Title</span>
-              <span className="info-value">{d.title || <em className="muted">No title</em>}</span>
+            <div className="grid grid-cols-[max-content_1fr] gap-x-5 gap-y-2.5 items-center">
+              <span className="text-[0.68rem] font-bold uppercase tracking-wider text-[#484f58] whitespace-nowrap">Title</span>
+              <span className="text-sm text-[#c9d1d9] break-all">{d.title || <em className="text-[#484f58] italic text-[0.78rem]">No title</em>}</span>
 
               {d.final_url && d.final_url !== d.url && (
                 <>
-                  <span className="info-label">Final URL</span>
-                  <span className="info-value">
-                    <a href={d.final_url} target="_blank" rel="noopener noreferrer">{d.final_url}</a>
+                  <span className="text-[0.68rem] font-bold uppercase tracking-wider text-[#484f58] whitespace-nowrap">Final URL</span>
+                  <span className="text-sm text-[#c9d1d9] break-all">
+                    <a href={d.final_url} target="_blank" rel="noopener noreferrer" className="text-[#58a6ff] no-underline hover:underline">{d.final_url}</a>
                   </span>
                 </>
               )}
 
-              <span className="info-label">Fetch Status</span>
-              <span className="info-value">{d.content_fetch_status || <em className="muted">Unknown</em>}</span>
+              <span className="text-[0.68rem] font-bold uppercase tracking-wider text-[#484f58] whitespace-nowrap">Fetch Status</span>
+              <span className="text-sm text-[#c9d1d9] break-all">{d.content_fetch_status || <em className="text-[#484f58] italic text-[0.78rem]">Unknown</em>}</span>
 
-              <span className="info-label">Tech Analyzed</span>
-              <span className="info-value">{d.is_tech_analyzed ? "✅ Yes" : "❌ No"}</span>
+              <span className="text-[0.68rem] font-bold uppercase tracking-wider text-[#484f58] whitespace-nowrap">Tech Analyzed</span>
+              <span className="text-sm text-[#c9d1d9] break-all">{d.is_tech_analyzed ? "✅ Yes" : "❌ No"}</span>
 
               {subdomains.length > 0 && (
                 <>
-                  <span className="info-label">Subdomains</span>
-                  <span className="info-value">
+                  <span className="text-[0.68rem] font-bold uppercase tracking-wider text-[#484f58] whitespace-nowrap">Subdomains</span>
+                  <span className="text-sm text-[#c9d1d9] break-all">
                     {subdomains.map(sub => (
                       <Link
                         key={sub.id}
                         to={`/target/${targetId}/subdomain/${sub.id}`}
-                        style={{ display: "inline-block", marginRight: 8, color: "#58a6ff" }}
+                        className="inline-block mr-2 text-blue"
                       >
                         {sub.name}
                       </Link>
@@ -313,14 +335,14 @@ export default function UrlDetailPage() {
           {/* Tech Stack */}
           <Collapsible title="Technology Stack" icon="⚙️" count={d.core_techstacks.length}>
             {d.core_techstacks.length === 0 ? (
-              <p className="muted">No technologies detected.</p>
+              <p className="text-[#484f58] italic text-[0.78rem]">No technologies detected.</p>
             ) : (
-              <div className="tech-grid">
+              <div className="flex flex-wrap gap-2">
                 {d.core_techstacks.map(t => (
-                  <div key={t.id} className="tech-pill">
-                    <span className="tech-name">{t.name}</span>
-                    {t.version && <span className="tech-ver">v{t.version}</span>}
-                    {t.categories && <span className="tech-cat">{t.categories}</span>}
+                  <div key={t.id} className="inline-flex flex-col px-3 py-1.5 bg-[rgba(88,166,255,0.07)] border border-[rgba(88,166,255,0.2)] rounded-md">
+                    <span className="text-[0.78rem] font-semibold text-[#79c0ff]">{t.name}</span>
+                    {t.version && <span className="text-[0.65rem] text-[#484f58]">v{t.version}</span>}
+                    {t.categories && <span className="text-[0.6rem] uppercase tracking-wider text-[#58a6ff] mt-0.5">{t.categories}</span>}
                   </div>
                 ))}
               </div>
@@ -330,16 +352,16 @@ export default function UrlDetailPage() {
           {/* Vulnerabilities */}
           <Collapsible title="Vulnerabilities (Nuclei)" icon="🚨" count={d.core_vulnerabilities.length}>
             {d.core_vulnerabilities.length === 0 ? (
-              <p className="muted">No vulnerabilities found.</p>
+              <p className="text-[#484f58] italic text-[0.78rem]">No vulnerabilities found.</p>
             ) : (
               d.core_vulnerabilities.map(v => (
-                <div key={v.id} className="vuln-card">
-                  <div className="vuln-card-header">
+                <div key={v.id} className="border border-[#21262d] rounded-md px-3.5 py-3 mb-2.5 transition-colors duration-200 hover:border-[#30363d]">
+                  <div className="flex items-center gap-2 mb-1.5">
                     <VulnBadge severity={v.severity} />
-                    <span className="vuln-name">{v.name}</span>
+                    <span className="text-[0.82rem] font-semibold text-[#e6edf3]">{v.name}</span>
                   </div>
-                  {v.template_id && <div className="vuln-template">{v.template_id}</div>}
-                  {v.description && <p className="vuln-desc">{v.description}</p>}
+                  {v.template_id && <div className="text-[0.68rem] text-[#484f58] font-mono">{v.template_id}</div>}
+                  {v.description && <p className="text-[0.76rem] text-[#8b949e] leading-normal">{v.description}</p>}
                 </div>
               ))
             )}
@@ -348,13 +370,13 @@ export default function UrlDetailPage() {
           {/* HTTP Headers */}
           <Collapsible title="HTTP Headers" icon="📋" count={Object.keys(parsedHeaders).length}>
             {Object.keys(parsedHeaders).length === 0 ? (
-              <p className="muted">No headers stored.</p>
+              <p className="text-[#484f58] italic text-[0.78rem]">No headers stored.</p>
             ) : (
-              <div className="headers-block">
+              <div className="bg-[#161b22] rounded-md p-3.5 overflow-x-auto">
                 {Object.entries(parsedHeaders).map(([k, v]) => (
-                  <div key={k} className="header-row">
-                    <span className="header-key">{k}</span>
-                    <span className="header-val">{v}</span>
+                  <div key={k} className="flex gap-3 py-1 border-b border-[#21262d] text-[0.75rem] last:border-b-0">
+                    <span className="text-[#d2a8ff] min-w-[160px] font-semibold">{k}</span>
+                    <span className="text-[#a5d6ff] break-all">{v}</span>
                   </div>
                 ))}
               </div>
@@ -364,21 +386,21 @@ export default function UrlDetailPage() {
           {/* Meta Tags */}
           <Collapsible title="Meta Tags" icon="🏷️" count={d.core_metatags.length}>
             {d.core_metatags.length === 0 ? (
-              <p className="muted">No meta tags found.</p>
+              <p className="text-[#484f58] italic text-[0.78rem]">No meta tags found.</p>
             ) : (
-              <table className="data-table">
+              <table className="w-full border-collapse text-[0.78rem]">
                 <thead>
                   <tr>
-                    <th>Attribute</th>
-                    <th>Value</th>
+                    <th className="text-left text-[0.65rem] font-bold uppercase tracking-wider text-[#484f58] px-2 py-1.5 border-b border-[#21262d]">Attribute</th>
+                    <th className="text-left text-[0.65rem] font-bold uppercase tracking-wider text-[#484f58] px-2 py-1.5 border-b border-[#21262d]">Value</th>
                   </tr>
                 </thead>
                 <tbody>
                   {d.core_metatags.map(m => (
                     Object.entries(m.attributes || {}).map(([k, v], i) => (
-                      <tr key={`${m.id}-${i}`}>
-                        <td style={{ color: "#d2a8ff", minWidth: 120 }}>{k}</td>
-                        <td>{String(v)}</td>
+                      <tr key={`${m.id}-${i}`} className="hover:bg-[rgba(255,255,255,0.02)]">
+                        <td className="p-2 border-b border-[#161b22] text-purple align-top break-all last:border-b-0 min-w-[120px]">{k}</td>
+                        <td className="p-2 border-b border-[#161b22] text-[#c9d1d9] align-top break-all last:border-b-0">{String(v)}</td>
                       </tr>
                     ))
                   ))}
@@ -395,16 +417,16 @@ export default function UrlDetailPage() {
           {/* Nuclei Scans */}
           <Collapsible title="Nuclei Scans" icon="🔬" count={d.core_nucleiscans.length}>
             {d.core_nucleiscans.length === 0 ? (
-              <p className="muted">No scans run yet.</p>
+              <p className="text-[#484f58] italic text-[0.78rem]">No scans run yet.</p>
             ) : (
               d.core_nucleiscans.map(s => (
-                <div key={s.id} style={{ padding: "8px 0", borderBottom: "1px solid #21262d" }}>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
-                    <span className="badge badge-info">#{s.id}</span>
+                <div key={s.id} className="py-2 border-b border-border-normal">
+                  <div className="flex gap-2 items-center mb-1">
+                    <span className={cn(badgeBase, badgeInfo)}>#{s.id}</span>
                     <StatusBadge code={s.status === "COMPLETED" ? 200 : s.status === "FAILED" ? 500 : undefined} />
-                    <span style={{ fontSize: "0.72rem", color: "#8b949e" }}>{s.status}</span>
+                    <span className="text-[0.72rem] text-text-muted">{s.status}</span>
                   </div>
-                  <span style={{ fontSize: "0.68rem", color: "#484f58" }}>
+                  <span className="text-[0.68rem] text-text-muted">
                     {new Date(s.created_at).toLocaleString()}
                   </span>
                 </div>
@@ -415,26 +437,26 @@ export default function UrlDetailPage() {
           {/* Links */}
           <Collapsible title="Discovered Links" icon="🔗" count={d.core_links.length}>
             {d.core_links.length === 0 ? (
-              <p className="muted">No links extracted.</p>
+              <p className="text-[#484f58] italic text-[0.78rem]">No links extracted.</p>
             ) : (
-              <div style={{ maxHeight: 400, overflowY: "auto" }}>
-                <table className="data-table">
+              <div className="max-h-[400px] overflow-y-auto">
+                <table className="w-full border-collapse text-[0.78rem]">
                   <thead>
                     <tr>
-                      <th>Href</th>
-                      <th>Text</th>
+                      <th className="text-left text-[0.65rem] font-bold uppercase tracking-wider text-[#484f58] px-2 py-1.5 border-b border-[#21262d]">Href</th>
+                      <th className="text-left text-[0.65rem] font-bold uppercase tracking-wider text-[#484f58] px-2 py-1.5 border-b border-[#21262d]">Text</th>
                     </tr>
                   </thead>
                   <tbody>
                     {d.core_links.map(link => (
-                      <tr key={link.id}>
-                        <td>
+                      <tr key={link.id} className="hover:bg-[rgba(255,255,255,0.02)]">
+                        <td className="p-2 border-b border-[#161b22] text-[#c9d1d9] align-top break-all last:border-b-0">
                           <a href={link.href} target="_blank" rel="noopener noreferrer"
-                            style={{ color: "#58a6ff", fontSize: "0.72rem" }}>
+                            className="text-blue text-[0.72rem]">
                             {link.href.length > 50 ? link.href.slice(0, 50) + "…" : link.href}
                           </a>
                         </td>
-                        <td style={{ fontSize: "0.72rem", color: "#8b949e" }}>{link.text || "—"}</td>
+                        <td className="p-2 border-b border-[#161b22] text-text-muted align-top break-all last:border-b-0 text-[0.72rem]">{link.text || "—"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -446,25 +468,22 @@ export default function UrlDetailPage() {
           {/* Forms */}
           <Collapsible title="Forms" icon="📝" count={d.core_forms.length}>
             {d.core_forms.length === 0 ? (
-              <p className="muted">No forms found.</p>
+              <p className="text-[#484f58] italic text-[0.78rem]">No forms found.</p>
             ) : (
               d.core_forms.map(f => (
-                <div key={f.id} style={{ padding: "10px 0", borderBottom: "1px solid #21262d" }}>
-                  <div className="info-grid">
-                    <span className="info-label">Action</span>
-                    <span className="info-value">{f.action || "—"}</span>
-                    <span className="info-label">Method</span>
-                    <span className="info-value">{f.method || "GET"}</span>
+                <div key={f.id} className="py-[10px] border-b border-border-normal">
+                  <div className="grid grid-cols-[max-content_1fr] gap-x-5 gap-y-2.5 items-center">
+                    <span className="text-[0.68rem] font-bold uppercase tracking-wider text-[#484f58] whitespace-nowrap">Action</span>
+                    <span className="text-sm text-[#c9d1d9] break-all">{f.action || "—"}</span>
+                    <span className="text-[0.68rem] font-bold uppercase tracking-wider text-[#484f58] whitespace-nowrap">Method</span>
+                    <span className="text-sm text-[#c9d1d9] break-all">{f.method || "GET"}</span>
                   </div>
                   {f.parameters && (
-                    <details style={{ marginTop: 8 }}>
-                      <summary style={{ cursor: "pointer", fontSize: "0.72rem", color: "#58a6ff" }}>
+                    <details className="mt-2">
+                      <summary className="cursor-pointer text-[0.72rem] text-blue">
                         View parameters
                       </summary>
-                      <pre style={{
-                        background: "#161b22", padding: "10px", borderRadius: 6,
-                        fontSize: "0.72rem", color: "#a5d6ff", marginTop: 8, overflowX: "auto"
-                      }}>
+                      <pre className="bg-bg-surface p-[10px] rounded-md text-[0.72rem] text-cyan mt-2 overflow-x-auto">
                         {JSON.stringify(f.parameters, null, 2)}
                       </pre>
                     </details>

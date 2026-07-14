@@ -1,74 +1,15 @@
-import axios from 'axios';
-import { GLOBAL_CONFIG } from '../config';
+import { createApiClient } from './apiClient';
+import type { components } from '../types/api';
 
-const api = axios.create({
-  baseURL: `${GLOBAL_CONFIG.DJANGO_API_BASE}/skills`,
-});
+const api = createApiClient('skills');
 
-export interface SkillTemplate {
-  id: number;
-  name: string;
-  description: string;
-  instructions: string;
-  script_content: string | null;
-  script_body: string | null;
-  language: string;
-  tags: string[];
-  usage_count: number;
-  input_schema: Record<string, unknown> | null;
-  output_schema: Record<string, unknown> | null;
-  is_robust: boolean;
-  is_deprecated: boolean;
-  has_io_contract: boolean;
-  version: number;
-  last_verified_at: string | null;
-  last_failure_reason: string | null;
-  test_input_example: Record<string, unknown> | null;
-  merged_from: number[] | null;
-  created_at: string;
-  updated_at: string;
-}
+type SkillTemplate = components['schemas']['SkillOut'];
+type SkillCreatePayload = components['schemas']['SkillCreate'];
+type SkillUpdatePayload = components['schemas']['SkillUpdate'];
+type SkillTestRequest = components['schemas']['SkillTestRequest'];
+type SkillTestResult = components['schemas']['SkillTestOut'];
 
-export interface SkillCreatePayload {
-  name: string;
-  description: string;
-  instructions: string;
-  language?: string;
-  tags?: string[];
-  input_schema?: Record<string, unknown> | null;
-  output_schema?: Record<string, unknown> | null;
-  script_body?: string | null;
-  script_content?: string | null;
-}
-
-export interface SkillUpdatePayload {
-  name?: string;
-  description?: string;
-  instructions?: string;
-  language?: string;
-  tags?: string[];
-  input_schema?: Record<string, unknown> | null;
-  output_schema?: Record<string, unknown> | null;
-  script_body?: string | null;
-  script_content?: string | null;
-  is_deprecated?: boolean;
-}
-
-export interface SkillTestRequest {
-  test_input?: Record<string, unknown> | null;
-}
-
-export interface SkillTestResult {
-  ok: boolean;
-  verification_id: number | null;
-  verdict: string | null;
-  confidence: number | null;
-  error: string | null;
-  exit_code: number | null;
-  duration_ms: number | null;
-  raw_output: string | null;
-  agent_notes: string | null;
-}
+export type { SkillTemplate, SkillCreatePayload, SkillUpdatePayload, SkillTestRequest, SkillTestResult };
 
 export const skillApi = {
   list: async (params?: { q?: string; language?: string; deprecated?: boolean }): Promise<SkillTemplate[]> => {

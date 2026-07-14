@@ -114,46 +114,41 @@ function UrlReconPage() {
   return (
     <div className="recon-container">
       {/* Target Module */}
-      <div className="recon-header-card" style={{ borderLeft: "4px solid #f85149" }}>
+      <div className="recon-header-card border-l-4 border-red">
         <div>
-          <div style={{ color: "#f85149", fontWeight: "bold", letterSpacing: 2, marginBottom: 8, fontSize: "0.8rem", textTransform: "uppercase" }}>TARGET URL</div>
+          <div className="text-red font-bold tracking-wider mb-2 text-[0.8rem] uppercase">TARGET URL</div>
           <div className="seed-info-large">{seedVal}</div>
-          <div style={{ color: "#666", marginTop: 6, display: "flex", gap: 16 }}>
+          <div className="text-text-muted mt-1.5 flex gap-4">
             <span>SEED ID: {nSeedId}</span>
             <span>INTERNAL URL ID: {urlId || "INITIALIZING..."}</span>
           </div>
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20, marginTop: 20 }}>
+      <div className="grid grid-cols-[2fr_1fr] gap-5 mt-5">
         {/* Left Column: Command Center */}
         <div>
           <div className="assets-card">
-            <div className="assets-header" style={{ cursor: "default" }}>
-              <div className="assets-title" style={{ color: "#58a6ff" }}>🚀 NUCLEI COMMAND CENTER</div>
+            <div className="assets-header cursor-default">
+              <div className="assets-title text-blue">🚀 NUCLEI COMMAND CENTER</div>
             </div>
             <div className="assets-content">
-              <p style={{ color: "#8b949e", fontSize: "0.9rem", marginBottom: 16 }}>
+              <p className="text-text-secondary text-[0.9rem] mb-4">
                 URL templates are unique and highly specialized for web application endpoints. Select payload tags to inject into the Nuclei engine.
               </p>
               
-              <div style={{ marginBottom: 20 }}>
-                <div style={{ color: "#c9d1d9", fontSize: "0.8rem", marginBottom: 12, letterSpacing: 1 }}>SELECT PAYLOAD TEMPLATES (TAGS)</div>
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <div className="mb-5">
+                <div className="text-text-primary text-[0.8rem] mb-3 tracking-wider">SELECT PAYLOAD TEMPLATES (TAGS)</div>
+                <div className="flex gap-2.5 flex-wrap">
                   {availableTags.map(tag => (
                     <div 
                       key={tag}
                       onClick={() => toggleTag(tag)}
+                      className="px-3 py-1.5 rounded cursor-pointer text-[0.8rem] font-mono transition-all duration-200"
                       style={{
-                        padding: "6px 12px",
-                        borderRadius: 4,
                         border: selectedTags.includes(tag) ? "1px solid #f85149" : "1px solid #30363d",
                         background: selectedTags.includes(tag) ? "rgba(248,81,73,0.15)" : "#21262d",
                         color: selectedTags.includes(tag) ? "#ff7b72" : "#8b949e",
-                        cursor: "pointer",
-                        fontSize: "0.8rem",
-                        fontFamily: "var(--font-mono)",
-                        transition: "all 0.2s"
                       }}
                     >
                       {tag.toUpperCase()}
@@ -162,23 +157,22 @@ function UrlReconPage() {
                 </div>
               </div>
 
-              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+              <div className="flex gap-3 items-center">
                 <button 
-                  className="btn-fire"
-                  style={{ background: "#f85149", borderColor: "#f85149" }}
+                  className="btn-fire bg-red border-red"
                   onClick={handleRunNuclei}
                   disabled={triggering || !urlId}
                 >
                   {triggering ? "DISPATCHING..." : "DEPLOY NUCLEI SCAN"}
                 </button>
-                {!urlId && <span style={{ color: "#f85149", fontSize: "0.8rem" }}>Awaiting backend database synchronization...</span>}
+                {!urlId && <span className="text-red text-[0.8rem]">Awaiting backend database synchronization...</span>}
               </div>
             </div>
           </div>
 
-          <div className="assets-card" style={{ opacity: 0.6, pointerEvents: "none" }}>
+          <div className="assets-card opacity-60 pointer-events-none">
             <div className="assets-header">
-              <div className="assets-title" style={{ color: "#d2a8ff" }}>🔒 SQLMAP INTEGRATION (IN DEVELOPMENT)</div>
+              <div className="assets-title text-purple">🔒 SQLMAP INTEGRATION (IN DEVELOPMENT)</div>
             </div>
             <div className="assets-content">
               Module unmounted. Specialized SQL injection automation will be deployed here.
@@ -189,30 +183,30 @@ function UrlReconPage() {
         {/* Right Column: Execution History */}
         <div>
           <div className="assets-card">
-            <div className="assets-header" style={{ cursor: "default" }}>
+            <div className="assets-header cursor-default">
               <div className="assets-title">EXECUTION HISTORY</div>
               <span className="assets-count">{urlResult?.core_nucleiscans?.length || 0}</span>
             </div>
-            <div className="assets-content" style={{ padding: 0 }}>
+            <div className="assets-content p-0">
               {(!urlResult?.core_nucleiscans || urlResult.core_nucleiscans.length === 0) ? (
                 <div className="empty-state-message">No scan deployments recorded.</div>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column" }}>
+                <div className="flex flex-col">
                   {urlResult.core_nucleiscans.map((scan: any) => (
-                    <div key={scan.id} style={{ padding: "16px 20px", borderBottom: "1px solid #30363d" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                        <span style={{ color: "#58a6ff", fontFamily: "var(--font-mono)", fontSize: "0.85rem" }}>#SCAN-{scan.id}</span>
+                    <div key={scan.id} className="px-5 py-4 border-b border-border-subtle">
+                      <div className="flex justify-between mb-1.5">
+                        <span className="text-blue font-mono text-[0.85rem]">#SCAN-{scan.id}</span>
                         <span className={`status-badge status-${scan.status}`}>{scan.status}</span>
                       </div>
-                      <div style={{ color: "#8b949e", fontSize: "0.75rem" }}>
+                      <div className="text-text-secondary text-[0.75rem]">
                         DISPATCHED: {new Date(scan.created_at).toLocaleString()}
                       </div>
                     </div>
                   ))}
                   
                   {urlId && (
-                    <div style={{ padding: 16, textAlign: "center" }}>
-                      <Link to={`/target/${targetId}/url/${urlId}`} className="btn btn-ghost" style={{ fontSize: "0.75rem", width: "100%", textAlign: "center" }}>
+                    <div className="p-4 text-center">
+                      <Link to={`/target/${targetId}/url/${urlId}`} className="btn btn-ghost text-[0.75rem] w-full text-center">
                         VIEW DETAILED FINDINGS →
                       </Link>
                     </div>

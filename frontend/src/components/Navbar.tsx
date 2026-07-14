@@ -8,9 +8,8 @@ function Navbar() {
   return (
     <nav className="c2-navbar">
       <button
-        className="c2-navbar__logo"
+        className="c2-navbar__logo bg-transparent border-none cursor-pointer p-0"
         onClick={() => navigate('/')}
-        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
       >
         <span className="c2-navbar__mark">ASM</span>
         SKRpyASM

@@ -1,27 +1,41 @@
-import axios from 'axios';
-import { GLOBAL_CONFIG } from '../config';
+import {
+  CreateTargetDocument,
+  UpdateTargetDocument,
+  DeleteTargetDocument,
+} from '../gql/graphql';
+import type {
+  CreateTargetMutation,
+  UpdateTargetMutation,
+  DeleteTargetMutation,
+} from '../gql/graphql';
+import { executeGraphQL } from './gqlClient';
 import type { Target, CreateTargetPayload, UpdateTargetPayload } from '../type';
 
 // ==========================================
-// 1. Django API (Axios) - 負責 Target 寫入 (CUD)
+// 1. Target CRUD via Hasura GraphQL
 // ==========================================
-
-const djangoApi = axios.create({
-  baseURL: `${GLOBAL_CONFIG.DJANGO_API_BASE}/targets`, 
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
 
 export const TargetService = {
   create: async (payload: CreateTargetPayload) => {
-    return await djangoApi.post<Target>('/', payload);
+    const data = await executeGraphQL<CreateTargetMutation, { object: CreateTargetPayload }>(
+      CreateTargetDocument,
+      { object: payload },
+    );
+    return data.insert_core_target_one as unknown as Target;
   },
   update: async (id: number, payload: UpdateTargetPayload) => {
-    return await djangoApi.put<Target>(`/${id}`, payload);
+    const data = await executeGraphQL<UpdateTargetMutation, { id: number; updates: UpdateTargetPayload }>(
+      UpdateTargetDocument,
+      { id, updates: payload },
+    );
+    return data.update_core_target_by_pk as unknown as Target;
   },
   delete: async (id: number) => {
-    return await djangoApi.delete(`/${id}`);
+    const data = await executeGraphQL<DeleteTargetMutation, { id: number }>(
+      DeleteTargetDocument,
+      { id },
+    );
+    return data.delete_core_target_by_pk as unknown as Target;
   },
 };
 
@@ -30,6 +44,7 @@ export const TargetService = {
 // ==========================================
 
 export const gqlFetcher = async <T>(query: string, variables: any = {}): Promise<T> => {
+  const { GLOBAL_CONFIG } = await import('../config');
   try {
     const response = await fetch(GLOBAL_CONFIG.HASURA_GRAPHQL_URL, {
       method: 'POST',
@@ -54,7 +69,7 @@ export const gqlFetcher = async <T>(query: string, variables: any = {}): Promise
   }
 };
 
-// === Query Definitions ===
+// === Query Definitions (kept for gqlFetcher usage) ===
 
 // 用於首頁列表
 export const GET_TARGETS_QUERY = `
@@ -115,7 +130,6 @@ export const GET_TARGET_SUBDOMAINS_QUERY = `
     }
   }
 `;
-
 
 // 查詢目標的 IP 資產 (含埠號詳情)，支援動態 where/orderBy/分頁
 export const GET_TARGET_IPS_QUERY = `
@@ -207,4 +221,3 @@ export const GET_TARGET_URLS_QUERY = `
     }
   }
 `;
-

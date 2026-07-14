@@ -1,0 +1,18 @@
+# ===== Seed =====
+
+mutation AddSeed($object: core_seed_insert_input!) {
+  insert_core_seed_one(object: $object) {
+    id
+    target_id
+    value
+    type
+    is_active
+    created_at
+  }
+}
+
+mutation DeleteSeed($id: bigint!) {
+  delete_core_seed_by_pk(id: $id) {
+    id
+  }
+}

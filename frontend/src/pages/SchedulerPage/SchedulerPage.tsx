@@ -7,6 +7,8 @@ import {
   type RegisteredTask,
   type WatchdogStatus,
 } from '../../services/api_scheduler';
+import { useApiQuery } from '../../hooks/useApiQuery';
+import { useMutation } from '../../hooks/useMutation';
 import { TaskRow, DeleteConfirm } from './components/TaskRow';
 import { TaskForm, type FormState, DEFAULT_FORM, taskToForm } from './components/TaskForm';
 import WatchdogPanel from './components/WatchdogPanel';
@@ -20,9 +22,12 @@ import {
 // ─── page ──────────────────────────────────────────────────────
 
 export default function SchedulerPage() {
-  const [tasks, setTasks] = useState<PeriodicTask[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [pageError, setPageError] = useState<string | null>(null);
+  const { data: tasksData, loading, error: queryError, refetch: refetchTasks } = useApiQuery<PeriodicTask[]>(
+    () => SchedulerService.listTasks(),
+    []
+  );
+  const tasks = tasksData ?? [];
+  const pageError = queryError?.message ?? null;
   const [registeredTasks, setRegisteredTasks] = useState<RegisteredTask[]>([]);
 
   const [formMode, setFormMode] = useState<'hidden' | 'create' | 'edit'>('hidden');
@@ -34,22 +39,13 @@ export default function SchedulerPage() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [watchdogStatus, setWatchdogStatus] = useState<WatchdogStatus | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const loadTasks = useCallback(async () => {
-    setLoading(true);
-    setPageError(null);
-    try {
-      const data = await SchedulerService.listTasks();
-      setTasks(data);
-    } catch (e: unknown) {
-      setPageError(e instanceof Error ? e.message : 'Failed to load tasks');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const { mutate: deleteTask } = useMutation<void, number>(
+    (taskId: number) => SchedulerService.deleteTask(taskId),
+  );
 
   useEffect(() => {
-    void loadTasks();
     // 載入已登記的 Celery 任務（用於 task path datalist）
     SchedulerService.listRegisteredTasks()
       .then(data => setRegisteredTasks(data))
@@ -58,13 +54,13 @@ export default function SchedulerPage() {
     SchedulerService.getWatchdogStatus()
       .then(setWatchdogStatus)
       .catch(() => { /* non-critical */ });
-  }, [loadTasks]);
+  }, []);
 
   const handleToggle = async (task: PeriodicTask) => {
     setTogglingId(task.id);
     try {
-      const updated = await SchedulerService.updateTask(task.id, { enabled: !task.enabled });
-      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, enabled: updated.enabled } : t));
+      await SchedulerService.updateTask(task.id, { enabled: !task.enabled });
+      refetchTasks();
     } catch {
       // ignore
     } finally {
@@ -74,11 +70,12 @@ export default function SchedulerPage() {
 
   const handleDeleteConfirm = async (taskId: number) => {
     setDeletingId(taskId);
+    setDeleteError(null);
     try {
-      await SchedulerService.deleteTask(taskId);
-      setTasks(prev => prev.filter(t => t.id !== taskId));
+      await deleteTask(taskId);
+      refetchTasks();
     } catch (e: unknown) {
-      setPageError(e instanceof Error ? e.message : 'Delete failed');
+      setDeleteError(e instanceof Error ? e.message : 'Delete failed');
     } finally {
       setDeletingId(null);
       setDeleteConfirmId(null);
@@ -112,8 +109,8 @@ export default function SchedulerPage() {
           args: f.args,
           kwargs: f.kwargs,
         };
-        const created = await SchedulerService.createTask(payload);
-        setTasks(prev => [created, ...prev]);
+        await SchedulerService.createTask(payload);
+        refetchTasks();
         setFormMode('hidden');
       } else if (formMode === 'edit' && editingTask) {
         const payload: UpdateTaskPayload = {
@@ -135,8 +132,8 @@ export default function SchedulerPage() {
             month_of_year: f.crontabMoy,
           };
         }
-        const updated = await SchedulerService.updateTask(editingTask.id, payload);
-        setTasks(prev => prev.map(t => t.id === editingTask.id ? updated : t));
+        await SchedulerService.updateTask(editingTask.id, payload);
+        refetchTasks();
         setFormMode('hidden');
         setEditingTask(null);
       }
@@ -152,27 +149,21 @@ export default function SchedulerPage() {
   const enabledCount = tasks.filter(t => t.enabled).length;
 
   return (
-    <div style={{ maxWidth: 960, margin: '0 auto', padding: '0 20px 40px', paddingTop: 'calc(var(--navbar-height) + 24px)' }}>
+    <div className="max-w-[960px] mx-auto px-5 pb-10 pt-[calc(var(--navbar-height)+24px)]">
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+      <div className="flex justify-between items-start mb-5">
         <div>
-          <h1 style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: '1.1rem',
-            color: 'var(--text-green)',
-            margin: 0,
-            letterSpacing: '0.06em',
-          }}>
+          <h1 className="font-mono text-[1.1rem] text-green m-0 tracking-[0.06em]">
             CELERY SCHEDULER
           </h1>
           {!loading && (
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+            <p className="text-xs text-text-muted mt-1">
               {tasks.length} task{tasks.length !== 1 ? 's' : ''} · {enabledCount} enabled
             </p>
           )}
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="c2-btn c2-btn--sm" onClick={() => void loadTasks()} disabled={loading}>
+        <div className="flex gap-2">
+          <button className="c2-btn c2-btn--sm" onClick={() => void refetchTasks()} disabled={loading}>
             {loading ? 'Loading…' : '↺ Refresh'}
           </button>
           <button className="c2-btn" onClick={openCreate} disabled={formMode !== 'hidden'}>
@@ -197,20 +188,13 @@ export default function SchedulerPage() {
       <Dialog open={formMode !== 'hidden'} onOpenChange={(open) => { if (!open) { setFormMode('hidden'); setEditingTask(null); setFormError(null); } }}>
         <DialogContent className="bg-bg-elevated border-border-subtle text-text-primary max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-text-primary font-body" style={{ color: 'var(--text-green)', fontFamily: 'var(--font-mono)' }}>
+            <DialogTitle className="text-text-primary font-body text-green font-mono">
               {formMode === 'create' ? '+ New Task' : `Edit: ${editingTask?.name ?? ''}`}
             </DialogTitle>
           </DialogHeader>
 
           {formError && (
-            <div style={{
-              color: 'var(--red)',
-              fontSize: '0.82rem',
-              marginBottom: 8,
-              padding: '8px 12px',
-              border: '1px solid var(--red)',
-              borderRadius: 4,
-            }}>
+            <div className="text-red text-[0.82rem] mb-2 p-2 px-3 border border-red rounded">
               {formError}
             </div>
           )}
@@ -228,49 +212,28 @@ export default function SchedulerPage() {
       </Dialog>
 
       {/* Page-level error */}
-      {pageError && (
-        <div style={{
-          color: 'var(--red)',
-          fontSize: '0.85rem',
-          marginBottom: 16,
-          padding: '10px 14px',
-          border: '1px solid var(--red)',
-          borderRadius: 4,
-        }}>
-          {pageError}
+      {(pageError || deleteError) && (
+        <div className="text-red text-[0.85rem] mb-4 p-2.5 px-3.5 border border-red rounded">
+          {pageError || deleteError}
         </div>
       )}
 
       {/* Loading state */}
       {loading && (
-        <div style={{
-          textAlign: 'center',
-          padding: '48px 20px',
-          color: 'var(--text-muted)',
-          fontFamily: 'var(--font-mono)',
-          fontSize: '0.8rem',
-        }}>
+        <div className="text-center py-12 px-5 text-text-muted font-mono text-[0.8rem]">
           Loading tasks…
         </div>
       )}
 
       {/* Task list */}
       {!loading && tasks.length === 0 && !pageError && (
-        <div style={{
-          textAlign: 'center',
-          padding: '48px 20px',
-          color: 'var(--text-muted)',
-          fontFamily: 'var(--font-mono)',
-          fontSize: '0.8rem',
-          border: '1px dashed var(--border-color)',
-          borderRadius: 6,
-        }}>
+        <div className="text-center py-12 px-5 text-text-muted font-mono text-[0.8rem] border border-dashed border-border-normal rounded-md">
           No periodic tasks configured.
         </div>
       )}
 
       {!loading && tasks.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className="flex flex-col gap-2">
           {tasks.map(task => (
             <div key={task.id}>
               {deleteConfirmId === task.id && (
@@ -297,17 +260,10 @@ export default function SchedulerPage() {
 
       {/* Footer legend */}
       {!loading && tasks.length > 0 && (
-        <div style={{
-          marginTop: 20,
-          fontSize: '0.68rem',
-          color: 'var(--text-muted)',
-          fontFamily: 'var(--font-mono)',
-          display: 'flex',
-          gap: 16,
-        }}>
+        <div className="mt-5 text-[0.68rem] text-text-muted font-mono flex gap-4">
           <span>● enabled</span>
           <span>○ disabled</span>
-          <span style={{ marginLeft: 'auto' }}>
+          <span className="ml-auto">
             {tasks.filter(t => !t.enabled).length > 0
               ? `${tasks.filter(t => !t.enabled).length} task${tasks.filter(t => !t.enabled).length !== 1 ? 's' : ''} disabled`
               : 'all tasks enabled'}

@@ -88,30 +88,13 @@ export function TelemetryPanel({
   if (!hasData) {
     return (
       <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          height: '100%',
-          background: '#0f172a',
-          borderRight: '1px solid #1e293b',
-          overflowY: 'auto',
-        }}
+        className="flex flex-col h-full bg-[#0f172a] border-r border-border-subtle overflow-y-auto"
       >
         <div
-          style={{
-            padding: '16px 20px',
-            borderBottom: '2px solid #1e293b',
-            background: '#020617',
-          }}
+          className="px-5 py-4 border-b-2 border-border-subtle bg-[#020617]"
         >
           <h3
-            style={{
-              margin: 0,
-              fontSize: '0.9rem',
-              color: '#a78bfa',
-              fontWeight: 700,
-              letterSpacing: '0.05em',
-            }}
+            className="m-0 text-[0.9rem] text-purple font-bold tracking-wider"
           >
             ⚙️ SYSTEM GUIDE
           </h3>
@@ -124,73 +107,42 @@ export function TelemetryPanel({
   // Normal data view
   return (
     <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100%',
-        background: '#0f172a',
-        borderRight: '1px solid #1e293b',
-        overflowY: 'auto',
-      }}
+      className="flex flex-col h-full bg-[#0f172a] border-r border-border-subtle overflow-y-auto"
     >
       {/* Header */}
       <div
-        style={{
-          padding: '16px 20px',
-          borderBottom: '2px solid #1e293b',
-          background: '#020617',
-        }}
+        className="px-5 py-4 border-b-2 border-border-subtle bg-[#020617]"
       >
         <h3
-          style={{
-            margin: 0,
-            fontSize: '0.9rem',
-            color: '#22c55e',
-            fontWeight: 700,
-            letterSpacing: '0.05em',
-            textShadow: '0 0 8px rgba(34, 197, 94, 0.4)',
-          }}
+          className="m-0 text-[0.9rem] text-green font-bold tracking-wider"
+          style={{ textShadow: '0 0 8px rgba(34, 197, 94, 0.4)' }}
         >
           &gt; TELEMETRY
         </h3>
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, padding: '16px', overflowY: 'auto', minWidth: 0 }}>
+      <div className="flex-1 p-4 overflow-y-auto min-w-0">
         {/* Recent Overview Updates */}
         {recentOverviews && recentOverviews.length > 0 && (
-          <div style={{ marginBottom: '24px' }}>
+          <div className="mb-6">
             <div
-              style={{
-                color: '#fbbf24',
-                fontSize: '0.75rem',
-                fontWeight: 700,
-                marginBottom: '10px',
-                letterSpacing: '0.05em',
-                textTransform: 'uppercase',
-              }}
+              className="text-amber text-xs font-bold mb-[10px] tracking-wider uppercase"
             >
               Recent Overview Updates
             </div>
             <div
-              style={{
-                padding: '10px 12px',
-                background: 'rgba(34, 197, 94, 0.05)',
-                border: '1px dashed rgba(34, 197, 94, 0.35)',
-                borderRadius: '6px',
-                fontSize: '0.75rem',
-                color: '#94a3b8',
-              }}
+              className="px-3 py-[10px] bg-[rgba(34,197,94,0.05)] border border-dashed border-[rgba(34,197,94,0.35)] rounded-md text-xs text-text-secondary"
             >
               {recentOverviews.slice(0, 2).map((overview: any) => {
                 return (
-                  <div key={overview.id} style={{ marginBottom: '6px' }}>
+                  <div key={overview.id} className="mb-1.5">
                     <span style={{ color: overview.status === 'EXECUTING' ? '#fbbf24' : '#22c55e' }}>
                       {overview.core_target?.name || `Target#${overview.id}`}:
                     </span>{' '}
-                    <span style={{ color: '#94a3b8' }}>{overview.status}</span>
+                    <span className="text-text-secondary">{overview.status}</span>
                     {(overview.thread_id || overview.parent_thread_id) && (
-                      <div style={{ marginTop: 2, color: '#64748b', fontFamily: 'monospace' }}>
+                      <div className="mt-0.5 text-text-muted font-mono">
                         {(() => {
                           const originId = overview.parent_thread_id ?? overview.thread_id;
                           const originKey = originId != null ? String(originId) : null;
@@ -204,16 +156,7 @@ export function TelemetryPanel({
                               {originKey && onOpenThread && (
                                 <button
                                   onClick={() => onOpenThread(originKey)}
-                                  style={{
-                                    marginLeft: 8,
-                                    padding: '1px 6px',
-                                    fontSize: '0.7rem',
-                                    borderRadius: 4,
-                                    cursor: 'pointer',
-                                    background: 'transparent',
-                                    color: '#94a3b8',
-                                    border: '1px solid rgba(148, 163, 184, 0.35)',
-                                  }}
+                                  className="ml-2 px-1.5 py-px text-[0.7rem] rounded cursor-pointer bg-transparent text-text-secondary border border-border-subtle"
                                   title="Open originating chat thread"
                                 >
                                   Open chat
@@ -232,33 +175,23 @@ export function TelemetryPanel({
         )}
 
         {/* LLM Response Time */}
-        <div style={{ marginBottom: '24px' }}>
+        <div className="mb-6">
           <div
-            style={{
-              color: '#fbbf24',
-              fontSize: '0.75rem',
-              fontWeight: 700,
-              marginBottom: '8px',
-              letterSpacing: '0.05em',
-              textTransform: 'uppercase',
-            }}
+            className="text-amber text-xs font-bold mb-2 tracking-wider uppercase"
           >
             Response Time
           </div>
           {lastElapsedMs !== null ? (
             <>
               <div
+                className="text-[1.8rem] font-bold font-mono mb-2"
                 style={{
-                  fontSize: '1.8rem',
-                  fontWeight: 700,
                   color:
                     lastElapsedMs > 30000
                       ? '#ef4444'
                       : lastElapsedMs > 15000
                         ? '#f59e0b'
                         : '#10B981',
-                  fontFamily: 'monospace',
-                  marginBottom: '8px',
                 }}
               >
                 {lastElapsedMs >= 1000
@@ -266,16 +199,11 @@ export function TelemetryPanel({
                   : `${lastElapsedMs}ms`}
               </div>
               <div
-                style={{
-                  height: '4px',
-                  background: 'rgba(255,255,255,0.1)',
-                  borderRadius: '2px',
-                  overflow: 'hidden',
-                }}
+                className="h-1 bg-[rgba(255,255,255,0.1)] rounded-sm overflow-hidden"
               >
                 <div
+                  className="h-full rounded-sm"
                   style={{
-                    height: '100%',
                     width: `${Math.min((lastElapsedMs / 60000) * 100, 100)}%`,
                     background:
                       lastElapsedMs > 30000
@@ -283,42 +211,26 @@ export function TelemetryPanel({
                         : lastElapsedMs > 15000
                           ? '#f59e0b'
                           : '#10B981',
-                    borderRadius: '2px',
                     transition: 'width 0.5s ease',
                   }}
                 />
               </div>
             </>
           ) : (
-            <div style={{ color: '#4b5563', fontSize: '0.8rem' }}>-- Waiting for first message --</div>
+            <div className="text-text-muted text-[0.8rem]">-- Waiting for first message --</div>
           )}
         </div>
 
         {/* Target Info */}
         {boundTargetId && (
-          <div style={{ marginBottom: '24px' }}>
+          <div className="mb-6">
             <div
-              style={{
-                color: '#fbbf24',
-                fontSize: '0.75rem',
-                fontWeight: 700,
-                marginBottom: '8px',
-                letterSpacing: '0.05em',
-                textTransform: 'uppercase',
-              }}
+              className="text-amber text-xs font-bold mb-2 tracking-wider uppercase"
             >
               Bound Target
             </div>
             <div
-              style={{
-                padding: '8px 12px',
-                background: 'rgba(16,185,129,0.1)',
-                border: '1px solid rgba(16,185,129,0.3)',
-                borderRadius: '4px',
-                color: '#34d399',
-                fontSize: '0.85rem',
-                fontFamily: 'monospace',
-              }}
+              className="px-3 py-2 bg-[rgba(16,185,129,0.1)] border border-[rgba(16,185,129,0.3)] rounded text-green text-[0.85rem] font-mono"
             >
               🎯 ID: {boundTargetId}
             </div>
@@ -327,25 +239,14 @@ export function TelemetryPanel({
 
         {/* Execution Statistics */}
         {execStats.completed + execStats.failed + execStats.running + execStats.pending > 0 && (
-          <div style={{ marginBottom: '24px' }}>
+          <div className="mb-6">
             <div
-              style={{
-                color: '#fbbf24',
-                fontSize: '0.75rem',
-                fontWeight: 700,
-                marginBottom: '12px',
-                letterSpacing: '0.05em',
-                textTransform: 'uppercase',
-              }}
+              className="text-amber text-xs font-bold mb-3 tracking-wider uppercase"
             >
               Execution Summary
             </div>
             <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(2, 1fr)',
-                gap: '8px',
-              }}
+              className="grid grid-cols-2 gap-2"
             >
               {(
                 [
@@ -357,25 +258,16 @@ export function TelemetryPanel({
               ).map(([label, count, color]) => (
                 <div
                   key={label}
-                  style={{
-                    textAlign: 'center',
-                    padding: '8px',
-                    background: 'rgba(0,0,0,0.3)',
-                    borderRadius: '4px',
-                    border: `1px solid ${color}30`,
-                  }}
+                  className="text-center p-2 bg-[rgba(0,0,0,0.3)] rounded border border-solid"
+                  style={{ borderColor: `${color}30` }}
                 >
                   <div
-                    style={{
-                      fontSize: '1.2rem',
-                      fontWeight: 700,
-                      color: color,
-                      fontFamily: 'monospace',
-                    }}
+                    className="text-[1.2rem] font-bold font-mono"
+                    style={{ color }}
                   >
                     {count}
                   </div>
-                  <div style={{ fontSize: '0.65rem', color: '#6b7280', fontFamily: 'monospace' }}>
+                  <div className="text-[0.65rem] text-text-muted font-mono">
                     {label}
                   </div>
                 </div>
@@ -388,14 +280,7 @@ export function TelemetryPanel({
         {execStats.chartData.length > 0 && (
           <div>
             <div
-              style={{
-                color: '#fbbf24',
-                fontSize: '0.75rem',
-                fontWeight: 700,
-                marginBottom: '12px',
-                letterSpacing: '0.05em',
-                textTransform: 'uppercase',
-              }}
+              className="text-amber text-xs font-bold mb-3 tracking-wider uppercase"
             >
               Duration Chart
             </div>

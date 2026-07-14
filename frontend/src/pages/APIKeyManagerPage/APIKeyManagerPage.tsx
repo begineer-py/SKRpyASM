@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { GLOBAL_CONFIG } from '../../config';
-import './APIKeyManager.css';
+import { cn } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -56,15 +56,16 @@ function ServiceSelect({
 
   if (isCustom) {
     return (
-      <div className="service-select-wrapper">
+      <div className="flex gap-2 items-center mb-3">
         <input
+          className="flex-1 mb-0 w-full px-3 py-2.5 bg-slate-900 border border-slate-600 rounded-md text-slate-200 text-sm"
           type="text"
           placeholder="Type custom service name..."
           value={value}
           onChange={e => onChange(e.target.value)}
           autoFocus
         />
-        <button className="btn-back" onClick={() => { setIsCustom(false); onChange(''); }}>
+        <button className="px-2.5 py-1.5 bg-[#1e2937] border border-slate-600 rounded text-slate-400 text-[11px] cursor-pointer whitespace-nowrap hover:bg-slate-700 hover:text-slate-200" onClick={() => { setIsCustom(false); onChange(''); }}>
           ← BACK TO LIST
         </button>
       </div>
@@ -73,7 +74,7 @@ function ServiceSelect({
 
   return (
     <select
-      className="service-select"
+      className="w-full mb-3 px-3 py-2.5 bg-slate-900 border border-slate-600 rounded-md text-slate-200 text-sm cursor-pointer"
       value={value}
       onChange={e => {
         if (e.target.value === CUSTOM_OPTION) {
@@ -240,83 +241,94 @@ const APIKeyManagerPage: React.FC = () => {
     }
   };
 
+  const modalInputCls = "w-full mb-3 px-3 py-2.5 bg-slate-900 border border-slate-600 rounded-md text-slate-200 text-sm";
+  const modalLabelCls = "block text-[11px] text-slate-500 mb-1 mt-2 tracking-[0.5px]";
+
   return (
-    <div className="c2-page apikey-container">
-      <div className="apikey-header">
-        <div className="apikey-header-left">
-          <h1 className="apikey-title">
-            <span className="apikey-bracket">[</span>
+    <div className="pt-20 px-6 pb-6 max-w-[1400px] mx-auto text-slate-200 font-mono">
+      <div className="flex justify-between items-center mb-4">
+        <div className="flex flex-col">
+          <h1 className="text-[28px] font-bold tracking-[2px] m-0 text-slate-100">
+            <span className="text-slate-500">[</span>
             API_KEY_MANAGER
-            <span className="apikey-bracket">]</span>
+            <span className="text-slate-500">]</span>
           </h1>
-          <span className="apikey-subtitle">外部服務金鑰管理 — 多金鑰輪轉 / 配置下載</span>
+          <span className="text-[13px] text-slate-500 mt-1">外部服務金鑰管理 — 多金鑰輪轉 / 配置下載</span>
         </div>
-        <div className="apikey-actions">
-          <button className="btn btn-secondary" onClick={() => setShowBulkModal(true)}>
+        <div className="flex gap-3">
+          <button className="px-[18px] py-2 rounded-md text-[13px] font-semibold cursor-pointer border border-slate-600 transition-all duration-200 bg-[#1e2937] text-slate-200 hover:bg-slate-700" onClick={() => setShowBulkModal(true)}>
             📥 BULK IMPORT
           </button>
-          <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>
+          <button className="px-[18px] py-2 rounded-md text-[13px] font-semibold cursor-pointer border border-blue-500 transition-all duration-200 bg-blue-500 text-white hover:bg-blue-600" onClick={() => setShowAddModal(true)}>
             ＋ ADD KEY
           </button>
         </div>
       </div>
 
-      <div className="apikey-download-bar">
-        <span className="download-label">DOWNLOAD CONFIGS →</span>
-        <button className="btn-download" onClick={() => downloadConfig('subfinder')}>subfinder</button>
-        <button className="btn-download" onClick={() => downloadConfig('amass')}>amass</button>
-        <button className="btn-download" onClick={() => downloadConfig('gau')}>gau</button>
-        <button className="btn-download" onClick={() => downloadConfig('nuclei')}>nuclei</button>
+      <div className="bg-[#1e2937] border border-slate-600 rounded-lg px-5 py-3 mb-6 flex items-center gap-3 flex-wrap">
+        <span className="text-slate-500 text-xs mr-2">DOWNLOAD CONFIGS →</span>
+        <button className="px-3.5 py-1.5 bg-slate-900 border border-slate-600 rounded text-slate-400 text-xs cursor-pointer transition-all duration-200 hover:bg-[#1e2937] hover:text-slate-200 hover:border-blue-500" onClick={() => downloadConfig('subfinder')}>subfinder</button>
+        <button className="px-3.5 py-1.5 bg-slate-900 border border-slate-600 rounded text-slate-400 text-xs cursor-pointer transition-all duration-200 hover:bg-[#1e2937] hover:text-slate-200 hover:border-blue-500" onClick={() => downloadConfig('amass')}>amass</button>
+        <button className="px-3.5 py-1.5 bg-slate-900 border border-slate-600 rounded text-slate-400 text-xs cursor-pointer transition-all duration-200 hover:bg-[#1e2937] hover:text-slate-200 hover:border-blue-500" onClick={() => downloadConfig('gau')}>gau</button>
+        <button className="px-3.5 py-1.5 bg-slate-900 border border-slate-600 rounded text-slate-400 text-xs cursor-pointer transition-all duration-200 hover:bg-[#1e2937] hover:text-slate-200 hover:border-blue-500" onClick={() => downloadConfig('nuclei')}>nuclei</button>
       </div>
 
-      {loading && <div className="apikey-loading">LOADING KEYS FROM DB...</div>}
-      {error && <div className="apikey-error">⚠ {error}</div>}
+      {loading && <div className="text-center px-5 py-[60px] text-slate-500 text-sm">LOADING KEYS FROM DB...</div>}
+      {error && <div className="text-center px-5 py-[60px] text-red-500 text-sm">⚠ {error}</div>}
 
       {!loading && !error && services.length === 0 && (
-        <div className="apikey-empty">NO API KEYS CONFIGURED. ADD YOUR FIRST KEY ABOVE.</div>
+        <div className="text-center px-5 py-[60px] text-slate-500 text-sm">NO API KEYS CONFIGURED. ADD YOUR FIRST KEY ABOVE.</div>
       )}
 
-      <div className="apikey-services">
+      <div className="flex flex-col gap-3">
         {services.map(service => {
           const serviceKeys = groupedKeys[service];
           const activeCount = serviceKeys.filter(k => k.is_active).length;
           const isExpanded = selectedService === service;
 
           return (
-            <div key={service} className="service-card">
+            <div key={service} className="bg-[#1e2937] border border-slate-600 rounded-lg overflow-hidden">
               <div
-                className="service-header"
+                className="px-5 py-3.5 flex justify-between items-center cursor-pointer transition-colors duration-200 hover:bg-slate-700"
                 onClick={() => setSelectedService(isExpanded ? null : service)}
               >
-                <div className="service-info">
-                  <span className="service-name">{service.toUpperCase()}</span>
-                  <span className="service-count">{activeCount}/{serviceKeys.length} ACTIVE</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-base font-bold text-slate-100">{service.toUpperCase()}</span>
+                  <span className="text-xs px-2 py-0.5 bg-slate-900 rounded-full text-slate-500">{activeCount}/{serviceKeys.length} ACTIVE</span>
                 </div>
-                <div className="service-meta">
-                  <span className="service-total">{serviceKeys.length} keys</span>
-                  <span className="service-arrow">{isExpanded ? '▼' : '▶'}</span>
+                <div className="flex items-center gap-3 text-slate-500 text-[13px]">
+                  <span>{serviceKeys.length} keys</span>
+                  <span className="text-[11px]">{isExpanded ? '▼' : '▶'}</span>
                 </div>
               </div>
 
               {isExpanded && (
-                <div className="service-keys">
+                <div className="border-t border-slate-600 bg-slate-900">
                   {serviceKeys.map(key => (
-                    <div key={key.id} className={`key-row ${!key.is_active ? 'inactive' : ''}`}>
-                      <div className="key-main">
-                        <span className="key-masked" onClick={() => handleCopy(key.key_value, key.id)}>
+                    <div key={key.id} className={cn(
+                      "px-5 py-3 flex justify-between items-center border-b border-slate-600 last:border-b-0",
+                      !key.is_active && "opacity-60"
+                    )}>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-mono text-slate-400 cursor-pointer text-sm relative hover:text-slate-200" onClick={() => handleCopy(key.key_value, key.id)}>
                           {maskKey(key.key_value)}
-                          {copiedId === key.id && <span className="copied">COPIED!</span>}
+                          {copiedId === key.id && <span className="absolute left-full ml-2 text-green-500 text-[11px]">COPIED!</span>}
                         </span>
-                        {key.description && <span className="key-desc">{key.description}</span>}
+                        {key.description && <span className="text-xs text-slate-500">{key.description}</span>}
                       </div>
-                      <div className="key-actions">
+                      <div className="flex gap-2">
                         <button
-                          className={`btn-toggle ${key.is_active ? 'active' : ''}`}
+                          className={cn(
+                            "px-2.5 py-1 text-[11px] rounded border cursor-pointer",
+                            key.is_active
+                              ? "bg-green-800 text-green-300 border-green-800"
+                              : "border-slate-600 bg-[#1e2937] text-slate-500"
+                          )}
                           onClick={() => handleToggleActive(key)}
                         >
                           {key.is_active ? 'ACTIVE' : 'INACTIVE'}
                         </button>
-                        <button className="btn-icon" onClick={() => handleDelete(key.id, service)}>🗑</button>
+                        <button className="bg-transparent border-none text-slate-500 cursor-pointer text-sm px-1.5 py-0.5 hover:text-red-500" onClick={() => handleDelete(key.id, service)}>🗑</button>
                       </div>
                     </div>
                   ))}
@@ -334,23 +346,25 @@ const APIKeyManagerPage: React.FC = () => {
             <DialogTitle className="text-text-primary font-body">ADD NEW API KEY</DialogTitle>
           </DialogHeader>
 
-          <label className="modal-label">SERVICE NAME</label>
+          <label className={modalLabelCls}>SERVICE NAME</label>
           <ServiceSelect
             value={newKey.service_name}
             onChange={v => setNewKey({ ...newKey, service_name: v })}
             placeholder="Select a service…"
           />
 
-          <label className="modal-label">API KEY VALUE</label>
+          <label className={modalLabelCls}>API KEY VALUE</label>
           <input
+            className={modalInputCls}
             type="text"
             placeholder="Paste your API key here"
             value={newKey.key_value}
             onChange={e => setNewKey({ ...newKey, key_value: e.target.value })}
           />
 
-          <label className="modal-label">DESCRIPTION (optional)</label>
+          <label className={modalLabelCls}>DESCRIPTION (optional)</label>
           <input
+            className={modalInputCls}
             type="text"
             placeholder="e.g. Shodan API (Premium)"
             value={newKey.description}
@@ -371,15 +385,16 @@ const APIKeyManagerPage: React.FC = () => {
             <DialogTitle className="text-text-primary font-body">BULK IMPORT KEYS</DialogTitle>
           </DialogHeader>
 
-          <label className="modal-label">SERVICE NAME</label>
+          <label className={modalLabelCls}>SERVICE NAME</label>
           <ServiceSelect
             value={bulkService}
             onChange={setBulkService}
             placeholder="Select a service…"
           />
 
-          <label className="modal-label">KEYS (ONE PER LINE)</label>
+          <label className={modalLabelCls}>KEYS (ONE PER LINE)</label>
           <textarea
+            className="w-full mb-3 px-3 py-2.5 bg-slate-900 border border-slate-600 rounded-md text-slate-200 text-sm resize-y min-h-[120px]"
             placeholder="key1&#10;key2&#10;key3"
             value={bulkText}
             onChange={e => setBulkText(e.target.value)}

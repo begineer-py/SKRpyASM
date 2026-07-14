@@ -51,59 +51,15 @@ function formatPurpose(purpose: Record<string, unknown>): string {
 
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
-const panelStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 12,
-  padding: 14,
-  background: 'rgba(255,255,255,0.015)',
-  border: '1px solid rgba(255,255,255,0.06)',
-  borderRadius: 6,
-  marginTop: 6,
-};
+const panelClass = "flex flex-col gap-3 p-3.5 bg-white/[0.015] border border-white/[0.06] rounded-md mt-1.5";
 
-const sectionLabelStyle: React.CSSProperties = {
-  fontSize: '0.65rem',
-  fontWeight: 700,
-  letterSpacing: '0.1em',
-  color: '#64748b',
-  textTransform: 'uppercase',
-  marginBottom: 4,
-};
+const sectionLabelClass = "text-[0.65rem] font-bold tracking-[0.1em] text-[#64748b] uppercase mb-1";
 
-const preStyle: React.CSSProperties = {
-  margin: 0,
-  padding: '8px 12px',
-  background: 'rgba(0,0,0,0.4)',
-  color: '#e2e8f0',
-  borderRadius: 4,
-  fontSize: '0.72rem',
-  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-  overflow: 'auto',
-  maxHeight: 200,
-  whiteSpace: 'pre-wrap',
-  wordBreak: 'break-word',
-  lineHeight: 1.5,
-};
+const preClass = "m-0 p-2 px-3 bg-black/40 text-[#e2e8f0] rounded text-[0.72rem] font-mono overflow-auto max-h-[200px] whitespace-pre-wrap break-words leading-[1.5]";
 
-const resultBoxStyle: React.CSSProperties = {
-  padding: '8px 12px',
-  background: 'rgba(15,23,42,0.6)',
-  border: '1px solid rgba(148,163,184,0.12)',
-  borderRadius: 4,
-  color: '#cbd5e1',
-  fontSize: '0.78rem',
-  lineHeight: 1.5,
-  whiteSpace: 'pre-wrap',
-};
+const resultBoxClass = "p-2 px-3 bg-[rgba(15,23,42,0.6)] border border-border-subtle rounded text-[#cbd5e1] text-[0.78rem] leading-[1.5] whitespace-pre-wrap";
 
-const timestampRowStyle: React.CSSProperties = {
-  display: 'flex',
-  gap: 16,
-  fontSize: '0.7rem',
-  color: '#475569',
-  flexWrap: 'wrap',
-};
+const timestampRowClass = "flex gap-4 text-[0.7rem] text-[#475569] flex-wrap";
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
@@ -122,39 +78,39 @@ export default function ActionDetail({ action }: ActionDetailProps) {
   const purposeStr = formatPurpose(action.purpose);
 
   return (
-    <div style={panelStyle}>
+    <div className={panelClass}>
       {/* Purpose JSON */}
       {purposeStr && (
         <div>
-          <div style={sectionLabelStyle}>PURPOSE</div>
-          <pre style={preStyle}>{purposeStr}</pre>
+          <div className={sectionLabelClass}>PURPOSE</div>
+          <pre className={preClass}>{purposeStr}</pre>
         </div>
       )}
 
       {/* Result summary */}
       {action.result_summary && (
         <div>
-          <div style={sectionLabelStyle}>RESULT</div>
-          <div style={resultBoxStyle}>{action.result_summary}</div>
+          <div className={sectionLabelClass}>RESULT</div>
+          <div className={resultBoxClass}>{action.result_summary}</div>
         </div>
       )}
 
       {/* Asset links */}
       {action.asset_links.length > 0 && (
         <div>
-          <div style={sectionLabelStyle}>ASSET LINKS ({action.asset_links.length})</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div className={sectionLabelClass}>ASSET LINKS ({action.asset_links.length})</div>
+          <div className="flex flex-col gap-1">
             {action.asset_links.map((link) => {
               const assetId = assetIdForLink(link);
               return (
                 <div
                   key={link.id}
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.75rem' }}
+                  className="flex items-center gap-2 text-xs"
                 >
                   <span style={{ ...pillBase, ...ASSET_LINK_STATUS_STYLE[link.status] }}>
                     {link.status}
                   </span>
-                  <code style={{ color: '#a5f3fc', background: 'rgba(0,0,0,0.4)', padding: '1px 6px', borderRadius: 3, fontSize: '0.7rem' }}>
+                  <code className="text-[#a5f3fc] bg-black/40 px-1.5 py-px rounded text-[0.7rem]">
                     {link.asset_type}#{assetId ?? '?'}
                   </code>
                   {link.agent_role && (
@@ -163,7 +119,7 @@ export default function ActionDetail({ action }: ActionDetailProps) {
                     </span>
                   )}
                   {link.last_result && (
-                    <span style={{ color: '#475569', fontSize: '0.7rem', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 200, whiteSpace: 'nowrap' }}>
+                    <span className="text-[#475569] text-[0.7rem] overflow-hidden text-ellipsis max-w-[200px] whitespace-nowrap">
                       {link.last_result}
                     </span>
                   )}
@@ -177,8 +133,8 @@ export default function ActionDetail({ action }: ActionDetailProps) {
       {/* Attack vectors */}
       {action.attack_vectors.length > 0 && (
         <div>
-          <div style={sectionLabelStyle}>ATTACK VECTORS ({action.attack_vectors.length})</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <div className={sectionLabelClass}>ATTACK VECTORS ({action.attack_vectors.length})</div>
+          <div className="flex flex-col gap-0.5">
             {action.attack_vectors.map((v) => (
               <AttackVectorDisplay key={v.id} vector={v} />
             ))}
@@ -188,22 +144,12 @@ export default function ActionDetail({ action }: ActionDetailProps) {
 
       {/* Execution graph link */}
       {action.execution_graph_id && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={sectionLabelStyle}>EXECUTION GRAPH</span>
+        <div className="flex items-center gap-2">
+          <span className={sectionLabelClass}>EXECUTION GRAPH</span>
           <button
             type="button"
             onClick={() => navigate(`/execution-monitor?graph=${action.execution_graph_id}`)}
-            style={{
-              background: 'transparent',
-              border: '1px solid rgba(0,255,0,0.3)',
-              color: '#00ff00',
-              padding: '2px 10px',
-              borderRadius: 3,
-              fontSize: '0.65rem',
-              fontWeight: 700,
-              letterSpacing: '0.08em',
-              cursor: 'pointer',
-            }}
+            className="bg-transparent border border-green/30 text-green py-0.5 px-2.5 rounded text-[0.65rem] font-bold tracking-[0.08em] cursor-pointer"
           >
             VIEW GRAPH #{action.execution_graph_id} ↗
           </button>
@@ -212,13 +158,13 @@ export default function ActionDetail({ action }: ActionDetailProps) {
 
       {/* Agent info */}
       {action.agent_role && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={sectionLabelStyle}>AGENT</span>
+        <div className="flex items-center gap-2">
+          <span className={sectionLabelClass}>AGENT</span>
           <span style={{ ...pillBase, color: '#8b5cf6', background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)' }}>
             {action.agent_role}
           </span>
           {action.agent_thread_id && (
-            <code style={{ color: '#94a3b8', fontSize: '0.7rem' }}>
+            <code className="text-[#94a3b8] text-[0.7rem]">
               thread #{action.agent_thread_id}
             </code>
           )}
@@ -226,7 +172,7 @@ export default function ActionDetail({ action }: ActionDetailProps) {
       )}
 
       {/* Timestamps */}
-      <div style={timestampRowStyle}>
+      <div className={timestampRowClass}>
         <span>Created: {formatTimestamp(action.created_at)}</span>
         {action.started_at && <span>Started: {formatTimestamp(action.started_at)}</span>}
         {action.completed_at && <span>Completed: {formatTimestamp(action.completed_at)}</span>}

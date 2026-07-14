@@ -47,7 +47,7 @@ export default function TechStackCVEReport({ targetId }: TechStackCVEReportProps
 
   if (loading) {
     return (
-      <div style={{ padding: 20, color: 'var(--text-muted)', textAlign: 'center' }}>
+      <div className="p-5 text-text-muted text-center">
         Loading CVE report...
       </div>
     );
@@ -55,8 +55,8 @@ export default function TechStackCVEReport({ targetId }: TechStackCVEReportProps
 
   if (error) {
     return (
-      <div style={{ padding: 20 }}>
-        <div style={{ color: 'var(--red)', marginBottom: 12 }}>Error: {error}</div>
+      <div className="p-5">
+        <div className="text-red mb-3">Error: {error}</div>
         <button className="c2-btn c2-btn--sm" onClick={fetchReport}>
           Retry
         </button>
@@ -69,8 +69,8 @@ export default function TechStackCVEReport({ targetId }: TechStackCVEReportProps
   return (
     <div>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <h3 style={{ fontFamily: 'var(--font-mono)', fontSize: '1rem', color: 'var(--text-green)' }}>
+      <div className="flex justify-between items-center mb-5">
+        <h3 className="font-mono text-base text-green">
           TECHSTACK CVE REPORT
         </h3>
         <button
@@ -83,48 +83,47 @@ export default function TechStackCVEReport({ targetId }: TechStackCVEReportProps
       </div>
 
       {/* Statistics */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12, marginBottom: 20 }}>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-3 mb-5">
         <div className="c2-stat">
           <div className="c2-stat__value">{report.total_cves}</div>
           <div className="c2-stat__label">Total CVEs</div>
         </div>
         <div className="c2-stat">
-          <div className="c2-stat__value" style={{ color: 'var(--red)' }}>{report.critical_count}</div>
+          <div className="c2-stat__value text-red">{report.critical_count}</div>
           <div className="c2-stat__label">Critical</div>
         </div>
         <div className="c2-stat">
-          <div className="c2-stat__value" style={{ color: 'var(--amber)' }}>{report.high_count}</div>
+          <div className="c2-stat__value text-amber">{report.high_count}</div>
           <div className="c2-stat__label">High</div>
         </div>
         <div className="c2-stat">
-          <div className="c2-stat__value" style={{ color: 'var(--red)' }}>{report.kev_count}</div>
+          <div className="c2-stat__value text-red">{report.kev_count}</div>
           <div className="c2-stat__label">CISA KEV</div>
         </div>
       </div>
 
       {/* Top CVEs */}
       {report.top_cves.length === 0 ? (
-        <div className="c2-card" style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>
+        <div className="c2-card p-5 text-center text-text-muted">
           No CVEs found for this target's tech stack.
           <br />
           <small>Run technology detection scans first.</small>
         </div>
       ) : (
         <div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 12 }}>
+          <div className="text-xs text-text-muted mb-3">
             TOP HIGH-RISK CVEs:
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div className="flex flex-col gap-2">
             {report.top_cves.map((mapping, idx) => (
               <div
                 key={idx}
-                className="c2-card"
-                style={{ padding: 12 }}
+                className="c2-card p-3"
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-cyan)' }}>
+                <div className="flex justify-between items-start mb-2">
+                  <div className="flex-1">
+                    <div className="flex gap-2 items-center mb-1">
+                      <span className="font-mono text-[0.85rem] font-semibold text-text-cyan">
                         {mapping.cve_id}
                       </span>
                       <CVESeverityBadge
@@ -133,17 +132,17 @@ export default function TechStackCVEReport({ targetId }: TechStackCVEReportProps
                         exploitAvailable={mapping.exploit_available}
                       />
                     </div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    <div className="text-xs text-text-secondary">
                       Tech: <strong>{mapping.techstack_name}</strong> {mapping.techstack_version || ''}
                     </div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
+                  <div className="text-right">
                     {mapping.cvss_score && (
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                        CVSS: <strong style={{ color: 'var(--text-primary)' }}>{mapping.cvss_score.toFixed(1)}</strong>
+                      <div className="text-xs text-text-muted">
+                        CVSS: <strong className="text-text-primary">{mapping.cvss_score.toFixed(1)}</strong>
                       </div>
                     )}
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                    <div className="text-[0.7rem] text-text-muted">
                       Match: {(mapping.confidence * 100).toFixed(0)}%
                     </div>
                   </div>

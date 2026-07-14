@@ -1,11 +1,6 @@
-import axios from 'axios';
-import { GLOBAL_CONFIG } from '../config';
+import { createApiClient } from './apiClient';
 
-const cveApi = axios.create({
-  baseURL: `${GLOBAL_CONFIG.DJANGO_API_BASE}/scanners/cve`,
-  headers: { 'Content-Type': 'application/json' },
-  timeout: 15000,
-});
+const cveApi = createApiClient('scanners/cve');
 
 // ===== 类型定义 =====
 export interface CVEIntelligence {

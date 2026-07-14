@@ -1,14 +1,10 @@
 
+// Vite 只暴露 VITE_ 前綴的環境變數（舊的 REACT_APP_ 前綴會被忽略）
+// fallback 值對齊 docker-compose.yml 的 HASURA_GRAPHQL_ADMIN_SECRET，方便本機快速啟動
+const FALLBACK_SECRET = 'YourSuperStrongAdminSecretHere';
 
 export const GLOBAL_CONFIG = {
-    // Django 後端地址 (寫入操作)
-    DJANGO_API_BASE: 'http://127.0.0.1:8000/api',
-  
-    // Hasura GraphQL 地址 (讀取操作)
-    HASURA_GRAPHQL_URL: 'http://127.0.0.1:8085/v1/graphql',
-  
-    // Hasura Admin Secret
-    // 注意：這必須與你 docker-compose.yml 中 HASURA_GRAPHQL_ADMIN_SECRET 的值完全一致
-    // 為了方便開發者直接啟動，我們預設使用這個簡單的密鑰
-    HASURA_ADMIN_SECRET: 'YourSuperStrongAdminSecretHere',
-  };
+    DJANGO_API_BASE: `${window.location.origin}/api`,
+    HASURA_GRAPHQL_URL: `${window.location.origin}/graphql`,
+    HASURA_ADMIN_SECRET: import.meta.env.VITE_HASURA_ADMIN_SECRET ?? FALLBACK_SECRET,
+};

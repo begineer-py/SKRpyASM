@@ -112,16 +112,7 @@ export default function TestTab({ skillId }: Props) {
   if (!skillId) {
     return (
       <div className="test-tab">
-        <div
-          style={{
-            padding: '16px 20px',
-            background: 'rgba(239, 68, 68, 0.08)',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
-            borderRadius: 6,
-            color: '#fca5a5',
-            fontSize: 14,
-          }}
-        >
+        <div className="px-5 py-4 bg-[rgba(239,68,68,0.08)] border border-[rgba(239,68,68,0.3)] rounded-md text-[#fca5a5] text-sm">
           ⚠ Save the skill first before testing.
         </div>
       </div>
@@ -131,36 +122,25 @@ export default function TestTab({ skillId }: Props) {
   return (
     <div className="test-tab">
       {/* Info banner */}
-      <div
-        style={{
-          padding: '14px 16px',
-          marginBottom: 16,
-          background: 'rgba(167, 139, 250, 0.06)',
-          border: '1px solid rgba(167, 139, 250, 0.22)',
-          borderRadius: 6,
-          color: '#cbd5e1',
-          fontSize: 12.5,
-          lineHeight: 1.6,
-        }}
-      >
-        <div style={{ color: '#a78bfa', fontWeight: 600, marginBottom: 6 }}>
+      <div className="py-[14px] px-4 mb-4 bg-[rgba(167,139,250,0.06)] border border-[rgba(167,139,250,0.22)] rounded-md text-[#cbd5e1] text-[12.5px] leading-[1.6]">
+        <div className="text-[#a78bfa] font-semibold mb-[6px]">
           ℹ How testing works
         </div>
-        <ul style={{ margin: 0, paddingLeft: 18 }}>
+        <ul className="m-0 pl-[18px]">
           <li>
             The fields below are auto-filled from your <strong>input schema</strong>. Fill in real
-            values (e.g. <code style={{ color: '#22C55E' }}>{"\"https://target.com\""}</code>).
+            values (e.g. <code className="text-green">{'"https://target.com"'}</code>).
           </li>
           <li>
             These values are passed <strong>directly</strong> to the script as{' '}
-            <code style={{ color: '#22C55E' }}>inputs.field_name</code>.
+            <code className="text-green">inputs.field_name</code>.
           </li>
           <li>
-            If you clear everything to <code style={{ color: '#a78bfa' }}>{'{}'}</code>, the AI
+            If you clear everything to <code className="text-[#a78bfa]">{'{}'}</code>, the AI
             auto-generates test input from your schema.
           </li>
           <li>
-            The script runs in the <code style={{ color: '#22C55E' }}>c2_kali_sandbox</code> Docker
+            The script runs in the <code className="text-green">c2_kali_sandbox</code> Docker
             container — ensure it's running.
           </li>
           <li>An LLM evaluates the output against your output schema to produce a verdict.</li>
@@ -169,7 +149,7 @@ export default function TestTab({ skillId }: Props) {
 
       <div>
         <div className="test-input-label">Test Input Example (JSON)</div>
-        <div className="test-editor-wrapper" style={{ height: 200 }}>
+        <div className="test-editor-wrapper h-[200px]">
           <Editor
             height="100%"
             language="json"
@@ -188,17 +168,7 @@ export default function TestTab({ skillId }: Props) {
           />
         </div>
         {parseError && (
-          <div
-            style={{
-              marginTop: 8,
-              padding: '8px 12px',
-              background: 'rgba(239, 68, 68, 0.1)',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
-              borderRadius: 4,
-              color: '#fca5a5',
-              fontSize: 12.5,
-            }}
-          >
+          <div className="mt-2 px-3 py-2 bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.3)] rounded text-[#fca5a5] text-[12.5px]">
             {parseError}
           </div>
         )}
@@ -212,61 +182,43 @@ export default function TestTab({ skillId }: Props) {
         <div className={`test-result-box ${result.ok ? 'ok' : 'fail'}`}>
           {/* Error block (priority) */}
           {result.error && (
-            <div
-              style={{
-                padding: '10px 12px',
-                marginBottom: 12,
-                background: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.35)',
-                borderRadius: 4,
-                color: '#fca5a5',
-                fontSize: 12.5,
-              }}
-            >
+            <div className="px-3 py-[10px] mb-3 bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.35)] rounded text-[#fca5a5] text-[12.5px]">
               <strong>Error:</strong> {result.error}
             </div>
           )}
 
           {/* Verdict */}
           {result.verdict && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+            <div className="flex items-center gap-[10px] mb-2">
               <span
-                style={{
-                  display: 'inline-block',
-                  padding: '3px 10px',
-                  borderRadius: 4,
-                  fontSize: 12,
-                  fontWeight: 700,
-                  letterSpacing: 0.5,
-                  color: '#0b0f1a',
-                  background: VERDICT_COLOR[result.verdict] || '#667085',
-                }}
+                className="inline-block px-[10px] py-[3px] rounded text-[12px] font-bold tracking-[0.5px] text-[#0b0f1a]"
+                style={{ background: VERDICT_COLOR[result.verdict] || '#667085' }}
               >
                 {result.verdict}
               </span>
-              <span style={{ color: '#667085', fontSize: 12.5 }}>
+              <span className="text-text-muted text-[12.5px]">
                 {VERDICT_EXPLANATION[result.verdict] || ''}
               </span>
             </div>
           )}
 
           {/* Metrics row */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, marginTop: 8, fontSize: 12.5 }}>
+          <div className="flex flex-wrap gap-[18px] mt-2 text-[12.5px]">
             {result.confidence !== null && result.confidence !== undefined && (
               <div>
-                <span style={{ color: '#667085' }}>Confidence: </span>
-                <span style={{ color: '#e2e8f0', fontWeight: 600 }}>
+                <span className="text-text-muted">Confidence: </span>
+                <span className="text-[#e2e8f0] font-semibold">
                   {Math.round(result.confidence)}%
                 </span>
               </div>
             )}
             <div>
-              <span style={{ color: '#667085' }}>Duration: </span>
-              <span style={{ color: '#e2e8f0' }}>{formatDuration(result.duration_ms)}</span>
+              <span className="text-text-muted">Duration: </span>
+              <span className="text-[#e2e8f0]">{formatDuration(result.duration_ms)}</span>
             </div>
             <div>
-              <span style={{ color: '#667085' }}>Exit code: </span>
-              <span style={{ color: '#e2e8f0' }}>
+              <span className="text-text-muted">Exit code: </span>
+              <span className="text-[#e2e8f0]">
                 {result.exit_code !== null && result.exit_code !== undefined
                   ? result.exit_code
                   : '-'}
@@ -276,34 +228,15 @@ export default function TestTab({ skillId }: Props) {
 
           {/* Agent notes (collapsible) */}
           {result.agent_notes && (
-            <div style={{ marginTop: 12 }}>
+            <div className="mt-3">
               <button
                 onClick={() => setShowAgentNotes(s => !s)}
-                style={{
-                  background: 'transparent',
-                  border: '1px solid rgba(148,163,184,0.14)',
-                  color: '#a78bfa',
-                  padding: '4px 10px',
-                  borderRadius: 4,
-                  cursor: 'pointer',
-                  fontSize: 12,
-                }}
+                className="bg-transparent border border-border-subtle text-[#a78bfa] px-[10px] py-[4px] rounded cursor-pointer text-[12px]"
               >
                 {showAgentNotes ? '▼' : '▶'} LLM Evaluation Notes
               </button>
               {showAgentNotes && (
-                <div
-                  style={{
-                    marginTop: 8,
-                    padding: '10px 12px',
-                    background: 'rgba(0,0,0,0.3)',
-                    border: '1px solid rgba(148,163,184,0.14)',
-                    borderRadius: 4,
-                    color: '#667085',
-                    fontSize: 12.5,
-                    whiteSpace: 'pre-wrap',
-                  }}
-                >
+                <div className="mt-2 px-3 py-[10px] bg-[rgba(0,0,0,0.3)] border border-border-subtle rounded text-text-muted text-[12.5px] whitespace-pre-wrap">
                   {result.agent_notes}
                 </div>
               )}
@@ -312,38 +245,15 @@ export default function TestTab({ skillId }: Props) {
 
           {/* Raw output (collapsible) */}
           {result.raw_output && (
-            <div style={{ marginTop: 12 }}>
+            <div className="mt-3">
               <button
                 onClick={() => setShowRawOutput(s => !s)}
-                style={{
-                  background: 'transparent',
-                  border: '1px solid rgba(148,163,184,0.14)',
-                  color: '#22C55E',
-                  padding: '4px 10px',
-                  borderRadius: 4,
-                  cursor: 'pointer',
-                  fontSize: 12,
-                }}
+                className="bg-transparent border border-border-subtle text-green px-[10px] py-[4px] rounded cursor-pointer text-[12px]"
               >
                 {showRawOutput ? '▼' : '▶'} Raw Output
               </button>
               {showRawOutput && (
-                <pre
-                  style={{
-                    marginTop: 8,
-                    padding: '10px 12px',
-                    background: 'rgba(0,0,0,0.45)',
-                    border: '1px solid rgba(148,163,184,0.14)',
-                    borderRadius: 4,
-                    color: '#cbd5e1',
-                    fontFamily: "'JetBrains Mono', monospace",
-                    fontSize: 11.5,
-                    maxHeight: 320,
-                    overflow: 'auto',
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
-                  }}
-                >
+                <pre className="mt-2 px-3 py-[10px] bg-[rgba(0,0,0,0.45)] border border-border-subtle rounded text-[#cbd5e1] font-mono text-[11.5px] max-h-[320px] overflow-auto whitespace-pre-wrap break-words">
                   {result.raw_output}
                 </pre>
               )}
