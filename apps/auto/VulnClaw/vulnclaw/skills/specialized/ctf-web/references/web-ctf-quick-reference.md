@@ -64,7 +64,7 @@ th1s_1s_flag.php
    → /console (Flask Debug), /actuator (Spring Boot)
 
 4. 如有源码 → 代码审计
-   → 参考 php-code-audit-checklist.md
+   → 参考 `search_skills("php code audit")`
 
 5. 如无源码 → 主动探测
    → SQL 注入测试

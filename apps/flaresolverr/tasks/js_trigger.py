@@ -1,10 +1,8 @@
 # --- 全局變數，用來存放模型 ---
 
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
 from c2_core.config.utils import sanitize_for_db
 from c2_core.config.config import Config
 from apps.flaresolverr.security_parser import SecurityAnalyzer
-import torch
 import chompjs
 import logging
 import sys
@@ -24,6 +22,16 @@ from apps.flaresolverr.utils import (
 import json
 from apps.flaresolverr.json_object.js_json_extractor import JSJsonExtractor
 
+try:
+    import torch
+    from transformers import AutoModelForSequenceClassification, AutoTokenizer
+    _ML_AVAILABLE = True
+except ImportError:
+    torch = None
+    AutoModelForSequenceClassification = None
+    AutoTokenizer = None
+    _ML_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 # Model imports
@@ -37,12 +45,15 @@ AI_MODEL = None
 @worker_process_init.connect
 def init_ai_model(**kwargs):
     global DEVICE, AI_MODEL, AI_TOKENIZER
+    if not _ML_AVAILABLE:
+        logger.info("[!] torch/transformers 未安裝，跳過 AI 模型加載（fallback 模式）")
+        return
+
     cmd_args = " ".join(sys.argv)
     if "ai_queue" not in cmd_args:
         logger.info("[!] 跳過 AI 模型加載 (非 AI Worker)")
         return
 
-    # fork 之後才偵測 CUDA，避免在 parent process 初始化 CUDA context
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     logger.info(f"[*] Celery Worker 啟動，正在將 AI 模型加載至 {DEVICE}...")
     AI_TOKENIZER = AutoTokenizer.from_pretrained(MODEL_PATH)
@@ -224,16 +235,20 @@ def ai_scan(object_id, source_type, data, fk_kwargs):
         results = []
         batch_size = 50
 
-        # 檢查模型是否加載
         global AI_MODEL, AI_TOKENIZER, DEVICE
         if AI_MODEL is None:
-            # Fallback: 如果這是在同步模式或非 AI Worker 上跑，嘗試臨時加載
-            logger.warning("AI Model not loaded globally, loading temporarily...")
-            AI_TOKENIZER = AutoTokenizer.from_pretrained(MODEL_PATH)
-            AI_MODEL = AutoModelForSequenceClassification.from_pretrained(
-                MODEL_PATH
-            ).to(DEVICE)
-            AI_MODEL.eval()
+            if not _ML_AVAILABLE:
+                logger.warning("torch/transformers 未安裝，JS 打分使用 fallback（均分 0.5）")
+                for node in nodes_to_scan:
+                    node["score"] = 0.5
+                    results.append(node)
+            else:
+                logger.warning("AI Model not loaded globally, loading temporarily...")
+                AI_TOKENIZER = AutoTokenizer.from_pretrained(MODEL_PATH)  # type: ignore[union-attr]
+                AI_MODEL = AutoModelForSequenceClassification.from_pretrained(  # type: ignore[union-attr]
+                    MODEL_PATH
+                ).to(DEVICE)
+                AI_MODEL.eval()
 
         for i in range(0, len(nodes_to_scan), batch_size):
             batch = nodes_to_scan[i : i + batch_size]

@@ -165,6 +165,12 @@ def get_llm_instance(
                         "get_llm_instance: Step 3 (DEEPSEEK_API_KEY): %s",
                         "***set***" if os.environ.get("DEEPSEEK_API_KEY") else "not set",
                     )
+                elif provider == "opencode":
+                    api_key = os.environ.get("OPENCODE_API_KEY") or api_key
+                    logger.debug(
+                        "get_llm_instance: Step 3 (OPENCODE_API_KEY): %s",
+                        "***set***" if os.environ.get("OPENCODE_API_KEY") else "not set",
+                    )
 
     logger.info(f"Initializing LLM with provider={provider}, model={final_model}, base_url={api_base}, temperature={temperature}, agent_id={agent_id}")
 
@@ -174,6 +180,7 @@ def get_llm_instance(
             "anthropic": "ANTHROPIC_API_KEY",
             "mistral": "MISTRAL_API_KEY",
             "deepseek": "DEEPSEEK_API_KEY",
+            "opencode": "OPENCODE_API_KEY",
         }
         logger.warning(
             "api_key 仍為 None，provider=%s, agent_id=%s。\n"
@@ -199,6 +206,19 @@ def get_llm_instance(
             temperature=temperature,
             api_key=api_key,
             base_url=api_base,
+            **kwargs,
+        )
+    elif provider == "opencode":
+        # OpenCode Zen Gateway — OpenAI-compatible endpoint
+        from langchain_openai import ChatOpenAI
+        if not final_model:
+            final_model = "deepseek-v4-flash"
+        kwargs.setdefault("max_retries", 5)
+        return ChatOpenAI(
+            model=final_model,
+            temperature=temperature,
+            api_key=api_key,
+            base_url=api_base or "https://opencode.ai/zen/go/v1",
             **kwargs,
         )
     elif provider == "anthropic":

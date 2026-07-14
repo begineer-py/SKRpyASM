@@ -102,24 +102,24 @@ class GlobalOverviewGenerator:
         """
         messages = self.thread.messages.all().order_by('created_at')
         
+        from apps.auto.compression.message_utils import extract_msg_fields
+
         context_parts = []
         for msg in messages[:100]:  # Limit to first 100 messages for efficiency
             try:
-                msg_data = msg.message
-                msg_type = msg_data.get('type', 'unknown')
+                fields = extract_msg_fields(msg)
+                msg_type = fields["type"]
+                content = fields["content"]
                 
                 if msg_type == 'human':
-                    content = msg_data.get('content', '')
-                    context_parts.append(f"[USER]: {content[:500]}")  # Truncate
+                    context_parts.append(f"[USER]: {content[:800]}")
                 
                 elif msg_type == 'ai':
-                    content = msg_data.get('content', '')
-                    context_parts.append(f"[AI]: {content[:500]}")
+                    context_parts.append(f"[AI]: {content[:800]}")
                 
                 elif msg_type == 'tool':
-                    tool_name = msg_data.get('name', 'unknown')
-                    content = msg_data.get('content', '')
-                    context_parts.append(f"[TOOL {tool_name}]: {content[:300]}")
+                    tool_name = fields["name"] or 'unknown'
+                    context_parts.append(f"[TOOL {tool_name}]: {content[:500]}")
             
             except Exception as e:
                 self.logger.warning(f"Error extracting message {msg.id}: {e}")
@@ -149,7 +149,7 @@ Analyze this penetration testing conversation and extract:
 7. METRICS: Key metrics (hosts_discovered, ports_found, services, exploits_successful)
 
 Conversation context:
-{context[:3000]}
+{context[:12000]}
 
 Output as JSON:
 {{

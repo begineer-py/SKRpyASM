@@ -11,12 +11,15 @@ from typing import (
     ClassVar,
     Dict,
     Literal,
+    Optional,
     Sequence,
     Type,
     TypedDict,
     cast,
     overload,
 )
+
+logger = logging.getLogger(__name__)
 
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.language_models import BaseChatModel
@@ -123,6 +126,14 @@ class AIAssistant(abc.ABC):  # noqa: F821
     Should be a friendly name to optionally display to users."""
     instructions: str
     """Instructions for the AI assistant knowing what to do. This is the LLM system prompt."""
+    SPEC: ClassVar[Optional["AgentSpec"]] = None  # type: ignore[name-defined]
+    """Structured prompt spec (AgentSpec). When set, takes precedence over `instructions`
+    in `get_instructions()`. Declared as forward-ref string to avoid hard import cycle;
+    resolved via `apps.ai_assistant.prompts`. None = fall back to `instructions`."""
+    _REQUIRES_SPEC: ClassVar[bool] = False
+    """Opt-in strict mode. When True, `__init_subclass__` raises if SPEC is None.
+    Production agents should set this to True to enforce the structured-prompt contract;
+    test fixtures and legacy classes may leave it False (default) to use `instructions`."""
     model: str
     """LLM model name to use for the assistant.\n
     Should be a valid model name from OpenAI, because the default `get_llm` method uses OpenAI.\n
@@ -250,6 +261,17 @@ Holds refs so tasks aren't GC'd before completion."""
                 f"at {cls.__name__}"
             )
 
+        # SPEC 強制檢查（opt-in）：當 subclass 設 `_REQUIRES_SPEC = True` 時，
+        # 必須定義 SPEC（AgentSpec）；未定義則 class 建立時即報錯。
+        # 預設為 False — 允許動態測試類別與舊 legacy 類別繼續使用 instructions。
+        requires_spec = getattr(cls, "_REQUIRES_SPEC", False)
+        has_spec = getattr(cls, "SPEC", None) is not None
+        if requires_spec and not has_spec:
+            raise AIAssistantMisconfiguredError(
+                f"{cls.__name__} (id={cls.id}) 標記 _REQUIRES_SPEC=True 但未定義 SPEC。"
+                f"請以 AgentSpec 定義五欄位任務再行宣告，或移除 _REQUIRES_SPEC 退回 instructions。"
+            )
+
         cls._registry[cls.id] = cls
 
     def _set_method_tools(self):
@@ -333,9 +355,16 @@ Holds refs so tasks aren't GC'd before completion."""
         """Get the instructions for the assistant. By default, this is the `instructions` attribute.\n
         Override the `instructions` attribute or this method to use different instructions.
 
+        Resolution order:
+          1. If `self.SPEC` (AgentSpec) is set → `SPEC.render_for(self)` (structured framework).
+          2. Otherwise → `self.instructions` attribute (legacy free-text).
+
         Returns:
             str: The instructions for the assistant, i.e., the LLM system prompt.
         """
+        spec = type(self).SPEC
+        if spec is not None:
+            return spec.render_for(self)
         return self.instructions
 
     def get_model(self) -> str:
@@ -726,8 +755,10 @@ Holds refs so tasks aren't GC'd before completion."""
 
         if thread and thread.bound_overview_id:
             # 相容舊路徑：若 thread 已綁定 overview，同步到 agent instance
+            # 注意：bound_overview_id 是 ForeignKey（回傳 Overview 物件），取 .id 確保是 int
             if not getattr(self, "_agent_overview_id", None):
-                self._agent_overview_id = thread.bound_overview_id
+                bound_ov = thread.bound_overview_id
+                self._agent_overview_id = getattr(bound_ov, "id", bound_ov)
 
         # 無論 thread 是否綁定，都對「宣告過 overview_id 的工具」套用自動注入 wrap。
         # 策略：強制覆蓋——即使 LLM 企圖傳入 overview_id 也以 agent instance 的值為準，
@@ -764,9 +795,12 @@ Holds refs so tasks aren't GC'd before completion."""
                             kwargs["overview_id"] = current_ov
                         elif kwargs.get("overview_id") is None:
                             # fallback：thread.bound_overview_id（舊路徑相容）
+                            # 注意：bound_overview_id 現在是 ForeignKey（回傳 Overview 物件），
+                            # 不是 IntegerField。必須取 .id 確保是 int，否則下游
+                            # JSON 序列化（requests.post json=...）會 TypeError。
                             bound_ov = getattr(getattr(agent_ref, "_thread", None), "bound_overview_id", None)
-                            if bound_ov:
-                                kwargs["overview_id"] = bound_ov
+                            if bound_ov is not None:
+                                kwargs["overview_id"] = getattr(bound_ov, "id", bound_ov)
                         return orig_func(*args, **kwargs)
                     return _wrapped
 
@@ -925,23 +959,31 @@ Holds refs so tasks aren't GC'd before completion."""
                     _logger.info(f"[NODE:tool_selector] → continue (guard A: {waiting_count} WAITING_FOR_ASYNC)")
                     return "continue"
 
-            # Guard B: stop if the same tool is called repeatedly with no variation
+            # Guard B: stop if the same tool is called repeatedly across
+            # consecutive AI turns (actual loop), NOT within a single message
+            # (parallel execution like run_command ×3 is legitimate).
             if self.max_consecutive_same_tool > 0:
                 recent_ai_msgs = [
                     m for m in state["messages"][-( self.max_consecutive_same_tool * 2 + 2):]
                     if isinstance(m, AIMessage) and getattr(m, "tool_calls", None)
                 ]
                 if len(recent_ai_msgs) >= self.max_consecutive_same_tool:
-                    all_tool_names = [
-                        tc["name"]
+                    per_turn_tool_names = [
+                        [tc["name"] for tc in (m.tool_calls or [])]
                         for m in recent_ai_msgs
-                        for tc in (m.tool_calls or [])
                     ]
-                    if (
-                        len(all_tool_names) >= self.max_consecutive_same_tool
-                        and len(set(all_tool_names[-self.max_consecutive_same_tool:])) == 1
-                    ):
-                        _logger.info(f"[NODE:tool_selector] → continue (guard B: repeated {all_tool_names[-self.max_consecutive_same_tool:]})")
+                    should_stop = True
+                    for turn_names in per_turn_tool_names[-self.max_consecutive_same_tool:]:
+                        distinct = set(turn_names)
+                        if len(distinct) > 1 or len(turn_names) <= 1:
+                            should_stop = False
+                            break
+                        last_turn_set = per_turn_tool_names[-1]
+                        if set(turn_names) != set(last_turn_set):
+                            should_stop = False
+                            break
+                    if should_stop:
+                        _logger.info(f"[NODE:tool_selector] → continue (guard B: identical tool set across {self.max_consecutive_same_tool} turns)")
                         return "continue"
 
             _logger.info(f"[NODE:tool_selector] → call_tool")
@@ -1083,8 +1125,17 @@ Holds refs so tasks aren't GC'd before completion."""
                             f"seq={node.sequence} graph_id={node.graph_id} tool={tool_name} "
                             f"call_id={tool_call_id} error_type={type(exc).__name__} error_msg={str(exc)[:300]!r}"
                         )
+                    # 給 agent 一個可操作的錯誤訊息：除了原始例外，也提示可行下一步，
+                    # 避免 agent 卡在重複呼叫同一個失敗工具。
+                    actionable_hint = (
+                        f"Tool '{tool_name}' failed: {error_message}\n"
+                        f"Consider: (a) verify the arguments are correct, "
+                        f"(b) try an alternative tool/approach, "
+                        f"(c) if this is a transient issue, retry once. "
+                        f"Do NOT repeatedly call the same failing tool with identical arguments."
+                    )
                     tool_messages.append(
-                        ToolMessage(content=error_message, tool_call_id=tool_call_id)
+                        ToolMessage(content=actionable_hint, tool_call_id=tool_call_id)
                     )
                     if thread:
                         _saved = save_django_messages(tool_messages[-1:], thread=thread)
@@ -1246,8 +1297,20 @@ Holds refs so tasks aren't GC'd before completion."""
             if graph is not None:
                 graph.refresh_from_db(fields=["status"])
                 if graph.status in ["RUNNING", "WAITING"]:
-                    ExecutionService.complete_graph(graph, content=response)
-                    _rr_logger.info(f"[NODE:record_response] completed graph {graph.id}")
+                    # 若還有 WAITING node（async scanner/subagent pending），
+                    # 保留 graph 為 WAITING，等 background task 完成後由 reconcile 評估。
+                    # 否則 agent 已無 pending 工作 → complete graph（以 agent 最終回應為準）。
+                    # Mission 真正完成的 gate 由 Overview.status=COMPLETED 連動（update_overview_status）。
+                    has_waiting_node = graph.nodes.filter(status="WAITING").exists()
+                    if has_waiting_node:
+                        # 保留 WAITING；emit checkpoint event 讓前端可觀察
+                        if graph.status != "WAITING":
+                            graph.status = "WAITING"
+                            graph.save(update_fields=["status", "updated_at"])
+                        _rr_logger.info(f"[NODE:record_response] kept graph {graph.id} as WAITING (pending async nodes)")
+                    else:
+                        ExecutionService.complete_graph(graph, content=response)
+                        _rr_logger.info(f"[NODE:record_response] completed graph {graph.id}")
             _rr_logger.info(f"[NODE:record_response] exit | output_len={len(str(response))}")
             return {"output": response}
 
@@ -1342,7 +1405,10 @@ Holds refs so tasks aren't GC'd before completion."""
             from apps.core.models import Thread
 
             thread = Thread.objects.filter(id=thread_id).first()
-        execution_graph = ExecutionService.start_graph(
+        # 1 thread = 1 agent = 1 active graph（貫穿整個 mission）
+        # 若 thread 已有 RUNNING/WAITING graph（例如 scanner callback 喚醒），重用它；
+        # 否則建立新 graph。HackerAssistant 也適用此規則。
+        execution_graph = ExecutionService.get_or_create_graph_for_thread(
             thread=thread,
             assistant_id=getattr(self, "id", ""),
             title=getattr(self, "name", ""),
@@ -1390,23 +1456,41 @@ Holds refs so tasks aren't GC'd before completion."""
                 "請彙整目前已完成的進度，以結構化方式回報，並停止嘗試相同動作。"
             )
             if execution_graph is not None:
-                ExecutionService.fail_graph(
-                    execution_graph,
-                    error=f"GraphRecursionError: hit limit {config.get('recursion_limit')}",
-                    payload={
-                        "error_type": "GraphRecursionError",
-                        "recursion_limit": config.get("recursion_limit"),
-                    },
+                # 走 reconcile 而非直接 fail_graph：如果已有大量 node SUCCEEDED，
+                # graph 應保持 RUNNING 讓 parent agent 消化已有結果。
+                from apps.core.models.execution import ExecutionNode
+                stuck = ExecutionNode.objects.filter(
+                    graph=execution_graph,
+                    status__in=[ExecutionNode.Status.RUNNING, ExecutionNode.Status.WAITING],
                 )
+                for n in stuck:
+                    ExecutionService.fail_node(
+                        n,
+                        error={"message": f"Aborted by GraphRecursionError (limit {config.get('recursion_limit')})"},
+                        content=f"Aborted by GraphRecursionError",
+                        reconcile_graph=False,
+                    )
+                ExecutionService.reconcile_graph_status(execution_graph)
             # 回傳結構化結果而非拋出例外，避免上層 Celery 無意義重試
             return {"output": recursion_msg, "error": "GraphRecursionError"}
         except Exception as exc:
             if execution_graph is not None:
-                ExecutionService.fail_graph(
-                    execution_graph,
-                    error=f"{type(exc).__name__}: {exc}",
-                    payload={"error_type": type(exc).__name__},
+                # 先把因例外中斷、還在 RUNNING/WAITING 的 node 標記為 FAILED，
+                # 再交給 reconcile 依比例決定 graph 命運（全失敗才 fail，部分成功保持 RUNNING）。
+                # 這樣「24/24 node 成功，收尾時 API 斷線」不會被判死刑。
+                from apps.core.models.execution import ExecutionNode
+                stuck = ExecutionNode.objects.filter(
+                    graph=execution_graph,
+                    status__in=[ExecutionNode.Status.RUNNING, ExecutionNode.Status.WAITING],
                 )
+                for n in stuck:
+                    ExecutionService.fail_node(
+                        n,
+                        error={"message": f"Aborted by invoke exception: {type(exc).__name__}: {exc}"},
+                        content=f"Aborted by {type(exc).__name__}",
+                        reconcile_graph=False,
+                    )
+                ExecutionService.reconcile_graph_status(execution_graph)
             raise
 
     @with_cast_id

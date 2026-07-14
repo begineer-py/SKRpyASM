@@ -12,11 +12,7 @@ class Command(BaseCommand):
     help = "同步 VulnClaw Markdown 技能檔案至 SkillTemplate"
 
     DEFAULT_SOURCE_REL = "apps/auto/VulnClaw/vulnclaw/skills"
-    # 父技能檔名（由 prompt 內嵌處理，不寫入 DB）
-    PARENT_FILENAMES = ("SKILL.md", "waf-bypass.md")
-    # 例外：這些路徑段下的 SKILL.md 不是「父技能入口」而是 DB 載入的內容
-    # recon 目錄下只有 recon-playbook 一個檔案，它本身就是 documentation 技能
-    NON_PARENT_SKILL_DIRS = ("recon",)
+    # 所有 .md 檔案都匯入 DB（父 SKILL.md 包含完整 workflow，透過 search_skills 查詢）
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -33,8 +29,8 @@ class Command(BaseCommand):
         parser.add_argument(
             "--include-parents",
             action="store_true",
-            default=False,
-            help="是否一併匯入父技能（SKILL.md / waf-bypass.md）",
+            default=True,
+            help="是否一併匯入父技能（預設為 True，父 SKILL.md 包含完整 workflow，透過 DB 查詢）",
         )
         parser.add_argument(
             "--bump-on",
@@ -79,19 +75,11 @@ class Command(BaseCommand):
     # 檔案探索
     # ------------------------------------------------------------------
     def _is_parent_skill(self, file_path, rel_path):
-        """判斷是否為父技能檔案。"""
-        base = os.path.basename(file_path)
-        normalized = rel_path.replace("\\", "/")
-        # 例外：recon 等目錄的 SKILL.md 是 DB 載入內容，不是父技能入口
-        parts = normalized.split("/")
-        for non_parent_dir in self.NON_PARENT_SKILL_DIRS:
-            if non_parent_dir in parts and base == "SKILL.md":
-                return False
-        if base in self.PARENT_FILENAMES:
-            return True
-        # 路徑段落中包含 core/waf-bypass.md
-        if "core/waf-bypass.md" in normalized:
-            return True
+        """判斷是否為父技能檔案。
+
+        目前所有 .md 都匯入 DB（父 SKILL.md 的完整 workflow 透過 search_skills 查詢），
+        所以永遠回傳 False。保留此方法是為了未來若需要排除特定檔案的擴充性。
+        """
         return False
 
     def _extract_parent_tag(self, rel_path):
@@ -238,8 +226,10 @@ class Command(BaseCommand):
 
                 # 組裝紀錄
                 detailed_overview = body_stripped or description
-                # instructions 為模型必填欄位，需有值（clean 要求 <=2000）
-                instructions = (short_desc or description)[:2000]
+                # instructions 為模型必填欄位（clean 要求 <=2000）
+                # 對 documentation 型技能，取 detailed_overview 的前段作為內容摘要
+                # （而非 description 的副本，避免資訊重複）
+                instructions = detailed_overview[:2000]
 
                 skill = SkillTemplate(
                     name=name,

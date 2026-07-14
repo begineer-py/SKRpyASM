@@ -8,7 +8,6 @@ tags: ['web', 'security']
 
 > **来源**: 基于WooYun漏洞库实战经验 + 云安全最佳实践 + OWASP供应链安全指南提炼
 > **方法论**: WooYun漏洞本质公式 + L1-L4系统化分析
-> **相关**: AI应用容器逃逸测试 → [ai-baseline-security.md](ai-baseline-security.md)
 
 ---
 
@@ -279,8 +278,6 @@ CI配置: .github/workflows/*.yml / .gitlab-ci.yml / Jenkinsfile
 ```
 
 ### 2.5 容器与编排安全
-
-> **AI应用容器逃逸**: 针对AI Agent/LLM部署环境的容器逃逸测试方法论 → [ai-baseline-security.md](ai-baseline-security.md) §二十
 
 **Docker安全检查**
 

@@ -71,7 +71,7 @@ class AutoAppConfig:
     # ============================================================================
     
     # Default LLM provider for CAI agents
-    # Options: "openai", "anthropic", "litellm", "mistral", "deepseek", "ollama"
+    # Options: "openai", "anthropic", "litellm", "mistral", "deepseek", "ollama", "opencode"
     DEFAULT_LLM_PROVIDER: str = os.getenv("AUTO_DEFAULT_LLM_PROVIDER", "openai")
     
     # Default model for each provider
@@ -82,6 +82,7 @@ class AutoAppConfig:
         "mistral": os.getenv("AUTO_MISTRAL_MODEL", "mistral-small-2603"),
         "deepseek": os.getenv("AUTO_DEEPSEEK_MODEL", "deepseek-chat"),
         "ollama": os.getenv("AUTO_OLLAMA_MODEL", "llama3"),
+        "opencode": os.getenv("AUTO_OPENCODE_MODEL", "deepseek-v4-flash"),
     }
     
     # Temperature for AI responses

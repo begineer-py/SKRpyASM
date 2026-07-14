@@ -1,5 +1,7 @@
 from ninja import Router
 from typing import List, Dict, Any
+from datetime import timedelta
+from django.utils import timezone
 from django_celery_beat.models import PeriodicTask, IntervalSchedule, CrontabSchedule
 from ninja.errors import HttpError
 from c2_core.config.logging import log_function_call
@@ -16,12 +18,18 @@ from .schemas import (
     CrontabScheduleSchema,
     RegisteredTaskSchema,
     TaskRequirementsSchema,
+    WatchdogStatusSchema,
+    StalledOverviewSchema,
+    ZombieGraphSchema,
 )
 from .agent_requirements import check_task_api_requirements, get_task_requirements_info
 from django.shortcuts import get_object_or_404
 
 router = Router()
 logger = logging.getLogger(__name__)
+
+WATCHDOG_TASK_NAME = "scheduler.tasks.watchdog_stalled_overviews"
+ZOMBIE_GRAPH_STALE_MINUTES = 30
 
 
 # --- 查詢所有定時任務 ---
@@ -315,3 +323,85 @@ def list_registered_tasks(request):
             doc = first_line if first_line else None
         result.append({"name": task_name, "doc": doc})
     return result
+
+
+# ─── Watchdog Status ────────────────────────────────────────────────
+@router.get("/watchdog/status", response=WatchdogStatusSchema)
+def get_watchdog_status(request):
+    """取得看門狗當前狀態：排程資訊、停滯 Overviews、殭屍圖。"""
+    from apps.core.models import ExecutionGraph, ExecutionNode, Overview
+
+    now = timezone.now()
+
+    # 1. Watchdog 排程任務狀態
+    watchdog_task = PeriodicTask.objects.filter(task=WATCHDOG_TASK_NAME).first()
+    watchdog_task_last_run_at = None
+    watchdog_task_total_runs = 0
+    watchdog_task_enabled = False
+    watchdog_task_interval = None
+    if watchdog_task:
+        watchdog_task_enabled = watchdog_task.enabled
+        watchdog_task_last_run_at = watchdog_task.last_run_at
+        watchdog_task_total_runs = watchdog_task.total_run_count or 0
+        if watchdog_task.interval:
+            watchdog_task_interval = (
+                f"every {watchdog_task.interval.every} {watchdog_task.interval.period}"
+            )
+
+    # 2. 當前 PLANNING/EXECUTING 停滯的 overviews（與 watchdog.py 同條件）
+    stalled_qs = Overview.objects.filter(
+        status__in=["PLANNING", "EXECUTING", "STALLED"],
+        updated_at__lt=now - timedelta(minutes=15),
+    ).select_related("target", "thread").order_by("-updated_at")[:30]
+
+    stalled_overviews = []
+    needs_guidance_overviews = []
+    for ov in stalled_qs:
+        item = StalledOverviewSchema(
+            id=ov.id,
+            status=ov.status,
+            rescue_count=ov.rescue_count or 0,
+            updated_at=ov.updated_at,
+            thread_id=ov.thread_id,
+            target_name=ov.target.name if ov.target_id and ov.target else None,
+        )
+        if ov.status == "NEEDS_GUIDANCE":
+            needs_guidance_overviews.append(item)
+        else:
+            stalled_overviews.append(item)
+
+    # 3. 殭屍圖：RUNNING + updated_at > 30min + 無 active node
+    zombie_qs = (
+        ExecutionGraph.objects.filter(
+            status=ExecutionGraph.Status.RUNNING,
+            updated_at__lt=now - timedelta(minutes=ZOMBIE_GRAPH_STALE_MINUTES),
+        )
+        .exclude(nodes__status__in=[
+            ExecutionNode.Status.PENDING,
+            ExecutionNode.Status.RUNNING,
+            ExecutionNode.Status.WAITING,
+        ])
+        .distinct()
+        .order_by("-updated_at")[:30]
+    )
+    zombie_graphs = [
+        ZombieGraphSchema(
+            id=g.id,
+            status=g.status,
+            thread_id=g.thread_id,
+            assistant_id=g.assistant_id,
+            title=g.title,
+            updated_at=g.updated_at,
+        )
+        for g in zombie_qs
+    ]
+
+    return WatchdogStatusSchema(
+        watchdog_task_enabled=watchdog_task_enabled,
+        watchdog_task_last_run_at=watchdog_task_last_run_at,
+        watchdog_task_total_runs=watchdog_task_total_runs,
+        watchdog_task_interval=watchdog_task_interval,
+        stalled_overviews=stalled_overviews,
+        zombie_graphs=zombie_graphs,
+        needs_guidance_overviews=needs_guidance_overviews,
+    )

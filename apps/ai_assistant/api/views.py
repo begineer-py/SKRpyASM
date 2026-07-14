@@ -5,7 +5,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404
 
 from langchain_core.messages import message_to_dict
-from ninja import NinjaAPI, Schema
+from ninja import NinjaAPI, Router, Schema
 from ninja.operation import Operation
 from ninja.security import django_auth
 
@@ -63,6 +63,13 @@ def init_api():
 api = app_settings.call_fn("INIT_API_FN")
 
 
+# ── Router for integration with main NinjaAPI ──────────────────────────
+# This Router carries all REST endpoints so they can be registered on the
+# main NinjaAPI in c2_core/urls.py, making their schemas visible in the
+# unified /api/openapi.json and available to openapi-typescript codegen.
+router = Router(auth=dummy_auth, tags=["Assistant - AI助手"])
+
+
 @api.exception_handler(AIUserNotAllowedError)
 def ai_user_not_allowed_handler(request, exc):
     return api.create_response(
@@ -81,24 +88,24 @@ def ai_assistant_not_defined_handler(request, exc):
     )
 
 
-@api.get("assistants/", response=List[Assistant], url_name="assistants_list")
+@router.get("assistants/", response=List[Assistant], url_name="assistants_list")
 def list_assistants(request):
     return list(use_cases.get_assistants_info(user=request.user, request=request))
 
 
-@api.get("assistants/{assistant_id}/", response=Assistant, url_name="assistant_detail")
+@router.get("assistants/{assistant_id}/", response=Assistant, url_name="assistant_detail")
 def get_assistant(request, assistant_id: str):
     return use_cases.get_single_assistant_info(
         assistant_id=assistant_id, user=request.user, request=request
     )
 
 
-@api.get("threads/", response=List[Thread], url_name="threads_list_create")
+@router.get("threads/", response=List[Thread], url_name="threads_list_create")
 def list_threads(request, assistant_id: str | None = None, target_id: int | None = None, include_hidden: bool = True):
     return list(use_cases.get_threads(user=request.user, assistant_id=assistant_id, bound_target_id=target_id, include_hidden=include_hidden))
 
 
-@api.post("threads/", response=Thread, url_name="threads_list_create")
+@router.post("threads/", response=Thread, url_name="threads_list_create")
 def create_thread(request, payload: ThreadIn):
     name = payload.name
     assistant_id = payload.assistant_id
@@ -107,7 +114,7 @@ def create_thread(request, payload: ThreadIn):
     )
 
 
-@api.get("threads/{thread_id}/", response=Thread, url_name="thread_detail_update_delete")
+@router.get("threads/{thread_id}/", response=Thread, url_name="thread_detail_update_delete")
 @with_cast_id
 def get_thread(request, thread_id: Any):
     try:
@@ -119,7 +126,7 @@ def get_thread(request, thread_id: Any):
     return thread
 
 
-@api.patch("threads/{thread_id}/", response=Thread, url_name="thread_detail_update_delete")
+@router.patch("threads/{thread_id}/", response=Thread, url_name="thread_detail_update_delete")
 @with_cast_id
 def update_thread(request, thread_id: Any, payload: ThreadIn):
     thread = get_object_or_404(ThreadModel, id=thread_id)
@@ -127,7 +134,7 @@ def update_thread(request, thread_id: Any, payload: ThreadIn):
     return use_cases.update_thread(thread=thread, name=name, user=request.user, request=request)
 
 
-@api.delete("threads/{thread_id}/", response={204: None}, url_name="thread_detail_update_delete")
+@router.delete("threads/{thread_id}/", response={204: None}, url_name="thread_detail_update_delete")
 @with_cast_id
 def delete_thread(request, thread_id: Any):
     thread = get_object_or_404(ThreadModel, id=thread_id)
@@ -135,7 +142,7 @@ def delete_thread(request, thread_id: Any):
     return 204, None
 
 
-@api.get(
+@router.get(
     "threads/{thread_id}/messages/",
     response=List[ThreadMessage],
     url_name="messages_list_create",
@@ -173,7 +180,7 @@ def list_thread_messages(request, thread_id: Any, include_tools: bool = False):
 
 
 # TODO: Support content streaming
-@api.post(
+@router.post(
     "threads/{thread_id}/messages/",
     response={201: None},
     url_name="messages_list_create",
@@ -192,7 +199,7 @@ def create_thread_message(request, thread_id: Any, payload: ThreadMessageIn):
     return 201, None
 
 
-@api.delete(
+@router.delete(
     "threads/{thread_id}/messages/{message_id}/", response={204: None}, url_name="messages_delete"
 )
 @with_cast_id
@@ -209,7 +216,7 @@ def delete_thread_message(request, thread_id: Any, message_id: Any):
 # ── Thread Events ────────────────────────────────────────────────────────
 
 
-@api.get(
+@router.get(
     "threads/{thread_id}/events/",
     response=List[ThreadEventSchema],
     url_name="thread_events_list",
@@ -233,7 +240,7 @@ class BindTargetIn(Schema):
     target_id: int
 
 
-@api.patch(
+@router.patch(
     "threads/{thread_id}/bind_target/",
     response=Thread,
     url_name="thread_bind_target",
@@ -241,13 +248,9 @@ class BindTargetIn(Schema):
 @with_cast_id
 def bind_target(request, thread_id: Any, payload: BindTargetIn):
     """Bind a target to a thread. The AI agent will use this target by default."""
-    # FK 欄位命名為 bound_target_id（非 Django 慣例的 bound_target），
-    # 因此 Python 層的 ID 屬性是 bound_target_id_id（Django 自動加 _id 後綴）。
-    # 用 filter().update() 直接走 DB 層 db_column，最穩妥且與 assistants.py 的
-    # bind_to_target tool 行為一致。
     from apps.core.models import Target
     thread = get_object_or_404(ThreadModel, id=thread_id)
-    get_object_or_404(Target, id=payload.target_id)  # 驗證 target 存在
+    get_object_or_404(Target, id=payload.target_id)
     ThreadModel.objects.filter(id=thread_id).update(
         bound_target_id=payload.target_id,
     )
@@ -255,7 +258,7 @@ def bind_target(request, thread_id: Any, payload: BindTargetIn):
     return thread
 
 
-@api.delete(
+@router.delete(
     "threads/{thread_id}/bind_target/",
     response={200: Thread},
     url_name="thread_unbind_target",
@@ -268,3 +271,8 @@ def unbind_target(request, thread_id: Any):
     )
     thread = get_object_or_404(ThreadModel, id=thread_id)
     return 200, thread
+
+
+# The router is registered on the main NinjaAPI in c2_core/urls.py.
+# The legacy `api` (NinjaAPI) instance is kept for backward compat
+# with ai_assistant/urls.py SSE views, but carries no routes.

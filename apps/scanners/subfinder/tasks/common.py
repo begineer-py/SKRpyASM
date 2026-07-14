@@ -103,7 +103,16 @@ def _run_subdomain_enum(
                 f"新增: {update_results['new_count']}, 更新: {update_results['reactivated_count']}."
             )
 
-            # 5. 觸發下一個環節 (DNS 解析)
+            # 5. 立即完成 execution node（通知 agent scanner 已完成）
+            #    注意：必須在 dispatch DNS 任務之前呼叫，確保 node 正確轉換 SUCCEEDED
+            #    並透過 _maybe_trigger_agent_wake 喚醒 agent，避免 WAITING 節點永不解析。
+            _complete_execution_node(
+                execution_node_id,
+                content=f"[{cfg.tool_name}] 掃描成功，共新增 {update_results['new_count']} 個子域名。",
+                output={"new_count": update_results["new_count"], "reactivated_count": update_results["reactivated_count"]},
+            )
+
+            # 6. 觸發下一個環節 (DNS 解析) — 非同步背景任務，不影響 execution node 狀態
             from .dns_tasks import resolve_dns_for_seed
             resolve_dns_for_seed.delay(
                 seed_id=seed.id,

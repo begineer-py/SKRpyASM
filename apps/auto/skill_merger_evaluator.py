@@ -18,6 +18,8 @@ from datetime import datetime, timezone
 from typing import Optional, Tuple
 from pydantic import BaseModel, Field
 
+from apps.ai_assistant.prompts import PromptSpec, TaskDefinition
+
 logger = logging.getLogger(__name__)
 
 
@@ -31,72 +33,77 @@ class MergeEvalOutput(BaseModel):
     overlap_analysis: Optional[dict] = Field(default=None, description="重疊分析")
 
 
-MERGE_EVAL_PROMPT = """<role>
-You are a Skill Merge Evaluation Agent. Your job is to analyze two penetration testing
-skills and determine whether they can be merged into a single unified skill.
-</role>
+# ════════════════════════════════════════════════════════════════════
+# PromptSpec 宣告（取代原本的字串常數）
+# ════════════════════════════════════════════════════════════════════
 
-<skill_context>
-<skill_a>
-<name>{name_a}</name>
-<description>{desc_a}</description>
-<tags>{tags_a}</tags>
-<language>{lang_a}</language>
-<input_schema>{input_a}</input_schema>
-<output_schema>{output_a}</output_schema>
-<instructions>{instructions_a}</instructions>
-<script_summary>{script_a}</script_summary>
-</skill_a>
-
-<skill_b>
-<name>{name_b}</name>
-<description>{desc_b}</description>
-<tags>{tags_b}</tags>
-<language>{lang_b}</language>
-<input_schema>{input_b}</input_schema>
-<output_schema>{output_b}</output_schema>
-<instructions>{instructions_b}</instructions>
-<script_summary>{script_b}</script_summary>
-</skill_b>
-</skill_context>
-
-<task>
-Analyze whether these two skills should be merged. Consider:
-1. Do they solve the same type of problem?
-2. Do they target the same technology stack?
-3. Can their scripts be combined into one unified script?
-4. Would merging improve usability or cause confusion?
-</task>
-
-<output_format>
-Return ONLY valid JSON. The merge_strategy field MUST be exactly one of these values (case-sensitive):
-  "NOT_RECOMMENDED" | "CONCAT" | "UNION" | "LATEST_ONLY" | "SMART_MERGE" | "A_MERGES_INTO_B" | "B_MERGES_INTO_A"
-  
-JSON structure:
-{{
-  "is_mergeable": true | false,
-  "merge_strategy": "string from list above",
-  "reasoning": "Detailed analysis in Traditional Chinese",
-  "suggested_name": "name if mergeable, or null",
-  "suggested_tags": ["tag1", "tag2"],
-  "overlap_analysis": {{
-    "tag_overlap": ["shared_tag"],
-    "purpose_similarity": "high" | "medium" | "low",
-    "script_compatibility": "compatible" | "conflicting" | "independent"
-  }}
-}}
-</output_format>
-
-<strategy_guide>
-- NOT_RECOMMENDED: Skills are unrelated or serve different purposes
-- CONCAT: Merge descriptions, tags, and combine both scripts with clear separation
-- UNION: Full merge — unified script with combined functionality
-- LATEST_ONLY: Keep only the newer/richer skill, deprecate the other
-- SMART_MERGE: Scripts can be intelligently combined into one
-- A_MERGES_INTO_B: Skill A is a subset of Skill B
-- B_MERGES_INTO_A: Skill B is a subset of Skill A
-</strategy_guide>
-"""
+MERGE_EVAL_SPEC = PromptSpec(
+    name="SkillMergeEvaluator",
+    role="Skill Merge Evaluation Agent",
+    task=TaskDefinition(
+        goal="分析兩個滲透測試技能，判斷是否可合併為單一統一技能。",
+        background="資料庫中 tag 重疊的技能對需要被評估是否有合併價值，避免重複技能堆積。",
+        materials=(
+            "兩個技能的完整資訊（各 8 欄）：name/description/tags/language/input_schema/"
+            "output_schema/instructions/script_summary（A 與 B 各一份）。"
+        ),
+        boundary=(
+            "1. merge_strategy 必須是受控詞彙之一（case-sensitive）：\n"
+            "   NOT_RECOMMENDED | CONCAT | UNION | LATEST_ONLY | SMART_MERGE | "
+            "A_MERGES_INTO_B | B_MERGES_INTO_A\n"
+            "2. reasoning 必須為繁體中文。\n"
+            "3. 輸出合法 JSON，不要 markdown code block。"
+        ),
+        dod=(
+            "回傳含 is_mergeable、merge_strategy、reasoning、suggested_name、"
+            "suggested_tags、overlap_analysis（含 tag_overlap/purpose_similarity/"
+            "script_compatibility）的 JSON。"
+        ),
+    ),
+    template_body=(
+        "<skill_context>\n<skill_a>\n<name>{name_a}</name>\n<description>{desc_a}</description>\n"
+        "<tags>{tags_a}</tags>\n<language>{lang_a}</language>\n<input_schema>{input_a}</input_schema>\n"
+        "<output_schema>{output_a}</output_schema>\n<instructions>{instructions_a}</instructions>\n"
+        "<script_summary>{script_a}</script_summary>\n</skill_a>\n\n"
+        "<skill_b>\n<name>{name_b}</name>\n<description>{desc_b}</description>\n"
+        "<tags>{tags_b}</tags>\n<language>{lang_b}</language>\n<input_schema>{input_b}</input_schema>\n"
+        "<output_schema>{output_b}</output_schema>\n<instructions>{instructions_b}</instructions>\n"
+        "<script_summary>{script_b}</script_summary>\n</skill_b>\n</skill_context>\n\n"
+        "<task>\nAnalyze whether these two skills should be merged. Consider:\n"
+        "1. Do they solve the same type of problem?\n"
+        "2. Do they target the same technology stack?\n"
+        "3. Can their scripts be combined into one unified script?\n"
+        "4. Would merging improve usability or cause confusion?\n</task>\n\n"
+        "<strategy_guide>\n"
+        "- NOT_RECOMMENDED: Skills are unrelated or serve different purposes\n"
+        "- CONCAT: Merge descriptions, tags, and combine both scripts with clear separation\n"
+        "- UNION: Full merge — unified script with combined functionality\n"
+        "- LATEST_ONLY: Keep only the newer/richer skill, deprecate the other\n"
+        "- SMART_MERGE: Scripts can be intelligently combined into one\n"
+        "- A_MERGES_INTO_B: Skill A is a subset of Skill B\n"
+        "- B_MERGES_INTO_A: Skill B is a subset of Skill A\n"
+        "</strategy_guide>"
+    ),
+    output_schema=MergeEvalOutput,
+    agent_id="skill_merger_evaluator_agent",
+    temperature=0.2,
+    output_format_hint=(
+        "Return ONLY valid JSON. The merge_strategy field MUST be exactly one of these values (case-sensitive):\n"
+        '  "NOT_RECOMMENDED" | "CONCAT" | "UNION" | "LATEST_ONLY" | "SMART_MERGE" | "A_MERGES_INTO_B" | "B_MERGES_INTO_A"\n\n'
+        "JSON structure:\n"
+        '{{\n  "is_mergeable": true | false,\n'
+        '  "merge_strategy": "string from list above",\n'
+        '  "reasoning": "Detailed analysis in Traditional Chinese",\n'
+        '  "suggested_name": "name if mergeable, or null",\n'
+        '  "suggested_tags": ["tag1", "tag2"],\n'
+        '  "overlap_analysis": {{\n'
+        '    "tag_overlap": ["shared_tag"],\n'
+        '    "purpose_similarity": "high" | "medium" | "low",\n'
+        '    "script_compatibility": "compatible" | "conflicting" | "independent"\n'
+        '  }}\n}}'
+    ),
+)
+MERGE_EVAL_PROMPT = MERGE_EVAL_SPEC  # 向後相容別名
 
 
 def _extract_json(text: str) -> dict:

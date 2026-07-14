@@ -72,13 +72,15 @@ class ToolOutputLifecycleManager:
         Returns:
             ToolOutputLifecycle model instance
         """
-        if not message.is_tool_output:
+        from apps.auto.compression.message_utils import extract_msg_fields
+
+        if message.role != "tool_result" and not message.is_tool_output:
             raise ValueError(f"Message {message.id} is not a tool output")
         
-        # Extract tool info
-        msg_data = message.message
-        tool_name = msg_data.get('name', 'unknown')
-        output_content = msg_data.get('content', '')
+        # Extract tool info (use shared helper for nested LangChain dict)
+        fields = extract_msg_fields(message)
+        tool_name = fields["name"] or "unknown"
+        output_content = fields["content"]
         output_size = len(str(output_content))
         
         # Decide strategy
@@ -194,42 +196,46 @@ Summary (action-oriented, factual):
         """
         Apply the tool lifecycle strategy to modify the message.
         
+        Only sets `compressed_content` — the original `message.message` is preserved
+        per the compression contract ("Never deletes data").
+        
         Args:
             message: Message to modify
         
         Returns:
             Modified message
         """
+        from apps.auto.compression.message_utils import build_compressed_tool_dict
+
         try:
             lifecycle = message.tool_lifecycle
         except ToolOutputLifecycle.DoesNotExist:
             # First time processing - create lifecycle
             lifecycle = self.process_tool_message(message)
         
-        # Apply strategy to message content
+        # Apply strategy to compressed_content only (original message.message preserved)
         if lifecycle.strategy == 'DISCARD':
-            # Remove tool output, replace with marker
-            message.message = {
-                'type': 'tool',
-                'name': lifecycle.tool_name,
-                'content': f'[Tool output discarded - size: {lifecycle.original_output_size} chars]'
-            }
+            message.compressed_content = build_compressed_tool_dict(
+                message,
+                compressed_content_str=f"[Tool output discarded - size: {lifecycle.original_output_size} chars]",
+                tool_name=lifecycle.tool_name,
+            )
         
         elif lifecycle.strategy == 'TEXTUALIZE':
-            # Replace output with summary
-            message.message = {
-                'type': 'tool',
-                'name': lifecycle.tool_name,
-                'content': lifecycle.compressed_output
-            }
+            message.compressed_content = build_compressed_tool_dict(
+                message,
+                compressed_content_str=lifecycle.compressed_output or "",
+                tool_name=lifecycle.tool_name,
+            )
         
         elif lifecycle.strategy == 'RETAIN':
-            # Keep original - no changes
+            # Keep original - no compression needed
             pass
         
-        message.compressed_content = message.message
-        message.compression_applied = True
-        message.save()
+        if lifecycle.strategy != 'RETAIN':
+            message.compression_applied = True
+        
+        message.save(update_fields=['compressed_content', 'compression_applied'])
         
         return message
     
@@ -243,7 +249,7 @@ Summary (action-oriented, factual):
         Returns:
             Statistics dictionary
         """
-        tool_messages = thread.messages.filter(is_tool_output=True)
+        tool_messages = thread.messages.filter(role="tool_result")
         
         stats = {
             'total_tools': tool_messages.count(),

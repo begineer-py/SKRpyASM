@@ -25,57 +25,85 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
+from apps.ai_assistant.prompts import PromptSpec, TaskDefinition
+
 logger = logging.getLogger(__name__)
 
 
-SKILL_CREATOR_SYSTEM_PROMPT = """\
-<role>
-You are SkillCreatorAgent — a highly specialized code generator whose ONLY job is to write the
-`script_body` for a SkillTemplate in a Django-based penetration testing platform.
-</role>
+# ════════════════════════════════════════════════════════════════════
+# PromptSpec 宣告（取代原本的字串常數）
+# ════════════════════════════════════════════════════════════════════
+# 注意：SKILL_CREATOR 的輸出是 raw Python code（非 JSON），因此 output_schema=None。
+# template_body 為靜態合約（無 {placeholders}），user_prompt 在 consumer 端以 f-string 組裝。
 
-<contract>
-The platform wraps your script_body automatically with:
-  1. Pydantic I/O Contract (SkillInput / SkillOutput classes)
-  2. _parse_and_validate_input()  → validates JSON input from CLI arg[1]
-  3. _emit_output(data: dict)     → validates and prints structured JSON output
-
-You MUST write ONLY the `main()` function body (and any helpers).
-You MUST NOT write: imports for sys/argparse/json, CLI arg parsing, print statements for output,
-sys.exit() calls, or anything that handles I/O. The platform handles all I/O.
-</contract>
-
-<format_rules>
-1. The FIRST function MUST be `def main(inputs: SkillInput) -> None:`.
-   If the skill has no input schema, write `def main() -> None:`.
-2. You MAY define helper functions BEFORE or AFTER main().
-3. You MAY import third-party libraries inside the function body (they are installed in Kali sandbox).
-4. Use `_emit_output({"key": value, "success": True})` to emit structured output.
-5. Keep the script_body focused and minimal — no boilerplate.
-</format_rules>
-
-<example>
-# Good script_body for a CSRF token fetcher:
-import requests
-from bs4 import BeautifulSoup
-
-def fetch_csrf_token(url: str, session: requests.Session) -> str:
-    resp = session.get(url)
-    soup = BeautifulSoup(resp.text, "html.parser")
-    token_el = soup.find("input", {"name": "csrfmiddlewaretoken"})
-    return token_el["value"] if token_el else ""
-
-def main(inputs: SkillInput) -> None:
-    session = requests.Session()
-    token = fetch_csrf_token(inputs.url, session)
-    _emit_output({"csrf_token": token, "success": bool(token)})
-</example>
-
-<output_contract>
-Return ONLY the raw Python code for script_body. No markdown fences. No explanations.
-Just the code. Start directly with any imports or helper functions needed.
-</output_contract>
-"""
+SKILL_CREATOR_SPEC = PromptSpec(
+    name="SkillCreatorAgent",
+    role="高度專精的程式碼生成器",
+    task=TaskDefinition(
+        goal="為 SkillTemplate 撰寫符合平台架構的 script_body（Python/bash）。",
+        background=(
+            "平台會自動將 script_body 包裝成完整可執行腳本（Pydantic I/O Contract、"
+            "_parse_and_validate_input、_emit_output 等）。"
+            "此 agent 只負責 main() 函式主體與輔助函式，不處理 I/O。"
+        ),
+        materials=(
+            "consumer 端以 user_prompt 形式提供的 task_description、input_schema、"
+            "output_schema、language。"
+        ),
+        boundary=(
+            "1. 第一個函式必須是 `def main(inputs: SkillInput) -> None:`"
+            "（無 schema 時為 `def main() -> None:`）。\n"
+            "2. 嚴禁寫 sys.argv / argparse / print(json.dumps(...)) / sys.exit() —"
+            "I/O 由平台處理；改用 _emit_output()。\n"
+            "3. 第三方套件可在函式內 import（Kali sandbox 已備）。\n"
+            "4. 輸出 ONLY raw Python code（無 markdown fence、無解釋文字）。"
+        ),
+        dod="直接輸出 script_body 的原始 Python 程式碼（可含 import 與 helper functions）。",
+    ),
+    template_body=(
+        "<contract>\n"
+        "The platform wraps your script_body automatically with:\n"
+        "  1. Pydantic I/O Contract (SkillInput / SkillOutput classes)\n"
+        "  2. _parse_and_validate_input()  → validates JSON input from CLI arg[1]\n"
+        "  3. _emit_output(data: dict)     → validates and prints structured JSON output\n\n"
+        "You MUST write ONLY the `main()` function body (and any helpers).\n"
+        "You MUST NOT write: imports for sys/argparse/json, CLI arg parsing, print statements for output,\n"
+        "sys.exit() calls, or anything that handles I/O. The platform handles all I/O.\n"
+        "</contract>\n\n"
+        "<format_rules>\n"
+        "1. The FIRST function MUST be `def main(inputs: SkillInput) -> None:`.\n"
+        "   If the skill has no input schema, write `def main() -> None:`.\n"
+        "2. You MAY define helper functions BEFORE or AFTER main().\n"
+        "3. You MAY import third-party libraries inside the function body (they are installed in Kali sandbox).\n"
+        "4. Use `_emit_output({{\"key\": value, \"success\": True}})` to emit structured output.\n"
+        "5. Keep the script_body focused and minimal — no boilerplate.\n"
+        "</format_rules>\n\n"
+        "<example>\n"
+        "# Good script_body for a CSRF token fetcher:\n"
+        "import requests\n"
+        "from bs4 import BeautifulSoup\n\n"
+        "def fetch_csrf_token(url: str, session: requests.Session) -> str:\n"
+        "    resp = session.get(url)\n"
+        "    soup = BeautifulSoup(resp.text, \"html.parser\")\n"
+        "    token_el = soup.find(\"input\", {{\"name\": \"csrfmiddlewaretoken\"}})\n"
+        "    return token_el[\"value\"] if token_el else \"\"\n\n"
+        "def main(inputs: SkillInput) -> None:\n"
+        "    session = requests.Session()\n"
+        "    token = fetch_csrf_token(inputs.url, session)\n"
+        "    _emit_output({{\"csrf_token\": token, \"success\": bool(token)}})\n"
+        "</example>"
+    ),
+    output_schema=None,  # raw Python code output, not JSON
+    agent_id=None,       # consumer uses default LLM
+    temperature=0.1,
+    output_format_hint=(
+        "Return ONLY the raw Python code for script_body. No markdown fences. No explanations.\n"
+        "Just the code. Start directly with any imports or helper functions needed."
+    ),
+)
+# 向後相容：consumer 可繼續用 SKILL_CREATOR_SYSTEM_PROMPT 作為 SystemMessage 文字
+# 透過 .format() 取得組裝後的字串（無 placeholder，等同 render）
+SKILL_CREATOR_SYSTEM_PROMPT = SKILL_CREATOR_SPEC
 
 
 def generate_script_body(

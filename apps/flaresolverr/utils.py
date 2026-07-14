@@ -2,7 +2,6 @@
 
 import logging
 import hashlib
-import torch
 import requests
 from urllib.parse import urlparse, parse_qsl
 
@@ -10,7 +9,6 @@ from fake_useragent import UserAgent
 from c2_core.config.config import Config
 from apps.core.header_injection import get_tagged_headers
 
-# 導入 Django Models (根據你的代碼合併)
 from apps.core.models import (
     URLResult,
     JavaScriptFile,
@@ -22,9 +20,16 @@ from apps.core.models import (
     ExtractedJS,
 )
 
-# 初始化設定
 logger = logging.getLogger(__name__)
 ua = UserAgent()
+
+try:
+    import torch
+    _TORCH_AVAILABLE = True
+except ImportError:
+    torch = None
+    _TORCH_AVAILABLE = False
+    logger.info("torch 未安裝：get_score_batch 將使用 fallback（均分）")
 
 
 def get_random_headers():
@@ -33,11 +38,12 @@ def get_random_headers():
 
 
 def get_score_batch(node_list, AI_MODEL, AI_TOKENIZER, DEVICE):
-    """
-    一次算一整批，效率最高
-    """
+    """一次算一整批，效率最高。torch 不可用時回傳均分 fallback。"""
     if not node_list:
         return []
+
+    if not _TORCH_AVAILABLE or AI_MODEL is None or AI_TOKENIZER is None:
+        return [0.5] * len(node_list)
 
     texts = [
         f"Path: {n['path']} | Key: {n['key']} | Struct: {n['struct']} | Val: {n['val']} | Depth: {n['depth']}"
@@ -48,7 +54,7 @@ def get_score_batch(node_list, AI_MODEL, AI_TOKENIZER, DEVICE):
         texts, return_tensors="pt", truncation=True, max_length=128, padding=True
     ).to(DEVICE)
 
-    with torch.no_grad():
+    with torch.no_grad():  # type: ignore[union-attr]
         outputs = AI_MODEL(**inputs)
         scores = outputs.logits.squeeze(-1).tolist()
 

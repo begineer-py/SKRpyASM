@@ -1,9 +1,12 @@
 # c2_core/celery.py
 
 import os
+from dotenv import load_dotenv  # 載入 .env 檔（本地 venv 模式用；預設不覆蓋既有變數，故 compose environment: 優先）
 from celery import Celery
 from django.conf import settings
 from celery.signals import setup_logging # <--- 1. 引入日誌訊號
+
+load_dotenv()
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "c2_core.settings")
 

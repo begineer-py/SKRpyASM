@@ -18,46 +18,46 @@ Use it only after routing is clear. It is meant for fast lookup, not for replaci
 
 ## Do Not Use This File For
 
-- 替代 `00-usage-and-routing.md` 做场景分流
-- 替代 `01-unified-methodology.md` 做方法论决策
+- 替代 usage-and-routing 做场景分流
+- 替代 unified-methodology 做方法论决策
 - 在请求尚未抓到、重放尚未稳定时直接进入盲目 payload 测试
 
 ## Fast Routing Cards
 
 ### Web injection or output execution
 
-- 先看 `03-web-security-integrated.md`
+- 先看 `search_skills("web security integrated")`
 - 如果是输入点验证，优先分成 `SQLi`、`XSS`、`command execution`、`SSTI`、`XXE`
-- 如果请求是客户端构造的，先回到 `02-client-api-reverse-and-burp.md`
+- 如果请求是客户端构造的，先回到 client-api-reverse-and-burp 流程
 
 ### Auth, logic, token, or state bugs
 
-- 先看 `03-web-security-integrated.md`
+- 先看 `search_skills("web security integrated")`
 - 重点先确认对象标识、角色边界、重置流程、支付金额、顺序依赖
 - 如果 token 或签名来自客户端，先稳定重放再测试
 
 ### Browser-side sign, anti-bot, or WebSocket handshake
 
-- 先看 `browser-js-signing-workflow.md`
-- 再按阶段进入 `browser-locate-and-request-chain.md`、`browser-recover-and-shell-reduction.md`、`browser-runtime-fit-and-risk.md`、`browser-validation-and-handoff.md`
-- 重放稳定后再切回 `03-web-security-integrated.md`
+- 先看 browser-js-signing 流程
+- 再按阶段进入 browser-locate-and-request-chain、browser-recover-and-shell-reduction、browser-runtime-fit-and-risk、browser-validation-and-handoff
+- 重放稳定后再切回 `search_skills("web security integrated")`
 
 ### Android runtime, packet visibility, or sign recovery
 
-- 先看 `android-external-url-runtime-first-workflow.md`
-- 如果要靠界面状态推进，继续看 `android-ui-driven-observation-and-packet-loop.md`
-- 只有抓不到包、包不透明或重放受阻时，再进入 `android-signing-and-crypto-workflow.md`
+- 先看 android-external-url-runtime-first 流程
+- 如果要靠界面状态推进，继续看 android-ui-driven-observation-and-packet-loop
+- 只有抓不到包、包不透明或重放受阻时，再进入 android-signing-and-crypto-workflow
 
 ### AI, agent, or MCP exposure
 
-- 先看 `04-ai-and-mcp-security-integrated.md`
+- 先看 AI/MCP security integrated 参考
 - 重点先分 `prompt injection`、`tool abuse`、`MCP trust boundary`、`memory/state poisoning`、`output approval gaps`
 - 需要快查常见测试语义时，看下面的 AI/MCP 卡片
 
 ### Intranet, host, or AD work
 
-- 先看 `06-intranet-and-host-operations-integrated.md`
-- 工具不确定时补看 `05-tools-and-operations-integrated.md`
+- 先看 intranet-and-host-operations integrated 参考
+- 工具不确定时补看 tools-and-operations integrated 参考
 
 ## Web Rapid Cards
 
@@ -152,8 +152,8 @@ Use families, not copied full lists, unless the current task specifically needs 
 
 ## Escalation Rule
 
-- If the route is still unclear, go back to `00-usage-and-routing.md`.
-- If packet visibility or replay is blocked, go back to `02-client-api-reverse-and-burp.md` or the matching browser or Android workflow.
-- If you need exact original payload wording or exhaustive raw examples, open `references/payloads.md`.
+- If the route is still unclear, go back to usage-and-routing.
+- If packet visibility or replay is blocked, go back to client-api-reverse-and-burp or the matching browser or Android workflow.
+- If you need exact original payload wording or exhaustive raw examples, open `search_skills("payloads")`.
 
 

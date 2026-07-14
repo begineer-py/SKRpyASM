@@ -20,5 +20,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Create workspace root for per-target isolation
 RUN mkdir -p /scripthub /workspace && chmod 755 /workspace
 
+# 輕量存活訊號：驗證 /workspace 與 /scripthub 存在（bwrap 隔離功能驗證屬下一輪）
+HEALTHCHECK --interval=60s --timeout=10s --retries=3 --start-period=15s \
+  CMD test -d /workspace && test -d /scripthub || exit 1
+
 # Keep container alive continuously
 CMD ["tail", "-f", "/dev/null"]

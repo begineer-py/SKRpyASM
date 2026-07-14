@@ -8,9 +8,7 @@ tags: ['web', 'security']
 
 Use the fused upstream material for complete content:
 
-- `references/`
-- `references/web-playbook-*.md`
-- `references/tools-reference-*.md`
+- `search_skills("web playbook index")`
 
 ## Web Families
 

@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from django.db import transaction
-from django.db.models import Max
+from django.db import connection, transaction
 from django.utils import timezone
 
 from apps.core.models import ExecutionArtifact, ExecutionEvent, ExecutionGraph, ExecutionNode, Thread
@@ -177,6 +176,10 @@ class ExecutionService:
             content=content,
             payload=payload,
         )
+        # 先觸發 agent wake（註冊 on_commit callback）再 reconcile graph status，
+        # 確保 wake_agent_on_scan_completion 看到的狀態（RUNNING）是真實的 agent 活動
+        # 而非 reconcile 將 WAITING→RUNNING 的副作用。
+        ExecutionService._maybe_trigger_agent_wake(node)
         if reconcile_graph:
             ExecutionService.reconcile_graph_status(node.graph)
         return node
@@ -203,6 +206,10 @@ class ExecutionService:
             content=content,
             payload=payload,
         )
+        # 先觸發 agent wake（註冊 on_commit callback）再 reconcile graph status，
+        # 確保 wake_agent_on_scan_completion 看到的狀態（RUNNING）是真實的 agent 活動
+        # 而非 reconcile 將 WAITING→RUNNING 的副作用。
+        ExecutionService._maybe_trigger_agent_wake(node)
         if reconcile_graph:
             ExecutionService.reconcile_graph_status(node.graph)
         return node
@@ -235,11 +242,64 @@ class ExecutionService:
                 graph.save(update_fields=["status", "updated_at"])
             return graph
 
-        if any(status == ExecutionNode.Status.FAILED for status in statuses):
-            return ExecutionService.fail_graph(graph, error="One or more execution nodes failed")
+        # 部分容錯：只有「全部 node 都 FAILED」才判 graph 死刑。
+        # 混合狀態（有 SUCCEEDED 也有 FAILED）= 部分成功 → graph 保持 RUNNING，
+        # 讓 agent 有機會消化已拿到的結果、決定是否重試失敗的局部。
+        #
+        # 嚴重程度分層：
+        #   - 全部 FAILED          → fail_graph（mission 真的失敗）
+        #   - 部分 FAILED + 有成功  → graph 保持 RUNNING（結果仍可用，agent 自行判斷）
+        #   - 全部 SUCCEEDED/SKIPPED → graph 保持 RUNNING（等 agent 完成 mission）
+        failed_count = sum(1 for s in statuses if s == ExecutionNode.Status.FAILED)
+        if failed_count > 0:
+            if failed_count == len(statuses):
+                # 全部失敗 — mission 確實失敗
+                failed_nodes_qs = graph.nodes.filter(status=ExecutionNode.Status.FAILED)
+                failed_nodes_data = [
+                    {
+                        "node_id": n.id,
+                        "node_name": n.name,
+                        "error": n.error,
+                        "sequence": n.sequence,
+                    }
+                    for n in failed_nodes_qs.only("id", "name", "error", "sequence")
+                ]
+                return ExecutionService.fail_graph(
+                    graph,
+                    error="All execution nodes failed",
+                    payload={"failed_nodes": failed_nodes_data},
+                )
+            else:
+                # 部分失敗 — 記錄但不判死刑，graph 保持 RUNNING 讓 agent 繼續
+                succeeded_count = sum(
+                    1 for s in statuses
+                    if s in [ExecutionNode.Status.SUCCEEDED, ExecutionNode.Status.SKIPPED]
+                )
+                ExecutionService.emit_event(
+                    graph=graph,
+                    event_type="partial_failure",
+                    status=graph.status,
+                    content=f"{failed_count}/{len(statuses)} nodes failed, {succeeded_count} succeeded — graph continues",
+                    payload={
+                        "failed_count": failed_count,
+                        "succeeded_count": succeeded_count,
+                        "total": len(statuses),
+                    },
+                )
+                if graph.status != ExecutionGraph.Status.RUNNING:
+                    graph.status = ExecutionGraph.Status.RUNNING
+                    graph.save(update_fields=["status", "updated_at"])
+                return graph
 
+        # 所有 node 都 SUCCEEDED/SKIPPED：
+        # 不要自動 complete_graph — 「async scanner 都完成」不等於「mission 完成」。
+        # Graph 保留為 RUNNING，讓 wake_agent_on_scan_completion 喚醒 agent 繼續消化結果並決定下一步。
+        # Mission 真正完成的 gate 由 Overview.status=COMPLETED 連動（update_overview_status / propose_next_steps）。
         if all(status in [ExecutionNode.Status.SUCCEEDED, ExecutionNode.Status.SKIPPED] for status in statuses):
-            return ExecutionService.complete_graph(graph, content="All execution nodes completed")
+            if graph.status != ExecutionGraph.Status.RUNNING:
+                graph.status = ExecutionGraph.Status.RUNNING
+                graph.save(update_fields=["status", "updated_at"])
+            return graph
 
         return graph
 
@@ -342,8 +402,45 @@ class ExecutionService:
 
     @staticmethod
     def _next_node_sequence(graph: ExecutionGraph) -> int:
-        return (ExecutionNode.objects.filter(graph=graph).aggregate(value=Max("sequence"))["value"] or 0) + 1
+        """全域 PostgreSQL SEQUENCE 取號（原子操作，無 TOCTOU race）。
+
+        契約：sequence 在單一 graph 內單調遞增但**可能有跳號**（SEQUENCE 是全域的，
+        非 per-graph）。不可假設密集連續。SSE resume 的 last_sequence 比較是 `<`，
+        跳號不影響正確性。UniqueConstraint uniq_exec_node_graph_seq 保留為雙重防禦。
+        """
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT nextval('execution_graph_node_seq')")
+            return cursor.fetchone()[0]
 
     @staticmethod
     def _next_event_sequence(graph: ExecutionGraph) -> int:
-        return (ExecutionEvent.objects.filter(graph=graph).aggregate(value=Max("sequence"))["value"] or 0) + 1
+        """同 _next_node_sequence，但用 execution_node_event_seq。"""
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT nextval('execution_node_event_seq')")
+            return cursor.fetchone()[0]
+
+    @staticmethod
+    def _maybe_trigger_agent_wake(node: ExecutionNode) -> None:
+        """若 node 是 ASYNC_CALLBACK（scanner dispatch），在 commit 後喚醒綁定 agent。
+
+        on_commit 確保 wake task 在 DB commit 後才執行（看到最新的 node/graph 狀態）。
+        Lazy import 避免循環依賴（apps.auto.tasks 會 import ExecutionService）。
+        """
+        if getattr(node, "wait_reason", None) != "ASYNC_CALLBACK":
+            return
+        if not node.graph_id:
+            return
+        # 重新取得 graph.thread_id（避免 graph 物件 stale）
+        graph = ExecutionGraph.objects.filter(id=node.graph_id).only("thread_id").first()
+        if not graph or not graph.thread_id:
+            return
+        node_id = node.id
+        try:
+            from django.db import transaction as _tx
+
+            from apps.auto.tasks import wake_agent_on_scan_completion
+
+            _tx.on_commit(lambda: wake_agent_on_scan_completion.delay(execution_node_id=node_id))
+        except ImportError:
+            # apps.auto.tasks 尚未載入（例如初始 migration）— 安全跳過
+            pass

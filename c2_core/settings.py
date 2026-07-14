@@ -36,7 +36,7 @@ ALLOWED_HOSTS = (
     os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(",")
     if os.environ.get("DJANGO_ALLOWED_HOSTS")
     else ["*"]
-)  # 允許訪問 Django 應用的主機名列表；Docker 模式由 .env.docker 設定，conda 模式默認 ["*"]
+)  # 允許訪問 Django 應用的主機名列表；Docker 模式由 compose environment: 區塊覆蓋（見 docker/docker-compose.yml），conda 模式默認 ["*"]
 
 
 # Application definition
@@ -214,12 +214,12 @@ CACHES = {
 
 CELERY_BROKER_URL = os.environ.get(
     "CELERY_BROKER_URL", "redis://localhost:6379/0"
-)  # Celery 消息代理的 URL；Docker 模式由 .env.docker 覆蓋為 redis://redis:6379/0
+)  # Celery 消息代理的 URL；Docker 模式由 compose environment: 區塊覆蓋（見 docker/docker-compose.yml）為 redis://redis:6379/0
 
 # 任務結果儲存地址 (也可以用 Redis)
 CELERY_RESULT_BACKEND = os.environ.get(
     "CELERY_RESULT_BACKEND", "redis://localhost:6379/0"
-)  # Celery 任務結果後端 URL；Docker 模式由 .env.docker 覆蓋
+)  # Celery 任務結果後端 URL；Docker 模式由 compose environment: 區塊覆蓋（見 docker/docker-compose.yml）
 
 # 任務結果的序列化格式
 CELERY_RESULT_SERIALIZER = "json"  # Celery 任務結果的序列化格式設為 JSON
@@ -258,7 +258,8 @@ CELERY_IMPORTS = (
     "apps.scanners.cve_intelligence.tasks.scheduled_sync",  # CVE Scheduled Sync
     "apps.scanners.katana_scanner.tasks",  # Katana Active Crawler
 )
-API_BASE_URL = os.environ.get("API_BASE_URL", "http://127.0.0.1:8000")
+API_BASE_URL = os.environ.get("API_BASE_URL", "http://django:8000")
+INTERNAL_API_BASE_URL = os.environ.get("INTERNAL_API_BASE_URL", API_BASE_URL)
 LOG_DIR = BASE_DIR / "c2_core" / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 LOGGING = {

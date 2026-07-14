@@ -77,14 +77,15 @@ class ChunkDivider:
         chunk_index = 0
         
         for i, msg in enumerate(messages):
-            msg_data = msg.message
-            msg_type = msg_data.get('type', 'unknown')
+            from apps.auto.compression.message_utils import extract_msg_fields
+            fields = extract_msg_fields(msg)
+            msg_type = fields["type"]
             
             current_chunk_messages.append(msg)
             
             # Track tool calls
             if msg_type == 'tool':
-                tool_name = msg_data.get('name', 'unknown')
+                tool_name = fields["name"] or 'unknown'
                 current_chunk_tools.add(tool_name)
             
             # Determine if this is a chunk boundary
@@ -93,7 +94,8 @@ class ChunkDivider:
             # Strategy 1: New AI message (after initial message) = chunk boundary
             if msg_type == 'ai' and i > 0:
                 # Look back to see if there were tool calls in between
-                prev_msg_type = messages[i-1].message.get('type', '')
+                prev_fields = extract_msg_fields(messages[i-1])
+                prev_msg_type = prev_fields["type"]
                 if prev_msg_type in ['tool', 'human']:
                     is_chunk_end = True
             
@@ -159,7 +161,7 @@ class ChunkDivider:
             chunk_content = [
                 {
                     'id': msg.id,
-                    'type': msg.message.get('type'),
+                    'type': msg.message.get('type') if isinstance(msg.message, dict) else None,
                     'content': msg.message,
                     'created_at': msg.created_at.isoformat()
                 }

@@ -162,4 +162,41 @@ class TaskRequirementsSchema(Schema):
     provider: Optional[str] = None
     has_key: bool
     description: Optional[str] = None
+
+
+# ─── Watchdog Status ─────────────────────────────────────────────────
+class StalledOverviewSchema(Schema):
+    """被看門狗標記為停滯的 Overview 摘要。"""
+    id: int
+    status: str
+    rescue_count: int
+    updated_at: datetime
+    thread_id: Optional[int] = None
+    target_name: Optional[str] = None
+
+
+class ZombieGraphSchema(Schema):
+    """殭屍圖（RUNNING 但無進展）摘要。"""
+    id: int
+    status: str
+    thread_id: Optional[int] = None
+    assistant_id: Optional[str] = None
+    title: Optional[str] = None
+    updated_at: datetime
+
+
+class WatchdogStatusSchema(Schema):
+    """看門狗當前狀態快照。"""
+    # 排程任務狀態
+    watchdog_task_enabled: bool
+    watchdog_task_last_run_at: Optional[datetime] = None
+    watchdog_task_total_runs: int = 0
+    watchdog_task_interval: Optional[str] = None
+    # 當前觀察到的問題
+    stalled_overviews: List[StalledOverviewSchema]
+    zombie_graphs: List[ZombieGraphSchema]
+    needs_guidance_overviews: List[StalledOverviewSchema]
+    # 升級門檻
+    rescue_threshold_stalled: int = 3
+    rescue_threshold_needs_guidance: int = 5
     missing_key_hint: Optional[str] = None

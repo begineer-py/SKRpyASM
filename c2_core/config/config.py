@@ -147,7 +147,6 @@ class Config:
 
     # 不應暴露給 AI 的路徑
     EXCLUDED_API_PREFIXES = [
-        "/api/auto/resume",  # 異步回調入口，不由 AI 直接調用
         "/api/api_keys",  # 金鑰管理，安全敏感
     ]
 

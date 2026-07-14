@@ -11,6 +11,83 @@ class ReconnaissanceMixin:
     Provides tools for querying target context, managing overviews, and checking scan status.
     """
 
+    def _resolve_target_id_from_overview(self, overview_id):
+        """從 overview_id 解析 target_id，兼容直接傳 target_id 的舊用法。"""
+        if not overview_id:
+            overview_id = getattr(self, '_agent_overview_id', None)
+        if not overview_id:
+            return None, "Error: overview_id 未提供且 session 未綁定。請先呼叫 get_target_context 或 bind_to_target。"
+        try:
+            from apps.core.models import Overview
+            overview = Overview.objects.get(id=overview_id)
+            return overview.target_id, None
+        except Overview.DoesNotExist:
+            from apps.core.models import Target
+            if Target.objects.filter(id=overview_id).exists():
+                return overview_id, None
+            return None, f"Error: Overview ID {overview_id} 不存在。"
+
+    def _build_plan_info(self, target) -> str:
+        """從 DB 查詢 AttackPlan + Action + WalkCursor 狀態，組成 context 字串。"""
+        try:
+            from apps.core.models import AttackPlan, WalkCursor, AssetLock
+
+            plan = AttackPlan.objects.filter(
+                target_id=target.id, status="ACTIVE"
+            ).first()
+            if not plan:
+                plan = AttackPlan.objects.filter(
+                    target_id=target.id, status="DRAFT"
+                ).order_by("-created_at").first()
+
+            if not plan:
+                return (
+                    "Attack Plan: (無活躍計劃) — 請用 create_attack_plan 建立新計劃。\n"
+                    "Attack Actions: (無)"
+                )
+
+            lines = [f"Attack Plan#{plan.id} [{plan.status}]: {plan.objective}"]
+
+            actions = plan.actions.prefetch_related("asset_links").order_by("order", "created_at")
+            if actions.exists():
+                action_lines = []
+                for act in actions:
+                    assets_str = []
+                    for link in act.asset_links.all():
+                        for fk in ("ip_asset_id", "subdomain_asset_id", "url_asset_id",
+                                   "endpoint_asset_id", "port_asset_id"):
+                            val = getattr(link, fk, None)
+                            if val:
+                                assets_str.append(f"{link.asset_type}#{val}")
+                                break
+                    action_lines.append(
+                        f"  [{act.status:>11}] Action#{act.id} order={act.order}: "
+                        f"{(act.purpose_text or '(無目的)')[:80]} | "
+                        f"Assets: {', '.join(assets_str) or '(無)'}"
+                    )
+                lines.append(f"Attack Actions ({actions.count()}):\n" + "\n".join(action_lines))
+            else:
+                lines.append("Attack Actions: (無 — 請用 add_action 加入行動)")
+
+            try:
+                cursor = plan.walk_cursor
+                if cursor.current_asset_link_id:
+                    lines.append(f"WalkCursor: at AssetVectorLink#{cursor.current_asset_link_id}")
+                else:
+                    lines.append("WalkCursor: 初始位置（尚未走訪）")
+            except WalkCursor.DoesNotExist:
+                lines.append("WalkCursor: (未建立 — 計劃尚未激活)")
+
+            active_locks = AssetLock.objects.filter(target_id=target.id, lock_status="HELD")
+            if active_locks.exists():
+                lock_strs = [f"{l.asset_type} by Thread#{l.thread_id}" for l in active_locks]
+                lines.append(f"AssetLocks (HELD): {', '.join(lock_strs)}")
+
+            return "\n".join(lines)
+        except Exception as e:
+            logger.warning(f"_build_plan_info failed: {e}")
+            return f"Attack Plan: (查詢失敗: {e})"
+
     @method_tool
     def get_target_context(self, target_name: str) -> str:
         """
@@ -141,9 +218,21 @@ class ReconnaissanceMixin:
                     logger.info(f"[get_target_context] Auto-bound overview {active_overview.id} fields: {update_fields}")
             if not getattr(self, '_agent_overview_id', None):
                 self._agent_overview_id = active_overview.id
-            # 同步 thread_id 到 agent instance（供 create_overview / 自動注入使用）
+            # 同步 thread_id, bound_overview_id 到 agent instance（供 wrapper fallback 注入使用）
+            # 確保 as_graph() 的 wrapped tools 可以從 _thread.bound_overview_id 取得正確 ID
             if active_overview.thread_id and not getattr(self, '_current_invoke_thread_id', None):
                 self._current_invoke_thread_id = active_overview.thread_id
+            # 設定 _thread.bound_overview_id（wrapper fallback 路徑依賴此值）
+            _th = getattr(self, '_thread', None)
+            if _th is not None:
+                # bound_overview_id 是 ForeignKey(Overview)，比較 DB 底層 ID
+                cur_id = getattr(_th, 'bound_overview_id_id', None) or (
+                    getattr(_th, 'bound_overview_id', None) and getattr(_th.bound_overview_id, 'id', None)
+                )
+                if cur_id != active_overview.id:
+                    from apps.core.models.ai_models import Thread
+                    Thread.objects.filter(id=_th.id).update(bound_overview_id=active_overview.id)
+                    _th.bound_overview_id = active_overview
 
             is_completed = active_overview.status == "COMPLETED"
             context_prefix = "RECENTLY COMPLETED" if is_completed else "ACTIVE"
@@ -183,6 +272,9 @@ class ReconnaissanceMixin:
                 "urls": active_overview.url_results.count(),
             }
 
+            # ── AttackPlan 狀態（取代舊 overview.plan JSON）──────────────
+            plan_info = self._build_plan_info(target)
+
             return (
                 f"=== TARGET CONTEXT ===\n"
                 f"Current System Time: {now_str}\n"
@@ -192,7 +284,7 @@ class ReconnaissanceMixin:
                 f"Overview Status: {active_overview.status}\n"
                 f"Thread Relationship: ✓ AUTO-MANAGED (parent/own thread IDs 已由後端綁定，無需手動傳遞)\n"
                 f"Overview Knowledge: {active_overview.knowledge}\n"
-                f"Overview Plan: {active_overview.plan}\n"
+                f"{plan_info}\n"
                 f"Overview Active Executions:{executions_info}\n"
                 f"Overview Bound Asset Counts: {bound_asset_counts}\n"
                 f"Overview Bound IPs (high-value/current scope): {bound_ips}\n"
@@ -353,7 +445,7 @@ class ReconnaissanceMixin:
 
             parent_thread = AIThread.objects.get(id=target_thread_id)
 
-            # 直接注入訊息到父層 Thread，不觸發 LLM 避免無限迴圈
+            # 直接注入訊息到父層 Thread
             notification = HumanMessage(
                 content=f"[SYSTEM: Layer 3 Async Completion Report For Overview {overview_id}]\n{message}"
             )
@@ -362,6 +454,17 @@ class ReconnaissanceMixin:
                 role="human",
                 message=message_to_dict(notification),
             )
+
+            # 統一喚醒機制：寫完 message 後觸發 wake_agent_on_scan_completion
+            # 讓 parent agent 被喚醒繼續消化子代理回報
+            try:
+                from apps.auto.tasks import wake_agent_on_scan_completion
+                wake_agent_on_scan_completion.delay(thread_id=target_thread_id)
+            except Exception as wake_err:
+                logger.warning(
+                    f"notify_caller_agent: wake trigger failed for thread={target_thread_id}: {wake_err}"
+                )
+
             return f"成功回調通知 Parent Thread {target_thread_id} {route_note}。"
         except Exception as e:
             logger.error(f"Failed to notify caller agent for overview {overview_id}: {e}")
@@ -454,7 +557,7 @@ class ReconnaissanceMixin:
     @method_tool
     def check_scanned_subdomains(
         self,
-        target_id: int,
+        overview_id: int = None,
         resolvable_filter: bool = None,
         tech_analyzed_filter: bool = None,
         limit: int = 50,
@@ -469,7 +572,7 @@ class ReconnaissanceMixin:
         避免永無止盡的執行相同的掃描。
 
         Args:
-            target_id: Target ID
+            overview_id: (自動注入) 當前 Overview ID。系統會自動解析對應的 target_id。
             resolvable_filter: 按 is_resolvable 过滤 (True/False/None)
             tech_analyzed_filter: 按 is_tech_analyzed 过滤 (True/False/None)
             limit: 返回数量上限（默认 50，最大 200）
@@ -480,6 +583,10 @@ class ReconnaissanceMixin:
         """
         try:
             from apps.core.models.domain import Subdomain
+
+            target_id, err = self._resolve_target_id_from_overview(overview_id)
+            if err:
+                return err
 
             query = Subdomain.objects.filter(target_id=target_id)
 
@@ -524,7 +631,7 @@ class ReconnaissanceMixin:
     @method_tool
     def query_urls(
         self,
-        target_id: int = None,
+        overview_id: int = None,
         hostname_contains: str = None,
         url_contains: str = None,
         content_fetch_status: str = None,
@@ -584,7 +691,7 @@ class ReconnaissanceMixin:
         系統會自動暗示應使用哪個爬蟲工具觸發掃描，無需 AI 手動發起兩次請求。
 
         Args:
-            target_id: (可選) 篩選指定 Target 下的 URL
+            overview_id: (自動注入) 當前 Overview ID。系統會自動解析對應的 target_id。
             hostname_contains: (可選) 篩選 hostname 包含特定字串（子字串匹配，非完整匹配）
             url_contains: (可選) 篩選 URL 路徑包含特定字串（子字串匹配）
             content_fetch_status: (可選) 按抓取狀態篩選 ('SUCCESS_FETCHED', 'FAILED_BLOCKED', 'PENDING')
@@ -617,7 +724,11 @@ class ReconnaissanceMixin:
         try:
             from apps.core.models.url_assets import URLResult
             from django.db.models import Count, Q
-            
+
+            target_id, err = self._resolve_target_id_from_overview(overview_id)
+            if err:
+                return err
+
             asset_relations = {
                 "forms": "forms",
                 "links": "links",
@@ -861,17 +972,19 @@ class ReconnaissanceMixin:
             return f"求助失敗: {e}"
 
     @method_tool
-    def read_orchestrator_guidance(self, overview_id: int) -> str:
+    def read_orchestrator_guidance(self, overview_id: int = None) -> str:
         """
         [Escalation] 在呼叫 escalate_to_orchestrator 求助之後，用此工具查看 HackerAssistant 是否已回覆指導建議。
         如果有新的指導訊息，此工具會回傳其內容。如果還沒有回覆，會提示你等待。
 
         Args:
-            overview_id: 當前 Overview 的 ID。
+            overview_id: (Optional) 當前 Overview 的 ID。自動注入。
         """
         try:
             from django.utils import timezone
 
+            if not overview_id:
+                return "Error: overview_id 未提供且 session 未綁定。請先呼叫 get_target_context 或 bind_to_target。"
             if not Overview.objects.filter(id=overview_id).exists():
                 return f"CRITICAL_FAILURE: overview_id={overview_id} does not exist."
 
@@ -919,7 +1032,7 @@ class ReconnaissanceMixin:
     @method_tool
     def check_scanned_ips(
         self,
-        target_id: int,
+        overview_id: int = None,
         port_count_min: int = None,
         port_count_max: int = None,
         limit: int = 50,
@@ -933,7 +1046,7 @@ class ReconnaissanceMixin:
         避免對同一個 IP 重複執行慢速的端口掃描。
 
         Args:
-            target_id: Target ID
+            overview_id: (自動注入) 當前 Overview ID。系統會自動解析對應的 target_id。
             port_count_min: 最少端口数过滤
             port_count_max: 最多端口数过滤
             limit: 返回数量上限（默认 50，最大 200）
@@ -945,6 +1058,10 @@ class ReconnaissanceMixin:
         try:
             from apps.core.models.network import IP
             from django.db.models import Count
+
+            target_id, err = self._resolve_target_id_from_overview(overview_id)
+            if err:
+                return err
 
             # 使用 annotate 避免 N+1 查询
             query = IP.objects.filter(target_id=target_id).annotate(

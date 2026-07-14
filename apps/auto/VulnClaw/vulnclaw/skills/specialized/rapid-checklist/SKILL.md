@@ -25,9 +25,9 @@ tags: ['cheatsheet', 'payload']
 
 | 场景 | 快速定位 |
 |------|---------|
-| PHP 弱比较 → 0e 开头 MD5 值 | `ctf-web` → `php-bypass-cheatsheet.md` |
-| 命令注入空格绕过 → ${IFS}/$IFS$9/< | `ctf-web` → `command-injection-bypass.md` |
-| eval 无回显 → 写文件/DNS 外带 | `ctf-web` → `eval-and-rce-techniques.md` |
+| PHP 弱比较 → 0e 开头 MD5 值 | `ctf-web` → `search_skills("php bypass")` |
+| 命令注入空格绕过 → ${IFS}/$IFS$9/< | `ctf-web` → `search_skills("command injection bypass")` |
+| eval 无回显 → 写文件/DNS 外带 | `ctf-web` → `search_skills("eval rce")` |
 
 ## 快速路由卡片
 
@@ -51,6 +51,6 @@ tags: ['cheatsheet', 'payload']
 
 ## 参考文档
 
-- `references/08-rapid-checklists-and-payloads.md` — 速查与 Payload 整合参考
-- `references/payloads.md` — Payload 详细集合
-- `references/testing-methodology.md` — 测试方法论
+- `search_skills("rapid checklist")` — 速查与 Payload 整合参考
+- `search_skills("payloads")` — Payload 详细集合
+- `search_skills("testing methodology")` — 测试方法论

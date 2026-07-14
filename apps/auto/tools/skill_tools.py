@@ -630,42 +630,7 @@ class SkillMixin:
         except Exception as exc:
             logger.warning("Failed to record skill execution artifact: %s", exc)
             return None
-    
-    @method_tool
-    def promote_successful_script(
-        self,
-        script_execution_id: int,
-        skill_name: str,
-        tags: list = None,
-        description: str = None,
-        force: bool = False
-    ) -> str:
-        """
-        [DEPRECATED — 請勿呼叫]
-        舊版腳本執行記錄升級入口已停用：ScriptExecution 模型已移除，
-        腳本執行記錄現改存於 ExecutionArtifact。本工具僅保留外殼以維持 schema 相容性。
-        
-        若要將成功的執行結果升級為 SkillTemplate，請改用：
-        1. 先用 query_steps / ExecutionArtifact 查詢成功執行的 artifact
-        2. 直接使用 create_skill 或 update_skill 建立技能
-        
-        Args:
-            script_execution_id: (已停用) 舊版腳本執行記錄 ID
-            skill_name: 新技能的名稱（kebab-case，如 'django-csrf-bypass'）
-            tags: 技能標籤列表（如 ["django", "csrf", "bypass"]）
-            description: 技能描述（如果 None，自動生成）
-            force: 強制升級（即使未通過驗證）
-        
-        Returns:
-            升級結果訊息
-        """
-        # 早期守衛：避免觸發已移除模型的 import
-        return (
-            "[DEPRECATED] promote_successful_script 已停用。\n"
-            "ScriptExecution 模型已移除，請改用 ExecutionArtifact 查詢成功執行結果，\n"
-            "再以 create_skill / update_skill 建立技能。"
-        )
-    
+
     @method_tool
     def mark_skill_as_robust(self, skill_name: str, verified: bool = True) -> str:
         """
@@ -699,24 +664,3 @@ class SkillMixin:
             return f"[ERROR] Skill '{skill_name}' not found"
         except Exception as e:
             return f"[ERROR] Failed to update skill: {str(e)}"
-    
-    @method_tool
-    def list_ready_for_promotion(self) -> str:
-        """
-        [DEPRECATED — 請勿呼叫]
-        舊版「列出可升級的腳本執行記錄」入口已停用：ScriptExecution 模型已移除。
-        腳本執行結果現改存於 ExecutionArtifact。
-        
-        若要查詢可升級為 SkillTemplate 的執行結果，請改用：
-        - query_steps 查詢 status=SUCCESS 的執行節點
-        - 直接讀取 ExecutionArtifact 中的 skill_execution 內容
-        
-        Returns:
-            停用訊息
-        """
-        # 早期守衛：get_scripts_ready_for_promotion 已是 stub 回傳 []
-        return (
-            "[DEPRECATED] list_ready_for_promotion 已停用。\n"
-            "ScriptExecution 模型已移除。\n"
-            "請改用 query_steps 查詢 status=SUCCESS 的執行節點及其 ExecutionArtifact。"
-        )

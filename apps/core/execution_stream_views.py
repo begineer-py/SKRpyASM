@@ -18,6 +18,11 @@ logger = logging.getLogger(__name__)
 def _sse_event(data: str | dict, event: str | None = None, event_id: int | None = None) -> str:
     if isinstance(data, dict):
         data = json.dumps(data)
+    elif not isinstance(data, str):
+        try:
+            data = json.dumps(data)
+        except (TypeError, ValueError):
+            data = str(data)
 
     lines = []
     if event_id is not None:

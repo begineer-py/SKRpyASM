@@ -30,14 +30,6 @@ class Overview(models.Model):
     summary = models.TextField(null=True, blank=True, help_text="目前目標的筆記")
     techs = models.JSONField(null=True, blank=True, help_text="偵測到的技術棧（舊欄位，將逐步淘汰，改用 tech_stack）")
     knowledge = models.JSONField(null=True, blank=True, help_text="當前對目標的認知快照")
-    plan = models.JSONField(
-        null=True,
-        blank=True,
-        help_text=(
-            "AI 擬定的結構化計畫。格式: "
-            "{objectives: [{id, description, priority, status}], reasoning: str, generated_at: iso8601}"
-        ),
-    )
 
     # 核心情報欄位（新增 — 高頻存取，Agent 與子代理直接讀寫）
     recon_summary = models.TextField(
@@ -71,6 +63,13 @@ class Overview(models.Model):
     ]
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default="PLANNING")
     risk_score = models.PositiveSmallIntegerField(default=0, help_text="綜合風險評分 (0-100)")
+    rescue_count = models.PositiveSmallIntegerField(
+        default=0,
+        help_text=(
+            "Watchdog 累計救援次數。到達 RESCUE_THRESHOLD_STALLED (3) 時自動轉 STALLED，"
+            "到達 RESCUE_THRESHOLD_NEEDS_GUIDANCE (5) 時自動轉 NEEDS_GUIDANCE。"
+        ),
+    )
     thread = models.ForeignKey(
         "core.Thread",
         on_delete=models.SET_NULL,
@@ -104,3 +103,11 @@ class Overview(models.Model):
 
     def __str__(self):
         return f"Overview[{self.id}] - {self.status} (Risk: {self.risk_score})"
+
+    @property
+    def plan(self):
+        return None
+
+    @plan.setter
+    def plan(self, value):
+        pass

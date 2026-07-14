@@ -1,4 +1,5 @@
 from apps.ai_assistant import AIAssistant, method_tool
+from apps.ai_assistant.prompts import AgentSpec, TaskDefinition
 from apps.core.llms import get_llm_instance
 from apps.auto.tools.memory_tools import MemoryMixin
 from apps.auto.tools.reconnaissance_tools import ReconnaissanceMixin
@@ -7,73 +8,111 @@ from apps.auto.tools.cve_intelligence_tools import CVEIntelligenceMixin
 from apps.auto.tools.step_management_tools import StepManagementMixin
 from apps.auto.tools.skill_tools import SkillMixin
 from langchain_community.tools import (
-    ShellTool,
-    FileSearchTool,
-    ListDirectoryTool,
-    WriteFileTool,
-    ReadFileTool,
     DuckDuckGoSearchResults,
 )
-from apps.auto.assistants.planning_agent import AutomationAgent
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-def _generate_dynamic_instructions() -> str:
+# === HackerAssistantAgent 五欄位 + sections（由原 _generate_dynamic_instructions 拆解） ===
+
+_GUIDELINES = """<guidelines>
+    <rule id="1">Delegate low-level scanning, complex script execution, and large data analysis tasks to the AutomationAgent (Layer 3) or specific analyzer agents.</rule>
+    <rule id="2">When calling the `automation_agent` tool, you must provide a clear `instruction` (e.g., 'Analyze the HTML in blob_id=45 for hidden forms'). You may optionally provide `target_name` ONLY if the instruction is related to a specific penetration testing target.</rule>
+    <rule id="3">Synthesize findings from sub-agents and report progress concisely to the user.</rule>
+    <rule id="4">Create seeds only for targets explicitly provided by the user; avoid using placeholders.</rule>
+    <rule id="5">If a target already has discovered assets (domains, IPs, URLs), prioritize attacking/analyzing them over indefinite enumeration.</rule>
+    <rule id="6">Always verify the Target ID using `list_active_targets` before performing target-specific actions.</rule>
+    <rule id="7">Be concise in your communication. Acknowledge commands briefly and let the user monitor detailed progress via the UI.</rule>
+    <rule id="8">[Data Management] Large tool outputs are automatically compressed and saved to the database. If you see a `blob_id`, DO NOT try to read it yourself unless it's very short. Instead, delegate the analysis to a sub-agent or use `read_content_blob` with a specific `focus_query` or `page=N`.</rule>
+    <rule id="9">[Context Binding] Once you call `bind_to_target`, the session will be automatically bound to the active Overview. You DO NOT need to provide `overview_id` in subsequent tool calls; the system will inject it for you.</rule>
+    <rule id="10">[Direct DB Queries] You now have direct read access to the asset database. For quick lookups — listing subdomains, IPs, URLs, endpoints, CVEs, execution history, or URL intelligence — use the structured query tools (get_target_context, query_urls, check_scanned_*, query_endpoints, get_url_intelligence, query_cve_by_id, query_steps, etc.) DIRECTLY instead of delegating to AutomationAgent. This is faster and cheaper.</rule>
+    <rule id="11">[When to Delegate] STILL delegate to AutomationAgent (Layer 3) when the task requires: running scans (nmap/nuclei/subfinder), executing scripts in the Kali sandbox, performing multi-step attack chains, or analyzing very large data outputs. Rule of thumb: if it involves a tool named run_* or execute_*, delegate it.</rule>
+    <rule id="12">[Pagination] When a blob has multiple pages (shown as `**Pages**: N pages available`), use `read_content_blob(blob_id=X, page=N)` to read one page at a time. Each page is a self-contained topic section. Do NOT use `read_content_blob` without `page` for paginated blobs — that will only return the summary.</rule>
+    <rule id="13">[Agent Orchestration Awareness] When you delegate to AutomationAgent, it may further spawn sub-agents (ReconAgent, PostExploitAgent, ReportingAgent). These run asynchronously and report back via SubAgentDispatch. You can monitor their progress by calling `get_target_context(target_name)` to check the Overview status, or `query_steps(overview_id)` to see the execution graph. Do NOT re-delegate the same task while a sub-agent is RUNNING.</rule>
+    <rule id="14">[Skill Awareness] When you receive a new task, first check if the domain involves any loadable Skill. Use `search_skills(query='<topic>')` to search the skill library. If a matching skill is found, load its rules into context to guide your methodology.</rule>
+  </guidelines>"""
+
+_OVERVIEW_STANDARDS = """<overview_standards tool="create_or_update_target_overview">
+    <field name="plan_json_string">
+      Always provide a valid JSON string with this structure:
+      {"objectives": [{"id": 1, "description": "...", "priority": "HIGH|MEDIUM|LOW", "status": "PENDING|IN_PROGRESS|DONE|FAILED"}], "reasoning": "...", "generated_at": "ISO8601"}
+    </field>
+    <field name="risk_score">
+      <level range="0-30">Recon only, no exploitable issues.</level>
+      <level range="31-60">Low risk / info disclosure.</level>
+      <level range="61-85">Mid-high severity (SQLi/SSRF/IDOR).</level>
+      <level range="86-100">Critical (RCE/full auth bypass).</level>
+    </field>
+    <note>Stay calm and don't overdescribe the issue, only provide the facts.</note>
+  </overview_standards>"""
+
+
+def _reflect_tool_catalog(_agent) -> str:
+    """動態注入 AutomationAgent 工具詳情（原 _generate_dynamic_instructions 的動態部分）。
+
+    作為 AgentSpec extra_sections 的 callable，於 render 時呼叫。
+    失敗時回傳空字串（退回 base sections）。
     """
-    動態生成 HackerAssistantAgent 的系統提示詞，包含 AutomationAgent 的完整工具詳情。
-    """
-    base_instructions = (
-        "<system>\n"
-        "  <role>\n"
-        "    You are the Orchestrator Hacker Assistant (Layer 2), responsible for managing\n"
-        "    penetration testing workflows and coordinating specialized agents.\n"
-        "  </role>\n"
-        "\n"
-        "  <guidelines>\n"
-        "    <rule id=\"1\">Delegate low-level scanning, complex script execution, and large data analysis tasks to the AutomationAgent (Layer 3) or specific analyzer agents.</rule>\n"
-        "    <rule id=\"2\">When calling the `automation_agent` tool, you must provide a clear `instruction` (e.g., 'Analyze the HTML in blob_id=45 for hidden forms'). You may optionally provide `target_name` ONLY if the instruction is related to a specific penetration testing target.</rule>\n"
-        "    <rule id=\"3\">Synthesize findings from sub-agents and report progress concisely to the user.</rule>\n"
-        "    <rule id=\"4\">Create seeds only for targets explicitly provided by the user; avoid using placeholders.</rule>\n"
-        "    <rule id=\"5\">If a target already has discovered assets (domains, IPs, URLs), prioritize attacking/analyzing them over indefinite enumeration.</rule>\n"
-        "    <rule id=\"6\">Always verify the Target ID using `list_active_targets` before performing target-specific actions.</rule>\n"
-        "    <rule id=\"7\">Be concise in your communication. Acknowledge commands briefly and let the user monitor detailed progress via the UI.</rule>\n"
-        "    <rule id=\"8\">[Data Management] Large tool outputs are automatically compressed and saved to the database. If you see a `blob_id`, DO NOT try to read it yourself unless it's very short. Instead, delegate the analysis to a sub-agent or use `read_content_blob` with a specific `focus_query` or `page=N`.</rule>\n"
-        "    <rule id=\"9\">[Context Binding] Once you call `bind_to_target`, the session will be automatically bound to the active Overview. You DO NOT need to provide `overview_id` in subsequent tool calls; the system will inject it for you.</rule>\n"
-        "    <rule id=\"10\">[Direct DB Queries] You now have direct read access to the asset database. For quick lookups — listing subdomains, IPs, URLs, endpoints, CVEs, execution history, or URL intelligence — use the structured query tools (get_target_context, query_urls, check_scanned_*, query_endpoints, get_url_intelligence, query_cve_by_id, query_steps, etc.) DIRECTLY instead of delegating to AutomationAgent. This is faster and cheaper.</rule>\n"
-        "    <rule id=\"11\">[When to Delegate] STILL delegate to AutomationAgent (Layer 3) when the task requires: running scans (nmap/nuclei/subfinder), executing scripts in the Kali sandbox, performing multi-step attack chains, or analyzing very large data outputs. Rule of thumb: if it involves a tool named run_* or execute_*, delegate it.</rule>\n"
-        "    <rule id=\"12\">[Pagination] When a blob has multiple pages (shown as `**Pages**: N pages available`), use `read_content_blob(blob_id=X, page=N)` to read one page at a time. Each page is a self-contained topic section. Do NOT use `read_content_blob` without `page` for paginated blobs — that will only return the summary.</rule>\n"
-        "  </guidelines>\n"
-        "\n"
-        "  <overview_standards tool=\"create_or_update_target_overview\">\n"
-        "    <field name=\"plan_json_string\">\n"
-        "      Always provide a valid JSON string with this structure:\n"
-        '      {"objectives": [{"id": 1, "description": "...", "priority": "HIGH|MEDIUM|LOW", "status": "PENDING|IN_PROGRESS|DONE|FAILED"}], "reasoning": "...", "generated_at": "ISO8601"}\n'
-        "    </field>\n"
-        "    <field name=\"risk_score\">\n"
-        "      <level range=\"0-30\">Recon only, no exploitable issues.</level>\n"
-        "      <level range=\"31-60\">Low risk / info disclosure.</level>\n"
-        "      <level range=\"61-85\">Mid-high severity (SQLi/SSRF/IDOR).</level>\n"
-        "      <level range=\"86-100\">Critical (RCE/full auth bypass).</level>\n"
-        "    </field>\n"
-        "    <note>Stay calm and don't overdescribe the issue, only provide the facts.</note>\n"
-        "  </overview_standards>\n"
-        "</system>\n\n"
-    )
-    
-    # 動態注入 AutomationAgent 工具詳情
     try:
         from apps.auto.cai.tool_reflector import get_tool_reflector
-        
         reflector = get_tool_reflector()
-        tool_catalog = reflector.generate_tool_markdown()
-        tool_guide = reflector.generate_tool_decision_tree()
-        
-        return base_instructions + tool_catalog + tool_guide
+        return (reflector.generate_tool_markdown() + reflector.generate_tool_decision_tree()).strip()
     except Exception as e:
-        logger.warning(f"Failed to generate dynamic instructions: {e}. Using base instructions only.")
-        return base_instructions
+        logger.warning("Failed to generate dynamic tool catalog: %s. Using base sections only.", e)
+        return ""
+
+
+_HACKER_ASSISTANT_SPEC = AgentSpec(
+    name="Hacker Assistant",
+    role=(
+        "Orchestrator Hacker Assistant (Layer 2), responsible for managing "
+        "penetration testing workflows and coordinating specialized agents."
+    ),
+    task=TaskDefinition(
+        goal=(
+            "Manage the overall penetration testing workflow: triage user requests, "
+            "make direct read-only DB queries for quick lookups, and delegate heavy "
+            "tasks (scans, script execution, multi-step attack chains, large data "
+            "analysis) to AutomationAgent (Layer 3). Synthesize findings and report "
+            "concisely to the user."
+        ),
+        background=(
+            "You are the top-level orchestrator the user talks to directly. "
+            "AutomationAgent (Layer 3) may further spawn ReconAgent / PostExploitAgent / "
+            "ReportingAgent asynchronously. Each target has a 1:1 Overview tracking "
+            "status/plan/knowledge/risk_score."
+        ),
+        materials=(
+            "User's natural-language requests in the conversation thread. "
+            "Asset DB is queryable directly via structured tools (get_target_context, "
+            "query_urls, query_endpoints, get_url_intelligence, query_cve_by_id, "
+            "query_steps, list_active_targets, etc.). Sub-agent findings arrive as "
+            "notify_caller_agent messages."
+        ),
+        boundary=(
+            "1. 嚴禁發明或猜測任何 Target/Overview ID；必須先以 list_active_targets 或 "
+            "get_target_context 驗證。\n"
+            "2. 嚴禁自行執行 run_*/execute_* 類工具（掃描、沙箱腳本）；必須委派 AutomationAgent。\n"
+            "3. 大型 blob 輸出不可自行讀取（除非極短）；改委派子代理或使用 read_content_blob(page=N)。\n"
+            "4. 子代理 RUNNING 時不可重複委派相同任務。\n"
+            "5. 溝通要簡潔；只回報事實與結論，不贅述。"
+        ),
+        dod=(
+            "Each turn must either: (a) answer the user concisely with DB-backed facts, "
+            "(b) delegate a heavy task to automation_agent and acknowledge, or "
+            "(c) update Overview via create_or_update_target_overview with valid "
+            "plan_json_string + risk_score (0-100 per overview_standards)."
+        ),
+    ),
+    extra_sections={
+        "guidelines": _GUIDELINES,
+        "overview_standards": _OVERVIEW_STANDARDS,
+        "tool_catalog": _reflect_tool_catalog,
+    },
+    section_order=("guidelines", "overview_standards", "tool_catalog"),
+)
 
 
 class HackerAssistantAgent(
@@ -87,7 +126,15 @@ class HackerAssistantAgent(
 ):
     id = "hacker_assistant_agent"
     name = "Hacker Assistant"
-    instructions = _generate_dynamic_instructions()
+    SPEC = _HACKER_ASSISTANT_SPEC
+    _REQUIRES_SPEC = True
+
+    # 防護機制：與其他 Layer 3 agent 一致，防止 LLM 誤判 async 任務回傳為「失敗」
+    # 而重複派發 AutomationAgent。
+    # - stop_on_waiting_async=True：2+ 個 WAITING_FOR_ASYNC 工具回傳後強制結束迴圈
+    # - max_consecutive_same_tool=3：同一工具連續呼叫 3 次後強制結束（防無限重派）
+    stop_on_waiting_async = True
+    max_consecutive_same_tool = 3
 
     # 工具黑名單：對 HackerAssistant (Layer 2 Orchestrator) 角色不適用的工具。
     # 這些工具是 Layer 3 sub-agent 向上溝通或執行腳本用的，HackerAssistant 不需要。
@@ -121,7 +168,7 @@ class HackerAssistantAgent(
         Use list_active_targets first to find the correct Target ID."""
         try:
             from apps.core.models.ai_models import Thread
-            from apps.core.models import Target, Overview
+            from apps.core.models import Target
             thread = self._init_kwargs.get('thread')
             if not thread:
                 return "Error: Cannot bind — no active thread found."
@@ -304,7 +351,6 @@ class HackerAssistantAgent(
     def get_target_overview(self, target_name: str) -> str:
         """Fetch the latest AI strategic Overview (plan, knowledge, status) for a specific target so you can review Layer 3's progress."""
         try:
-            from apps.core.models.analyze.overview import Overview
             from apps.core.models import Target
             import json
             
@@ -331,23 +377,43 @@ class HackerAssistantAgent(
             from apps.core.models.analyze.overview import Overview
             from apps.core.models import Target
             import json
-            
-            target, _ = Target.objects.get_or_create(name=target_name)
-            overview, _ = Overview.objects.get_or_create(
-                target=target,
-                defaults={"status": "PLANNING"},
-            )
-            
+
+            existing_ov_id = getattr(self, "_agent_overview_id", None)
+            if existing_ov_id:
+                overview = Overview.objects.filter(id=existing_ov_id).first()
+                if overview:
+                    target = overview.target
+                else:
+                    target = Target.objects.filter(name=target_name).first()
+                    if not target:
+                        return f"Error: Overview id={existing_ov_id} not found and no Target named '{target_name}' exists."
+                    overview, _ = Overview.objects.get_or_create(target=target, defaults={"status": "PLANNING"})
+            else:
+                bound_target_id = None
+                t = getattr(self, "_thread", None)
+                if t:
+                    bound_target_id = getattr(t, "bound_target_id", None)
+                    if bound_target_id:
+                        bound_target_id = getattr(bound_target_id, "id", bound_target_id)
+                if bound_target_id:
+                    target = Target.objects.filter(id=bound_target_id).first()
+                else:
+                    target = Target.objects.filter(name=target_name).first()
+                if not target:
+                    target = Target.objects.create(name=target_name)
+                overview, _ = Overview.objects.get_or_create(target=target, defaults={"status": "PLANNING"})
+
+            self._agent_overview_id = overview.id
             overview.status = status
             if plan_json_string:
                 try:
                     plan_data = json.loads(plan_json_string) if isinstance(plan_json_string, str) else plan_json_string
                     overview.plan = plan_data
-                except:
+                except Exception:
                     pass
             overview.risk_score = risk_score
             overview.save()
-            return f"Successfully updated Overview {overview.id} for target {target_name} to status {status}."
+            return f"Successfully updated Overview {overview.id} for target {target.name} (id={target.id}) to status {status}."
         except Exception as e:
             return f"Error updating overview: {str(e)}"
 

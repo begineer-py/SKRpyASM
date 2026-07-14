@@ -9,6 +9,9 @@ https://docs.djangoproject.com/en/5.2/howto/deployment/asgi/
 
 import os  # 導入os模塊，用於與操作系統交互，例如訪問環境變量
 
+from dotenv import load_dotenv  # 載入 .env 檔（本地 venv 模式用；預設不覆蓋既有變數，故 compose environment: 優先）
+load_dotenv()
+
 from django.core.asgi import (
     get_asgi_application,
 )  # 從Django的ASGI模塊導入獲取ASGI應用實例的函數

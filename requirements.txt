@@ -39,6 +39,7 @@ wafw00f==2.3.2
 pydantic==2.11.7
 PyYAML==6.0.2
 loguru==0.7.3
+rich==14.3.2
 setuptools==80.9.0
 asgiref==3.9.1
 python-dotenv==1.2.1
@@ -53,6 +54,7 @@ langchain-openai==1.2.1
 langchain-anthropic==1.4.4
 langchain-community==0.4.1
 langchain-mistralai==1.1.4
+langchain-deepseek==1.1.0
 langgraph==1.2.0
 langsmith==0.4.59
 
@@ -62,3 +64,13 @@ bcrypt==4.3.0
 prometheus-client==0.17.1
 psutil==7.0.0
 # semgrep (Not found in freeze, but kept if needed for CI)
+
+# === Optional Heavy Deps (Docker image fix) ===
+# torch 已停用：apps/flaresolverr/utils.py 的 JS 分析模型改為 lazy import + fallback
+# 如需啟用本地 JSON 分析模型，取消下行註解（會增加 ~5GB image）
+# torch==2.7.1
+fake-useragent==2.2.0
+chompjs==1.4.0
+ddgs==9.14.4
+sympy
+docker==7.1.0

@@ -117,25 +117,39 @@ class MySpider:
     def _check_dns(self) -> bool:
         """
         [預檢階段 1] 快速檢查域名是否可以解析。
-        如果這裡失敗，絕對不要去煩 FlareSolverr。
+        DNS 抖動是瞬態故障（Docker 內部解析器偶發失敗），因此重試 3 次。
         """
-        try:
-            parsed = urlparse(self.url)
-            hostname = parsed.hostname
-            if not hostname:
-                logger.error(f"URL 格式無效，無法解析 hostname: {self.url}")
-                return False
+        import time
+        parsed = urlparse(self.url)
+        hostname = parsed.hostname
+        if not hostname:
+            logger.error(f"URL 格式無效，無法解析 hostname: {self.url}")
+            return False
 
-            # 使用 socket 進行 DNS 查詢
-            socket.gethostbyname(hostname)
-            return True
-        except socket.gaierror:
-            logger.error(f"[Pre-flight] DNS 解析失敗: {self.url}。將跳過所有後續請求。")
-            self.content_fetch_status = "FAILED_DNS_ERROR"
-            return False
-        except Exception as e:
-            logger.error(f"[Pre-flight] DNS 檢查發生未預期錯誤: {e}")
-            return False
+        max_attempts = 3
+        for attempt in range(1, max_attempts + 1):
+            try:
+                socket.gethostbyname(hostname)
+                if attempt > 1:
+                    logger.info(f"[Pre-flight] DNS 在第 {attempt} 次重試成功: {hostname}")
+                return True
+            except socket.gaierror:
+                if attempt < max_attempts:
+                    logger.warning(
+                        f"[Pre-flight] DNS 解析失敗 (嘗試 {attempt}/{max_attempts}): {hostname}，"
+                        f"1 秒後重試..."
+                    )
+                    time.sleep(1)
+                else:
+                    logger.error(
+                        f"[Pre-flight] DNS 解析失敗 (已重試 {max_attempts} 次): {self.url}。放棄。"
+                    )
+                    self.content_fetch_status = "FAILED_DNS_ERROR"
+                    return False
+            except Exception as e:
+                logger.error(f"[Pre-flight] DNS 檢查發生未預期錯誤: {e}")
+                return False
+        return False
 
     def _check_content_type_and_download(self) -> tuple[bool, Optional[Dict]]:
         """

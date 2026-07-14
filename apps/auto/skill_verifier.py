@@ -18,6 +18,8 @@ from datetime import datetime, timezone
 from typing import Optional
 from pydantic import BaseModel, Field
 
+from apps.ai_assistant.prompts import PromptSpec, TaskDefinition
+
 logger = logging.getLogger(__name__)
 
 
@@ -60,82 +62,81 @@ class VerifierEvalOutput(BaseModel):
     suggestions: Optional[str] = Field(default="", description="改進建議")
 
 
-VERIFICATION_PROMPT = """<role>
-You are a Skill Verification Agent. Your job is to validate whether a registered
-penetration testing skill is working correctly.
-</role>
+# ════════════════════════════════════════════════════════════════════
+# PromptSpec 宣告（取代原本的字串常數）
+# ════════════════════════════════════════════════════════════════════
 
-<skill_context>
-<name>{skill_name}</name>
-<description>{skill_description}</description>
-<language>{skill_language}</language>
-<input_schema>{input_schema}</input_schema>
-<output_schema>{output_schema}</output_schema>
-<instructions>
-{skill_instructions}
-</instructions>
-<script_content>
-{script_content}
-</script_content>
-</skill_context>
+VERIFICATION_SPEC = PromptSpec(
+    name="SkillVerifier-TestInput",
+    role="Skill Verification Agent",
+    task=TaskDefinition(
+        goal="驗證已註冊的滲透測試技能是否正常運作 — 此步生成測試輸入。",
+        background="技能已註冊於 SkillTemplate；本 agent 作為獨立驗證器產生測試 input。",
+        materials=(
+            "skill_name、skill_description、skill_language、input_schema、output_schema、"
+            "skill_instructions、script_content（前 2000 字）。"
+        ),
+        boundary=(
+            "1. test_input 必須符合 input_schema（若無 schema 則給空物件）。\n"
+            "2. 測試輸入應為實際可用的滲透測試目標（example.com 或 127.0.0.1）。\n"
+            "3. reasoning 必須為繁體中文。\n"
+            "4. 輸出合法 JSON，不要 markdown code block。"
+        ),
+        dod="回傳含 test_input（dict）與 reasoning 的 JSON。",
+    ),
+    template_body=(
+        "<skill_context>\n<name>{skill_name}</name>\n<description>{skill_description}</description>\n"
+        "<language>{skill_language}</language>\n<input_schema>{input_schema}</input_schema>\n"
+        "<output_schema>{output_schema}</output_schema>\n<instructions>\n{skill_instructions}\n</instructions>\n"
+        "<script_content>\n{script_content}\n</script_content>\n</skill_context>\n\n"
+        "<task>\nConstruct a realistic test input for this skill based on its input_schema and instructions.\n</task>"
+    ),
+    output_schema=VerifierTestInput,
+    agent_id="skill_verifier_agent",
+    temperature=0.2,
+    output_format_hint=(
+        "Return ONLY valid JSON with this exact structure:\n"
+        '{{\n  "test_input": {{ ... }},\n  "reasoning": "Why this test input was chosen"\n}}'
+    ),
+)
+VERIFICATION_PROMPT = VERIFICATION_SPEC  # 向後相容別名
 
-<task>
-Construct a realistic test input for this skill based on its input_schema and instructions.
-</task>
-
-<output_format>
-Return ONLY valid JSON with this exact structure:
-{{
-  "test_input": {{ ... }},
-  "reasoning": "Why this test input was chosen"
-}}
-</output_format>
-
-<constraints>
-- test_input must conform to the input_schema if defined
-- If no input_schema, provide an empty object
-- The input should be a realistic target for penetration testing (use example.com or 127.0.0.1)
-- reasoning must be in Traditional Chinese
-</constraints>
-"""
-
-EVALUATION_PROMPT = """<role>
-You are a Skill Output Evaluation Agent. Your job is to evaluate whether a skill's
-execution output matches the expected result.
-</role>
-
-<skill_context>
-<name>{skill_name}</name>
-<description>{skill_description}</description>
-<expected_output_schema>{output_schema}</expected_output_schema>
-</skill_context>
-
-<execution_details>
-<test_input_used>{test_input}</test_input_used>
-<exit_code>{exit_code}</exit_code>
-<raw_output>{raw_output}</raw_output>
-</execution_details>
-
-<task>
-Analyze the execution output and determine if this skill executed successfully.
-</task>
-
-<output_format>
-Return ONLY valid JSON with this exact structure:
-{{
-  "verdict": "PASSED" | "FAILED" | "INCONCLUSIVE",
-  "confidence": 0-100,
-  "reasoning": "Detailed analysis in Traditional Chinese",
-  "suggestions": "Any suggestions for improvement or notes about the output"
-}}
-</output_format>
-
-<verdict_criteria>
-- PASSED: Exit code 0 AND output matches the expected schema/structure
-- FAILED: Exit code non-zero OR output is clearly wrong/empty
-- INCONCLUSIVE: Cannot clearly determine success or failure
-</verdict_criteria>
-"""
+EVALUATION_SPEC = PromptSpec(
+    name="SkillVerifier-Eval",
+    role="Skill Output Evaluation Agent",
+    task=TaskDefinition(
+        goal="評估技能執行後的輸出是否符合預期結果。",
+        background="技能已在沙箱執行；本步評估輸出是否正確。",
+        materials=(
+            "skill_name、skill_description、output_schema、test_input（使用的輸入）、"
+            "exit_code、raw_output（執行原始輸出）。"
+        ),
+        boundary=(
+            "1. PASSED：exit code 0 且輸出符合 schema/結構。\n"
+            "2. FAILED：exit code 非零或輸出明顯錯誤/空。\n"
+            "3. INCONCLUSIVE：無法明確判斷。\n"
+            "4. reasoning 繁體中文；輸出合法 JSON。"
+        ),
+        dod="回傳含 verdict、confidence、reasoning、suggestions 的 JSON。",
+    ),
+    template_body=(
+        "<skill_context>\n<name>{skill_name}</name>\n<description>{skill_description}</description>\n"
+        "<expected_output_schema>{output_schema}</expected_output_schema>\n</skill_context>\n\n"
+        "<execution_details>\n<test_input_used>{test_input}</test_input_used>\n"
+        "<exit_code>{exit_code}</exit_code>\n<raw_output>{raw_output}</raw_output>\n</execution_details>\n\n"
+        "<task>\nAnalyze the execution output and determine if this skill executed successfully.\n</task>"
+    ),
+    output_schema=VerifierEvalOutput,
+    agent_id="skill_verifier_agent",
+    temperature=0.2,
+    output_format_hint=(
+        "Return ONLY valid JSON with this exact structure:\n"
+        '{{\n  "verdict": "PASSED" | "FAILED" | "INCONCLUSIVE",\n'
+        '  "confidence": 0-100,\n  "reasoning": "Detailed analysis in Traditional Chinese",\n'
+        '  "suggestions": "Any suggestions for improvement or notes about the output"\n}}'
+    ),
+)
+EVALUATION_PROMPT = EVALUATION_SPEC  # 向後相容別名
 
 
 class SkillVerifier:
@@ -281,39 +282,63 @@ class SkillVerifier:
             return {"test_input": {}, "reasoning": "Fallback: empty input"}
 
     def _execute_skill(self, skill, test_input: dict) -> dict:
-        """Execute skill script via Docker sandbox."""
-        import docker, tempfile, os, subprocess
+        """Execute skill script via Docker sandbox (bwrap-isolated).
 
-        host_sandbox_dir = "/tmp/c2_sandbox_scripts"
-        os.makedirs(host_sandbox_dir, exist_ok=True)
+        腳本透過 docker put_archive 直接寫入 container 的 /scripthub，
+        不依賴 host volume（避免權限問題）。
+        """
+        import docker, io, tarfile, time
 
         ext = ".py" if skill.language.lower() == "python" else ".sh"
         runner = "python3" if skill.language.lower() == "python" else "bash"
         started_at = datetime.now(timezone.utc)
+        tmp_filename = f"verify_{skill.id}_{int(time.time())}{ext}"
+        host_tar_created = False
 
         try:
             client = docker.from_env()
             container = client.containers.get("c2_kali_sandbox")
 
-            with tempfile.NamedTemporaryFile(
-                dir=host_sandbox_dir, suffix=ext, delete=False, mode="w", encoding="utf-8"
-            ) as f:
-                f.write(skill.script_content or "")
-                tmp_filename = os.path.basename(f.name)
-                host_path = f.name
+            # 把腳本打包成 tar，用 put_archive 直接放進 container 的 /scripthub
+            tar_stream = io.BytesIO()
+            with tarfile.open(fileobj=tar_stream, mode="w") as tar:
+                data = (skill.script_content or "").encode("utf-8")
+                info = tarfile.TarInfo(name=tmp_filename)
+                info.size = len(data)
+                info.mode = 0o755
+                tar.addfile(info, io.BytesIO(data))
+            tar_stream.seek(0)
+            container.put_archive("/scripthub", tar_stream)
+            host_tar_created = True
 
             sandbox_path = f"/scripthub/{tmp_filename}"
 
-            # Pass input_json as first CLI arg (JSON string)
-            args = json.dumps(test_input) if test_input else ""
+            # 確保獨立的 workspace（基於 skill_id，非 target_id）
+            workspace = self._ensure_workspace(container, skill_id=skill.id)
+            # 用 shlex.quote 包裹 JSON 字串為單一 shell 參數，避免 bash word splitting
+            # （否則 JSON 內的空格會把 payload 切成多個 argv，sys.argv[1] 會變成檔名而非 JSON）
+            import shlex
+            cmd_parts = [runner, sandbox_path]
+            if test_input:
+                cmd_parts.append(shlex.quote(json.dumps(test_input)))
+            bwrap_cmd = self._build_bwrap_command(
+                " ".join(cmd_parts),
+                workspace,
+                sandbox_path,
+            )
+
             exit_code, output_bytes = container.exec_run(
-                cmd=[runner, sandbox_path, args],
+                cmd=["/bin/bash", "-c", bwrap_cmd],
                 detach=False,
                 stream=False,
             )
 
-            if os.path.exists(host_path):
-                os.remove(host_path)
+            # 清理腳本
+            container.exec_run(
+                cmd=["/bin/bash", "-c", f"rm -f {sandbox_path}"],
+                detach=False,
+                stream=False,
+            )
 
             raw_output = output_bytes.decode("utf-8", errors="replace")
             completed_at = datetime.now(timezone.utc)
@@ -326,13 +351,45 @@ class SkillVerifier:
             }
 
         except docker.errors.NotFound:
-            if "host_path" in locals() and os.path.exists(host_path):
-                os.remove(host_path)
             return {"error": "Sandbox container not found (c2_kali_sandbox)", "exit_code": -1}
         except Exception as e:
-            if "host_path" in locals() and os.path.exists(host_path):
-                os.remove(host_path)
             return {"error": str(e), "exit_code": -1}
+
+    @staticmethod
+    def _ensure_workspace(container, skill_id: int) -> str:
+        """為技能驗證建立臨時 workspace（/workspace/skill_<id>）。"""
+        workspace = f"/workspace/skill_{skill_id}"
+        container.exec_run(
+            cmd=["/bin/bash", "-c", f"mkdir -p {workspace} && chmod 700 {workspace}"],
+            detach=False,
+            stream=False,
+        )
+        return workspace
+
+    @staticmethod
+    def _build_bwrap_command(command: str, workspace: str, sandbox_path: str) -> str:
+        """建構 bwrap 包裝指令（與 SandboxMixin 同邏輯，但獨立實作避免循環依賴）。"""
+        import shlex
+        args = [
+            "bwrap", "--die-with-parent",
+            "--bind", workspace, workspace,
+            "--ro-bind", "/usr", "/usr",
+            "--ro-bind", "/lib", "/lib",
+            "--ro-bind", "/lib64", "/lib64",
+            "--ro-bind", "/bin", "/bin",
+            "--ro-bind", "/sbin", "/sbin",
+            "--ro-bind", "/etc", "/etc",
+            # scripthub 需要 bind，因為腳本在那裡
+            "--ro-bind", "/scripthub", "/scripthub",
+            "--dev", "/dev",
+            "--proc", "/proc",
+            "--tmpfs", "/tmp",
+            "--unsetenv", "HOME",
+            "--setenv", "HOME", workspace,
+        ]
+        wrapped = " ".join(shlex.quote(a) for a in args)
+        wrapped += " /bin/bash -c " + shlex.quote(command)
+        return wrapped
 
     def _evaluate_output(self, skill, test_input: dict, exit_code: int, raw_output: str) -> dict:
         """Use LLM to evaluate execution result."""

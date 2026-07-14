@@ -1,4 +1,7 @@
-version: "3.8"
+# 共用後端建置區塊（django / celery_worker / celery_beat 共用同一個 Dockerfile）
+x-backend-build: &backend-build
+  context: ..          # 項目根目錄（Dockerfile 所在位置）
+  dockerfile: Dockerfile
 
 services:
   postgres:
@@ -14,6 +17,12 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./setup_user_db.sh:/docker-entrypoint-initdb.d/setup_user_db.sh
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U myuser -d mydb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     networks:
       - c2_network
 
@@ -23,6 +32,11 @@ services:
     ports:
       - "127.0.0.1:6379:6379"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
     networks:
       - c2_network
 
@@ -113,6 +127,8 @@ services:
     network_mode: host # Allows sandbox to scan localhost easily
     cap_add:
       - SYS_ADMIN # Required for bwrap pivot_root (per-target isolation)
+      - NET_RAW # Required for nmap -sS (SYN scan) and raw socket operations
+      - NET_ADMIN # Required for nmap OS detection and advanced scanning
     security_opt:
       - apparmor:unconfined # Required for bwrap on AppArmor-enabled hosts
       - seccomp:unconfined # pivot_root syscall is blocked by Docker's default seccomp profile
@@ -124,68 +140,137 @@ services:
           cpus: '4.0'
           memory: 4096M
 
+  nginx:
+    build:
+      context: ..
+      dockerfile: docker/nginx/Dockerfile
+    container_name: c2_nginx
+    ports:
+      - "80:80"
+    depends_on:
+      django:
+        condition: service_healthy
+      hasura:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - c2_network
+
   # ── Django Application（Uvicorn ASGI）─────────────────────
   django:
-    build:
-      context: ..          # 項目根目錄（Dockerfile 所在位置）
-      dockerfile: Dockerfile
+    build: *backend-build
+    image: docker-django:fixed   # 使用含 docker CLI + 程式碼修復的固化映像
     container_name: c2_django
-    command: >
-      sh -c "python manage.py migrate --noinput &&
-             uvicorn c2_core.asgi:application
-             --host 0.0.0.0
-             --port 8000
-             --workers 4
-             --loop uvloop
-             --http httptools"
+    command:
+      - sh
+      - -c
+      - python manage.py migrate --noinput && python manage.py setup_beat_schedules && uvicorn c2_core.asgi:application --host 0.0.0.0 --port 8000 --workers 4 --loop uvloop --http httptools
     ports:
       - "127.0.0.1:8000:8000"
     env_file:
-      - ../.env            # 基礎密鑰（從 .env.example 複製後填寫）
-      - ../.env.docker     # Docker 專用覆蓋（POSTGRES_HOST=postgres 等）
+      - ../.env            # 單一來源（從 .env.example 複製後填寫）
+    environment:
+      # Docker 服務拓樸（覆寫 .env / settings.py 的 localhost 預設值）
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-mydb}
+      POSTGRES_USER: ${POSTGRES_USER:-myuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      API_BASE_URL: http://django:8000
+      INTERNAL_API_BASE_URL: http://django:8000/api
+      # FlareSolverr 在 docker network 中要用 service name，不能用 127.0.0.1
+      FLARESOLVERR_URL: http://flaresolverr:8191
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
-      - ../c2_core/logs:/app/c2_core/logs   # 日誌持久化到 host
+      - ../c2_core/logs:/app/c2_core/logs
+      - /var/run/docker.sock:/var/run/docker.sock  # 讓 django 也能呼叫 host daemon（httpx 等工具）
     restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/openapi.json',timeout=5).status==200 else 1)"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
     networks:
       - c2_network
 
   # ── Celery Worker ─────────────────────────────────────────
   celery_worker:
-    build:
-      context: ..
-      dockerfile: Dockerfile
+    build: *backend-build
+    image: docker-celery_worker:fixed   # 使用含 docker CLI + 程式碼修復的固化映像
     container_name: c2_celery_worker
     command: celery -A c2_core worker -P prefork -c 8 -l info
     env_file:
       - ../.env
-      - ../.env.docker
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-mydb}
+      POSTGRES_USER: ${POSTGRES_USER:-myuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      # FlareSolverr 在 docker network 中要用 service name，不能用 127.0.0.1
+      FLARESOLVERR_URL: http://flaresolverr:8191
     depends_on:
-      - postgres
-      - redis
-      - django             # 確保 migrate 已完成再啟動 worker
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      django:
+        condition: service_healthy
     volumes:
       - ../c2_core/logs:/app/c2_core/logs
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp/c2_sandbox_scripts:/scripthub
     restart: unless-stopped
+    healthcheck:
+      # $$HOSTNAME: Compose 內插 $$ -> $，再由容器 shell 展開 $HOSTNAME
+      test: ["CMD-SHELL", "celery -A c2_core inspect ping -d celery@$$HOSTNAME -t 5 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     networks:
       - c2_network
 
   # ── Celery Beat Scheduler ─────────────────────────────────
   celery_beat:
-    build:
-      context: ..
-      dockerfile: Dockerfile
+    build: *backend-build
+    image: docker-celery_beat:fixed   # 使用含 docker CLI + 程式碼修復的固化映像
     container_name: c2_celery_beat
     command: celery -A c2_core beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
     env_file:
       - ../.env
-      - ../.env.docker
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-mydb}
+      POSTGRES_USER: ${POSTGRES_USER:-myuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      API_BASE_URL: http://django:8000
+      INTERNAL_API_BASE_URL: http://django:8000/api
+      FLARESOLVERR_URL: http://flaresolverr:8191
     depends_on:
-      - postgres
-      - redis
-      - django
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      django:
+        condition: service_healthy
     volumes:
       - ../c2_core/logs:/app/c2_core/logs
     restart: unless-stopped

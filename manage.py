@@ -1,6 +1,11 @@
 import os  # 導入os模組，提供與操作系統交互的功能
 import sys  # 導入sys模組，提供訪問系統特定參數和函數的功能
 
+from dotenv import load_dotenv  # 載入 .env 檔（本地 venv 模式用；Docker 模式由 compose environment: 區塊優先）
+
+# 預設不覆蓋既有環境變數，確保 Docker 注入的 environment: 優先於 .env 檔，再優先於 settings.py 預設值
+load_dotenv()
+
 
 def main():  # 定義主函數，用於執行管理任務
     """Run administrative tasks."""  # 函數的文檔字符串，說明函數的功能

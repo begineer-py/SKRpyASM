@@ -63,14 +63,24 @@ def save_django_messages(messages: list[BaseMessage], thread: "Thread") -> list[
     if can_bulk_insert:
         created_messages = DjangoMessage.objects.bulk_create(
             [
-                DjangoMessage(thread=thread, message={}, role=_get_role(m))
+                DjangoMessage(
+                    thread=thread,
+                    message={},
+                    role=_get_role(m),
+                    is_tool_output=isinstance(m, ToolMessage),
+                )
                 for m in messages_to_create
             ],
         )
     else:
         for message in (
             created_messages := [
-                DjangoMessage(thread=thread, message={}, role=_get_role(m))
+                DjangoMessage(
+                    thread=thread,
+                    message={},
+                    role=_get_role(m),
+                    is_tool_output=isinstance(m, ToolMessage),
+                )
                 for m in messages_to_create
             ]
         ):

@@ -36,6 +36,8 @@ from apps.core.skill_api import router as skills_router
 from apps.core.mission_review_api import router as mission_review_router
 from apps.core.attack_planning_api import router as attack_planning_router
 from apps.core.execution_stream_views import stream_execution_events
+from apps.ai_assistant.api.views import router as assistant_router
+from apps.ai_assistant.exceptions import AIAssistantNotDefinedError, AIUserNotAllowedError
 
 # 建立 NinjaAPI 實例
 api = NinjaAPI(
@@ -43,6 +45,16 @@ api = NinjaAPI(
     version="1.1.0",
     description="整合 AI 分析與自動化滲透測試流程的 C2 平台核心 API 層。",
 )
+
+# Exception handlers previously on ai_assistant's separate NinjaAPI
+@api.exception_handler(AIUserNotAllowedError)
+def ai_user_not_allowed_handler(request, exc):
+    return api.create_response(request, {"message": str(exc)}, status=403)
+
+
+@api.exception_handler(AIAssistantNotDefinedError)
+def ai_assistant_not_defined_handler(request, exc):
+    return api.create_response(request, {"message": str(exc)}, status=404)
 
 # 路由註冊
 api.add_router("/targets", targets_router, tags=["Targets - 目標管理"])
@@ -58,6 +70,8 @@ api.add_router("/scheduler", scheduler_router, tags=["Scheduler - 任務調度"]
 api.add_router("/http_sender", http_sender_router, tags=["Tools - HTTP 發送器"])
 api.add_router("/api_keys", api_keys_router, tags=["API Keys - 密鑰管理"])
 api.add_router("/skills", skills_router, tags=["Skills - 技能庫"])
+api.add_router("/assistant", assistant_router, tags=["Assistant - AI助手"])
+
 urlpatterns = [  # 定義 URL 模式列表
     path("admin/", admin.site.urls),  # 將 /admin/ 路徑映射到 Django 管理後台的 URL
     # apps.ai_assistant 原生接口

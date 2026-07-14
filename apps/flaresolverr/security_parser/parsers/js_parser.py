@@ -20,7 +20,26 @@ class JavaScriptParser:
         self.sandbox_path = os.path.join(
             os.path.dirname(__file__), "..", "sandbox_direct.js"
         )
-        self._ensure_sandbox_ready()
+        # Node.js 可能未安裝（celery/django 容器預設不含 node）。
+        # 改為延遲失敗：標記可用性，parse() 直接回空，不讓 SecurityAnalyzer 構造崩潰。
+        self._available = self._check_sandbox_available()
+
+    def _check_sandbox_available(self) -> bool:
+        """檢查 sandbox 腳本與 Node.js 是否可用。失敗時記錄並回 False，不拋例外。"""
+        if not os.path.exists(self.sandbox_path):
+            print(f"[js_parser] Sandbox script not found: {self.sandbox_path}")
+            return False
+        try:
+            result = subprocess.run(
+                ["node", "--version"], capture_output=True, text=True, timeout=5
+            )
+            if result.returncode != 0:
+                print("[js_parser] Node.js is installed but returned non-zero exit")
+                return False
+            return True
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            print("[js_parser] Node.js is not available or timed out — JS endpoint extraction disabled")
+            return False
 
     def parse(self, js_code: str) -> List[Dict]:
         """
@@ -32,6 +51,9 @@ class JavaScriptParser:
         Returns:
             List of endpoint information
         """
+        # Node.js 未安裝時優雅降級：回空列表，不拋例外
+        if not getattr(self, "_available", False):
+            return []
         try:
             # Use the sandbox to extract endpoints
             sandbox_results = self._run_sandbox_extraction(js_code)
@@ -63,21 +85,6 @@ class JavaScriptParser:
         except Exception as e:
             print(f"Sandbox parsing failed: {e}")
             return []
-
-    def _ensure_sandbox_ready(self):
-        """Ensure the Node.js sandbox is ready to use."""
-        if not os.path.exists(self.sandbox_path):
-            raise FileNotFoundError(f"Sandbox script not found: {self.sandbox_path}")
-
-        # Test if Node.js is available
-        try:
-            result = subprocess.run(
-                ["node", "--version"], capture_output=True, text=True, timeout=5
-            )
-            if result.returncode != 0:
-                raise RuntimeError("Node.js is not available")
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            raise RuntimeError("Node.js is not available or timed out")
 
     def _run_sandbox_extraction(self, js_code: str) -> List[Dict]:
         """Run the JavaScript code in the Node.js sandbox and extract endpoints."""

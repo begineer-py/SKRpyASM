@@ -25,59 +25,59 @@ This integrated file merges Web attack methodology, protocol-specific testing, b
 ## Recommended Read Path
 
 1. Start with the source block that matches the dominant bug class.
-2. If the target exposes mixed protocol behavior, read `web-modern-protocols.md` sections early.
-3. If the target is auth- or workflow-heavy, read `web-logic-auth.md` before payload-heavy sections.
-4. If the target involves upload, path traversal, static hosting, or CDN behavior, read `web-file-infra.md` and deployment sections.
+2. If the target exposes mixed protocol behavior, read `search_skills("modern protocol")` sections early.
+3. If the target is auth- or workflow-heavy, read `search_skills("logic auth")` before payload-heavy sections.
+4. If the target involves upload, path traversal, static hosting, or CDN behavior, read `search_skills("file infrastructure")` and deployment sections.
 5. Use the later merged wiki sections as breadth expansion after the main testing strategy is set.
 
 ## Best Entry Points By Scenario
 
-- classic parameter fuzzing target: start at `web-injection.md`
-- OAuth, CORS, GraphQL, WebSocket, or request smuggling target: start at `web-modern-protocols.md`
-- IDOR, payment, reset flow, or auth target: start at `web-logic-auth.md`
-- upload, include, traversal, static resource, or infra target: start at `web-file-infra.md`
+- classic parameter fuzzing target: start at `search_skills("injection")`
+- OAuth, CORS, GraphQL, WebSocket, or request smuggling target: start at `search_skills("modern protocol")`
+- IDOR, payment, reset flow, or auth target: start at `search_skills("logic auth")`
+- upload, include, traversal, static resource, or infra target: start at `search_skills("file infrastructure")`
 
 ## Boundary Rule
 
-If the request cannot yet be reproduced outside the client, go back to `02-client-api-reverse-and-burp.md` first. Do not treat server testing guidance as a substitute for unfinished client recovery.
+If the request cannot yet be reproduced outside the client, go back to the client-api-reverse-and-burp workflow first. Do not treat server testing guidance as a substitute for unfinished client recovery.
 
 ## Included Sources
 
-- references\web-injection.md
-- references\web-modern-protocols.md
-- references\web-logic-auth.md
-- references\web-file-infra.md
-- references\web-deployment-security.md
-- references\web-playbook-01-clickjacking.md
-- references\web-playbook-02-supply-chain-attacks.md
-- references\web-playbook-03-cache-and-cdn-security.md
-- references\web-playbook-04-open-redirect.md
-- references\web-playbook-05-framework-vulnerabilities.md
-- references\web-playbook-06-request-smuggling.md
-- references\web-playbook-07-authentication-vulnerabilities.md
-- references\web-playbook-08-file-vulnerabilities.md
-- references\web-playbook-09-business-logic-vulnerabilities.md
-- references\web-playbook-10-prototype-pollution.md
-- references\web-playbook-11-cloud-security-vulnerabilities.md
-- references\web-playbook-12-ai-security.md
-- references\web-playbook-13-api-security.md
-- references\web-playbook-14-csrf-cross-site-request-forgery.md
-- references\web-playbook-15-jwt-security.md
-- references\web-playbook-16-lfi-rfi-file-inclusion.md
-- references\web-playbook-17-rce-remote-code-execution.md
-- references\web-playbook-18-sql-nosql-injection.md
-- references\web-playbook-19-ssrf-server-side-request-forgery.md
-- references\web-playbook-20-ssti-template-injection.md
-- references\web-playbook-21-websocket-security.md
-- references\web-playbook-22-xss-cross-site-scripting.md
-- references\web-playbook-23-xxe-entity-injection.md
-- references\web-playbook-index.md
+- `search_skills("injection")`
+- `search_skills("modern protocol")`
+- `search_skills("logic auth")`
+- `search_skills("file infrastructure")`
+- `search_skills("deployment security")`
+- `search_skills("clickjacking")`
+- `search_skills("supply chain")`
+- `search_skills("cache cdn")`
+- `search_skills("open redirect")`
+- `search_skills("framework vulnerability")`
+- `search_skills("request smuggling")`
+- `search_skills("authentication")`
+- `search_skills("file vulnerability")`
+- `search_skills("business logic")`
+- `search_skills("prototype pollution")`
+- `search_skills("cloud security")`
+- `search_skills("ai security")`
+- `search_skills("api security")`
+- `search_skills("csrf")`
+- `search_skills("jwt")`
+- `search_skills("lfi rfi")`
+- `search_skills("rce")`
+- `search_skills("sql injection")`
+- `search_skills("ssrf")`
+- `search_skills("ssti")`
+- `search_skills("websocket")`
+- `search_skills("xss")`
+- `search_skills("xxe")`
+- `search_skills("web playbook index")`
 
 ---
 
 ## Source: web-injection.md
 
-Path: references\web-injection.md
+Path: `search_skills("injection")`
 
 # Web注入安全
 
@@ -991,7 +991,7 @@ sqlmap ... -D db -T tbl -C c1,c2 --dump
 
 ## Source: web-modern-protocols.md
 
-Path: references\web-modern-protocols.md
+Path: `search_skills("modern protocol")`
 
 # 现代Web协议安全
 
@@ -1347,7 +1347,7 @@ https://app.com/callback#access_token=eyJ...&token_type=bearer
 
 ## Source: web-logic-auth.md
 
-Path: references\web-logic-auth.md
+Path: `search_skills("logic auth")`
 
 # Web逻辑与认证安全
 
@@ -1937,7 +1937,7 @@ Phase 4: 报告输出
 
 ## Source: web-file-infra.md
 
-Path: references\web-file-infra.md
+Path: `search_skills("file infrastructure")`
 
 # Web文件与基础设施安全
 
@@ -2567,8 +2567,8 @@ throw new Exception($_POST['cmd']);
 
 ---
 
-> **供应链/云部署/框架CVE** → 已迁移至 [web-deployment-security.md](web-deployment-security.md)
-> **CORS/GraphQL/HTTP走私/WebSocket/OAuth** → 已迁移至 [web-modern-protocols.md](web-modern-protocols.md)
+> **供应链/云部署/框架CVE** → 已迁移至 `search_skills("deployment security")`
+> **CORS/GraphQL/HTTP走私/WebSocket/OAuth** → 已迁移至 `search_skills("modern protocol")`
 
 *基于WooYun漏洞库(88,636条)提炼 | 仅供安全研究与防御参考*
 
@@ -2577,13 +2577,12 @@ throw new Exception($_POST['cmd']);
 
 ## Source: web-deployment-security.md
 
-Path: references\web-deployment-security.md
+Path: `search_skills("deployment security")`
 
 # Web部署与供应链安全
 
 > **来源**: 基于WooYun漏洞库实战经验 + 云安全最佳实践 + OWASP供应链安全指南提炼
 > **方法论**: WooYun漏洞本质公式 + L1-L4系统化分析
-> **相关**: AI应用容器逃逸测试 → [ai-baseline-security.md](ai-baseline-security.md)
 
 ---
 
@@ -2855,8 +2854,6 @@ CI配置: .github/workflows/*.yml / .gitlab-ci.yml / Jenkinsfile
 
 ### 2.5 容器与编排安全
 
-> **AI应用容器逃逸**: 针对AI Agent/LLM部署环境的容器逃逸测试方法论 → [ai-baseline-security.md](ai-baseline-security.md) §二十
-
 **Docker安全检查**
 
 ```bash
@@ -3034,7 +3031,7 @@ kubectl get networkpolicy -A
 
 ## Source: 01-clickjacking.md
 
-Path: references\web-playbook-01-clickjacking.md
+Path: `search_skills("clickjacking")`
 
 # 点击劫持
 English: Clickjacking
@@ -3079,7 +3076,7 @@ Execution Outline:
 
 ## Source: 02-supply-chain-attacks.md
 
-Path: references\web-playbook-02-supply-chain-attacks.md
+Path: `search_skills("supply chain")`
 
 # 供应链攻击
 English: Supply Chain Attacks
@@ -3139,7 +3136,7 @@ Execution Outline:
 
 ## Source: 03-cache-and-cdn-security.md
 
-Path: references\web-playbook-03-cache-and-cdn-security.md
+Path: `search_skills("cache cdn")`
 
 # 缓存与CDN安全
 English: Cache & CDN Security
@@ -3198,7 +3195,7 @@ Execution Outline:
 
 ## Source: 04-open-redirect.md
 
-Path: references\web-playbook-04-open-redirect.md
+Path: `search_skills("open redirect")`
 
 # 开放重定向
 English: Open Redirect
@@ -3254,7 +3251,7 @@ Execution Outline:
 
 ## Source: 05-framework-vulnerabilities.md
 
-Path: references\web-playbook-05-framework-vulnerabilities.md
+Path: `search_skills("framework vulnerability")`
 
 # 框架漏洞
 English: Framework Vulnerabilities
@@ -3551,7 +3548,7 @@ Execution Outline:
 
 ## Source: 06-request-smuggling.md
 
-Path: references\web-playbook-06-request-smuggling.md
+Path: `search_skills("request smuggling")`
 
 # 请求走私
 English: Request Smuggling
@@ -3625,7 +3622,7 @@ Execution Outline:
 
 ## Source: 07-authentication-vulnerabilities.md
 
-Path: references\web-playbook-07-authentication-vulnerabilities.md
+Path: `search_skills("authentication")`
 
 # 认证漏洞
 English: Authentication Vulnerabilities
@@ -3790,7 +3787,7 @@ Execution Outline:
 
 ## Source: 08-file-vulnerabilities.md
 
-Path: references\web-playbook-08-file-vulnerabilities.md
+Path: `search_skills("file vulnerability")`
 
 # 文件漏洞
 English: File Vulnerabilities
@@ -3920,7 +3917,7 @@ Execution Outline:
 
 ## Source: 09-business-logic-vulnerabilities.md
 
-Path: references\web-playbook-09-business-logic-vulnerabilities.md
+Path: `search_skills("business logic")`
 
 # 业务逻辑漏洞
 English: Business Logic Vulnerabilities
@@ -4011,7 +4008,7 @@ Execution Outline:
 
 ## Source: 10-prototype-pollution.md
 
-Path: references\web-playbook-10-prototype-pollution.md
+Path: `search_skills("prototype pollution")`
 
 # 原型链污染
 English: Prototype Pollution
@@ -4072,7 +4069,7 @@ Execution Outline:
 
 ## Source: 11-cloud-security-vulnerabilities.md
 
-Path: references\web-playbook-11-cloud-security-vulnerabilities.md
+Path: `search_skills("cloud security")`
 
 # 云安全漏洞
 English: Cloud Security Vulnerabilities
@@ -4148,7 +4145,7 @@ Execution Outline:
 
 ## Source: 12-ai-security.md
 
-Path: references\web-playbook-12-ai-security.md
+Path: `search_skills("ai security")`
 
 # AI安全
 English: AI Security
@@ -4224,7 +4221,7 @@ Execution Outline:
 
 ## Source: 13-api-security.md
 
-Path: references\web-playbook-13-api-security.md
+Path: `search_skills("api security")`
 
 # API安全
 English: API Security
@@ -4424,7 +4421,7 @@ Execution Outline:
 
 ## Source: 14-csrf-cross-site-request-forgery.md
 
-Path: references\web-playbook-14-csrf-cross-site-request-forgery.md
+Path: `search_skills("csrf")`
 
 # CSRF跨站请求伪造
 English: CSRF Cross-Site Request Forgery
@@ -4564,7 +4561,7 @@ Execution Outline:
 
 ## Source: 15-jwt-security.md
 
-Path: references\web-playbook-15-jwt-security.md
+Path: `search_skills("jwt")`
 
 # JWT安全
 English: JWT Security
@@ -4642,7 +4639,7 @@ Execution Outline:
 
 ## Source: 16-lfi-rfi-file-inclusion.md
 
-Path: references\web-playbook-16-lfi-rfi-file-inclusion.md
+Path: `search_skills("lfi rfi")`
 
 # LFI/RFI文件包含
 English: LFI/RFI File Inclusion
@@ -4855,7 +4852,7 @@ Execution Outline:
 
 ## Source: 17-rce-remote-code-execution.md
 
-Path: references\web-playbook-17-rce-remote-code-execution.md
+Path: `search_skills("rce")`
 
 # RCE远程代码执行
 English: RCE Remote Code Execution
@@ -5056,7 +5053,7 @@ Execution Outline:
 
 ## Source: 18-sql-nosql-injection.md
 
-Path: references\web-playbook-18-sql-nosql-injection.md
+Path: `search_skills("sql injection")`
 
 # SQL/NoSQL注入
 English: SQL/NoSQL Injection
@@ -5340,7 +5337,7 @@ Execution Outline:
 
 ## Source: 19-ssrf-server-side-request-forgery.md
 
-Path: references\web-playbook-19-ssrf-server-side-request-forgery.md
+Path: `search_skills("ssrf")`
 
 # SSRF服务端请求伪造
 English: SSRF Server-Side Request Forgery
@@ -5544,7 +5541,7 @@ Execution Outline:
 
 ## Source: 20-ssti-template-injection.md
 
-Path: references\web-playbook-20-ssti-template-injection.md
+Path: `search_skills("ssti")`
 
 # SSTI模板注入
 English: SSTI Template Injection
@@ -5716,7 +5713,7 @@ Execution Outline:
 
 ## Source: 21-websocket-security.md
 
-Path: references\web-playbook-21-websocket-security.md
+Path: `search_skills("websocket")`
 
 # WebSocket安全
 English: WebSocket Security
@@ -5776,7 +5773,7 @@ Execution Outline:
 
 ## Source: 22-xss-cross-site-scripting.md
 
-Path: references\web-playbook-22-xss-cross-site-scripting.md
+Path: `search_skills("xss")`
 
 # XSS跨站脚本
 English: XSS Cross-Site Scripting
@@ -5979,7 +5976,7 @@ Execution Outline:
 
 ## Source: 23-xxe-entity-injection.md
 
-Path: references\web-playbook-23-xxe-entity-injection.md
+Path: `search_skills("xxe")`
 
 # XXE实体注入
 English: XXE Entity Injection
@@ -6124,7 +6121,7 @@ Execution Outline:
 
 ## Source: index.md
 
-Path: references\web-playbook-index.md
+Path: `search_skills("web playbook index")`
 
 # Web Security Category Index
 

@@ -1,5 +1,6 @@
 import logging
 import requests
+from urllib.parse import urlparse
 from django.conf import settings
 from apps.ai_assistant import method_tool
 
@@ -8,6 +9,66 @@ logger = logging.getLogger(__name__)
 # 從設定檔讀取 API Base URL，預留未來多伺服器部署彈性
 API_BASE_URL = getattr(settings, "INTERNAL_API_BASE_URL", "http://127.0.0.1:8000/api")
 
+
+def _ensure_subdomain(overview_id: int | None, name: str) -> int | None:
+    """Ensure a Subdomain record exists for the given name under the Overview's Target.
+
+    Creates one if none is found (auto-registers the root domain as a subdomain
+    so GAU/Katana/Nuclei scanners can proceed without requiring Subfinder first).
+
+    Returns:
+        Subdomain ID if found/created, None otherwise.
+    """
+    try:
+        from apps.core.models import Overview, Subdomain, Target
+
+        # Normalize: strip http(s):// and trailing /path
+        if name.startswith("http"):
+            parsed = urlparse(name)
+            name = parsed.hostname or name
+
+        # Already exists?
+        sub = Subdomain.objects.filter(name=name).first()
+        if sub:
+            return sub.id
+
+        if not overview_id:
+            return None
+        overview = Overview.objects.filter(id=overview_id).first()
+        if not overview or not overview.target_id:
+            return None
+
+        sub = Subdomain.objects.create(
+            target_id=overview.target_id,
+            name=name,
+            is_active=True,
+            is_resolvable=True,
+        )
+
+        # 綁定到 DOMAIN Seed，確保 DNS 解析鏈 (resolve_dns_for_seed) 可以找到此 subdomain。
+        # resolve_dns_for_seed 使用 Subdomain.objects.filter(which_seed=seed) 查詢，
+        # 若 which_seed 為空則 DNS chain 永遠掃不到此 subdomain → 無法取得 IP → 無法進行 Nmap/Nuclei。
+        try:
+            from apps.core.models import Seed
+            domain_seed = Seed.objects.filter(
+                target_id=overview.target_id, type="DOMAIN", is_active=True
+            ).first()
+            if domain_seed:
+                # 透過 many-to-many 關聯 (SubdomainSeed through table)
+                sub.which_seed.add(domain_seed)
+                logger.info(
+                    f"[_ensure_subdomain] Linked Subdomain #{sub.id} to Seed #{domain_seed.id} ({domain_seed.value})"
+                )
+        except Exception as link_err:
+            logger.warning(f"[_ensure_subdomain] Failed to link to seed: {link_err}")
+
+        logger.info(f"[_ensure_subdomain] Auto-created Subdomain #{sub.id} = {name} for target #{overview.target_id}")
+        return sub.id
+    except Exception as e:
+        logger.warning(f"[_ensure_subdomain] Failed for name={name}: {e}")
+        return None
+
+
 class ScannerToolsMixin:
     """
     Manual wrappers for core scanner endpoints.
@@ -15,34 +76,126 @@ class ScannerToolsMixin:
     prevent schema or lifecycle hallucinations.
     """
 
-    def _resolve_seed(self, overview_id: int) -> int | None:
-        """Resolve the first active Seed ID from an Overview's Target.
+    def _resolve_seed(self, overview_id: int, seed_type: str | None = "DOMAIN") -> int | None:
+        """Resolve an active Seed ID from an Overview's Target.
+
+        Prefers seeds of the given type (default DOMAIN for subdomain scanners).
+        Falls back to any active seed if no matching type is found.
+        If no seed exists at all, auto-creates a DOMAIN seed from the Target name.
 
         Args:
             overview_id: Overview ID (auto-injected by @method_tool).
+            seed_type: Preferred seed type filter (default 'DOMAIN').
 
         Returns:
-            Seed ID if found, None otherwise.
+            Seed ID if found/created, None otherwise.
         """
         if not overview_id:
             return None
         try:
-            from apps.core.models import Overview, Seed
+            from apps.core.models import Overview, Seed, Target
             overview = Overview.objects.filter(id=overview_id).first()
             if not overview or not overview.target_id:
                 return None
+            # 1. Prefer seed of requested type
+            if seed_type:
+                seed = Seed.objects.filter(
+                    target_id=overview.target_id, type=seed_type, is_active=True
+                ).first()
+                if seed:
+                    return seed.id
+            # 2. Fallback: any active seed
             seed = Seed.objects.filter(
                 target_id=overview.target_id, is_active=True
             ).first()
-            return seed.id if seed else None
+            if seed:
+                return seed.id
+            # 3. Auto-create a DOMAIN seed from the target name
+            target = Target.objects.filter(id=overview.target_id).first()
+            if target and target.name:
+                domain = target.name.lower().strip()
+                # Strip http(s):// prefix if present
+                for prefix in ('https://', 'http://'):
+                    if domain.startswith(prefix):
+                        domain = domain[len(prefix):]
+                domain = domain.split('/')[0]  # Remove path
+                seed = Seed.objects.create(
+                    target_id=overview.target_id,
+                    value=domain,
+                    type='DOMAIN',
+                    is_active=True,
+                )
+                logger.info(f"[_resolve_seed] Auto-created DOMAIN seed #{seed.id} = {domain} for target #{overview.target_id}")
+                return seed.id
+            return None
         except Exception as e:
             logger.warning(f"[_resolve_seed] Failed for overview_id={overview_id}: {e}")
             return None
+
+    _WALK_FK_MAP = {
+        "IP": "ip_asset_id",
+        "SUBDOMAIN": "subdomain_asset_id",
+        "URL": "url_asset_id",
+        "ENDPOINT": "endpoint_asset_id",
+        "PORT": "port_asset_id",
+    }
+
+    def _validate_walk_constraint(self, overview_id, asset_checks) -> str:
+        """Check if assets are in active AttackPlan scope. Returns warning string (empty if OK).
+
+        Args:
+            overview_id: Overview ID.
+            asset_checks: list of (asset_type, asset_id_or_list).
+        """
+        if not overview_id:
+            return ""
+        try:
+            from apps.core.models import Overview, AttackPlan, AssetVectorLink
+            overview = Overview.objects.filter(id=overview_id).first()
+            if not overview or not overview.target_id:
+                return ""
+            active_plan = AttackPlan.objects.filter(
+                target_id=overview.target_id, status="ACTIVE"
+            ).first()
+            if not active_plan:
+                return ""
+
+            warnings = []
+            for asset_type, asset_ids in asset_checks:
+                if isinstance(asset_ids, int):
+                    asset_ids = [asset_ids]
+                elif not asset_ids:
+                    continue
+                fk_field = self._WALK_FK_MAP.get(asset_type.upper())
+                if not fk_field:
+                    continue
+                for aid in asset_ids:
+                    in_plan = AssetVectorLink.objects.filter(
+                        actions__plan=active_plan,
+                        asset_type=asset_type.upper(),
+                        **{fk_field: aid},
+                    ).exists()
+                    if not in_plan:
+                        warnings.append(
+                            f"⚠️ {asset_type}#{aid} not in active AttackPlan#{active_plan.id} "
+                            f"— use add_action to register it before scanning."
+                        )
+
+            if warnings:
+                return "\n" + "\n".join(warnings) + "\n"
+            return ""
+        except Exception:
+            return ""
 
     def _dispatch_scanner(self, overview_id: int, tool_name: str, endpoint: str, payload: dict, description: str = "") -> str:
         try:
             from apps.core.models import ExecutionGraph, ExecutionNode
             from apps.core.services import ExecutionService
+
+            # Defensive: overview_id 可能是 Overview 物件（FK 反查）— 強制取 int，
+            # 避免後續 emit_thread_event / requests.post(json=) JSON 序列化失敗。
+            if overview_id is not None and not isinstance(overview_id, int):
+                overview_id = getattr(overview_id, "id", overview_id)
 
             graph = getattr(self, "_execution_graph", None)
             node = getattr(self, "_current_execution_node", None)
@@ -239,6 +392,8 @@ class ScannerToolsMixin:
             overview_id: (Optional) 目標目前的 Overview ID。自動注入。
             subdomain_name: 目標子域名「字串」(e.g., 'vuln-f9wi.onrender.com')，這『不是』ID！
         """
+        # Auto-register Subdomain if missing (GAU API requires existing Subdomain record)
+        _ensure_subdomain(overview_id, subdomain_name)
         return self._dispatch_scanner(
             overview_id, "gau", "/scanners/crawler/get_all_url",
             {"name": subdomain_name, "scan_type": "passive"}, "GAU Historical URL Scan"
@@ -256,6 +411,8 @@ class ScannerToolsMixin:
             subdomain_name: 目標子域名「字串」(e.g., 'example.com')，這『不是』ID！
             depth: 爬取深度 (預設 3)
         """
+        # Auto-register Subdomain if missing (Katana API requires existing Subdomain record)
+        _ensure_subdomain(overview_id, subdomain_name)
         return self._dispatch_scanner(
             overview_id, "katana", "/scanners/crawler/katana",
             {"name": subdomain_name, "depth": depth}, f"Katana Active Crawl: {subdomain_name}"
@@ -270,8 +427,8 @@ class ScannerToolsMixin:
             overview_id: (Optional) 目標目前的 Overview ID。自動注入。
             subdomain_ids: 要掃描的子域名 ID 列表。
         """
-        return self._dispatch_scanner(
-            overview_id, "nuclei-tech", "/scanners/vuln/subs_tech", 
+        return self._validate_walk_constraint(overview_id, [("SUBDOMAIN", subdomain_ids)]) + self._dispatch_scanner(
+            overview_id, "nuclei-tech", "/scanners/vuln/subs_tech",
             {"ids": subdomain_ids}, "Nuclei Subdomain Tech Scan"
         )
 
@@ -284,8 +441,8 @@ class ScannerToolsMixin:
             overview_id: (Optional) 目標目前的 Overview ID。自動注入。
             url_ids: 要掃描的 URL ID 列表。
         """
-        return self._dispatch_scanner(
-            overview_id, "nuclei-tech", "/scanners/vuln/urls_tech", 
+        return self._validate_walk_constraint(overview_id, [("URL", url_ids)]) + self._dispatch_scanner(
+            overview_id, "nuclei-tech", "/scanners/vuln/urls_tech",
             {"ids": url_ids}, "Nuclei URL Tech Scan"
         )
 
@@ -299,8 +456,8 @@ class ScannerToolsMixin:
             overview_id: (Optional) 目標目前的 Overview ID。自動注入。
             url_ids: 要掃描的 URL ID 列表。
         """
-        return self._dispatch_scanner(
-            overview_id, "nuclei-vuln", "/scanners/vuln/urls", 
+        return self._validate_walk_constraint(overview_id, [("URL", url_ids)]) + self._dispatch_scanner(
+            overview_id, "nuclei-vuln", "/scanners/vuln/urls",
             {"ids": url_ids, "tags": []}, "Nuclei URL Vulnerability Scan"
         )
 
@@ -313,8 +470,8 @@ class ScannerToolsMixin:
             overview_id: (Optional) 目標目前的 Overview ID。自動注入。
             subdomain_ids: 要掃描的子域名 ID 列表。
         """
-        return self._dispatch_scanner(
-            overview_id, "nuclei-vuln", "/scanners/vuln/subdomains", 
+        return self._validate_walk_constraint(overview_id, [("SUBDOMAIN", subdomain_ids)]) + self._dispatch_scanner(
+            overview_id, "nuclei-vuln", "/scanners/vuln/subdomains",
             {"ids": subdomain_ids, "tags": []}, "Nuclei Subdomain Vulnerability Scan"
         )
 
@@ -341,9 +498,9 @@ class ScannerToolsMixin:
             seed_id = self._resolve_seed(overview_id)
         seed_ids = [seed_id] if seed_id else []
         
-        return self._dispatch_scanner(
-            overview_id, "nmap", "/scanners/nmap/start_scan", 
-            {"ip": ip_str, "seed_ids": seed_ids, "scan_rate": 4, "scan_ports": "top-1000"}, 
+        return self._validate_walk_constraint(overview_id, [("IP", ip_id)]) + self._dispatch_scanner(
+            overview_id, "nmap", "/scanners/nmap/start_scan",
+            {"ip": ip_str, "seed_ids": seed_ids, "scan_rate": 4, "scan_ports": "top-1000"},
             f"Nmap Port Scan for {ip_str}"
         )
 

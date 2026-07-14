@@ -5,6 +5,10 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1
 
 # 系統依賴：nmap（python-nmap 呼叫系統二進位）、wget/unzip（下載 Go 工具）
+# NOTE: docker-cli 與 nodejs 理論上應在此安裝（httpx 呼叫與 JS endpoint 抽取需要），
+# 但本部署環境氣隙，build 時無外網。改為：
+#   - js_parser 已改為 Node.js 缺失時優雅降級（不影響 scan 主流程）
+#   - httpx 失敗時 MySpider 會 fallback 到 FlareSolverr（HTTP API，不需 docker CLI）
 RUN apt-get update && apt-get install -y --no-install-recommends \
     nmap \
     wget \
@@ -38,8 +42,8 @@ RUN wget -qO /tmp/kt.zip \
 
 WORKDIR /app
 
-# 先複製 requirements.txt 利用 layer cache
 COPY requirements.txt .
+
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 

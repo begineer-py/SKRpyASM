@@ -20,6 +20,18 @@ class Verification(models.Model):
         blank=True,
     )
 
+    # === 漏洞事後覆核用 FK（與 attack_vector 擇一） ===
+    # attack_vector = 執行階段驗證（先有向量、執行後驗證）
+    # vulnerability  = 漏洞事後覆核（先有漏洞、再獨立驗證）
+    vulnerability = models.ForeignKey(
+        "core.Vulnerability",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="verifications",
+        help_text="關聯的漏洞（事後覆核用，與 attack_vector 擇一）",
+    )
+
     observation_prompt = models.TextField(
         help_text=(
             "描述這次執行的成功標準，AI 會閱讀實際輸出後判斷是否達成。"
