@@ -21,15 +21,27 @@ interface Props {
   onChange: (schema: Record<string, unknown>) => void;
 }
 
+interface SchemaProperty {
+  type?: string;
+  description?: string;
+  pattern?: string;
+  minLength?: number;
+  maxLength?: number;
+  minimum?: number;
+  maximum?: number;
+  default?: unknown;
+  enum?: unknown[];
+}
+
 const FIELD_TYPES = [
   'string', 'integer', 'number', 'boolean', 'array', 'object',
 ];
 
 function schemaToFields(schema: Record<string, unknown> | null): SchemaField[] {
   if (!schema || typeof schema !== 'object') return [];
-  const props = (schema as any).properties || {};
-  const required = (schema as any).required || [];
-  return Object.entries(props).map(([name, prop]: [string, any]) => ({
+  const props = (schema.properties as Record<string, SchemaProperty> | undefined) ?? {};
+  const required = Array.isArray(schema.required) ? schema.required.filter((item): item is string => typeof item === 'string') : [];
+  return Object.entries(props).map(([name, prop]) => ({
     name,
     type: prop.type || 'string',
     required: required.includes(name),
@@ -40,7 +52,7 @@ function schemaToFields(schema: Record<string, unknown> | null): SchemaField[] {
     minimum: prop.minimum !== undefined ? String(prop.minimum) : '',
     maximum: prop.maximum !== undefined ? String(prop.maximum) : '',
     default: prop.default !== undefined ? String(prop.default) : '',
-    enumValues: Array.isArray(prop.enum) ? prop.enum.map((v: any) => String(v)).join(',') : '',
+    enumValues: Array.isArray(prop.enum) ? prop.enum.map((v) => String(v)).join(',') : '',
   }));
 }
 

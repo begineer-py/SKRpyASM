@@ -82,7 +82,7 @@ export default function SkillEditPage() {
         setForm(skillToForm(skill));
         setOriginal(skill);
       })
-      .catch(e => setError(e?.response?.data?.detail || e?.message || 'Failed to load skill'))
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Failed to load skill'))
       .finally(() => setLoading(false));
   }, [skillId, isNew]);
 
@@ -120,8 +120,8 @@ export default function SkillEditPage() {
         });
         setOriginal(updated);
       }
-    } catch (e: any) {
-      setError(e?.response?.data?.detail || e?.message || 'Save failed');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Save failed');
     } finally {
       setSaving(false);
     }

@@ -9,17 +9,18 @@ interface Props {
 
 function generateStubFromSchema(skill: SkillTemplate | null): string {
   if (!skill || !skill.input_schema) return '{\n  \n}';
-  const schema = skill.input_schema as Record<string, any>;
+  const schema = skill.input_schema as Record<string, unknown>;
   const props = schema?.properties || {};
   const required: string[] = schema?.required || [];
   if (Object.keys(props).length === 0) return '{\n  \n}';
   const lines: string[] = ['{'];
   for (const [key, def] of Object.entries(props)) {
-    const type = (def as any)?.type || 'string';
+    const property = def as Record<string, unknown>;
+    const type = typeof property.type === 'string' ? property.type : 'string';
     const isRequired = required.includes(key);
-    const desc = (def as any)?.description ? ` // ${(def as any).description}` : '';
+    const desc = typeof property.description === 'string' ? ` // ${property.description}` : '';
     let sample = '';
-    if (type === 'string') sample = def && (def as any).pattern ? '"https://example.com"' : '""';
+    if (type === 'string') sample = property.pattern ? '"https://example.com"' : '""';
     else if (type === 'integer' || type === 'number') sample = '0';
     else if (type === 'boolean') sample = 'false';
     else if (type === 'array') sample = '[]';
@@ -92,13 +93,13 @@ export default function TestTab({ skillId }: Props) {
     try {
       const res = await skillApi.test(skillId, payload);
       setResult(res);
-    } catch (e: any) {
+    } catch (e: unknown) {
       setResult({
         ok: false,
         verification_id: null,
         verdict: null,
         confidence: null,
-        error: e?.message || 'Test request failed',
+        error: e instanceof Error ? e.message : 'Test request failed',
         exit_code: null,
         duration_ms: null,
         raw_output: null,

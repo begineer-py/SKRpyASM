@@ -52,8 +52,8 @@ export default function ScriptTab({
         const name = file.name.replace(/\.(py|sh)$/i, '');
         if (/^[a-z0-9]+(-[a-z0-9]+)*$/.test(name)) onNameDetect(name);
       }
-    } catch (err: any) {
-      alert(`Import error: ${err.message}`);
+    } catch (err: unknown) {
+      alert(`Import error: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
     e.target.value = '';
   };
@@ -66,8 +66,8 @@ export default function ScriptTab({
       const data = JSON.parse(text);
       if (data.script_body !== undefined) onScriptBodyChange(data.script_body);
       if (data.language && onLanguageChange) onLanguageChange(data.language);
-    } catch (err: any) {
-      alert(`Import error: ${err.message}`);
+    } catch (err: unknown) {
+      alert(`Import error: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
     e.target.value = '';
   };
