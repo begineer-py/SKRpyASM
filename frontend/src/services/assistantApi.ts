@@ -9,14 +9,24 @@ type ThreadEvent = components['schemas']['ThreadEventSchema'];
 
 export type { ThreadEvent };
 
+export interface ThreadSummary {
+  id: number | string;
+  name: string;
+  assistant_id: string;
+  is_hidden: boolean;
+  bound_target_id?: number | null;
+  bound_overview_id?: number | null;
+  created_at?: string;
+}
+
 export const assistantApi = {
   // Create a new thread assigned to hacker_assistant_agent
-  createThread: async (name?: string) => {
+  createThread: async (name?: string): Promise<ThreadSummary> => {
     const response = await api.post('/threads/', {
       assistant_id: 'hacker_assistant_agent',
       ...(name ? { name } : {}),
     });
-    return response.data;
+    return response.data as ThreadSummary;
   },
 
   // Rename/update a thread
@@ -118,7 +128,7 @@ export const assistantApi = {
   },
 
   // Get all threads
-  getThreads: async (params?: { assistant_id?: string; target_id?: number; include_hidden?: boolean }): Promise<any[]> => {
+  getThreads: async (params?: { assistant_id?: string; target_id?: number; include_hidden?: boolean }): Promise<ThreadSummary[]> => {
     const response = await api.get('/threads/', { params });
     return Array.isArray(response.data) ? response.data : [];
   },

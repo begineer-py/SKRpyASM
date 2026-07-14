@@ -35,10 +35,11 @@ function ScanResultPage() {
       try {
         const response = await axios.get<NmapScanSchema>(`${API_BASE_URL_NMAP}/get_scan/${scanId}`);
         setScanResult(response.data);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('媽的！獲取掃描結果失敗:', err);
-        if (err.response && err.response.data && err.response.data.message) {
-          setError(`錯誤: ${err.response.data.message}`);
+        const response = (err as { response?: { data?: { message?: string } } }).response;
+        if (response?.data?.message) {
+          setError(`錯誤: ${response.data.message}`);
         } else {
           setError('操！無法獲取掃描結果，請檢查網絡或服務器！');
         }

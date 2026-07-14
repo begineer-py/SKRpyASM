@@ -69,8 +69,8 @@ export default function ExecutionMonitorPage() {
       if (!selectedGraphId && nextGraphs.length > 0) {
         setSelectedGraphId(nextGraphs[0].id);
       }
-    } catch (err: any) {
-      setError(err?.message || 'Failed to load execution graphs');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load execution graphs');
     } finally {
       setLoading(false);
     }
@@ -131,8 +131,8 @@ export default function ExecutionMonitorPage() {
         const running = graph.nodes.find((node) => node.status === 'RUNNING' || node.status === 'WAITING');
         setSelectedNodeId((current) => current ?? running?.id ?? graph.nodes[0]?.id ?? null);
       })
-      .catch((err: any) => {
-        if (!cancelled) setError(err?.message || 'Failed to load execution graph detail');
+      .catch((err: unknown) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load execution graph detail');
       });
 
     return () => {

@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { assistantApi, executionApi, OverviewService, type OverviewData } from '../services/aiApi';
+import type { ThreadSummary } from '../../../services/assistantApi';
 import { useHasuraSubscription } from '../../../hooks/useHasuraSubscription';
 import { useDraftInput } from '../../../hooks/useDraftInput';
 import { usePersistentState } from '../../../hooks/usePersistentState';
@@ -45,9 +46,9 @@ const AICenterPage: React.FC = () => {
   const initialThreadId = searchParams.get('thread');
 
   // Chat state
-  const [allThreads, setAllThreads] = useState<any[]>([]);
+  const [allThreads, setAllThreads] = useState<ThreadSummary[]>([]);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(initialThreadId);
-  const [selectedThreadData, setSelectedThreadData] = useState<any>(null);
+  const [selectedThreadData, setSelectedThreadData] = useState<ThreadSummary | null>(null);
   const [activeAssistantId, setActiveAssistantId] = useState<string>('hacker_assistant_agent');
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [inputVal, setInputVal, clearDraft] = useDraftInput(selectedThreadId);
@@ -262,10 +263,10 @@ const AICenterPage: React.FC = () => {
     setThreadsLoading(true);
     setThreadsError(null);
     try {
-      const params: any = { include_hidden: showInternal };
+      const params: { include_hidden: boolean; target_id?: number } = { include_hidden: showInternal };
       if (targetSearchId.trim()) params.target_id = parseInt(targetSearchId);
 
-      const res: any[] = (await assistantApi.getThreads(params)) as any[];
+      const res = await assistantApi.getThreads(params);
       const filtered = showInternal
         ? res.sort((a, b) => Number(b.id) - Number(a.id))
         : res
@@ -288,7 +289,7 @@ const AICenterPage: React.FC = () => {
         setSelectedThreadData(null);
         setMessages([]);
       } else if (selectedThreadId) {
-        const cur = filtered.find((t: any) => String(t.id) === selectedThreadId);
+        const cur = filtered.find((t) => String(t.id) === selectedThreadId);
         if (cur) { setBoundTargetId(cur.bound_target_id ?? null); setSelectedThreadData(cur); }
       }
     } catch (err) {
@@ -423,7 +424,7 @@ const AICenterPage: React.FC = () => {
     };
   }, [selectedThreadId]);
 
-  const handleSelectSidebarThread = (thread: any) => {
+  const handleSelectSidebarThread = (thread: ThreadSummary) => {
     selectThread(String(thread.id));
     setSelectedThreadData(thread);
     setActiveAssistantId(thread.assistant_id || 'hacker_assistant_agent');
@@ -460,7 +461,7 @@ const AICenterPage: React.FC = () => {
 
   const createNewThread = async () => {
     try {
-      const res: any = await assistantApi.createThread('New chat');
+      const res = await assistantApi.createThread('New chat');
       await loadThreads();
       handleSelectSidebarThread(res);
     } catch (err) { console.error('Failed to create thread', err); }

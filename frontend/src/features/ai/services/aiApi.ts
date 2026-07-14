@@ -1,4 +1,5 @@
 export { assistantApi } from "../../../services/assistantApi";
+export type { ThreadSummary } from "../../../services/assistantApi";
 export {
   executionApi,
   type AgentInteractionTree,
