@@ -1,10 +1,13 @@
 import AppRouter from "./app/router";
 import Providers from "./app/providers";
+import { ErrorBoundary } from "./components/common";
 
 function App() {
   return (
     <Providers>
-      <AppRouter />
+      <ErrorBoundary>
+        <AppRouter />
+      </ErrorBoundary>
     </Providers>
   );
 }
