@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- form schema and adapter are part of the form component contract. */
 import { useState, useEffect } from 'react';
 import { GLOBAL_CONFIG } from '../../../config';
 import type { RegisteredTask } from '../services/schedulerApi';

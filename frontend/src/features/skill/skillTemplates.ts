@@ -134,8 +134,8 @@ def main(inputs: SkillInput) -> None:
 # Input arrives as JSON in $1. Output goes to stdout.
 target="\${1:-127.0.0.1}"
 
-echo "Scanning \$target..."
-nmap -sV -p 80,443,8080 "\$target"
+echo "Scanning $target..."
+nmap -sV -p 80,443,8080 "$target"
 `,
     inputSchema: null,
     outputSchema: null,

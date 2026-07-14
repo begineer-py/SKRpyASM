@@ -7,7 +7,6 @@ import { TreeNodeItem, type TreeNode } from './TreePanel';
 
 interface AgentPanelProps {
   showTree: boolean;
-  showTreePanel: boolean;
   onClose: () => void;
   treeConnected: boolean;
   agentPanelTab: 'tree' | 'interaction' | 'topology';
@@ -33,7 +32,6 @@ const TABS: { key: 'tree' | 'interaction' | 'topology'; label: string }[] = [
 
 export function AgentPanel({
   showTree,
-  showTreePanel: _showTreePanel,
   onClose,
   treeConnected,
   agentPanelTab,

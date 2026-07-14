@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- filter presets and predicate are the component's public API. */
 import { cn } from '@/lib/utils';
 
 export interface MessageFilterState {

@@ -43,7 +43,7 @@ export const TargetService = {
 // 2. Hasura GraphQL (Fetch) - 負責讀取 (Read)
 // ==========================================
 
-export const gqlFetcher = async <T>(query: string, variables: any = {}): Promise<T> => {
+export const gqlFetcher = async <T>(query: string, variables: Record<string, unknown> = {}): Promise<T> => {
   const { GLOBAL_CONFIG } = await import('../config');
   try {
     const response = await fetch(GLOBAL_CONFIG.HASURA_GRAPHQL_URL, {

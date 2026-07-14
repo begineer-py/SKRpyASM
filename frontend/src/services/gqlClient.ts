@@ -1,5 +1,13 @@
 import { GLOBAL_CONFIG } from '../config';
 
+interface GraphQLDocument {
+  loc?: { source?: { body?: string } };
+}
+
+interface GraphQLQueryError {
+  message: string;
+}
+
 /**
  * Typed GraphQL executor for Hasura.
  *
@@ -7,11 +15,11 @@ import { GLOBAL_CONFIG } from '../config';
  * Bridges the gap between codegen's DocumentNode and the raw fetch-based gqlFetcher.
  */
 export async function executeGraphQL<TResult, TVariables>(
-  document: { kind: string; definitions: unknown[] },
+  document: GraphQLDocument,
   variables?: TVariables,
   options?: { adminSecret?: string },
 ): Promise<TResult> {
-  const query = 'loc' in document ? (document as any).loc.source.body : '';
+  const query = document.loc?.source?.body ?? '';
 
   const res = await fetch(GLOBAL_CONFIG.HASURA_GRAPHQL_URL, {
     method: 'POST',
@@ -27,7 +35,7 @@ export async function executeGraphQL<TResult, TVariables>(
 
   const json = await res.json();
   if (json.errors) {
-    const msg = json.errors.map((e: any) => e.message).join(', ');
+    const msg = (json.errors as GraphQLQueryError[]).map((e) => e.message).join(', ');
     throw new Error(msg);
   }
   return json.data as TResult;

@@ -16,9 +16,6 @@ import SubAgentContainerBlock, {
   dispatchToView,
   type DispatchedGraphView,
 } from '../../../components/SubAgentContainerBlock';
-import AgentInteractionTimeline from '../../../components/AgentInteractionTimeline';
-import AssetTopologyMap from '../../../components/AssetTopologyMap';
-import AssetDetailPanel from '../../../components/AssetDetailPanel';
 import type {
   AgentInteractionTree,
   ExecutionGraph,
@@ -31,7 +28,7 @@ import {
   groupMessagesForRender,
   parseRawMessages,
   type DisplayMessage,
-} from '../../types/messages';
+} from '../../../types/messages';
 import { TreeNode, buildTreeNodes } from '../components/TreePanel';
 import { Sidebar } from '../components/Sidebar';
 import { AgentPanel } from '../components/AgentPanel';
@@ -773,7 +770,6 @@ const AICenterPage: React.FC = () => {
 
       <AgentPanel
         showTree={showTree}
-        showTreePanel={showTreePanel}
         onClose={() => setShowTreePanel(false)}
         treeConnected={treeConnected}
         agentPanelTab={agentPanelTab}

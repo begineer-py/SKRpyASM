@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- tree rendering and its pure data adapter share one feature contract. */
 import type { ReactNode } from 'react';
 
 // ── Status badge helpers ──────────────────────────────────────────────────

@@ -301,6 +301,7 @@ export function AssetTopologyMap({ topology, onSelectNode, selectedNodeId }: Ass
           </span>
         ))}
       </div>
+      </div>
     </>
   );
 }

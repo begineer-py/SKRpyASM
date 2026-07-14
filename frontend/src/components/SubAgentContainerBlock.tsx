@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- view adapter and types are intentionally co-located with this UI contract. */
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import ExecutionTimelineViewer from './ExecutionTimelineViewer';

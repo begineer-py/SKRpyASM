@@ -6,15 +6,19 @@ import { GLOBAL_CONFIG } from '../config';
  * Use this for reads that don't need realtime updates.
  * For realtime, keep using useHasuraSubscription (WebSocket).
  */
-export function useHasuraQuery<T = any>(
+interface GraphQLQueryError {
+  message: string;
+}
+
+export function useHasuraQuery<T = unknown>(
   query: string,
-  variables?: Record<string, any>,
+  variables?: Record<string, unknown>,
 ) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  const execute = useCallback(async (overrideVars?: Record<string, any>) => {
+  const execute = useCallback(async (overrideVars?: Record<string, unknown>) => {
     setLoading(true);
     setError(null);
     try {
@@ -31,11 +35,11 @@ export function useHasuraQuery<T = any>(
       });
       const json = await res.json();
       if (json.errors) {
-        throw new Error(json.errors.map((e: any) => e.message).join(', '));
+        throw new Error((json.errors as GraphQLQueryError[]).map((e) => e.message).join(', '));
       }
       setData(json.data);
-    } catch (err: any) {
-      setError(err);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err : new Error(String(err)));
     } finally {
       setLoading(false);
     }

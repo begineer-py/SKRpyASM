@@ -58,7 +58,10 @@ export default function TargetActivityMonitor({
     failed: graphs.filter((graph) => graph.status === 'FAILED').length,
   }), [graphs]);
 
-  const rootClass = 'flex flex-col h-full bg-white border border-gray-200 rounded-lg overflow-hidden';
+  const rootClass = cn(
+    'flex flex-col h-full bg-white border border-gray-200 rounded-lg overflow-hidden',
+    compact ? 'min-h-[160px]' : 'min-h-[200px]',
+  );
 
   if (!targetId) {
     return <div className={cn(rootClass, 'items-center justify-center text-gray-500 text-[13px] min-h-[200px]')}><p>Select a target to view activity</p></div>;
