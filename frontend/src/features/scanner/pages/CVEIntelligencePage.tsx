@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { CVEService, type CVEIntelligence } from '../../services/api_cve';
-import CVECard from '../../components/CVECard';
+import { CVEService, type CVEIntelligence } from '../services/scannerApi';
+import CVECard from '../../../components/CVECard';
 
 type SearchMode = 'cve_id' | 'tech_search';
 type SeverityFilter = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | '';

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { GLOBAL_CONFIG } from '../../config';
+import { GLOBAL_CONFIG } from '../../../config';
 import { cn } from '@/lib/utils';
 import {
   Dialog,

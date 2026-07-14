@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
-import type { NmapScanSchema, PortSchema } from '../../type';
+import type { NmapScanSchema, PortSchema } from '../../../type';
 import { cn } from '@/lib/utils';
 
 const API_BASE_URL_NMAP = 'http://127.0.0.1:8000/api/nmap';

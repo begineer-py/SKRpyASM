@@ -2,13 +2,13 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 
 import MainLayout from "./layouts/MainLayout";
 import AICenterPage from "../features/ai/pages/AICenterPage";
-import APIKeyManagerPage from "../pages/APIKeyManagerPage/APIKeyManagerPage";
-import AgentLLMConfigPage from "../pages/AgentLLMConfigPage/AgentLLMConfigPage";
-import CVEIntelligencePage from "../pages/CVEIntelligencePage/CVEIntelligencePage";
+import APIKeyManagerPage from "../features/settings/pages/APIKeyManagerPage";
+import AgentLLMConfigPage from "../features/settings/pages/AgentLLMConfigPage";
+import CVEIntelligencePage from "../features/scanner/pages/CVEIntelligencePage";
 import ExecutionMonitorPage from "../features/ai/pages/ExecutionMonitorPage";
 import OverviewDetailPage from "../features/ai/pages/OverviewDetailPage";
-import PentestConfigPage from "../pages/PentestConfigPage/PentestConfigPage";
-import ScanResultPage from "../pages/NmapScanResultPage/ScanResultPage";
+import PentestConfigPage from "../features/settings/pages/PentestConfigPage";
+import ScanResultPage from "../features/scanner/pages/ScanResultPage";
 import SchedulerPage from "../features/scheduler/pages/SchedulerPage";
 import SeedReconPage from "../features/target/pages/SeedReconPage";
 import SkillEditPage from "../features/skill/pages/SkillEditPage";
