@@ -171,7 +171,7 @@ export default function ExecutionMonitorPage() {
   }, [graphs]);
 
   return (
-    <div className="min-h-screen bg-bg-base p-5 font-body text-[#dbeafe]">
+    <div className="c2-workspace c2-workspace--monitor bg-bg-base p-5 font-body text-[#dbeafe]">
       <div className="p-6 border-b border-border-subtle">
         <div className="flex justify-between gap-4 items-end flex-wrap">
           <div>
@@ -194,7 +194,7 @@ export default function ExecutionMonitorPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-[360px_minmax(320px,1fr)_minmax(420px,1.1fr)] min-h-[calc(100vh-190px)]">
+      <div className="grid min-w-0 grid-cols-[minmax(260px,0.8fr)_minmax(0,1fr)_minmax(300px,1.1fr)] min-h-[calc(100vh-190px)]">
         <aside className="border-r border-border-subtle p-4 overflow-auto">
           <div className="flex flex-col gap-2.5 mb-3.5">
             <input className={searchInputCls} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search graph, assistant, thread..." />

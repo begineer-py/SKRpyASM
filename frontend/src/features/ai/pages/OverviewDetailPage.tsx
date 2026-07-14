@@ -137,7 +137,7 @@ const OverviewDetailPage: React.FC = () => {
   );
 
   return (
-    <div className="c2-page min-h-[calc(100vh-56px)] bg-[#09090b] text-slate-200 font-mono p-8">
+    <div className="c2-page c2-workspace--overview bg-[#09090b] text-slate-200 font-mono">
       <div className="flex justify-between items-center mb-6 border-b border-[rgba(0,255,0,0.1)] pb-5">
         <div className="flex items-center gap-5">
           <button className="bg-white/5 border border-white/10 text-slate-400 px-3 py-1.5 rounded cursor-pointer text-xs font-bold transition-all duration-200 hover:bg-white/10 hover:text-slate-200" onClick={() => navigate(-1)}>← BACK</button>
@@ -167,7 +167,7 @@ const OverviewDetailPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-[320px_1fr] gap-6 h-[calc(100vh-180px)]">
+      <div className="grid min-w-0 grid-cols-[minmax(240px,320px)_minmax(0,1fr)] gap-6 min-h-[calc(100vh-180px)]">
         {/* Left Column: Metadata */}
         <div className="bg-white/[0.02] border border-white/[0.05] rounded-lg p-6 flex flex-col gap-6">
           <div className="flex flex-col gap-2">

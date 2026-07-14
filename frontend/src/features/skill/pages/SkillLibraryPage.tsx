@@ -142,7 +142,7 @@ const SkillLibraryPage: React.FC = () => {
   }, [skills]);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-var(--navbar-height))] mt-[var(--navbar-height)] bg-bg-base text-text-primary font-mono overflow-hidden">
+    <div className="c2-workspace c2-workspace--skill bg-bg-base text-text-primary font-mono overflow-hidden">
       {/* ========== Header ========== */}
       <div className="flex items-center justify-between flex-wrap gap-4 px-8 py-5 border-b border-border-subtle bg-green-500/[0.02] shrink-0">
         <div>
@@ -195,7 +195,7 @@ const SkillLibraryPage: React.FC = () => {
       {/* ========== Main Split Layout ========== */}
       <div className="flex flex-1 overflow-hidden">
         {/* ---- Skill List ---- */}
-        <div className="w-[350px] shrink-0 overflow-y-auto border-r border-border-subtle bg-slate-900/20">
+        <div className="w-[min(350px,32vw)] min-w-0 shrink-0 overflow-y-auto border-r border-border-subtle bg-slate-900/20">
           {loading && (
             <div className="p-[60px] text-center text-text-muted text-xs tracking-[0.1em] leading-relaxed">
               <span className="animate-pulse">_</span> LOADING FROM DB...

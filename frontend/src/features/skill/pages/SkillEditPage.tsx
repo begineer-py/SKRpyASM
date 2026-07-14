@@ -142,7 +142,7 @@ export default function SkillEditPage() {
 
   if (loading) {
     return (
-      <div className="flex flex-col mt-[calc(var(--navbar-height)+12px)] h-[calc(100vh-var(--navbar-height)-12px)] bg-bg-base text-text-primary">
+      <div className="c2-workspace c2-workspace--skill bg-bg-base text-text-primary">
         <div className="p-12 text-center text-text-muted">
           Loading skill...
         </div>
@@ -153,7 +153,7 @@ export default function SkillEditPage() {
   const valid = form.name.trim().length > 0 && form.description.trim().length > 0;
 
   return (
-    <div className="flex flex-col mt-[calc(var(--navbar-height)+12px)] h-[calc(100vh-var(--navbar-height)-12px)] bg-bg-base text-text-primary">
+    <div className="c2-workspace c2-workspace--skill bg-bg-base text-text-primary">
       {/* Header */}
       <div className="flex items-center gap-3 px-6 py-3 bg-bg-surface border-b border-border-subtle shrink-0 z-10">
         <button className="bg-transparent border-0 text-text-muted cursor-pointer text-sm px-[10px] py-1.5 rounded transition-all duration-150 hover:text-text-primary hover:bg-bg-card" onClick={() => navigate('/skills')}>

@@ -584,7 +584,7 @@ const AICenterPage: React.FC = () => {
       : null;
 
   return (
-    <div className="flex h-[calc(100vh-var(--navbar-height)+12px)] w-full mt-[var(--navbar-height)] bg-[linear-gradient(135deg,#0f172a_0%,#0a0e27_100%)] text-slate-50 relative overflow-hidden">
+    <div className="c2-workspace c2-workspace--ai bg-[linear-gradient(135deg,#0f172a_0%,#0a0e27_100%)] text-slate-50">
       <Sidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}

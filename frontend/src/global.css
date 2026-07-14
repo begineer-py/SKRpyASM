@@ -293,7 +293,6 @@ a:hover { color: var(--cyan); }
 .c2-navbar__status strong { color: #bbf7d0; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em; }
 .c2-navbar__status small { color: var(--text-muted); font-size: 0.58rem; }
 .c2-navbar__status svg { margin-left: auto; color: var(--text-muted); }
-}
 
 /* ─── Page Layout ─── */
 .c2-page {
@@ -506,6 +505,28 @@ a:hover { color: var(--cyan); }
 .target-form-panel__actions { display: flex; gap: 8px; margin-top: 10px; }
 .target-form-panel__workflow { display: flex; flex-direction: column; gap: 8px; margin-top: 24px; padding-top: 17px; border-top: 1px solid var(--border-subtle); color: var(--text-muted); font: 500 0.68rem var(--font-mono); }
 .target-form-panel__workflow strong { margin-bottom: 3px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.1em; }
+
+/* ─── Full-height workspaces ─── */
+.c2-workspace { width: 100%; min-width: 0; height: 100vh; min-height: 560px; display: flex; flex-direction: column; overflow: hidden; }
+.c2-workspace--monitor { min-height: 100vh; overflow: auto; }
+.c2-workspace--overview { min-height: calc(100vh - 56px); }
+
+@media (max-width: 1100px) {
+  .c2-workspace--monitor > .grid { grid-template-columns: minmax(220px, 0.7fr) minmax(0, 1fr); }
+  .c2-workspace--monitor > .grid > :last-child { grid-column: 1 / -1; min-height: 360px; }
+}
+
+@media (max-width: 900px) {
+  .c2-workspace { height: calc(100vh - var(--navbar-height)); min-height: 520px; }
+  .c2-workspace--monitor { height: auto; min-height: calc(100vh - var(--navbar-height)); }
+  .c2-workspace--overview { min-height: calc(100vh - var(--navbar-height)); }
+}
+
+@media (max-width: 640px) {
+  .c2-workspace--monitor { padding: 14px; }
+  .c2-workspace--monitor > .grid { grid-template-columns: minmax(0, 1fr); }
+  .c2-workspace--monitor > .grid > :last-child { grid-column: auto; }
+}
 
 /* ─── Inputs ─── */
 .c2-input,
