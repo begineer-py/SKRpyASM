@@ -2,44 +2,42 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { assistantApi } from '../../services/assistantApi';
-import { useHasuraSubscription } from '../../hooks/useHasuraSubscription';
-import { useDraftInput } from '../../hooks/useDraftInput';
-import { usePersistentState } from '../../hooks/usePersistentState';
+import { assistantApi, executionApi, OverviewService, type OverviewData } from '../services/aiApi';
+import { useHasuraSubscription } from '../../../hooks/useHasuraSubscription';
+import { useDraftInput } from '../../../hooks/useDraftInput';
+import { usePersistentState } from '../../../hooks/usePersistentState';
 import MessageFilterBar, {
   DEFAULT_MSG_FILTER,
   messagePassesFilter,
   type MessageFilterState,
-} from '../../components/MessageFilterBar';
-import ToolCallGroup from '../../components/ToolCallGroup';
+} from '../../../components/MessageFilterBar';
+import ToolCallGroup from '../../../components/ToolCallGroup';
 import SubAgentContainerBlock, {
   dispatchToView,
   type DispatchedGraphView,
-} from '../../components/SubAgentContainerBlock';
-import AgentInteractionTimeline from '../../components/AgentInteractionTimeline';
-import AssetTopologyMap from '../../components/AssetTopologyMap';
-import AssetDetailPanel from '../../components/AssetDetailPanel';
-import { executionApi } from '../../services/executionApi';
+} from '../../../components/SubAgentContainerBlock';
+import AgentInteractionTimeline from '../../../components/AgentInteractionTimeline';
+import AssetTopologyMap from '../../../components/AssetTopologyMap';
+import AssetDetailPanel from '../../../components/AssetDetailPanel';
 import type {
   AgentInteractionTree,
   ExecutionGraph,
   SubAgentDispatchItem,
   TargetTopology,
   TopologyNode,
-} from '../../services/executionApi';
-import { OverviewService, type OverviewData } from '../../services/overviewService';
-import { GET_AGENT_TREE_SUBSCRIPTION } from '../../queries';
+} from '../services/aiApi';
+import { GET_AGENT_TREE_SUBSCRIPTION } from '../../../queries';
 import {
   groupMessagesForRender,
   parseRawMessages,
   type DisplayMessage,
 } from '../../types/messages';
-import { TreeNode, buildTreeNodes } from './components/TreePanel';
-import { Sidebar } from './components/Sidebar';
-import { AgentPanel } from './components/AgentPanel';
-import ChatHeader from './components/ChatHeader';
-import ExecutionLogsPanel from './components/ExecutionLogsPanel';
-import ThreadEventsPanel from './components/ThreadEventsPanel';
+import { TreeNode, buildTreeNodes } from '../components/TreePanel';
+import { Sidebar } from '../components/Sidebar';
+import { AgentPanel } from '../components/AgentPanel';
+import ChatHeader from '../components/ChatHeader';
+import ExecutionLogsPanel from '../components/ExecutionLogsPanel';
+import ThreadEventsPanel from '../components/ThreadEventsPanel';
 import { cn } from '@/lib/utils';
 
 // ── Main page ─────────────────────────────────────────────────────────────

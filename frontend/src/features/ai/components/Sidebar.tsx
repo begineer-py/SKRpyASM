@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { OverviewData } from '../../../services/overviewService';
+import type { OverviewData } from '../services/aiApi';
 
 interface SidebarProps {
   open: boolean;

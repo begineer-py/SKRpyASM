@@ -1,5 +1,5 @@
 import ExecutionTimelineViewer from '../../../components/ExecutionTimelineViewer';
-import type { ExecutionGraph } from '../../../services/executionApi';
+import type { ExecutionGraph } from '../services/aiApi';
 
 interface ExecutionLogsPanelProps {
   selectedGraphId: number | null;

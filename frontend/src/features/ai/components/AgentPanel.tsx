@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { AgentInteractionTree, TargetTopology, TopologyNode } from '../../../services/executionApi';
+import type { AgentInteractionTree, TargetTopology, TopologyNode } from '../services/aiApi';
 import AgentInteractionTimeline from '../../../components/AgentInteractionTimeline';
 import AssetTopologyMap from '../../../components/AssetTopologyMap';
 import AssetDetailPanel from '../../../components/AssetDetailPanel';

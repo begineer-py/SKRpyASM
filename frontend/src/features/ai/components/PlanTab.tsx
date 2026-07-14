@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AttackPlanService } from '../../../services/attackPlanService';
+import { AttackPlanService } from '../services/aiApi';
 import type { AttackPlanOut } from '../../../types/attackPlan';
 import JsonMonacoEditor from './JsonMonacoEditor';
 import PlanRenderer from './PlanRenderer';

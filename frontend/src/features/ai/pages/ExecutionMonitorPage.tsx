@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
-import ExecutionTimelineViewer from '../../components/ExecutionTimelineViewer';
-import { executionApi } from '../../services/executionApi';
-import type { ExecutionGraph, ExecutionGraphDetail, ExecutionNode } from '../../services/executionApi';
+import ExecutionTimelineViewer from '../../../components/ExecutionTimelineViewer';
+import { executionApi, type ExecutionGraph, type ExecutionGraphDetail, type ExecutionNode } from '../services/aiApi';
 import { cn } from '@/lib/utils';
 
 const STATUS_OPTIONS = ['RUNNING', 'WAITING', 'SUCCEEDED', 'FAILED', 'CANCELLED', 'BLOCKED'];

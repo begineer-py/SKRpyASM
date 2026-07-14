@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useHasuraQuery } from '../../hooks/useHasuraQuery';
-import { GET_SINGLE_OVERVIEW } from '../../queries';
-import { OverviewService } from '../../services/overviewService';
-import type { OverviewUpdatePayload, OverviewData } from '../../services/overviewService';
-import { executionApi } from '../../services/executionApi';
-import MissionReviewList from '../../components/MissionReviewList';
-import PlanTab from './components/PlanTab';
-import JsonMonacoEditor from './components/JsonMonacoEditor';
+import { useHasuraQuery } from '../../../hooks/useHasuraQuery';
+import { GET_SINGLE_OVERVIEW } from '../../../queries';
+import { executionApi, OverviewService } from '../services/aiApi';
+import type { OverviewUpdatePayload, OverviewData } from '../services/aiApi';
+import MissionReviewList from '../../../components/MissionReviewList';
+import PlanTab from '../components/PlanTab';
+import JsonMonacoEditor from '../components/JsonMonacoEditor';
 import { cn } from '@/lib/utils';
 
 interface HasuraOverview {

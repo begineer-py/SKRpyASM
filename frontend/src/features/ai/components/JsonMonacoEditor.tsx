@@ -1,4 +1,4 @@
-import MonacoPane from '../../../features/vulnerability/components/MonacoPane';
+import MonacoPane from '../../vulnerability/components/MonacoPane';
 
 interface JsonMonacoEditorProps {
   /** 當前的 JSON 字串內容（由呼叫端負責序列化）。 */
