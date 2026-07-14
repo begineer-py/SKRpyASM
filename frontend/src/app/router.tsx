@@ -18,8 +18,8 @@ import TargetDashboard from "../features/target/pages/TargetDashboard";
 import TargetListPage from "../features/target/pages/TargetListPage";
 import UrlDetailPage from "../features/target/pages/UrlDetailPage";
 import UrlReconPage from "../features/target/pages/UrlReconPage";
-import VulnerabilityEditPage from "../pages/VulnerabilityEditPage/VulnerabilityEditPage";
-import VulnerabilityPage from "../pages/VulnerabilityPage/VulnerabilityPage";
+import VulnerabilityEditPage from "../features/vulnerability/pages/VulnerabilityEditPage";
+import VulnerabilityPage from "../features/vulnerability/pages/VulnerabilityPage";
 
 export default function AppRouter() {
   return (
