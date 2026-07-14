@@ -4,9 +4,9 @@ import Navbar from "../../components/Navbar";
 
 export default function MainLayout({ children }: PropsWithChildren) {
   return (
-    <>
+    <div className="c2-app-shell">
       <Navbar />
-      <main>{children}</main>
-    </>
+      <main className="c2-app-shell__main">{children}</main>
+    </div>
   );
 }
