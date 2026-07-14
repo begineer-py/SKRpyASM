@@ -19,10 +19,11 @@ export const AiAnalysisService = {
       // POST /analyze_ai/subdomains
       const response = await aiApi.post<AnalyzeSuccessResponse>('/subdomains', payload);
       return response.data;
-    } catch (error: any) {
-      console.error('AI Analysis Trigger Failed:', error.response?.data || error.message);
+    } catch (error: unknown) {
+      const details = error as { response?: { data?: { detail?: string } }; message?: string };
+      console.error('AI Analysis Trigger Failed:', details.response?.data || details.message);
       // 拋出一個用戶可讀的錯誤
-      throw new Error(error.response?.data?.detail || '請求 AI 分析失敗');
+      throw new Error(details.response?.data?.detail || '請求 AI 分析失敗');
     }
   }
 };

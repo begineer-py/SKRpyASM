@@ -137,7 +137,7 @@ export interface SubdomainAIAnalysis {
   created_at: string;
   completed_at?: string | null;
   error_message?: string | null;
-  raw_response?: any;
+  raw_response?: unknown;
 }
 
 export interface InitialAIAnalysis {
@@ -149,7 +149,7 @@ export interface InitialAIAnalysis {
   created_at: string;
   completed_at?: string | null;
   error_message?: string | null;
-  raw_response?: any;
+  raw_response?: unknown;
 }
 
 

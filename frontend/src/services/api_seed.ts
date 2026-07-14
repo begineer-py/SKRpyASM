@@ -26,9 +26,9 @@ export const SeedService = {
         { object },
       );
       return data.insert_core_seed_one as unknown as Seed;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('API Error: Failed to add seed', error);
-      throw new Error(error.message || '添加種子失敗');
+      throw new Error(error instanceof Error ? error.message : '添加種子失敗');
     }
   },
 
@@ -41,9 +41,9 @@ export const SeedService = {
         DeleteSeedDocument,
         { id: seedId },
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('API Error: Failed to delete seed', error);
-      throw new Error(error.message || '刪除種子失敗');
+      throw new Error(error instanceof Error ? error.message : '刪除種子失敗');
     }
   },
 

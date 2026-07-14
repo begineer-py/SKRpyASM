@@ -24,7 +24,7 @@ interface TelemetryPanelProps {
   samples?: ExecutionSample[];
 
   /** Optional recent overview updates */
-  recentOverviews?: Array<any>;
+  recentOverviews?: RecentOverview[];
 
   /** Map thread_id -> display name for provenance */
   threadNameById?: Record<string, string>;
@@ -40,6 +40,12 @@ interface TelemetryPanelProps {
   
   /** Whether any data has been loaded yet */
   hasData?: boolean;
+}
+
+interface RecentOverview {
+  id: number;
+  status: string;
+  core_target?: { name?: string | null } | null;
 }
 
 export function TelemetryPanel({
@@ -134,7 +140,7 @@ export function TelemetryPanel({
             <div
               className="px-3 py-[10px] bg-[rgba(34,197,94,0.05)] border border-dashed border-[rgba(34,197,94,0.35)] rounded-md text-xs text-text-secondary"
             >
-              {recentOverviews.slice(0, 2).map((overview: any) => {
+              {recentOverviews.slice(0, 2).map((overview) => {
                 return (
                   <div key={overview.id} className="mb-1.5">
                     <span style={{ color: overview.status === 'EXECUTING' ? '#fbbf24' : '#22c55e' }}>

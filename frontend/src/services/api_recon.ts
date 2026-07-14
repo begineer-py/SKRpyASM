@@ -16,12 +16,13 @@ export const ReconService = {
       const payload: DomainReconTriggerPayload = { seed_id: seedId };
       const response = await reconApi.post<SubfinderScan>('/start_subfinder', payload);
       return response.data;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const details = error as { response?: { status?: number; data?: { message?: string } } };
       // 處理 409 (衝突/任務已在運行)
-      if (error.response?.status === 409) {
+      if (details.response?.status === 409) {
         throw new Error('任務已在運行中，請勿重複觸發');
       }
-      throw new Error(error.response?.data?.message || '啟動偵察失敗');
+      throw new Error(details.response?.data?.message || '啟動偵察失敗');
     }
   }
 };
