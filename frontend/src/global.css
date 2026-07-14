@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 /* ============================================================
    SKRpyASM Security Operations Design System
    Direction: data-dense command center, restrained dark UI.
@@ -61,6 +63,64 @@
   /* Spacing */
   --sidebar-width: 240px;
   --navbar-height: 68px;
+}
+
+@theme {
+  /* Colors - Backgrounds */
+  --color-bg-base: #050814;
+  --color-bg-surface: #0a0f1d;
+  --color-bg-elevated: #101827;
+  --color-bg-card: rgba(15, 23, 42, 0.82);
+  --color-bg-card-hover: rgba(19, 29, 48, 0.96);
+  --color-bg-panel: rgba(5, 8, 20, 0.72);
+
+  /* Colors - Borders */
+  --color-border-subtle: rgba(148, 163, 184, 0.14);
+  --color-border-normal: rgba(96, 165, 250, 0.26);
+  --color-border-strong: rgba(96, 165, 250, 0.58);
+  --color-border-cyan: rgba(6, 182, 212, 0.32);
+
+  /* Colors - Brand */
+  --color-blue: #3B82F6;
+  --color-blue-dim: #2563EB;
+  --color-blue-glow: rgba(59, 130, 246, 0.20);
+  --color-green: #22C55E;
+  --color-green-dim: #16a34a;
+  --color-green-glow: rgba(34, 197, 94, 0.16);
+  --color-cyan: #06B6D4;
+  --color-cyan-dim: #0891b2;
+  --color-cyan-glow: rgba(6, 182, 212, 0.14);
+  --color-red: #ef4444;
+  --color-red-dim: #dc2626;
+  --color-amber: #f59e0b;
+  --color-purple: #8b5cf6;
+
+  /* Colors - Text */
+  --color-text-primary: #E6EDF7;
+  --color-text-secondary: #98A2B3;
+  --color-text-muted: #667085;
+  --color-text-green: #22C55E;
+  --color-text-cyan: #67E8F9;
+
+  /* Fonts */
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
+  --font-body: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+
+  /* Shadows */
+  --shadow-glow-blue: 0 0 0 1px rgba(59, 130, 246, 0.18), 0 18px 50px rgba(15, 23, 42, 0.38);
+  --shadow-glow-green: 0 0 0 1px rgba(34, 197, 94, 0.20), 0 16px 40px rgba(34, 197, 94, 0.08);
+  --shadow-glow-cyan: 0 0 0 1px rgba(6, 182, 212, 0.18), 0 16px 40px rgba(6, 182, 212, 0.08);
+  --shadow-glow-red: 0 0 0 1px rgba(239, 68, 68, 0.18), 0 16px 40px rgba(239, 68, 68, 0.08);
+  --shadow-soft: 0 18px 60px rgba(0, 0, 0, 0.22);
+
+  /* Animations */
+  --animate-spin: spin 0.8s linear infinite;
+  --animate-pulse: pulse 2s infinite;
+  --animate-skeleton: skeleton-pulse 1.5s ease-in-out infinite;
+
+  /* Spacing */
+  --spacing-sidebar: 240px;
+  --spacing-navbar: 68px;
 }
 
 /* ─── Reset & Base ─── */
@@ -332,11 +392,18 @@ a:hover { color: var(--cyan); }
   cursor: not-allowed;
 }
 
+.c2-btn--sm {
+  font-size: 0.68rem;
+  padding: 5px 10px;
+  border-radius: 8px;
+  gap: 4px;
+}
+
 /* ─── Inputs ─── */
 .c2-input,
 .c2-select {
   width: 100%;
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   font-size: 0.85rem;
   padding: 8px 12px;
   background: rgba(15, 23, 42, 0.8);
@@ -346,6 +413,10 @@ a:hover { color: var(--cyan); }
   outline: none;
   transition: border-color var(--transition);
   margin-bottom: 12px;
+}
+
+.c2-input.mono {
+  font-family: var(--font-mono);
 }
 
 .c2-input:focus,
