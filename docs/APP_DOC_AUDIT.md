@@ -117,22 +117,59 @@
 3. 修正 CVE 相关旧 endpoint 名称。
 4. 为缺少 app 文档的模块补最小化说明页。
 
+## 额外发现（本次稽核）
+
+### 文档声称但实际缺失的功能
+
+| 声称的功能 | 类型 | 说明 |
+|-----------|------|------|
+| `naabu` (端口扫描) | 安全工具 | README/白皮书列出但代码中完全未实作；实际使用 Nmap |
+| `wafw00f` (WAF检测) | 安全工具 | 文档列出但未使用；实际使用 `projectdiscovery/cdncheck` |
+| `FlareProxyGo` (反机器人) | 安全工具 | Docker Compose 有容器但后端 Python 从未呼叫 |
+| `ScheduleDefinition`/`ScheduleLog` | 模型 | CLAUDE.md 声称但 `apps/scheduler/models.py` 为空；实际使用 `django_celery_beat` 内建模型 |
+| `Apollo Client` 活跃使用 | 前端框架 | 安装且有设定档，但从未被任何 component import；实际使用自订 hooks (`useHasuraQuery`/`useHasuraSubscription`) |
+| `/api/core/steps` | API 端点 | 白皮书附录列出但 `step_api.py` 已删除 |
+| `VulnCheck API` | CVE 情报 | `.env.example` 有变数但无 client/service 实作 |
+| TQA (THINK→QUERY→ACT→NOTE) 回圈 | Agent 流程 | 白皮书声称的实际是 7 步骤 CONTEXT→CHECK→PLAN→EXECUTE→RECORD→SYNTHESIZE→DECIDE |
+
+### 代码中存在但文档未提及的功能
+
+| 未文档化的功能 | 位置 | 说明 |
+|---------------|------|------|
+| `/api/skills/` (6 endpoints) | `apps.core.skill_api` | SkillTemplate 完整 CRUD + 测试，完全不在 README/CLAUDE.md 中 |
+| `/api/scanners/crawler/katana` | `apps.scanners.katana_scanner` | Katana 主动爬虫未在路由表中记载 |
+| `SpawnAgentsMixin` (4 tools) | `apps/auto/tools/spawn_tools.py` | 子 Agent 产生工具未在 Mixin 表中列出 |
+| `CVEIntelligenceMixin` (4 tools) | `apps/auto/tools/cve_intelligence_tools.py` | CVE 查询工具未在 Mixin 表中列出 |
+| 额外的 3 个 CELERY_IMPORTS | `c2_core/settings.py:257-259` | `cve_intelligence.*` + `katana_scanner` 未记载 |
+| 额外的 6 个 scheduler tasks | `apps/scheduler/tasks/*.py` | 11 个 task 中只记载了 5 个 |
+
+## 优先修正文档项
+
+1. ✅ 把 `apps/auto` 从“公开 API 层”改写成“内部自动化框架”。
+2. ✅ 缩小 `apps/core`、`apps/analyze_ai`、`apps/http_sender` 的公开 API 描述范围。
+3. ✅ 修正 CVE 相关旧 endpoint 名称，移除 callback_step_id。
+4. ✅ 更新安全工具清单（移除 naabu、wafw00f、FlareProxyGo；新增 cdncheck、Katana）。
+5. ✅ 为缺少 app 文档的模块补最小化说明页。
+6. ⚠️ 新增 `/api/skills/` 到 README/CLAUDE.md 路由表（已完成）。
+7. ❌ 新增 `katana_scanner` app 文档。
+
 ## 建议新增的 app 文档
 
-- `docs/targets.md`
-- `docs/core.md`
-- `docs/flaresolverr.md`
-- `docs/analyze_ai.md`
-- `docs/scheduler.md`
-- `docs/http_sender.md`
-- `docs/api_keys.md`
-- `docs/auto.md`
-- `docs/ai_assistant.md`
-- `docs/nmap_scanner.md`
-- `docs/subfinder.md`
-- `docs/nuclei_scanner.md`
-- `docs/get_all_url.md`
+- ✅ `docs/targets.md` — 已存在
+- ✅ `docs/core.md` — 已存在
+- ✅ `docs/flaresolverr.md` — 已存在
+- ✅ `docs/analyze_ai.md` — 已存在
+- ✅ `docs/scheduler.md` — 已存在
+- ✅ `docs/http_sender.md` — 已存在
+- ✅ `docs/api_keys.md` — 已存在
+- ✅ `docs/auto.md` — 已存在
+- ✅ `docs/ai_assistant.md` — 已存在
+- ✅ `docs/nmap_scanner.md` — 已存在
+- ✅ `docs/subfinder.md` — 已存在
+- ✅ `docs/nuclei_scanner.md` — 已存在
+- ✅ `docs/get_all_url.md` — 已存在
+- ❌ `docs/katana_scanner.md` — 缺少
 
 ---
 
-_最后更新：2026-06-06_
+_最后更新：2026-06-18_

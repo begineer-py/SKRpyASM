@@ -294,7 +294,7 @@ python test_cve_intelligence.py
 
 6. **新增更多資料來源**
    - OSV.dev（開源套件）
-   - VulnCheck（付費，增強情報）
+   - VulnCheck（付費，增強情報 — 尚未實作）
    - ExploitDB
 
 ---

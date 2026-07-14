@@ -130,15 +130,13 @@ curl -X GET http://localhost:8000/api/scanners/cve/techstack_report/1
 
 **请求参数**:
 - `vulnerability_ids` (array[int], 必需): Vulnerability ID 列表
-- `callback_step_id` (int, 可选): Step ID for callback
 
 **请求示例**:
 ```bash
 curl -X POST http://localhost:8000/api/scanners/cve/enrich_vulnerabilities \
   -H "Content-Type: application/json" \
   -d '{
-    "vulnerability_ids": [1, 2, 3, 4, 5],
-    "callback_step_id": 100
+    "vulnerability_ids": [1, 2, 3, 4, 5]
   }'
 ```
 
@@ -154,15 +152,13 @@ curl -X POST http://localhost:8000/api/scanners/cve/enrich_vulnerabilities \
 
 **请求参数**:
 - `target_id` (int, 必需): Target ID
-- `callback_step_id` (int, 可选): Step ID for callback
 
 **请求示例**:
 ```bash
 curl -X POST http://localhost:8000/api/scanners/cve/sync_techstack \
   -H "Content-Type: application/json" \
   -d '{
-    "target_id": 1,
-    "callback_step_id": 101
+    "target_id": 1
   }'
 ```
 
@@ -177,13 +173,13 @@ curl -X POST http://localhost:8000/api/scanners/cve/sync_techstack \
 **描述**: 手动触发 CISA KEV 同步，抓取最新的已被利用漏洞目录
 
 **请求参数**:
-- `callback_step_id` (int, 可选): Step ID for callback
+- 无 (直接触发)
 
 **请求示例**:
 ```bash
 curl -X POST http://localhost:8000/api/scanners/cve/sync_kev \
   -H "Content-Type: application/json" \
-  -d '{"callback_step_id": 102}'
+  -d '{}'
 ```
 
 **响应**: SuccessSendToAISchema (202) - 异步任务已派发

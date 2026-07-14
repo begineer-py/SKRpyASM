@@ -1,7 +1,7 @@
 # 文档整合完成总结
 
 > 注意：本文件是一次文档整合的历史记录，不应视为当前系统状态的权威来源。
-> 当前请以 `README.md`、`docs/README.md`、`docs/BUILD_GUIDE.md` 与 `SKRpyASM_技術白皮書.md` 的最新内容为准。
+> 当前请以 `README.md`、`docs/README.md`、`../CLAUDE.md`（Development Commands 章節）与 `SKRpyASM_技術白皮書.md` 的最新内容为准。
 
 ## ✅ 完成的工作
 
@@ -39,7 +39,6 @@ C2_Django_AI_git/
 ```
 docs/
 ├── README.md                        # 文档索引（新建）
-├── BUILD_GUIDE.md                   # 构建与部署指南
 ├── CVE_API_GUIDE.md                 # CVE API 使用指南
 ├── CVE_IMPLEMENTATION_SUMMARY.md    # CVE 实现总结
 ├── DELIVERY_CHECKLIST.md            # 交付检查清单
@@ -67,7 +66,7 @@ docs/
 
 #### 新增内容
 - 白皮书中新增了 CVE Intelligence 相关章节内容
-- 构建与部署说明已迁移至 `docs/BUILD_GUIDE.md`
+- 构建与部署说明已收斂至 `../CLAUDE.md` 的 Development Commands 章節（原有的獨立構建指南文檔已废弃并删除）
 - 更新了第十二章的 API 路由映射，添加 `/api/scanners/cve`
 
 #### 文档规模
@@ -106,7 +105,7 @@ docs/
 - **完整技术文档**：[SKRpyASM_技術白皮書.md](../SKRpyASM_技術白皮書.md)
 - **CVE Intelligence 章节**：[SKRpyASM_技術白皮書.md#十三cve-intelligence-情報系統](../SKRpyASM_技術白皮書.md)
 - **CVE API 指南**：[CVE_API_GUIDE.md](../docs/CVE_API_GUIDE.md)
-- **构建指南**：[BUILD_GUIDE.md](../docs/BUILD_GUIDE.md)
+- **构建指南**：[CLAUDE.md Development Commands](../CLAUDE.md)
 - **文档索引**：[README.md](../docs/README.md)
 
 ## ✨ 主要改进

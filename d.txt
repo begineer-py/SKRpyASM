@@ -1,0 +1,120 @@
+src/
+│
+├── app/
+│   ├── App.tsx
+│   ├── router.tsx
+│   ├── providers.tsx
+│   └── layouts/
+│       ├── MainLayout.tsx
+│       
+│
+├── components/
+│   ├── ui/                     # 全域 UI 元件(shadcn)
+│   │   ├── button.tsx
+│   │   ├── card.tsx
+│   │   ├── dialog.tsx
+│   │   ├── badge.tsx
+│   │   └── table.tsx
+│   │
+│   └── common/                 # 跨功能共用
+│       ├── ErrorBoundary.tsx
+│       ├── Loading.tsx
+│       └── EmptyState.tsx
+│
+├── features/
+│
+│   ├── target/
+│   │   ├── pages/
+│   │   │   └── TargetDashboard.tsx
+│   │   │
+│   │   ├── components/
+│   │   │   ├── TargetHeader.tsx
+│   │   │   ├── AssetTopology.tsx
+│   │   │   ├── RiskPanel.tsx
+│   │   │   └── TargetTimeline.tsx
+│   │   │
+│   │   ├── hooks/
+│   │   │   └── useTarget.ts
+│   │   │
+│   │   ├── services/
+│   │   │   └── targetApi.ts
+│   │   │
+│   │   └── types.ts
+│   │
+│   │
+│   ├── vulnerability/
+│   │   ├── pages/
+│   │   │   ├── VulnerabilityPage.tsx
+│   │   │   └── VulnerabilityEditPage.tsx
+│   │   │
+│   │   ├── components/
+│   │   │   ├── VulnCard.tsx
+│   │   │   ├── VulnTable.tsx
+│   │   │   ├── PocEditor.tsx
+│   │   │   └── ConfirmDeleteModal.tsx
+│   │   │
+│   │   ├── hooks/
+│   │   │   └── useVulnerability.ts
+│   │   │
+│   │   ├── services/
+│   │   │   └── vulnerabilityApi.ts
+│   │   │
+│   │   └── types.ts
+│   │
+│   │
+│   ├── ai/
+│   │   ├── pages/
+│   │   │   └── AICenterPage.tsx
+│   │   │
+│   │   ├── components/
+│   │   │   ├── AgentPanel.tsx
+│   │   │   ├── ChatWindow.tsx
+│   │   │   └── ExecutionTimeline.tsx
+│   │   │
+│   │   ├── hooks/
+│   │   │   └── useAgentStream.ts
+│   │   │
+│   │   └── services/
+│   │       └── aiApi.ts
+│   │
+│   │
+│   ├── scheduler/
+│   │   ├── pages/
+│   │   │   └── SchedulerPage.tsx
+│   │   ├── components/
+│   │   │   ├── TaskForm.tsx
+│   │   │   └── TaskTable.tsx
+│   │   └── services/
+│   │       └── schedulerApi.ts
+│   │
+│   │
+│   └── skill/
+│       ├── pages/
+│       │   ├── SkillLibraryPage.tsx
+│       │   └── SkillEditPage.tsx
+│       │
+│       ├── components/
+│       │   ├── SchemaEditor.tsx
+│       │   └── ScriptEditor.tsx
+│       │
+│       └── services/
+│           └── skillApi.ts
+│   .....
+│
+├── hooks/
+│   ├── useDebounce.ts
+│   └── useLocalStorage.ts
+│
+├── lib/
+│   ├── axios.ts
+│   ├── graphql.ts
+│   └── utils.ts
+│
+├── types/
+│   └── global.ts
+│
+├── styles/
+│   ├── globals.css
+│   └── variables.css
+│
+└── main.tsx

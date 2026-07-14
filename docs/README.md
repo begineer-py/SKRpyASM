@@ -15,15 +15,7 @@
 
 - **[../README.md](../README.md)** - 项目简介与快速开始
 
-- **[../CLAUDE.md](../CLAUDE.md)** - Claude Code 项目配置
-
-### 构建与部署
-
-- **[BUILD_GUIDE.md](BUILD_GUIDE.md)** - 详细的构建与部署指南
-  - 环境配置
-  - 依赖安装
-  - 服务启动
-  - 生产环境部署
+- **[../CLAUDE.md](../CLAUDE.md)** - Claude Code 项目配置（包含完整的开发与部署指令，是部署命令的权威来源）
 
 ### CVE Intelligence 系统
 
@@ -110,7 +102,6 @@ C2_Django_AI_git/
 │   ├── subfinder.md                 # subfinder 说明
 │   ├── nuclei_scanner.md            # nuclei_scanner 说明
 │   ├── get_all_url.md               # get_all_url 说明
-│   ├── BUILD_GUIDE.md               # 构建指南
 │   ├── CVE_API_GUIDE.md             # CVE API 指南
 │   ├── CVE_IMPLEMENTATION_SUMMARY.md # CVE 实现总结
 │   ├── DELIVERY_CHECKLIST.md        # 交付检查清单
@@ -119,16 +110,16 @@ C2_Django_AI_git/
 │   ├── message_loading_analysis.md  # 消息加载分析
 │   ├── MESSAGE_LOADING_INDEX.md     # 消息加载索引
 │   └── README_DOCUMENTATION.md      # README 文档
-├── test_cve_api.sh                  # CVE API 测试脚本
-└── test_cve_intelligence.py         # CVE Intelligence 测试脚本
 ```
+
+> 部署與開發指令已收斂至根目錄 [`../CLAUDE.md`](../CLAUDE.md) 的 **Development Commands** 章節。
 
 ## 📖 阅读顺序建议
 
 ### 新用户
 
 1. **[../README.md](../README.md)** - 了解项目概况
-2. **[BUILD_GUIDE.md](BUILD_GUIDE.md)** - 快速启动系统
+2. **[../CLAUDE.md](../CLAUDE.md)** - 开发与部署指令（Quick Start + Development Commands）
 3. **[../SKRpyASM_技術白皮書.md](../SKRpyASM_技術白皮書.md)** - 深入理解架构
 
 ### 开发者
@@ -158,8 +149,8 @@ C2_Django_AI_git/
 - CVE Intelligence：优先参考 [CVE_API_GUIDE.md](CVE_API_GUIDE.md) 与 [CVE_IMPLEMENTATION_SUMMARY.md](CVE_IMPLEMENTATION_SUMMARY.md)
 
 ### 查找部署指南
-- 快速启动：[BUILD_GUIDE.md](BUILD_GUIDE.md)
-- 环境配置：以 [BUILD_GUIDE.md](BUILD_GUIDE.md) 为准
+- Quick Start：[../README.md](../README.md) 的 Quick Start 段落
+- 完整开发与部署指令：[../CLAUDE.md](../CLAUDE.md) 的 Development Commands 章節（Migrations / Tests / Celery / CI）
 
 ## 📝 文档维护
 

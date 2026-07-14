@@ -134,7 +134,7 @@ Three SSE streaming endpoints, all resumable:
 ```text
 ┌──────────────────────────────────────────────────────────────────┐
 │                       Frontend (React 19 + Vite 7)                │
-│  Hasura GraphQL (subscriptions)   Axios (REST)   SSE (events)    │
+│  custom GraphQL hooks (subscriptions)   Axios (REST)   SSE (events)    │
 └──────────────────────────┬───────────────────────────────────────┘
                            │
 ┌──────────────────────────▼───────────────────────────────────────┐
@@ -161,8 +161,8 @@ Three SSE streaming endpoints, all resumable:
 | Database | PostgreSQL 14 |
 | Frontend | React 19.1, TypeScript 5.8, Vite 7 |
 | Data / API Tools | Hasura GraphQL, NocoDB, Django Admin |
-| Security Tools | Nmap, Subfinder, Amass, dnsx, httpx, naabu, Nuclei, wafw00f, GAU, Katana, ffuf |
-| Anti-Bot | FlareSolverr, FlareProxyGo |
+| Security Tools | Nmap, Subfinder, Amass, dnsx, httpx, Nuclei, cdncheck, GAU, Katana, ffuf |
+| Anti-Bot | FlareSolverr |
 
 ---
 
@@ -171,8 +171,12 @@ Three SSE streaming endpoints, all resumable:
 **Prerequisites**: Python 3.10, Docker + Compose, Node.js 18+
 
 ```bash
+# 0. One-shot: bring up Docker infra + run all checks (T7 Makefile)
+make up && make smoke
+
+# --- Or, step by step: ---
 # 1. Infrastructure (PostgreSQL, Redis, Hasura, FlareSolverr...)
-cd docker && docker compose up -d && cd ..
+cd docker && docker compose up -d --wait && cd ..
 
 # 2. Backend
 python -m venv .venv && source .venv/bin/activate
@@ -187,9 +191,12 @@ celery -A c2_core beat -l info --scheduler django_celery_beat.schedulers:Databas
 
 # 4. Frontend
 cd frontend && npm install && npm run dev
+
+# 5. 驗證部署 / Verify deployment (expect: "SKRpyASM API")
+curl -fsS http://127.0.0.1:8000/api/openapi.json | jq -e '.info.title'
 ```
 
-Full deployment guide: [docs/BUILD_GUIDE.md](docs/BUILD_GUIDE.md)
+> 完整開發指令（migrations / tests / lint / CI）請見 [CLAUDE.md](CLAUDE.md) 的 **Development Commands** 章節——它是部署與開發指令的單一權威來源。
 
 ---
 
@@ -201,7 +208,7 @@ Full deployment guide: [docs/BUILD_GUIDE.md](docs/BUILD_GUIDE.md)
 | `/api/scanners/nmap` | `apps.scanners.nmap_scanner` | Nmap dispatch & results |
 | `/api/scanners/subdomain` | `apps.scanners.subfinder` | Subfinder / Amass workflows |
 | `/api/scanners/vuln` | `apps.scanners.nuclei_scanner` | Nuclei vuln & tech scans |
-| `/api/scanners/crawler` | `apps.scanners.get_all_url` | URL discovery |
+| `/api/scanners/crawler` | `apps.scanners.get_all_url`, `apps.scanners.katana_scanner` | URL discovery (GAU + Katana) |
 | `/api/scanners/cve` | `apps.scanners.cve_intelligence` | CVE intelligence query & enrichment |
 | `/api/flaresolverr/` | `apps.flaresolverr` | Anti-bot page crawling |
 | `/api/core/` | `apps.core` | Overviews, executions, events |
@@ -209,6 +216,7 @@ Full deployment guide: [docs/BUILD_GUIDE.md](docs/BUILD_GUIDE.md)
 | `/api/scheduler/` | `apps.scheduler` | Periodic schedule management |
 | `/api/http_sender/` | `apps.http_sender` | Endpoint fuzzing |
 | `/api/api_keys/` | `apps.api_keys` | API key & agent LLM config |
+| `/api/skills/` | `apps.core.skill_api` | Skill template CRUD & test |
 | `/api/assistant/` | `apps.ai_assistant` | Threads / messages / SSE streaming |
 
 ---
@@ -231,7 +239,7 @@ Full deployment guide: [docs/BUILD_GUIDE.md](docs/BUILD_GUIDE.md)
 | Document | Content |
 |----------|---------|
 | [SKRpyASM_技術白皮書.md](SKRpyASM_技術白皮書.md) | 完整技術白皮書（4000+ 行）：架構、Agent 設計、API 映射 |
-| [docs/BUILD_GUIDE.md](docs/BUILD_GUIDE.md) | 環境配置與部署 |
+| [CLAUDE.md](CLAUDE.md) | 開發指令、架構與 Key Patterns（部署指令的權威來源） |
 | [docs/CVE_API_GUIDE.md](docs/CVE_API_GUIDE.md) | CVE Intelligence REST API |
 | [docs/ai_assistant.md](docs/ai_assistant.md) | Assistant/SSE 介面 |
 | [docs/auto.md](docs/auto.md) | 自動化框架 |

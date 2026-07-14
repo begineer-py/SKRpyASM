@@ -22,7 +22,7 @@
 
 1. `subdomain_id`
 2. `name` 對應的 hostname
-3. 若帶 `callback_step_id`，優先找該 step 所屬 target 下的 subdomain
+3. 若帶 `execution_node_id`，優先找該 node 所屬 target 下的 subdomain
 
 ### 狀態限制
 

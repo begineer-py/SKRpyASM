@@ -13,11 +13,7 @@
 
 ## 公開 API 現況
 
-目前 `apps/auto/api.py` 只保留一個已廢棄端點：
-
-- `POST /api/auto/convert/{asset_type}`
-
-此端點會直接回 `410 Gone`，原因是舊的 `IPAIAnalysis/SubdomainAIAnalysis/URLAIAnalysis` 流程已被 `InitialAIAnalysis + Overview` 取代。
+`apps/auto/` 不再提供公開 API 端點（舊的 `POST /api/auto/convert/{asset_type}` 與整個 `apps/auto/api.py` 已完全移除）。深度 AI 分析流程統一由 `InitialAIAnalysis + Overview` 處理。
 
 ## 真正活躍的執行入口
 
@@ -88,8 +84,6 @@ class MemoryMixin:
 
 - `request_skill_creation(skill_template_id, reasoning)` — 請求將 SkillTemplate 提升為正式技能
 - `has_io_contract` — `SkillTemplate` 欄位，標記模板是否具備輸入輸出協議
-
-舊的 `promote_successful_script()` 已廢棄，全面改用 `request_skill_creation`。
 
 ### TaskNode / AgentNode 模式
 

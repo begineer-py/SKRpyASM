@@ -10,51 +10,106 @@ Code comments throughout the codebase are in Chinese (Traditional/Simplified).
 
 ## Development Commands
 
-### Backend
+### Docker-first Development
+
+This project follows a **Docker-first development workflow**.
+
+Docker Compose is the primary environment for running application services.
+
+The Makefile is the canonical interface for:
+
+- starting/stopping services
+- rebuilding containers
+- migrations
+- backend checks
+- tests
+- logs
+- environment management
+
+Available commands:
+
 ```bash
-# Start infrastructure
-cd docker && docker compose up -d && cd ..
+make up
+make down
+make logs
+make ps
+make rebuild
+make migrate
+make shell
+make check
+make test
+make smoke
+make clean
+Backend
 
-# Django server (ASGI)
-uvicorn c2_core.asgi:application --host 0.0.0.0 --port 8000 --reload
+Backend runtime services must run through Docker Compose.
 
-# Celery worker
-celery -A c2_core worker -P prefork -c 8 -l info
+Use Makefile commands:
 
-# Celery Beat scheduler
-celery -A c2_core beat -l info
+make up
+make migrate
+make check
+make test
 
-# Migrations
-python manage.py makemigrations
-python manage.py migrate
+Do not start backend services directly on the host machine:
 
-# Tests
-python manage.py test
-pytest
-pytest apps/scanners/nmap_scanner/tests.py -v   # single app tests
+uvicorn
+celery
+python manage.py runserver
 
-# Project check
-python manage.py check
-```
+unless explicitly debugging the local environment.
 
-### Frontend
-```bash
-cd frontend
-npm install
-npm run dev       # Vite dev server on port 5173
-npm run build     # tsc + vite build
-npm run lint      # ESLint
-```
+Frontend
 
-### CI
-GitHub Actions (`.github/workflows/ci.yml`): starts Docker Compose, runs `manage.py check`, `migrate`, and `test`.
+Frontend runtime is Docker-based.
+
+The frontend application should normally run through Docker Compose.
+
+However, lightweight local developer tools are allowed when they do not replace the container runtime.
+
+Examples:
+
+Allowed:
+
+npx tsc --noEmit
+npm run lint
+
+or other static checks.
+
+Not preferred:
+
+npm run dev
+npm run start
+
+because the development runtime should remain consistent with Docker.
+
+Local Tools vs Runtime
+
+Rule:
+
+Application services → Docker Compose
+Infrastructure → Docker Compose
+Database / Redis / Celery → Docker Compose
+Static analysis tools → local execution allowed
+
+Examples:
+
+Task	Preferred
+Start Django	make up
+Run Celery	Docker Compose
+Database migration	make migrate
+Backend tests	make test
+API smoke test	make smoke
+TypeScript check	npx tsc --noEmit
+ESLint	npm run lint
+
 
 ### Testing Workflow (API-First)
 
 When debugging, testing, or verifying behavior, **always prefer the REST API over `docker exec` + Django shell**. It is simpler, faster, and double-tests the API layer.
 
 ```bash
-# Check state via API (no auth required in dev)
+# Check state via API (no auth required)
 curl -s http://localhost:8000/api/core/overviews/                # list all overviews
 curl -s "http://localhost:8000/api/core/overviews?target_id=62"  # filter by target
 curl -s "http://localhost:8000/api/core/attack-plans?target_id=62"  # attack plans for target
@@ -117,11 +172,8 @@ When adding new Celery tasks, add the module path to `CELERY_IMPORTS` in `c2_cor
 
 ### Frontend
 
-React 19 + TypeScript 5.8 + Vite 7. Custom `useHasuraQuery`/`useHasuraSubscription` hooks for Hasura GraphQL (via `graphql-ws`), Axios for Django Ninja REST. Key dependencies: `react-router-dom`, `react-markdown`, `graphql-ws`.
+React 19 + TypeScript 5.8 + Vite 7. **Hasura GraphQL as the primary data layer** — custom `useHasuraQuery`/`useHasuraSubscription` hooks (via `graphql-ws`) replace Axios calls to Django CRUD endpoints for all simple database operations. Axios is reserved for Django Ninja REST endpoints that involve non-CRUD actions (scan triggers, AI analysis, SSE streaming). Key dependencies: `react-router-dom`, `react-markdown`, `graphql-ws`.
 
-### Logging
-
-Rich console handler + RotatingFileHandler. Logs to `c2_core/logs/` (app.log, error.log). Per-app loggers configured in `c2_core/settings.py` LOGGING dict. `analyze_ai`, `nuclei_scanner`, and `auto` loggers are at DEBUG level; others at INFO.
 
 ## Environment
 
@@ -164,63 +216,20 @@ Autonomous commits are expected behavior in this repo — do not pause to ask "s
   - `assistants.py` `context_check` node warns the agent; `setup` node auto-injects GlobalContextOverview into system prompt
    - LLM configured via AgentLLMConfig `compression_agent` (recommend cheap model for summarization)
 
-## Anchored Summary
+Simple database CRUD operations MUST be implemented through Hasura GraphQL, not Django backend APIs.
 
-**Goal**: Fix Agent execution failures (field hallucinations, ID exposure, weak target matching, recursion limits, compression deadlock loop), add SSE message persistence, eliminate orphaned ExecutionGraph/Thread via DB-level CASCADE, and fix ScannerToolsMixin seed resolution so agents don't get stuck guessing seed_ids.
+**Do NOT create Django Ninja CRUD endpoints** for basic data operations (list, create, update, delete, filter, paginate). Hasura auto-generates these from the database schema — adding a Ninja CRUD endpoint duplicates work and bypasses the GraphQL layer that the frontend already uses.
 
-### Completed
+Use Hasura for:
 
-#### Compression Deadlock Fix (Fix A, B, D)
-- `ContentBlob.page_breakdown` JSONField + migration 0025.
-- `_generate_page_breakdown()` in AIAssistant — LLM-driven structural page splitting.
-- `compress_tool_outputs` node: threshold 2500→8000; whitelist prefix detection; page_breakdown generation for content >12000 chars.
-- `read_content_blob` tool: `page` param returns structured page from `page_breakdown`.
-- `save_long_content` tool: generates page_breakdown for >12000 chars.
-- System prompts updated (HackerAssistant rules 8, 12).
-- 8 unit tests in `CompressionDeadlockFixTests` — all pass (19 total).
+- list/query records
+- filtering
+- pagination
+- sorting
+- simple create operations
+- simple update operations
+- simple delete operations
+- relational data fetching
+- frontend data synchronization
 
-#### Thread FK Cascade Fix
-- `Thread.bound_target_id` / `bound_overview_id` changed from `IntegerField` to `ForeignKey(on_delete=CASCADE, db_column=..., related_name='+')`.
-- Migration 0026 — FK constraints verified in DB.
-- Scheduler cleanup reverted (no longer needed).
-
-#### caller_thread_id Propagation Fix
-- `AutomationAgent.as_tool()` was not receiving `RunnableConfig` from LangChain (`config_type=NoneType` in production), causing `caller_thread_id=None` → no sub-thread/ExecutionGraph created.
-- **Fix**: Moved `self._current_invoke_thread_id = thread_id` before `self.as_graph()` in `invoke()`; `HackerAssistantAgent.get_tools()` now captures `ha_caller_thread_id` via closure and passes to `AutomationAgent().as_tool(ha_caller_thread_id=...)`.
-- `_tool_func` no longer relies on LangChain's broken `RunnableConfig` injection.
-
-#### ScannerToolsMixin Seed Auto-Resolution
-- Tools requiring `seed_id` (`run_subfinder_discovery`, `run_nmap_port_scan`, `run_flaresolverr_crawler`, `run_flaresolverr_request`) now auto-resolve from `Overview → Target → Seed` when the agent doesn't provide a seed_id.
-- New `_resolve_seed(overview_id)` helper in `ScannerToolsMixin` — finds first active Seed for the Overview's Target.
-
-#### Kali Sandbox Per-Target Isolation (bwrap)
-- `run_command` and `execute_skill_script` now isolate execution to `/workspace/target_<id>` via `bwrap` (bubblewrap namespace).
-- Each target gets its own writable workspace; system tools (`/usr`, `/bin`, `/lib`) are bind-mounted read-only; `/scripthub` (skill scripts) shared read-only.
-- Cross-target file access is blocked (`No such file or directory`).
-- Workspace auto-created via `_ensure_workspace(target_id)` from `overview_id` (auto-injected by `@method_tool`).
-- Docker config: `cap_add: [SYS_ADMIN]` + `security_opt: [apparmor:unconfined, seccomp:unconfined]` (required for `pivot_root`).
-- PEP 668 fix: Dockerfile sets `PIP_BREAK_SYSTEM_PACKAGES=1` + `PIP_REQUIRE_VIRTUALENV=false`; `install_sandbox_dependency` no longer needs `--break-system-packages`.
-
-### Key Decisions
-- **Seed auto-resolution**: Prefer resolving from `overview_id` (always auto-injected by `@method_tool`) rather than making the agent parse `get_target_context` output — more robust against agent parsing errors.
-- **`caller_thread_id` closure capture**: Instead of relying on LangChain's `RunnableConfig` injection (which is version-dependent and unreliable in prod), pass thread_id directly through closure at tool-creation time.
-- **bwrap over chroot/per-target-container**: bwrap provides namespace isolation (mount/private root) without needing to copy system binaries into each workspace. Lighter than per-task containers, stronger than `workdir`-only isolation.
-- **`SYS_ADMIN + seccomp:unconfined` over `privileged`**: Minimal capability set needed for bwrap's `pivot_root` syscall; avoids granting full container access.
-
-### Next Steps
-- Rebuild sandbox image (`docker compose build c2_kali_sandbox`) to activate PEP 668 env vars + bubblewrap.
-- Test AutomationAgent delegation again for target 48 — should now create sub-thread + ExecutionGraph + auto-resolve seed_id + isolated workspace.
-
-### Relevant Files
-- `apps/auto/tools/scanner_tools.py` — `_resolve_seed()` (new), `run_flaresolverr_crawler`/`_request`/`_discovery`/`_port_scan` (seed auto-injection).
-- `apps/auto/tools/sandbox_tools.py` — `SandboxMixin` rewritten: `_resolve_target_id()`, `_ensure_workspace()`, `_build_bwrap_args()`, `_wrap_command()`, `run_command` (bwrap-isolated).
-- `apps/auto/tools/skill_tools.py` — `execute_skill_script` (bwrap-isolated), `install_sandbox_dependency` (removed `--break-system-packages`).
-- `docker/docker-compose.yml` — `c2_kali_sandbox` service: `cap_add: [SYS_ADMIN]`, `security_opt: [apparmor:unconfined, seccomp:unconfined]`.
-- `docker/kali_sandbox/Dockerfile` — `PIP_BREAK_SYSTEM_PACKAGES=1`, `PIP_REQUIRE_VIRTUALENV=false`, `bubblewrap` installed, `/workspace` pre-created.
-- `apps/ai_assistant/helpers/assistants.py:1357` — `_current_invoke_thread_id` moved before `as_graph()`.
-- `apps/ai_assistant/assistants.py:178,191` — `ha_caller_thread_id` captured and passed to `as_tool()`.
-- `apps/auto/assistants/planning_agent.py:396-435` — `as_tool()` accepts `ha_caller_thread_id`, `_tool_func` uses closure value.
-- `apps/auto/tasks/__init__.py` — `run_automation_agent_async` task.
-- `apps/core/models/ai_models.py` — Thread FK cascade.
-- Migration 0025, 0026.
-- `apps/ai_assistant/tests.py` — Compression deadlock tests.
+Reserve Django Ninja REST endpoints exclusively for non-CRUD actions: scan triggers, AI analysis dispatch, SSE streaming, Celery task control, and other operations with side effects beyond simple data manipulation.
