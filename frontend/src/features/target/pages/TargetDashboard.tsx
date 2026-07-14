@@ -166,7 +166,6 @@ function TargetDashboard() {
   // Per-target request config
   const {
     data: reqConfigFetched,
-    loading: reqConfigFetching,
     refetch: refetchReqConfig,
   } = useApiQuery<ReqConfig>(
     () => coreApi.get<ReqConfig>(`/target-request-config/${numericId}`).then(r => r.data),
@@ -461,7 +460,7 @@ function TargetDashboard() {
         {activeTab === "subdomains" && (
           <SubdomainsTabContent
             targetId={numericId}
-            subdomains={subdomains as any}
+            subdomains={subdomains}
             tabLoading={tabLoading}
             subTotalCount={subTotalCount}
             subSortBy={subSortBy}
@@ -470,7 +469,7 @@ function TargetDashboard() {
             subFilterWaf={subFilterWaf}
             subPage={subPage}
             pageSize={SUB_PAGE_SIZE}
-            onFetch={fetchSubdomains as any}
+            onFetch={fetchSubdomains}
             onSortChange={setSubSortBy}
             onSearchChange={setSubSearch}
             onFilterCdnChange={setSubFilterCdn}
@@ -481,14 +480,14 @@ function TargetDashboard() {
         {/* IPs / PORTS TAB */}
         {activeTab === "ips" && (
           <IPsTabContent
-            ips={ips as any}
+            ips={ips}
             tabLoading={tabLoading}
             ipTotalCount={ipTotalCount}
             ipSortBy={ipSortBy}
             ipPortFilter={ipPortFilter}
             ipPage={ipPage}
             pageSize={IP_PAGE_SIZE}
-            onFetch={fetchIPs as any}
+            onFetch={fetchIPs}
             onSortChange={setIpSortBy}
             onPortFilterChange={setIpPortFilter}
           />
@@ -497,7 +496,7 @@ function TargetDashboard() {
         {/* URLs TAB */}
         {activeTab === "urls" && (
           <URLsTabContent
-            urls={urls as any}
+            urls={urls}
             tabLoading={tabLoading}
             urlsTotalCount={urlsTotalCount}
             urlsSortBy={urlsSortBy}
@@ -505,7 +504,7 @@ function TargetDashboard() {
             urlStatusFilter={urlStatusFilter}
             urlsOffset={urlsOffset}
             pageSize={URLS_PAGE_SIZE}
-            onFetch={fetchURLs as any}
+            onFetch={fetchURLs}
             onSortChange={setUrlsSortBy}
             onSearchChange={setUrlSearch}
             onStatusFilterChange={setUrlStatusFilter}

@@ -16,13 +16,13 @@ interface HasuraOverview {
   summary?: string;
   recon_summary?: string;
   business_impact?: string;
-  plan?: any;
-  knowledge?: any;
-  techs?: any;
-  tech_stack?: any;
-  subdomain_intel?: any;
-  port_service?: any;
-  vuln_intel?: any;
+  plan?: unknown;
+  knowledge?: unknown;
+  techs?: unknown;
+  tech_stack?: unknown;
+  subdomain_intel?: unknown;
+  port_service?: unknown;
+  vuln_intel?: unknown;
   seed_id?: number;
   created_at: string;
   updated_at: string;
@@ -91,26 +91,26 @@ const OverviewDetailPage: React.FC = () => {
     try {
       const payload: OverviewUpdatePayload = { ...editFields };
       if (typeof payload.knowledge === 'string') {
-        try { payload.knowledge = JSON.parse(payload.knowledge); } catch (e) { throw new Error('Invalid JSON in Knowledge'); }
+        try { payload.knowledge = JSON.parse(payload.knowledge); } catch { throw new Error('Invalid JSON in Knowledge'); }
       }
       if (typeof payload.tech_stack === 'string') {
-        try { payload.tech_stack = JSON.parse(payload.tech_stack); } catch (e) { throw new Error('Invalid JSON in Tech Stack'); }
+        try { payload.tech_stack = JSON.parse(payload.tech_stack); } catch { throw new Error('Invalid JSON in Tech Stack'); }
       }
       if (typeof payload.subdomain_intel === 'string') {
-        try { payload.subdomain_intel = JSON.parse(payload.subdomain_intel); } catch (e) { throw new Error('Invalid JSON in Subdomain Intel'); }
+        try { payload.subdomain_intel = JSON.parse(payload.subdomain_intel); } catch { throw new Error('Invalid JSON in Subdomain Intel'); }
       }
       if (typeof payload.port_service === 'string') {
-        try { payload.port_service = JSON.parse(payload.port_service); } catch (e) { throw new Error('Invalid JSON in Port Service'); }
+        try { payload.port_service = JSON.parse(payload.port_service); } catch { throw new Error('Invalid JSON in Port Service'); }
       }
       if (typeof payload.vuln_intel === 'string') {
-        try { payload.vuln_intel = JSON.parse(payload.vuln_intel); } catch (e) { throw new Error('Invalid JSON in Vuln Intel'); }
+        try { payload.vuln_intel = JSON.parse(payload.vuln_intel); } catch { throw new Error('Invalid JSON in Vuln Intel'); }
       }
 
       await OverviewService.update(id, payload);
       refetch();
       alert('Overview updated successfully');
-    } catch (err: any) {
-      setSaveError(err.message || 'Failed to update overview');
+    } catch (err: unknown) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to update overview');
     } finally {
       setIsSaving(false);
     }
@@ -373,7 +373,7 @@ const OverviewDetailPage: React.FC = () => {
 export default OverviewDetailPage;
 
 function OverviewExecutions({ threadId }: { threadId: number }) {
-  const [graphs, setGraphs] = useState<any[]>([]);
+  const [graphs, setGraphs] = useState<import('../services/aiApi').ExecutionGraph[]>([]);
   const navigate = useNavigate();
 
   useEffect(() => {

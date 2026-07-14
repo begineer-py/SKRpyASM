@@ -8,11 +8,11 @@ export interface OverviewUpdatePayload {
   status?: string | null;
   risk_score?: number | null;
   business_impact?: string | null;
-  knowledge?: any;
-  tech_stack?: any;
-  subdomain_intel?: any;
-  port_service?: any;
-  vuln_intel?: any;
+  knowledge?: unknown;
+  tech_stack?: unknown;
+  subdomain_intel?: unknown;
+  port_service?: unknown;
+  vuln_intel?: unknown;
 }
 
 export interface OverviewCreatePayload {
@@ -32,13 +32,13 @@ export interface OverviewData {
   summary?: string | null;
   recon_summary?: string | null;
   business_impact?: string | null;
-  plan?: any;
-  knowledge?: any;
-  techs?: any;
-  tech_stack?: any;
-  subdomain_intel?: any;
-  port_service?: any;
-  vuln_intel?: any;
+  plan?: unknown;
+  knowledge?: unknown;
+  techs?: unknown;
+  tech_stack?: unknown;
+  subdomain_intel?: unknown;
+  port_service?: unknown;
+  vuln_intel?: unknown;
   seed_id?: number | null;
   ips?: number[];
   subdomains?: number[];

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useRef, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useHasuraQuery } from '../../../hooks/useHasuraQuery';
 import { GET_SKILLS } from '../../../queries';
@@ -21,12 +21,12 @@ interface SkillTemplate {
   instructions: string;
   script_body: string | null;
   script_content: string | null;
-  input_schema: any | null;
-  output_schema: any | null;
+  input_schema: unknown;
+  output_schema: unknown;
   has_io_contract: boolean;
   last_verified_at: string | null;
   last_failure_reason: string | null;
-  test_input_example: any | null;
+  test_input_example: unknown;
 }
 
 const LANG_COLOR: Record<string, string> = {
@@ -37,14 +37,14 @@ const LANG_COLOR: Record<string, string> = {
   ruby: 'var(--red)',
 };
 
-const renderSchemaProperties = (schema: any) => {
+const renderSchemaProperties = (schema: unknown) => {
   if (!schema) return <div className="text-xs text-slate-600 italic p-2">No schema defined.</div>;
   
   let parsedSchema = schema;
   if (typeof schema === 'string') {
     try {
       parsedSchema = JSON.parse(schema);
-    } catch (e) {
+    } catch {
       return <pre className="m-0 p-3 bg-black/40 rounded text-xs text-slate-300 overflow-x-auto"><code>{schema}</code></pre>;
     }
   }
@@ -104,6 +104,7 @@ const SkillLibraryPage: React.FC = () => {
   const [selectedSkill, setSelectedSkill] = useState<SkillTemplate | null>(null);
   const [activeTab, setActiveTab] = useState<'script_body' | 'instructions' | 'script_content' | 'io_layers'>('script_body');
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navigate = useNavigate();
 
   const { data, loading, error, refetch } = useHasuraQuery(GET_SKILLS, {
@@ -112,14 +113,17 @@ const SkillLibraryPage: React.FC = () => {
 
   const handleSearch = (val: string) => {
     setSearch(val);
-    clearTimeout((handleSearch as any)._timer);
-    (handleSearch as any)._timer = setTimeout(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => {
       const pattern = val.trim() ? `%${val.trim()}%` : '%';
       refetch({ search: pattern });
     }, 350);
   };
 
-  const skills: SkillTemplate[] = data?.core_skill_template ?? [];
+  const skills: SkillTemplate[] = useMemo(
+    () => data?.core_skill_template ?? [],
+    [data],
+  );
   const totalCount: number = data?.core_skill_template_aggregate?.aggregate?.count ?? 0;
 
   const handleCopy = (text: string, field: string) => {
@@ -327,8 +331,8 @@ const SkillLibraryPage: React.FC = () => {
                       setSelectedSkill(null);
                       const pattern = search.trim() ? `%${search.trim()}%` : '%';
                       refetch({ search: pattern });
-                    } catch (e: any) {
-                      alert(e?.response?.data?.detail || e?.message || 'Delete failed');
+                    } catch (e: unknown) {
+                      alert(e instanceof Error ? e.message : 'Delete failed');
                     }
                   }}
                 >

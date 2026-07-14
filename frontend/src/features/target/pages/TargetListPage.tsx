@@ -24,8 +24,8 @@ function IndexPage() {
       const data = await gqlFetcher<{ core_target: Target[] }>(GET_TARGETS_QUERY);
       setTargets(data.core_target);
       setError(null);
-    } catch (err: any) {
-      setError(err.message || '無法連接至 Hasura API，請確認 Docker 服務狀態。');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : '無法連接至 Hasura API，請確認 Docker 服務狀態。');
     } finally {
       setLoading(false);
     }
@@ -61,17 +61,6 @@ function IndexPage() {
     setEditDesc(t.description || '');
   };
 
-  const handleUpdate = async () => {
-    if (editingId === null) return;
-    try {
-      await TargetService.update(editingId, { name: editName, description: editDesc });
-      setEditingId(null);
-      fetchTargets();
-    } catch (err) {
-      console.error(err);
-      alert('更新失敗');
-    }
-  };
 
   useEffect(() => {
     fetchTargets();
