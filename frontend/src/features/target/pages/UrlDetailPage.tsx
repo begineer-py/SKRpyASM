@@ -1,8 +1,8 @@
 // src/pages/UrlDetailPage/UrlDetailPage.tsx
 import { useState, useEffect, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
-import { gqlFetcher } from "../../services/api";
-import { GET_URL_DETAIL_QUERY } from "../../services/url_detail";
+import { gqlFetcher } from "../../../services/api";
+import { GET_URL_DETAIL_QUERY } from "../../../services/url_detail";
 import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────

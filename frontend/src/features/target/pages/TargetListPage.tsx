@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TargetService, gqlFetcher, GET_TARGETS_QUERY } from '../../services/api';
-import type { Target } from '../../type';
+import { TargetService, gqlFetcher, GET_TARGETS_QUERY } from '../../../services/api';
+import type { Target } from '../../../type';
 import { cn } from '@/lib/utils';
 
 function IndexPage() {

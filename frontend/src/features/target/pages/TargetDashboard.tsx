@@ -7,19 +7,19 @@ import {
   GET_TARGET_IPS_QUERY,
   GET_TARGET_OVERVIEWS_QUERY,
   GET_TARGET_URLS_QUERY,
-} from "../../services/api";
-import { GLOBAL_CONFIG } from "../../config";
-import { createCoreClient } from "../../services/apiClient";
-import { useApiQuery } from "../../hooks/useApiQuery";
-import TargetActivityMonitor from "../../components/TargetActivityMonitor";
-import TechStackCVEReport from "../../components/TechStackCVEReport";
-import type { Target, Seed } from "../../type";
-import TargetHeader from './components/TargetHeader';
-import SeedsTabContent from './components/SeedsTabContent';
-import SubdomainsTabContent from './components/SubdomainsTabContent';
-import IPsTabContent from './components/IPsTabContent';
-import URLsTabContent from './components/URLsTabContent';
-import AIOverviewTabContent from './components/AIOverviewTabContent';
+} from "../../../services/api";
+import { GLOBAL_CONFIG } from "../../../config";
+import { createCoreClient } from "../../../services/apiClient";
+import { useApiQuery } from "../../../hooks/useApiQuery";
+import TargetActivityMonitor from "../../../components/TargetActivityMonitor";
+import TechStackCVEReport from "../../../components/TechStackCVEReport";
+import type { Target, Seed } from "../../../type";
+import TargetHeader from '../components/TargetHeader';
+import SeedsTabContent from '../components/SeedsTabContent';
+import SubdomainsTabContent from '../components/SubdomainsTabContent';
+import IPsTabContent from '../components/IPsTabContent';
+import URLsTabContent from '../components/URLsTabContent';
+import AIOverviewTabContent from '../components/AIOverviewTabContent';
 
 // ─── Type Definitions ─────────────────────────────────────────
 interface Port {

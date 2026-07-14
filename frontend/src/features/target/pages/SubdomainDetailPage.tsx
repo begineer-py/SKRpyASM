@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { gqlFetcher } from "../../services/api";
-import { GET_SUBDOMAIN_DETAIL_QUERY } from "../../services/subdomains_detail";
-import { AiAnalysisService } from "../../services/api_ai";
-import type { SubdomainIntelResponse } from "../../type";
+import { gqlFetcher } from "../../../services/api";
+import { GET_SUBDOMAIN_DETAIL_QUERY } from "../../../services/subdomains_detail";
+import { AiAnalysisService } from "../../../services/api_ai";
+import type { SubdomainIntelResponse } from "../../../type";
 import { cn } from '@/lib/utils';
 
 const BooleanDisplay: React.FC<{ value: boolean }> = ({ value }) => (

@@ -1,16 +1,16 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { gqlFetcher } from "../../services/api";
+import { gqlFetcher } from "../../../services/api";
 import {
   ReconService,
   GET_SEED_ULTIMATE_INTEL_QUERY,
-} from "../../services/api_recon";
+} from "../../../services/api_recon";
 import type {
   SeedIntelligenceResponse,
   Subdomain,
   IP,
   UrlResult,
-} from "../../type";
+} from "../../../type";
 import { cn } from '@/lib/utils';
 
 const AssetCard: React.FC<{
