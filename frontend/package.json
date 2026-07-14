@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "gen:api": "openapi-typescript http://localhost:8000/api/openapi.json -o src/types/api.d.ts",
-    "build": "npm run gen:api && tsc -b && vite build",
+    "gen:gql": "graphql-codegen",
+    "gen": "npm run gen:gql && npm run gen:api",
+    "build": "npm run gen && tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -39,6 +41,8 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.30.1",
+    "@graphql-codegen/cli": "^7.2.0",
+    "@graphql-codegen/client-preset": "^6.1.0",
     "@types/axios": "^0.9.36",
     "@types/dagre": "^0.7.54",
     "@types/file-saver": "^2.0.7",

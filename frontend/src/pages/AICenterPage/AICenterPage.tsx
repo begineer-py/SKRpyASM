@@ -34,13 +34,13 @@ import {
   parseRawMessages,
   type DisplayMessage,
 } from '../../types/messages';
-import { cn } from '@/lib/utils';
 import { TreeNode, buildTreeNodes } from './components/TreePanel';
 import { Sidebar } from './components/Sidebar';
 import { AgentPanel } from './components/AgentPanel';
 import ChatHeader from './components/ChatHeader';
 import ExecutionLogsPanel from './components/ExecutionLogsPanel';
 import ThreadEventsPanel from './components/ThreadEventsPanel';
+import { cn } from '@/lib/utils';
 
 // ── Main page ─────────────────────────────────────────────────────────────
 
@@ -107,9 +107,7 @@ const AICenterPage: React.FC = () => {
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const cleanupStreamRef = useRef<(() => void) | null>(null);
-  // 持久 message SSE 訂閱 cleanup（mount 時開啟、thread 切換/unmount 時關閉）
   const cleanupMessageEventsRef = useRef<(() => void) | null>(null);
-  // 輪詢兜底 timer（SSE 失效或仍在等 ai msg 時使用）
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const selectThread = useCallback((id: string | null) => {
@@ -137,7 +135,6 @@ const AICenterPage: React.FC = () => {
     Boolean(rootThreadId && treeSubVars)
   );
 
-  // Convert GQL data → flat TreeNode[]
   useEffect(() => {
     if (!rootThreadId) { setAgentTree([]); return; }
     if (import.meta.env.DEV) {
@@ -147,11 +144,9 @@ const AICenterPage: React.FC = () => {
     if (import.meta.env.DEV) {
       console.debug('[AgentTree] built nodes:', nodes.map(n => ({ id: n.thread_id, name: n.thread_name, parent: n.parent_thread_id })));
     }
-    // Always update: even 1-node result (root only) is valid state
     setAgentTree(nodes);
   }, [treeRawData, rootThreadId]);
 
-  // Lazy-load execution graphs (paginated + status filter)
   useEffect(() => {
     let cancelled = false;
     if (!activeNodeThreadId) {
@@ -192,7 +187,6 @@ const AICenterPage: React.FC = () => {
     };
   }, [activeNodeThreadId, graphPage, graphStatusFilter]);
 
-  // Load SubAgentDispatch records for container blocks
   useEffect(() => {
     let cancelled = false;
     if (!selectedThreadId) {
@@ -212,7 +206,6 @@ const AICenterPage: React.FC = () => {
     };
   }, [selectedThreadId]);
 
-  // Agent interaction tree (Phase 3)
   useEffect(() => {
     let cancelled = false;
     if (!rootThreadId) {
@@ -232,7 +225,6 @@ const AICenterPage: React.FC = () => {
     };
   }, [rootThreadId, dispatchedGraphs.length]);
 
-  // Asset topology for bound target
   useEffect(() => {
     let cancelled = false;
     if (!boundTargetId) {
@@ -253,8 +245,6 @@ const AICenterPage: React.FC = () => {
     };
   }, [boundTargetId]);
 
-  // ── Overview fetch ─────────────────────────────────────────────────────
-
   useEffect(() => {
     let cancelled = false;
     if (!boundTargetId) { setOverviews([]); return; }
@@ -266,17 +256,12 @@ const AICenterPage: React.FC = () => {
     return () => { cancelled = true; };
   }, [boundTargetId]);
 
-  // ── Scroll helpers ────────────────────────────────────────────────────
-
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
   useEffect(() => { scrollToBottom(); }, [messages, streamingText]);
 
-  // ── Load threads ──────────────────────────────────────────────────────
-
   useEffect(() => { loadThreads(); }, [targetSearchId, showInternal]);
-  // 訊息載入與持久 SSE 訂閱改由下方的獨立 useEffect 統一管理（避免重複載入）
 
   const loadThreads = async () => {
     setThreadsLoading(true);
@@ -321,7 +306,6 @@ const AICenterPage: React.FC = () => {
 
   const loadMessagesForThread = async (threadId: string) => {
     try {
-      // include_tools=true unlocks tool_call / tool_result rendering (G5)
       const msgArray = await assistantApi.getMessages(threadId, true);
       const parsed = parseRawMessages(msgArray);
       setDisplayLimit(50);
@@ -340,7 +324,6 @@ const AICenterPage: React.FC = () => {
       const toolNames = new Set(
         (msg.toolCalls ?? []).map((tc) => tc.name).concat(msg.toolName ? [msg.toolName] : []),
       );
-      // Prefer exact agent-type match; fall back to first unmatched dispatch
       const byType = dispatchedGraphs.find((g) => toolNames.has(g.sub_agent_type));
       if (byType) return byType;
       if (toolNames.has('automation_agent')) {
@@ -375,17 +358,9 @@ const AICenterPage: React.FC = () => {
     }
   };
 
-  // ── Thread / node selection ───────────────────────────────────────────
-
-  // 持久 message SSE 訂閱 + 輪詢兜底
-  // 解決「刷新時 AI 回應尚未寫入 DB → 永遠看不到」的問題：
-  //   1. thread 切換時關閉舊訂閱、載入歷史、開啟新訂閱
-  //   2. 收到 message_created 事件 → reload messages（補上背景完成的 AI 回應）
-  //   3. 若歷史最後一條是 user msg 而無對應 ai msg → 啟動輪詢兜底
   useEffect(() => {
     if (!selectedThreadId) return;
 
-    // 關閉舊訂閱與輪詢
     cleanupMessageEventsRef.current?.();
     cleanupMessageEventsRef.current = null;
     if (pollTimerRef.current) {
@@ -399,15 +374,12 @@ const AICenterPage: React.FC = () => {
       const parsed = await loadMessagesForThread(selectedThreadId);
       if (cancelled) return;
 
-      // 偵測：最後一條是 user msg 而無 ai msg → 可能有進行中的回應
       const hasPending =
         parsed.length > 0 && parsed[parsed.length - 1].role === 'user';
 
-      // (1) 持久 SSE 訂閱：收到新訊息即 reload
       cleanupMessageEventsRef.current = assistantApi.streamMessageEvents(
         selectedThreadId,
         () => {
-          // 收到新訊息 → reload；同時停止輪詢（SSE 已接通）
           if (pollTimerRef.current) {
             clearInterval(pollTimerRef.current);
             pollTimerRef.current = null;
@@ -416,10 +388,9 @@ const AICenterPage: React.FC = () => {
         },
       );
 
-      // (2) 輪詢兜底：只在 hasPending 時啟動，SSE 接通後自動停止
       if (hasPending) {
         let attempts = 0;
-        const maxAttempts = 60; // 最多輪詢 60 次（約 2 分鐘）
+        const maxAttempts = 60;
         pollTimerRef.current = setInterval(async () => {
           if (cancelled || attempts >= maxAttempts) {
             if (pollTimerRef.current) {
@@ -431,7 +402,6 @@ const AICenterPage: React.FC = () => {
           attempts++;
           try {
             const msgs = await loadMessagesForThread(selectedThreadId);
-            // AI 回應已到（最後一條變成 assistant）→ 停止輪詢
             if (msgs.length > 0 && msgs[msgs.length - 1].role === 'assistant') {
               if (pollTimerRef.current) {
                 clearInterval(pollTimerRef.current);
@@ -493,8 +463,6 @@ const AICenterPage: React.FC = () => {
     setShowLogsPanel(node.assistant_id !== 'hacker_assistant_agent');
   }, [selectThread]);
 
-  // ── Create / delete ───────────────────────────────────────────────────
-
   const createNewThread = async () => {
     try {
       const res: any = await assistantApi.createThread('New chat');
@@ -519,8 +487,6 @@ const AICenterPage: React.FC = () => {
       await loadThreads();
     } catch (err) { console.error('Failed to delete thread', err); }
   };
-
-  // ── Send message ──────────────────────────────────────────────────────
 
   const handleSend = useCallback(async () => {
     if (!inputVal.trim() || !selectedThreadId) return;
@@ -593,8 +559,6 @@ const AICenterPage: React.FC = () => {
     }
   };
 
-  // ── Derived ───────────────────────────────────────────────────────────
-
   const filteredMessages = useMemo(
     () =>
       messages.filter((m) =>
@@ -617,11 +581,7 @@ const AICenterPage: React.FC = () => {
       ? `${selectedThreadData.name || 'Hacker AI'}`
       : null;
 
-  // ── Render ────────────────────────────────────────────────────────────
-
   return (
-    <>
-      <style>{`@keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }`}</style>
     <div className="flex h-[calc(100vh-var(--navbar-height)+12px)] w-full mt-[var(--navbar-height)] bg-[linear-gradient(135deg,#0f172a_0%,#0a0e27_100%)] text-slate-50 relative overflow-hidden">
       <Sidebar
         open={sidebarOpen}
@@ -671,7 +631,7 @@ const AICenterPage: React.FC = () => {
               {/* Upper area: messages + input */}
               <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
                 <MessageFilterBar filter={msgFilter} onChange={setMsgFilter} />
-                <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4" onScroll={handleScroll}>
+                <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4 max-md:p-4 max-md:gap-3" onScroll={handleScroll}>
                   {filteredMessages.length === 0 && !streamingText && (
                     <div className="flex-1 flex flex-col items-center justify-center gap-4 text-slate-500">
                       <div className="text-5xl">AI</div>
@@ -681,7 +641,7 @@ const AICenterPage: React.FC = () => {
                     </div>
                   )}
                   {displayLimit < filteredMessages.length && (
-                    <div className="text-center p-[10px] text-slate-500 text-sm">Loading older messages...</div>
+                    <div className="text-center p-2.5 text-slate-500 text-sm">Loading older messages...</div>
                   )}
                   {renderItems.map((item, idx) => {
                     if (item.kind === 'tool_group') {
@@ -716,7 +676,6 @@ const AICenterPage: React.FC = () => {
                           />
                         );
                       }
-                      // Fallback: no dispatch record yet — show tool call group style
                       return (
                         <ToolCallGroup
                           key={`sa-fallback-${item.message.id}`}
@@ -728,14 +687,14 @@ const AICenterPage: React.FC = () => {
                     const msg = item.message;
                     return (
                       <div key={msg.id || idx} className={cn(
-                            "w-full max-w-[900px] mx-auto flex",
-                            msg.role === 'user' ? 'justify-end' : 'justify-start'
-                          )}>
+                        "w-full max-w-[900px] mx-auto flex",
+                        msg.role === 'user' ? 'justify-end' : 'justify-start',
+                      )}>
                         <div className={cn(
                           "px-4 py-3 break-words text-[0.95rem] leading-relaxed",
                           msg.role === 'user'
-                            ? 'bg-green text-[#020617] rounded-[12px_12px_4px_12px] max-w-[70%]'
-                            : 'bg-slate-800 text-slate-300 rounded-[12px_12px_12px_4px] border border-slate-700 max-w-[90%]'
+                            ? "bg-green-500 text-[#020617] rounded-[12px_12px_4px_12px] max-w-[70%]"
+                            : "bg-slate-800 text-slate-300 rounded-[12px_12px_12px_4px] border border-slate-700 max-w-[90%]"
                         )}>
                           {msg.role === 'user' ? (
                             <div className="whitespace-pre-wrap">{msg.textContent}</div>
@@ -756,10 +715,10 @@ const AICenterPage: React.FC = () => {
                   <div ref={messagesEndRef} />
                 </div>
 
-                <div className="px-6 pt-4 pb-6 bg-[linear-gradient(180deg,rgba(15,23,42,0)_0%,rgba(15,23,42,0.8)_100%)] border-t border-slate-800">
-                  <div className="flex gap-3 max-w-[900px] mx-auto w-full">
+                <div className="px-6 pt-4 pb-6 bg-[linear-gradient(180deg,rgba(15,23,42,0)_0%,rgba(15,23,42,0.8)_100%)] border-t border-slate-800 max-md:px-4 max-md:py-3">
+                  <div className="flex gap-3 max-w-[900px] mx-auto w-full max-md:flex-col max-md:px-4">
                     <textarea
-                      className="flex-1 px-4 py-3 bg-slate-900 border border-slate-800 rounded-lg text-slate-50 text-[0.95rem] resize-none outline-none transition-all duration-200 leading-relaxed placeholder:text-slate-500 hover:border-slate-700 hover:bg-[#0a0f1f] focus:border-green focus:bg-[#0a0f1f] focus:shadow-[0_0_0_2px_rgba(34,197,94,0.15),0_0_16px_rgba(34,197,94,0.2)] disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex-1 px-4 py-3 bg-slate-900 border border-slate-800 rounded-lg text-slate-50 text-[0.95rem] resize-none outline-none transition-all duration-200 leading-relaxed placeholder:text-slate-500 hover:border-slate-700 hover:bg-[#0a0f1f] focus:border-green-500 focus:bg-[#0a0f1f] focus:shadow-[0_0_0_2px_rgba(34,197,94,0.15),0_0_16px_rgba(34,197,94,0.2)] disabled:opacity-50 disabled:cursor-not-allowed"
                       placeholder="Type your message... (Shift+Enter for new line)"
                       value={inputVal}
                       onChange={e => setInputVal(e.target.value)}
@@ -768,7 +727,7 @@ const AICenterPage: React.FC = () => {
                       rows={3}
                     />
                     <button
-                      className="px-6 py-3 bg-green text-[#020617] border-0 rounded-lg font-semibold text-[0.95rem] cursor-pointer transition-all duration-200 whitespace-nowrap min-w-[100px] hover:bg-green-400 hover:shadow-[0_0_16px_rgba(34,197,94,0.3)] hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-6 py-3 bg-green-500 text-[#020617] border-0 rounded-lg font-semibold text-[0.95rem] cursor-pointer transition-all duration-200 whitespace-nowrap min-w-[100px] hover:bg-green-400 hover:shadow-[0_0_16px_rgba(34,197,94,0.3)] hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed max-md:w-full"
                       onClick={handleSend}
                       disabled={isSending || !inputVal.trim() || !selectedThreadId}
                       title={isSending ? 'Sending...' : 'Send message (Enter)'}
@@ -834,7 +793,6 @@ const AICenterPage: React.FC = () => {
         onSelectTopoNode={setSelectedTopoNode}
       />
     </div>
-    </>
   );
 };
 
