@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useHasuraQuery } from '../../hooks/useHasuraQuery';
-import { GET_SKILLS } from '../../queries';
-import { skillApi } from '../../services/skillApi';
+import { useHasuraQuery } from '../../../hooks/useHasuraQuery';
+import { GET_SKILLS } from '../../../queries';
+import { skillApi } from '../services/skillApi';
 import { cn } from '@/lib/utils';
 
 interface SkillTemplate {

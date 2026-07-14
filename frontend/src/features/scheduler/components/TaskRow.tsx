@@ -1,4 +1,4 @@
-import type { PeriodicTask } from '../../../services/api_scheduler';
+import type { PeriodicTask } from '../services/schedulerApi';
 import { cn } from '@/lib/utils';
 
 function formatTime(iso: string | null): string {

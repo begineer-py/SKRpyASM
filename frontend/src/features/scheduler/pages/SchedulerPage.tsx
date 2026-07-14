@@ -6,12 +6,12 @@ import {
   type UpdateTaskPayload,
   type RegisteredTask,
   type WatchdogStatus,
-} from '../../services/api_scheduler';
-import { useApiQuery } from '../../hooks/useApiQuery';
-import { useMutation } from '../../hooks/useMutation';
-import { TaskRow, DeleteConfirm } from './components/TaskRow';
-import { TaskForm, type FormState, DEFAULT_FORM, taskToForm } from './components/TaskForm';
-import WatchdogPanel from './components/WatchdogPanel';
+} from '../services/schedulerApi';
+import { useApiQuery } from '../../../hooks/useApiQuery';
+import { useMutation } from '../../../hooks/useMutation';
+import { TaskRow, DeleteConfirm } from '../components/TaskRow';
+import { TaskForm, type FormState, DEFAULT_FORM, taskToForm } from '../components/TaskForm';
+import WatchdogPanel from '../components/WatchdogPanel';
 import {
   Dialog,
   DialogContent,

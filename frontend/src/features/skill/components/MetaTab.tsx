@@ -1,4 +1,4 @@
-import type { FormState } from '../SkillEditPage';
+import type { FormState } from '../pages/SkillEditPage';
 
 interface Props {
   form: FormState;

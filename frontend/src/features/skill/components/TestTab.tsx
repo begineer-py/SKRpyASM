@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
-import { skillApi } from '../../../services/skillApi';
-import type { SkillTestResult, SkillTemplate } from '../../../services/skillApi';
+import { skillApi } from '../services/skillApi';
+import type { SkillTestResult, SkillTemplate } from '../services/skillApi';
 
 interface Props {
   skillId: number | null;

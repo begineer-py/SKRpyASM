@@ -1,4 +1,4 @@
-import type { WatchdogStatus } from '../../../services/api_scheduler';
+import type { WatchdogStatus } from '../services/schedulerApi';
 
 // ─── IssueCounter ───────────────────────────────────────────────
 

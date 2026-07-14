@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { GLOBAL_CONFIG } from '../../../config';
-import type { RegisteredTask } from '../../../services/api_scheduler';
+import type { RegisteredTask } from '../services/schedulerApi';
 
 export const PERIOD_OPTIONS = ['seconds', 'minutes', 'hours', 'days'] as const;
 export type Period = typeof PERIOD_OPTIONS[number];

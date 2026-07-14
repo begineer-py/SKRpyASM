@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { skillApi } from '../../services/skillApi';
-import type { SkillTemplate } from '../../services/skillApi';
-import MetaTab from './components/MetaTab';
-import ScriptTab from './components/ScriptTab';
-import SchemaTab from './components/SchemaTab';
-import TestTab from './components/TestTab';
-import type { SkillTemplateDef } from './skillTemplates';
+import { skillApi } from '../services/skillApi';
+import type { SkillTemplate } from '../services/skillApi';
+import MetaTab from '../components/MetaTab';
+import ScriptTab from '../components/ScriptTab';
+import SchemaTab from '../components/SchemaTab';
+import TestTab from '../components/TestTab';
+import type { SkillTemplateDef } from '../skillTemplates';
 import { cn } from '@/lib/utils';
 
 export interface FormState {

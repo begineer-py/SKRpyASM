@@ -3,7 +3,7 @@ import type { ChangeEvent } from 'react';
 import Editor from '@monaco-editor/react';
 import type { OnMount } from '@monaco-editor/react';
 import { exportScript, exportSkillJson, readTextFile, extractScriptBody, detectLanguage } from '../../../utils/skillFileIo';
-import type { SkillTemplate } from '../../../services/skillApi';
+import type { SkillTemplate } from '../services/skillApi';
 import { SKILL_TEMPLATES } from '../skillTemplates';
 import type { SkillTemplateDef } from '../skillTemplates';
 
