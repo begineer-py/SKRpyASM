@@ -114,8 +114,8 @@ const APIKeyManagerPage: React.FC = () => {
       if (!res.ok) throw new Error('Failed to fetch API keys');
       const data: APIKey[] = await res.json();
       setKeys(data);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to load API keys');
     } finally {
       setLoading(false);
     }
@@ -154,8 +154,8 @@ const APIKeyManagerPage: React.FC = () => {
       });
       if (!res.ok) throw new Error('Update failed');
       await fetchKeys();
-    } catch (e: any) {
-      alert(`Error: ${e.message}`);
+    } catch (e: unknown) {
+      alert(`Error: ${e instanceof Error ? e.message : 'Update failed'}`);
     }
   };
 
@@ -165,8 +165,8 @@ const APIKeyManagerPage: React.FC = () => {
       const res = await fetch(`${apiBase}/api_keys/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Delete failed');
       await fetchKeys();
-    } catch (e: any) {
-      alert(`Error: ${e.message}`);
+    } catch (e: unknown) {
+      alert(`Error: ${e instanceof Error ? e.message : 'Delete failed'}`);
     }
   };
 
@@ -190,8 +190,8 @@ const APIKeyManagerPage: React.FC = () => {
       setNewKey({ service_name: '', key_value: '', description: '' });
       setShowAddModal(false);
       await fetchKeys();
-    } catch (e: any) {
-      alert(`Error: ${e.message}`);
+    } catch (e: unknown) {
+      alert(`Error: ${e instanceof Error ? e.message : 'Add failed'}`);
     }
   };
 
@@ -218,8 +218,8 @@ const APIKeyManagerPage: React.FC = () => {
       setShowBulkModal(false);
       await fetchKeys();
       alert(`Imported ${payload.length} keys for ${bulkService}`);
-    } catch (e: any) {
-      alert(`Error: ${e.message}`);
+    } catch (e: unknown) {
+      alert(`Error: ${e instanceof Error ? e.message : 'Import failed'}`);
     }
   };
 
@@ -236,8 +236,8 @@ const APIKeyManagerPage: React.FC = () => {
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
-    } catch (e: any) {
-      alert(`Download error: ${e.message}`);
+    } catch (e: unknown) {
+      alert(`Download error: ${e instanceof Error ? e.message : 'Download failed'}`);
     }
   };
 

@@ -144,8 +144,8 @@ const AgentLLMConfigPage: React.FC = () => {
       const [cfgData, keysData] = await Promise.all([cfgRes.json(), keysRes.json()]);
       setConfigs(Array.isArray(cfgData) ? cfgData : []);
       setAllKeys(Array.isArray(keysData) ? keysData : []);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to load agent configuration');
     } finally {
       setLoading(false);
     }
@@ -198,8 +198,8 @@ const AgentLLMConfigPage: React.FC = () => {
       if (!res.ok) throw new Error('Save failed');
       setEditingAgentId(null);
       await fetchData();
-    } catch (e: any) {
-      alert(`Error: ${e.message}`);
+    } catch (e: unknown) {
+      alert(`Error: ${e instanceof Error ? e.message : 'Save failed'}`);
     } finally {
       setSaving(false);
     }
@@ -211,8 +211,8 @@ const AgentLLMConfigPage: React.FC = () => {
       const res = await fetch(`${apiBase}/api_keys/agent-configs/${agentId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Reset failed');
       await fetchData();
-    } catch (e: any) {
-      alert(`Error: ${e.message}`);
+    } catch (e: unknown) {
+      alert(`Error: ${e instanceof Error ? e.message : 'Reset failed'}`);
     }
   };
 
@@ -236,8 +236,8 @@ const AgentLLMConfigPage: React.FC = () => {
       });
       const data: TestResult = await res.json();
       setModalTestResult(data);
-    } catch (e: any) {
-      setModalTestResult({ success: false, message: e.message, latency_ms: null, model_used: null, provider_used: effectiveProvider });
+    } catch (e: unknown) {
+      setModalTestResult({ success: false, message: e instanceof Error ? e.message : 'Test failed', latency_ms: null, model_used: null, provider_used: effectiveProvider });
     } finally {
       setModalTesting(false);
     }
@@ -250,8 +250,8 @@ const AgentLLMConfigPage: React.FC = () => {
       const data: TestResult = await res.json();
       setCardTestState(prev => ({ ...prev, [agentId]: { loading: false, result: data } }));
       setTimeout(() => setCardTestState(prev => ({ ...prev, [agentId]: { loading: false, result: null } })), 6000);
-    } catch (e: any) {
-      const result: TestResult = { success: false, message: e.message, latency_ms: null, model_used: null, provider_used: agentId };
+    } catch (e: unknown) {
+      const result: TestResult = { success: false, message: e instanceof Error ? e.message : 'Test failed', latency_ms: null, model_used: null, provider_used: agentId };
       setCardTestState(prev => ({ ...prev, [agentId]: { loading: false, result } }));
       setTimeout(() => setCardTestState(prev => ({ ...prev, [agentId]: { loading: false, result: null } })), 6000);
     }
