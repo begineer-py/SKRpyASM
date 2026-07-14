@@ -1,4 +1,4 @@
-import type { Target, Seed } from '../../../type';
+import type { Target, Seed } from '../types';
 
 interface TargetHeaderProps {
   target: Target;

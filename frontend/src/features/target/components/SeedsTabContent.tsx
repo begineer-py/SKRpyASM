@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { SeedService } from '../../../services/api_seed';
-import type { Seed } from '../../../type';
+import { SeedService } from '../services/targetApi';
+import type { Seed } from '../types';
 
 interface SeedsTabContentProps {
   targetId: number;

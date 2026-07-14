@@ -338,6 +338,11 @@ nuclei_templates/
 # Session files
 session/
 
+# Feature-based frontend source directories (do not match the generic
+# PyBuilder `target/` rule above).
+!frontend/src/features/
+!frontend/src/features/**
+
 # Certificates
 *.pem
 *.key

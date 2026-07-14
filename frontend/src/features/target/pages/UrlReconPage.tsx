@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import { gqlFetcher } from "../../../services/api";
+import { gqlFetcher } from "../services/targetApi";
 import { cn } from '@/lib/utils';
 
 const GET_URL_SEED_DATA = `
