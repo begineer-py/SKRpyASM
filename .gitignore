@@ -239,6 +239,17 @@ dump.rdb
 ehthumbs.db
 Thumbs.db
 
+# Local agent/tooling state and workspace artifacts
+.mimocode/
+.omo/
+.opencode/
+
+# Local CI/tool export accidentally nested under the workspace
+.github/.github/
+
+# Local development configuration and secrets
+config/
+
 # Project specific
 # API keys and secrets
 secrets.txt
