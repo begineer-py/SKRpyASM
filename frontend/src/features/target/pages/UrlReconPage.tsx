@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import { gqlFetcher } from "../services/targetApi";
 import { cn } from '@/lib/utils';
@@ -29,13 +29,35 @@ const GET_URL_RESULT_BY_URL = `
   }
 `;
 
+interface UrlSeedQueryResponse {
+  core_seed_by_pk: { id: number; value: string; type: string } | null;
+}
+
+interface UrlReconScan {
+  id: number;
+  status: string;
+  created_at: string;
+  completed_at?: string | null;
+}
+
+interface UrlResultRecord {
+  id: number;
+  status_code?: number | null;
+  title?: string | null;
+  core_nucleiscans: UrlReconScan[];
+}
+
+interface UrlResultQueryResponse {
+  core_urlresult: UrlResultRecord[];
+}
+
 function UrlReconPage() {
   const { targetId, seedId } = useParams();
   const nSeedId = Number(seedId);
 
   const [seedVal, setSeedVal] = useState<string | null>(null);
   const [urlId, setUrlId] = useState<number | null>(null);
-  const [urlResult, setUrlResult] = useState<any>(null);
+  const [urlResult, setUrlResult] = useState<UrlResultRecord | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Scanner UI States
@@ -43,33 +65,33 @@ function UrlReconPage() {
   const [selectedTags, setSelectedTags] = useState<string[]>(["cves"]);
   const availableTags = ["cves", "sqli", "xss", "lfi", "rce", "misconfiguration", "auth-bypass", "exposure"];
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     if (!nSeedId) return;
     try {
       setLoading(true);
       // 1. Get Seed
-      const seedRes = await gqlFetcher<any>(GET_URL_SEED_DATA, { seed_id: nSeedId });
+      const seedRes = await gqlFetcher<UrlSeedQueryResponse>(GET_URL_SEED_DATA, { seed_id: nSeedId });
       const seed = seedRes.core_seed_by_pk;
       if (!seed) throw new Error("Seed not found");
       setSeedVal(seed.value);
 
       // 2. Map to URLResult
-      const resultRes = await gqlFetcher<any>(GET_URL_RESULT_BY_URL, { url: seed.value });
+      const resultRes = await gqlFetcher<UrlResultQueryResponse>(GET_URL_RESULT_BY_URL, { url: seed.value });
       if (resultRes.core_urlresult && resultRes.core_urlresult.length > 0) {
         const ur = resultRes.core_urlresult[0];
         setUrlId(ur.id);
         setUrlResult(ur);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [nSeedId]);
 
   useEffect(() => {
     fetchData();
-  }, [nSeedId]);
+  }, [fetchData]);
 
   const handleRunNuclei = async () => {
     if (!urlId) {
@@ -78,7 +100,7 @@ function UrlReconPage() {
     }
     setTriggering(true);
     try {
-      const { GLOBAL_CONFIG } = await import("../../config");
+      const { GLOBAL_CONFIG } = await import("../../../config");
       const res = await fetch(`${GLOBAL_CONFIG.DJANGO_API_BASE}/scanners/vuln/urls`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -93,8 +115,8 @@ function UrlReconPage() {
       }
       alert("Nuclei scan dispatched successfully!");
       fetchData(); // Refresh history
-    } catch (err: any) {
-      alert("Error: " + err.message);
+    } catch (err: unknown) {
+      alert("Error: " + (err instanceof Error ? err.message : "Unknown error"));
     } finally {
       setTriggering(false);
     }
@@ -192,7 +214,7 @@ function UrlReconPage() {
                 <div className="p-10 text-center text-[#a0a0a0]">No scan deployments recorded.</div>
               ) : (
                 <div className="flex flex-col">
-                  {urlResult.core_nucleiscans.map((scan: any) => (
+                  {urlResult.core_nucleiscans.map((scan) => (
                     <div key={scan.id} className="px-5 py-4 border-b border-border-subtle">
                       <div className="flex justify-between mb-1.5">
                         <span className="text-blue font-mono text-[0.85rem]">#SCAN-{scan.id}</span>

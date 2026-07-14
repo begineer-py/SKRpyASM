@@ -55,6 +55,7 @@ export interface IP {
 export interface UrlResult {
   id: number;
   url: string;
+  status_code?: number | null;
   content_length?: number;
   content_fetch_status?: string;
 }

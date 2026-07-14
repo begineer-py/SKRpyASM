@@ -195,33 +195,30 @@ export default function SchemaEditor({ title, value, onChange }: Props) {
             {showString(f) && (
               <input
                 type="text"
-                className="schema-field-pattern"
+                className={cn("schema-field-pattern", hasEnum(f) && 'opacity-50')}
                 placeholder="pattern (regex)"
                 value={f.pattern}
                 disabled={hasEnum(f)}
               onChange={e => updateField(i, { pattern: e.target.value })}
-                className={cn(hasEnum(f) && 'opacity-50')}
               />
             )}
             {showString(f) && (
               <>
                 <input
                   type="number"
-                  className="schema-field-minmax"
+                  className={cn("schema-field-minmax", hasEnum(f) && 'opacity-50')}
                   placeholder="min len"
                   value={f.minLength}
                   disabled={hasEnum(f)}
                   onChange={e => updateField(i, { minLength: e.target.value })}
-                  className={cn(hasEnum(f) && 'opacity-50')}
                 />
                 <input
                   type="number"
-                  className="schema-field-minmax"
+                  className={cn("schema-field-minmax", hasEnum(f) && 'opacity-50')}
                   placeholder="max len"
                   value={f.maxLength}
                   disabled={hasEnum(f)}
                   onChange={e => updateField(i, { maxLength: e.target.value })}
-                  className={cn(hasEnum(f) && 'opacity-50')}
                 />
               </>
             )}

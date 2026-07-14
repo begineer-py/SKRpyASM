@@ -30,7 +30,7 @@ import {
   parseRawMessages,
   type DisplayMessage,
 } from '../../../types/messages';
-import { TreeNode, buildTreeNodes } from '../components/TreePanel';
+import { buildTreeNodes, type TreeNode } from '../components/TreePanel';
 import { Sidebar } from '../components/Sidebar';
 import { AgentPanel } from '../components/AgentPanel';
 import ChatHeader from '../components/ChatHeader';
@@ -257,6 +257,9 @@ const AICenterPage: React.FC = () => {
   };
   useEffect(() => { scrollToBottom(); }, [messages, streamingText]);
 
+  // Thread refresh is intentionally scoped to the active target/filter controls.
+  // loadThreads also updates the selected thread and would make this effect loop.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadThreads(); }, [targetSearchId, showInternal]);
 
   const loadThreads = async () => {
@@ -544,6 +547,9 @@ const AICenterPage: React.FC = () => {
       () => { /* onStats noop */ }
     );
     cleanupStreamRef.current = cleanup;
+  // loadThreads/selectThread are stable in behavior but recreated with the page state;
+  // including them would restart an active stream on every thread-list update.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inputVal, selectedThreadId, selectedThreadData, activeAssistantId, streamingText, clearDraft]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {

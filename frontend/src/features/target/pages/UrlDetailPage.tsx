@@ -42,7 +42,7 @@ interface Form {
   id: number;
   action?: string;
   method?: string;
-  parameters?: any;
+  parameters?: Record<string, unknown> | null;
 }
 
 interface UrlDetail {
@@ -152,7 +152,7 @@ export default function UrlDetailPage() {
   const handleRunScan = async () => {
     setIsScanning(true);
     try {
-      const { GLOBAL_CONFIG } = await import("../../config");
+      const { GLOBAL_CONFIG } = await import("../../../config");
       const res = await fetch(`${GLOBAL_CONFIG.DJANGO_API_BASE}/scanners/vuln/urls`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -167,8 +167,8 @@ export default function UrlDetailPage() {
       }
       alert("Scan triggered successfully! Wait a few minutes for results.");
       setShowScanPanel(false);
-    } catch (err: any) {
-      alert("Error: " + err.message);
+    } catch (err: unknown) {
+      alert("Error: " + (err instanceof Error ? err.message : "Unknown error"));
     } finally {
       setIsScanning(false);
     }
@@ -183,8 +183,8 @@ export default function UrlDetailPage() {
       } else {
         setError("URL not found.");
       }
-    } catch (e: any) {
-      setError(e.message || "Failed to load URL data.");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to load URL data.");
     } finally {
       setLoading(false);
     }

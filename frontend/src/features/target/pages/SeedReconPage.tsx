@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import {
   GET_SEED_ULTIMATE_INTEL_QUERY,
@@ -41,7 +41,7 @@ function SeedReconPage() {
   const [loading, setLoading] = useState(true);
   const [triggering, setTriggering] = useState(false);
 
-  const fetchIntel = async () => {
+  const fetchIntel = useCallback(async () => {
     if (!nSeedId) return;
     try {
       const data = await gqlFetcher<SeedIntelligenceResponse>(
@@ -54,7 +54,7 @@ function SeedReconPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [nSeedId]);
 
   const handleStartScan = async () => {
     if (!nSeedId) return;
@@ -62,8 +62,8 @@ function SeedReconPage() {
     try {
       await ReconService.startDomainRecon(nSeedId);
       setTimeout(fetchIntel, 1000);
-    } catch (err: any) {
-      alert(`指令被拒絕: ${err.message}`);
+    } catch (err: unknown) {
+      alert(`指令被拒絕: ${err instanceof Error ? err.message : "Unknown error"}`);
     } finally {
       setTriggering(false);
     }
@@ -73,7 +73,7 @@ function SeedReconPage() {
     fetchIntel();
     const interval = setInterval(fetchIntel, 10000);
     return () => clearInterval(interval);
-  }, [nSeedId]);
+  }, [fetchIntel]);
 
   if (loading) return <div>LOADING INTEL...</div>;
 
@@ -82,21 +82,21 @@ function SeedReconPage() {
 
   const subfinderScans = seedData.core_subfinderscans || [];
   const isSubfinderRunning = subfinderScans.some(
-    (s: any) => s.status === "PENDING" || s.status === "RUNNING"
+    (s) => s.status === "PENDING" || s.status === "RUNNING"
   );
   const isRunning = isSubfinderRunning;
 
   const allIPs = (seedData.core_ip_which_seeds || []).map(
-    (item: any) => item.core_ip
+    (item) => item.core_ip
   );
 
   const allSubdomains = (seedData.core_subdomainseeds || []).map(
-    (item: any) => item.core_subdomain
+    (item) => item.core_subdomain
   );
 
   const allURLs = allSubdomains.flatMap((sub: Subdomain) =>
     (sub.core_urlresult_related_subdomains || []).map(
-      (rel: any) => rel.core_urlresult
+      (rel) => rel.core_urlresult
     )
   );
 
@@ -175,8 +175,7 @@ function SeedReconPage() {
                   <td className="text-left px-5 py-[14px] border-b border-[#333]">
                     <a
                       href={`/target/${targetId}/subdomain/${sub.id}`}
-                      className="btn btn-ghost btn-sm"
-                      className="no-underline"
+                      className="btn btn-ghost btn-sm no-underline"
                     >
                       Detail
                     </a>
@@ -238,7 +237,7 @@ function SeedReconPage() {
                 <tr key={url.id}>
                   <td className="text-left px-5 py-[14px] border-b border-[#333]">
                     <span className="font-mono text-[0.78rem] opacity-80">
-                      {(url as any).status_code || "—"}
+                      {url.status_code || "—"}
                     </span>
                   </td>
                   <td className="text-left px-5 py-[14px] border-b border-[#333]">
@@ -254,8 +253,7 @@ function SeedReconPage() {
                   <td className="text-left px-5 py-[14px] border-b border-[#333]">
                     <a
                       href={`/target/${targetId}/url/${url.id}`}
-                      className="btn btn-ghost btn-sm"
-                      className="no-underline"
+                      className="btn btn-ghost btn-sm no-underline"
                     >
                       Detail
                     </a>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import {
   AiAnalysisService,
@@ -22,7 +22,7 @@ function SubdomainDetailPage() {
   const [loading, setLoading] = useState(true);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  const fetchData = () => {
+  const fetchData = useCallback(() => {
     if (!nSubdomainId) return;
     setLoading(true);
     gqlFetcher<SubdomainIntelResponse>(GET_SUBDOMAIN_DETAIL_QUERY, {
@@ -31,7 +31,7 @@ function SubdomainDetailPage() {
       .then((data) => setIntel(data))
       .catch(console.error)
       .finally(() => setLoading(false));
-  };
+  }, [nSubdomainId]);
 
   const handleRequestAiAnalysis = async () => {
     if (!intel?.core_subdomain_by_pk) return;
@@ -43,8 +43,8 @@ function SubdomainDetailPage() {
       ]);
       alert(`AI 分析任務已提交: ${response.detail}`);
       setTimeout(fetchData, 5000);
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setIsAnalyzing(false);
     }
@@ -52,7 +52,7 @@ function SubdomainDetailPage() {
 
   useEffect(() => {
     fetchData();
-  }, [nSubdomainId]);
+  }, [fetchData]);
 
   if (loading) return <div>Loading Subdomain Intel...</div>;
   if (!intel || !intel.core_subdomain_by_pk)

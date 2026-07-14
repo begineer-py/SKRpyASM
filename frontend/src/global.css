@@ -1,11 +1,10 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 /* ============================================================
    SKRpyASM Security Operations Design System
    Direction: data-dense command center, restrained dark UI.
    ============================================================ */
-
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
 /* ─── CSS Custom Properties (Tokens) ─── */
 :root {
