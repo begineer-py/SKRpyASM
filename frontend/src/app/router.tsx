@@ -32,6 +32,7 @@ export default function AppRouter() {
           <Route path="/execution-monitor" element={<ExecutionMonitorPage />} />
           <Route path="/aicenter" element={<AICenterPage />} />
           <Route path="/target/nmap/:targetId" element={<ScanResultPage />} />
+          <Route path="/target/nmap/:targetId/:scanId" element={<ScanResultPage />} />
           <Route path="/target/:targetId/seed/:seedId/url_recon" element={<UrlReconPage />} />
           <Route path="/target/:targetId/seed/:seedId/subdomain" element={<SeedReconPage />} />
           <Route path="/target/:targetId/subdomain/:subdomainId" element={<SubdomainDetailPage />} />

@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { Settings } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { CVEService, type CVEIntelligence } from '../services/scannerApi';
 import CVECard from '../../../components/CVECard';
 
@@ -35,7 +37,7 @@ export default function CVEIntelligencePage() {
   const [version, setVersion] = useState('');
 
   // Advanced filters (collapsible)
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [severityMin, setSeverityMin] = useState<SeverityFilter>(DEFAULT_FILTERS.severityMin);
   const [exploitedOnly, setExploitedOnly] = useState(DEFAULT_FILTERS.exploitedOnly);
   const [limit, setLimit] = useState(DEFAULT_FILTERS.limit);
@@ -142,20 +144,15 @@ export default function CVEIntelligencePage() {
   };
 
   return (
-    <div className="max-w-[900px] mx-auto px-5 pb-10" style={{ paddingTop: 'calc(var(--navbar-height) + 24px)' }}>
+    <div className="c2-page">
       {/* Page header */}
       <div className="flex justify-between items-start mb-6">
         <div>
-          <h1 className="font-mono text-[1.1rem] text-green m-0 tracking-[0.06em]">
-            CVE INTELLIGENCE CENTER
-          </h1>
-          <p className="text-[0.75rem] text-text-muted mt-1">
-            Query CVE details or search by technology stack
-          </p>
+          <h1 className="text-xl font-semibold text-text-primary m-0">CVE 情報</h1>
         </div>
         <div className="flex flex-col items-end gap-1">
           <button className="c2-btn c2-btn--sm" onClick={handleSyncKEV} disabled={syncing}>
-            {syncing ? 'SYNCING...' : '🔄 SYNC CISA KEV'}
+            {syncing ? '同步中…' : '同步 CISA KEV'}
           </button>
           {syncMsg && (
             <span className="text-[0.7rem]" style={{ color: syncMsg.startsWith('Sync failed') ? 'var(--red)' : 'var(--text-green)' }}>
@@ -171,12 +168,12 @@ export default function CVEIntelligencePage() {
           className={`c2-btn c2-btn--sm${mode === 'tech_search' ? ' c2-btn--active' : ''}`}
           onClick={() => { setMode('tech_search'); setResults([]); setTotal(null); setError(null); }}
           style={{ opacity: mode === 'tech_search' ? 1 : 0.5 }}
-        >Tech Stack Search</button>
+        >技術堆疊搜尋</button>
         <button
           className={`c2-btn c2-btn--sm${mode === 'cve_id' ? ' c2-btn--active' : ''}`}
           onClick={() => { setMode('cve_id'); setResults([]); setTotal(null); setError(null); }}
           style={{ opacity: mode === 'cve_id' ? 1 : 0.5 }}
-        >CVE ID Lookup</button>
+        >CVE ID 查詢</button>
       </div>
 
       {/* Search form */}
@@ -193,14 +190,14 @@ export default function CVEIntelligencePage() {
                 spellCheck={false}
               />
               <button className="c2-btn" onClick={handleCveQuery} disabled={loading || !cveIdInput.trim()}>
-                {loading ? 'QUERYING...' : 'QUERY'}
+                {loading ? '查詢中…' : '查詢'}
               </button>
             </div>
             <label className="flex items-center gap-1.5 text-[0.78rem] text-text-secondary cursor-pointer select-none">
               <input type="checkbox" checked={useNvd} onChange={e => setUseNvd(e.target.checked)} />
               <span>
-                Query NVD if not in local DB
-                {!useNvd && <span className="text-text-muted ml-1.5">(local DB only)</span>}
+                本機沒有資料時查詢 NVD
+                {!useNvd && <span className="text-text-muted ml-1.5">（僅本機資料庫）</span>}
               </span>
             </label>
           </div>
@@ -210,45 +207,43 @@ export default function CVEIntelligencePage() {
             <div className="flex gap-2.5 flex-wrap items-center">
               <input
                 className="c2-input flex-[2] min-w-[160px]"
-                placeholder="Technology name (e.g. apache, nginx, log4j)"
+                placeholder="技術名稱（例如 apache、nginx、log4j）"
                 value={techName}
                 onChange={e => setTechName(e.target.value)}
                 onKeyDown={handleKeyDown}
               />
               <input
                 className="c2-input flex-1 min-w-[100px]"
-                placeholder="Version (optional)"
+                placeholder="版本（選填）"
                 value={version}
                 onChange={e => setVersion(e.target.value)}
                 onKeyDown={handleKeyDown}
               />
               <button className="c2-btn" onClick={handleTechSearch} disabled={loading || !techName.trim()}>
-                {loading ? 'SEARCHING...' : 'SEARCH'}
+                {loading ? '搜尋中…' : '搜尋'}
               </button>
             </div>
 
-            {/* Advanced filters toggle */}
             <div className="flex items-center gap-2">
               <button
-                className="c2-btn c2-btn--ghost c2-btn--sm text-[0.75rem]"
-                onClick={() => setShowAdvanced(v => !v)}
+                className="c2-btn c2-btn--ghost c2-btn--icon"
+                aria-label="開啟進階篩選"
+                title="進階篩選"
+                onClick={() => setFiltersOpen(true)}
               >
-                {showAdvanced ? '▲ 隱藏進階篩選' : '▼ 進階篩選'}
-                {isAdvancedDirty && !showAdvanced && (
-                  <span className="ml-1.5 text-amber text-[0.7rem]">● 已設定</span>
-                )}
+                <Settings size={17} aria-hidden="true" />
               </button>
               {isAdvancedDirty && (
                 <button
                   className="c2-btn c2-btn--ghost c2-btn--sm text-[0.72rem] text-text-muted"
                   onClick={handleClearFilters}
-                >✕ 清除篩選</button>
+                >已套用篩選 · 清除</button>
               )}
             </div>
-
-            {/* Advanced filters panel */}
-            {showAdvanced && (
-              <div className="flex flex-col gap-2.5 p-3 bg-[rgba(15,23,42,0.5)] rounded border border-border-subtle">
+            <Dialog open={filtersOpen} onOpenChange={setFiltersOpen}>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader><DialogTitle>進階篩選</DialogTitle></DialogHeader>
+                <div className="flex flex-col gap-5">
                 {/* Row 1: Severity + Limit + Exploited */}
                 <div className="flex gap-2.5 items-center flex-wrap">
                   <select
@@ -256,7 +251,7 @@ export default function CVEIntelligencePage() {
                     value={severityMin}
                     onChange={e => setSeverityMin(e.target.value as SeverityFilter)}
                   >
-                    <option value="">All Severities</option>
+                    <option value="">全部嚴重性</option>
                     <option value="CRITICAL">CRITICAL+</option>
                     <option value="HIGH">HIGH+</option>
                     <option value="MEDIUM">MEDIUM+</option>
@@ -267,21 +262,21 @@ export default function CVEIntelligencePage() {
                     value={limit}
                     onChange={e => setLimit(Number(e.target.value))}
                   >
-                    <option value={10}>10 results</option>
-                    <option value={20}>20 results</option>
-                    <option value={50}>50 results</option>
-                    <option value={100}>100 results</option>
+                    <option value={10}>10 筆結果</option>
+                    <option value={20}>20 筆結果</option>
+                    <option value={50}>50 筆結果</option>
+                    <option value={100}>100 筆結果</option>
                   </select>
                   <label className="flex items-center gap-1.5 text-[0.8rem] text-text-secondary cursor-pointer">
                     <input type="checkbox" checked={exploitedOnly} onChange={e => setExploitedOnly(e.target.checked)} />
-                    Exploited Only
+                    僅已遭利用
                   </label>
                 </div>
 
                 {/* Row 2: CVSS + EPSS */}
                 <div className="flex gap-2.5 items-center flex-wrap">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[0.72rem] text-text-muted whitespace-nowrap">Min CVSS</span>
+                    <span className="text-[0.72rem] text-text-muted whitespace-nowrap">最低 CVSS</span>
                     <input
                       className="c2-input w-[75px]"
                       type="number"
@@ -292,7 +287,7 @@ export default function CVEIntelligencePage() {
                     />
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[0.72rem] text-text-muted whitespace-nowrap">Min EPSS</span>
+                    <span className="text-[0.72rem] text-text-muted whitespace-nowrap">最低 EPSS</span>
                     <input
                       className="c2-input w-[75px]"
                       type="number"
@@ -307,7 +302,7 @@ export default function CVEIntelligencePage() {
                 {/* Row 3: Date range */}
                 <div className="flex gap-2.5 items-center flex-wrap">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[0.72rem] text-text-muted whitespace-nowrap">Published after</span>
+                    <span className="text-[0.72rem] text-text-muted whitespace-nowrap">發佈日（起）</span>
                     <input
                       className="c2-input w-[140px]"
                       type="date"
@@ -316,7 +311,7 @@ export default function CVEIntelligencePage() {
                     />
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[0.72rem] text-text-muted whitespace-nowrap">before</span>
+                    <span className="text-[0.72rem] text-text-muted whitespace-nowrap">至</span>
                     <input
                       className="c2-input w-[140px]"
                       type="date"
@@ -328,8 +323,13 @@ export default function CVEIntelligencePage() {
                     <span className="text-[0.72rem] text-red">⚠ 結束日期不可早於開始日期</span>
                   )}
                 </div>
-              </div>
-            )}
+                </div>
+                <div className="flex justify-between border-t border-border-subtle pt-5">
+                  <button className="c2-btn c2-btn--ghost" onClick={handleClearFilters}>清除篩選</button>
+                  <button className="c2-btn c2-btn--primary" onClick={() => setFiltersOpen(false)}>完成</button>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         )}
       </div>
