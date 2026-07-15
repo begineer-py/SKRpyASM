@@ -10,12 +10,12 @@ interface TargetActivityMonitorProps {
 }
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; icon: string }> = {
-  RUNNING: { bg: '#dbeafe', text: '#2563eb', icon: 'R' },
-  WAITING: { bg: '#fef3c7', text: '#92400e', icon: 'W' },
-  SUCCEEDED: { bg: '#dcfce7', text: '#059669', icon: 'S' },
-  FAILED: { bg: '#fee2e2', text: '#dc2626', icon: 'F' },
-  CANCELLED: { bg: '#e5e7eb', text: '#374151', icon: 'C' },
-  BLOCKED: { bg: '#f3e8ff', text: '#7e22ce', icon: 'B' },
+  RUNNING: { bg: 'rgba(14,165,233,0.16)', text: '#7dd3fc', icon: 'R' },
+  WAITING: { bg: 'rgba(245,158,11,0.16)', text: '#fcd34d', icon: 'W' },
+  SUCCEEDED: { bg: 'rgba(34,197,94,0.16)', text: '#86efac', icon: 'S' },
+  FAILED: { bg: 'rgba(239,68,68,0.16)', text: '#fca5a5', icon: 'F' },
+  CANCELLED: { bg: 'rgba(148,163,184,0.16)', text: '#cbd5e1', icon: 'C' },
+  BLOCKED: { bg: 'rgba(139,92,246,0.16)', text: '#c4b5fd', icon: 'B' },
 };
 
 export default function TargetActivityMonitor({
@@ -59,47 +59,47 @@ export default function TargetActivityMonitor({
   }), [graphs]);
 
   const rootClass = cn(
-    'flex flex-col h-full bg-white border border-gray-200 rounded-lg overflow-hidden',
+    'flex flex-col h-full bg-[#080d1b] border border-[rgba(148,163,184,0.18)] rounded-[12px] overflow-hidden text-[#dbeafe]',
     compact ? 'min-h-[160px]' : 'min-h-[200px]',
   );
 
   if (!targetId) {
-    return <div className={cn(rootClass, 'items-center justify-center text-gray-500 text-[13px] min-h-[200px]')}><p>Select a target to view activity</p></div>;
+    return <div className={cn(rootClass, 'items-center justify-center text-[#94a3b8] text-[14px] min-h-[220px]')}><p>Select a target to view activity</p></div>;
   }
 
   if (loading) {
     return (
-      <div className={cn(rootClass, 'items-center justify-center text-gray-500 text-[13px] min-h-[200px]')}>
-        <div className="w-5 h-5 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin mr-2.5" />
+      <div className={cn(rootClass, 'items-center justify-center text-[#94a3b8] text-[14px] min-h-[220px]')}>
+        <div className="w-5 h-5 border-2 border-[rgba(148,163,184,0.22)] border-t-[#38bdf8] rounded-full animate-spin mr-2.5" />
         <p>Loading executions...</p>
       </div>
     );
   }
 
   if (error) {
-    return <div className={cn(rootClass, 'items-center justify-center text-red-600 text-[13px] min-h-[200px]')}><p>Error: {error}</p></div>;
+    return <div className={cn(rootClass, 'items-center justify-center text-[#fca5a5] text-[14px] min-h-[220px]')}><p>Error: {error}</p></div>;
   }
 
   if (graphs.length === 0) {
-    return <div className={cn(rootClass, 'items-center justify-center text-gray-500 text-[13px] min-h-[200px]')}><p>No execution graphs yet.</p></div>;
+    return <div className={cn(rootClass, 'items-center justify-center text-[#94a3b8] text-[14px] min-h-[220px]')}><p>No execution graphs yet.</p></div>;
   }
 
   return (
     <div className={rootClass}>
-      <div className="flex justify-between items-center px-4 py-3 border-b border-gray-200 bg-gray-50 [&_h3]:m-0 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:text-gray-900">
+      <div className="flex justify-between items-center px-5 py-4 border-b border-[rgba(148,163,184,0.14)] bg-[#0d1424] [&_h3]:m-0 [&_h3]:text-[15px] [&_h3]:font-semibold [&_h3]:text-[#f8fafc]">
         <h3>Execution Activity</h3>
         <div className="flex gap-3 text-[12px] max-md:flex-wrap max-md:gap-2">
           {stats.active > 0 && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-blue-100 text-blue-600">
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
+            <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded bg-[rgba(14,165,233,0.16)] text-[#7dd3fc]">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#38bdf8] animate-pulse" />
               {stats.active} active
             </span>
           )}
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-green-100 text-emerald-600">{stats.completed} done</span>
+          <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded bg-[rgba(34,197,94,0.16)] text-[#86efac]">{stats.completed} done</span>
           {stats.failed > 0 && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-red-100 text-red-600">{stats.failed} failed</span>
+            <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded bg-[rgba(239,68,68,0.16)] text-[#fca5a5]">{stats.failed} failed</span>
           )}
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 text-gray-700 font-semibold">Total: {graphs.length}</span>
+          <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded bg-[rgba(148,163,184,0.14)] text-[#cbd5e1] font-semibold">Total: {graphs.length}</span>
         </div>
       </div>
 
@@ -107,10 +107,10 @@ export default function TargetActivityMonitor({
         {graphs.map((graph, idx) => {
           const statusColor = STATUS_COLORS[graph.status] || STATUS_COLORS.RUNNING;
           return (
-            <div key={graph.id} className="flex gap-3 mb-0 rounded-md transition-colors duration-200 hover:bg-gray-50">
+            <div key={graph.id} className="flex gap-3 mb-0 rounded-md transition-colors duration-200 hover:bg-[#121d31]">
               <div className="flex flex-col items-center pt-0.5">
                 <div
-                  className="w-8 h-8 border-2 border-gray-200 rounded-full flex items-center justify-center text-sm bg-white shrink-0 relative z-[2]"
+                  className="w-9 h-9 border-2 rounded-full flex items-center justify-center text-sm font-semibold bg-[#0d1424] shrink-0 relative z-[2]"
                   style={{ backgroundColor: statusColor.bg, borderColor: statusColor.text }}
                 >
                   {statusColor.icon}
@@ -123,16 +123,16 @@ export default function TargetActivityMonitor({
                 <div className="flex items-center gap-2 flex-wrap py-2 max-md:flex-col max-md:items-start">
                   <span>Graph #{graph.id}</span>
                   <span
-                    className="inline-block px-2 py-1 rounded text-[11px] font-semibold shrink-0"
+                    className="inline-block px-2.5 py-1 rounded text-[12px] font-semibold shrink-0"
                     style={{ backgroundColor: statusColor.bg, color: statusColor.text }}
                   >
                     {graph.status}
                   </span>
-                  <span className="inline-block px-2 py-1 text-gray-400 text-[11px] font-mono ml-auto max-md:ml-0 max-md:mt-1">
+                  <span className="inline-block px-2 py-1 text-[#94a3b8] text-[12px] font-mono ml-auto max-md:ml-0 max-md:mt-1">
                     {new Date(graph.started_at).toLocaleString()}
                   </span>
                 </div>
-                <div className="text-[12px] text-gray-500 mt-1">
+                <div className="text-[13px] text-[#94a3b8] mt-1.5">
                   {graph.title || graph.assistant_id} · thread {graph.thread_id ?? '-'}
                 </div>
               </div>

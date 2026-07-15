@@ -64,6 +64,14 @@ const TOGGLES: Array<{
 ];
 
 export function MessageFilterBar({ filter, onChange, availableAgents = [] }: MessageFilterBarProps) {
+  const presetMatches = (preset: MessageFilterState) =>
+    preset.showUserConv === filter.showUserConv &&
+    preset.showAiResponse === filter.showAiResponse &&
+    preset.showToolCalls === filter.showToolCalls &&
+    preset.showSubagent === filter.showSubagent &&
+    preset.showSystem === filter.showSystem &&
+    preset.agentFilter.length === filter.agentFilter.length;
+
   const toggleAgent = (agentId: string) => {
     const has = filter.agentFilter.includes(agentId);
     onChange({
@@ -82,21 +90,24 @@ export function MessageFilterBar({ filter, onChange, availableAgents = [] }: Mes
       <div className="flex flex-wrap gap-1.5 items-center">
         <button
           type="button"
-          className="bg-[#1e293b] border border-[#334155] text-[#94a3b8] rounded-md px-2.5 py-0.5 text-[0.7rem] cursor-pointer transition-all duration-150 hover:border-green-500 hover:text-[#e2e8f0]"
+          className={cn('bg-[#1e293b] border border-[#334155] text-[#94a3b8] rounded-md px-2.5 py-0.5 text-[0.7rem] cursor-pointer transition-all duration-150 hover:border-green-500 hover:text-[#e2e8f0]', presetMatches(FILTER_ALL_ON) && 'is-active')}
+          aria-pressed={presetMatches(FILTER_ALL_ON)}
           onClick={() => onChange({ ...FILTER_ALL_ON })}
         >
           全部
         </button>
         <button
           type="button"
-          className="bg-[#1e293b] border border-[#334155] text-[#94a3b8] rounded-md px-2.5 py-0.5 text-[0.7rem] cursor-pointer transition-all duration-150 hover:border-green-500 hover:text-[#e2e8f0]"
+          className={cn('bg-[#1e293b] border border-[#334155] text-[#94a3b8] rounded-md px-2.5 py-0.5 text-[0.7rem] cursor-pointer transition-all duration-150 hover:border-green-500 hover:text-[#e2e8f0]', presetMatches(FILTER_USER_ONLY) && 'is-active')}
+          aria-pressed={presetMatches(FILTER_USER_ONLY)}
           onClick={() => onChange({ ...FILTER_USER_ONLY })}
         >
           僅對話
         </button>
         <button
           type="button"
-          className="bg-[#1e293b] border border-[#334155] text-[#94a3b8] rounded-md px-2.5 py-0.5 text-[0.7rem] cursor-pointer transition-all duration-150 hover:border-green-500 hover:text-[#e2e8f0]"
+          className={cn('bg-[#1e293b] border border-[#334155] text-[#94a3b8] rounded-md px-2.5 py-0.5 text-[0.7rem] cursor-pointer transition-all duration-150 hover:border-green-500 hover:text-[#e2e8f0]', presetMatches(FILTER_AUTO_PENTEST) && 'is-active')}
+          aria-pressed={presetMatches(FILTER_AUTO_PENTEST)}
           onClick={() => onChange({ ...FILTER_AUTO_PENTEST })}
         >
           Auto Pentest
@@ -112,8 +123,9 @@ export function MessageFilterBar({ filter, onChange, availableAgents = [] }: Mes
               type="button"
               className={cn(
                 'bg-transparent border border-[#334155] text-[#64748b] rounded-full px-2.5 py-0.5 text-[0.7rem] cursor-pointer transition-all duration-150 hover:border-[#64748b] hover:text-[#cbd5e1]',
-                active && 'bg-[rgba(34,197,94,0.12)] border-green-500 text-[#86efac]',
+                active && 'is-active bg-[rgba(34,197,94,0.12)] border-green-500 text-[#86efac]',
               )}
+              aria-pressed={active}
               onClick={() => onChange({ ...filter, [key]: !active })}
             >
               {label}

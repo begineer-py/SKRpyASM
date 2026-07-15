@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Activity, MousePointer2, Radio } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useExecutionEventStream } from '../hooks/useExecutionEventStream';
 import { executionApi } from '../services/executionApi';
@@ -27,13 +28,13 @@ function statusClass(status?: string | null): string {
 }
 
 const STATUS_PILL: Record<string, string> = {
-  running: 'text-[#1d4ed8] bg-[#dbeafe]',
-  waiting: 'text-[#92400e] bg-[#fef3c7]',
-  succeeded: 'text-[#047857] bg-[#d1fae5]',
-  failed: 'text-[#b91c1c] bg-[#fee2e2]',
-  cancelled: 'text-[#b91c1c] bg-[#fee2e2]',
-  blocked: 'text-[#b91c1c] bg-[#fee2e2]',
-  neutral: 'text-[#334155] bg-[#e2e8f0]',
+  running: 'text-[#7dd3fc] bg-[rgba(14,165,233,0.16)]',
+  waiting: 'text-[#fcd34d] bg-[rgba(245,158,11,0.16)]',
+  succeeded: 'text-[#86efac] bg-[rgba(34,197,94,0.16)]',
+  failed: 'text-[#fca5a5] bg-[rgba(239,68,68,0.16)]',
+  cancelled: 'text-[#fca5a5] bg-[rgba(239,68,68,0.16)]',
+  blocked: 'text-[#fca5a5] bg-[rgba(239,68,68,0.16)]',
+  neutral: 'text-[#cbd5e1] bg-[rgba(148,163,184,0.16)]',
 };
 
 const STATUS_BORDER: Record<string, string> = {
@@ -114,27 +115,33 @@ export default function ExecutionTimelineViewer({ graphId, autoScroll = true, co
 
   if (!graphId) {
     return (
-      <div className="flex flex-col h-full min-h-0 overflow-hidden border border-[#dbe4f0] rounded-[10px] bg-[#f8fafc] text-[#0f172a] font-mono text-[13px] flex items-center justify-center min-h-[180px] text-[#64748b]">
-        Select an execution graph to view its timeline.
+      <div className="flex h-full min-h-[560px] items-center justify-center overflow-hidden rounded-2xl border border-border-subtle bg-bg-card p-6 text-center shadow-soft backdrop-blur-sm xl:min-h-[calc(100vh-292px)]">
+        <div className="max-w-xs">
+          <span className="mx-auto flex size-14 items-center justify-center rounded-2xl border border-border-cyan bg-cyan-glow text-cyan"><Activity className="size-6" aria-hidden="true" /></span>
+          <p className="mt-5 font-mono text-xs font-semibold uppercase tracking-[0.14em] text-cyan">Timeline inspector</p>
+          <h2 className="mt-3 text-xl font-semibold text-text-primary">No graph selected</h2>
+          <p className="mt-3 text-sm leading-6 text-text-secondary">Select an execution from the list to inspect event sequence, node transitions, and real-time activity.</p>
+          <div className="mt-5 flex items-center justify-center gap-2 text-sm text-text-secondary"><MousePointer2 className="size-4 text-cyan" aria-hidden="true" /> Choose a workflow on the left</div>
+        </div>
       </div>
     );
   }
 
   if (loading && !graph) {
-    return <div className="flex items-center justify-center min-h-[180px] text-[#64748b]">Loading execution graph...</div>;
+    return <div className="flex items-center justify-center min-h-[180px] text-[#94a3b8]">Loading execution graph...</div>;
   }
 
   const visibleError = loadError || error;
 
   return (
     <div className={cn(
-      'flex flex-col h-full min-h-0 overflow-hidden border border-[#dbe4f0] rounded-[10px] bg-[#f8fafc] text-[#0f172a] font-mono text-[13px]',
-      compact && 'text-[12px]',
+      'flex flex-col h-full min-h-0 overflow-hidden border border-[rgba(148,163,184,0.18)] rounded-[12px] bg-[#080d1b] text-[#dbeafe] font-mono text-[14px]',
+      compact && 'text-[13px]',
     )}>
-      <div className="flex justify-between items-center gap-4 px-4 py-3.5 text-[#e2e8f0] bg-gradient-to-br from-[#0f172a] to-[#1e3a8a] border-b border-[#1e40af] [&_h3]:m-0 [&_h3]:text-white [&_h3]:text-[15px] [&_h3]:font-bold">
+      <div className="flex justify-between items-center gap-4 px-5 py-4 text-[#e2e8f0] bg-gradient-to-br from-[#0f172a] to-[#1e3a8a] border-b border-[#1e40af] [&_h3]:m-0 [&_h3]:text-white [&_h3]:text-base [&_h3]:font-bold">
         <div>
-          <h3>Execution Timeline</h3>
-          <div className="mt-1 text-[#bfdbfe] text-[12px]">
+          <h3 className="flex items-center gap-2"><Radio className="size-4 text-cyan" aria-hidden="true" /> Execution Timeline</h3>
+          <div className="mt-1 text-[#bfdbfe] text-sm">
             Graph #{graphId}{graph?.title ? `: ${graph.title}` : ''}
           </div>
         </div>
@@ -151,23 +158,23 @@ export default function ExecutionTimelineViewer({ graphId, autoScroll = true, co
         </div>
       </div>
 
-      {visibleError && <div className="px-4 py-2.5 text-[#991b1b] bg-[#fee2e2] border-b border-[#fecaca]">{visibleError.message}</div>}
+      {visibleError && <div className="px-4 py-2.5 text-[#fca5a5] bg-[rgba(239,68,68,0.12)] border-b border-[rgba(248,113,113,0.24)]">{visibleError.message}</div>}
 
-      <div className={`${rowClass} px-4 py-3 bg-white border-b border-[#e2e8f0]`}>
+      <div className={`${rowClass} px-4 py-4 bg-[#0d1424] border-b border-[rgba(148,163,184,0.14)]`}>
         <input
           value={filter}
           onChange={(event) => setFilter(event.target.value)}
           placeholder="Search events..."
-          className="flex-1 min-w-[180px] px-2.5 py-2 text-[#0f172a] bg-[#f8fafc] border border-[#cbd5e1] rounded-lg font-[inherit] focus:outline-none focus:border-[#2563eb] focus:shadow-[0_0_0_3px_rgba(37,99,235,0.12)]"
+          className="h-10 flex-1 min-w-[180px] px-3 text-sm text-[#e2e8f0] bg-[#080d1b] border border-[rgba(148,163,184,0.24)] rounded-lg font-[inherit] focus:outline-none focus:border-[#38bdf8] focus:shadow-[0_0_0_3px_rgba(56,189,248,0.12)] placeholder:text-[#64748b]"
         />
-        <span className={cn(pillClass, 'text-[#334155] bg-[#e2e8f0]')}>{filteredEvents.length} / {events.length} events</span>
-        <span className={cn(pillClass, 'text-[#334155] bg-[#e2e8f0]')}>{graph?.nodes.length ?? 0} nodes</span>
-        <span className={cn(pillClass, 'text-[#334155] bg-[#e2e8f0]')}>{graph?.artifacts.length ?? 0} artifacts</span>
+        <span className={cn(pillClass, 'text-[#cbd5e1] bg-[rgba(148,163,184,0.14)]')}>{filteredEvents.length} / {events.length} events</span>
+        <span className={cn(pillClass, 'text-[#cbd5e1] bg-[rgba(148,163,184,0.14)]')}>{graph?.nodes.length ?? 0} nodes</span>
+        <span className={cn(pillClass, 'text-[#cbd5e1] bg-[rgba(148,163,184,0.14)]')}>{graph?.artifacts.length ?? 0} artifacts</span>
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto p-3">
         {filteredEvents.length === 0 ? (
-          <div className="flex items-center justify-center min-h-[180px] text-[#64748b]">No execution events yet.</div>
+          <div className="flex items-center justify-center min-h-[180px] text-[#94a3b8]">No execution events yet.</div>
         ) : (
           filteredEvents.map((event) => (
             <TimelineEvent
@@ -202,28 +209,28 @@ function TimelineEvent({
 
   return (
     <div className={cn(
-      'mb-2.5 overflow-hidden border border-[#e2e8f0] border-l-4 border-l-[#94a3b8] rounded-[10px] bg-white',
+      'mb-3 overflow-hidden border border-[rgba(148,163,184,0.16)] border-l-4 border-l-[#64748b] rounded-[10px] bg-[#0d1424]',
       STATUS_BORDER[sc],
     )}>
       <button
-        className="w-full px-3 py-2.5 text-inherit text-left bg-transparent border-0 cursor-pointer hover:bg-[#f8fafc]"
+        className="w-full px-3.5 py-3 text-inherit text-left bg-transparent border-0 cursor-pointer hover:bg-[#121d31]"
         onClick={onToggle}
         type="button"
       >
         <div className="flex items-center gap-2 flex-wrap">
-          <span className={cn(pillClass, 'text-[#334155] bg-[#e2e8f0]')}>#{event.sequence}</span>
-          <span className={cn(pillClass, 'text-[#334155] bg-[#e2e8f0]')}>{event.event_type}</span>
+          <span className={cn(pillClass, 'text-[#cbd5e1] bg-[rgba(148,163,184,0.14)]')}>#{event.sequence}</span>
+          <span className={cn(pillClass, 'text-[#cbd5e1] bg-[rgba(148,163,184,0.14)]')}>{event.event_type}</span>
           {event.status && (
             <span className={cn(pillClass, STATUS_PILL[sc] || STATUS_PILL.neutral)}>{event.status}</span>
           )}
-          {nodeName && <span className={cn(pillClass, 'text-[#334155] bg-[#e2e8f0]')}>{nodeName}</span>}
+          {nodeName && <span className={cn(pillClass, 'text-[#cbd5e1] bg-[rgba(148,163,184,0.14)]')}>{nodeName}</span>}
         </div>
         <div className="mt-2 break-anywhere whitespace-pre-wrap">{event.content || '(no content)'}</div>
-        <div className="mt-1.5 text-[#64748b] text-[11px]">{new Date(event.created_at).toLocaleTimeString()}</div>
+        <div className="mt-1.5 text-sm text-[#94a3b8]">{new Date(event.created_at).toLocaleTimeString()}</div>
       </button>
 
       {expanded && (
-        <div className="px-3 py-2.5 text-[#334155] bg-[#f8fafc] border-t border-[#e2e8f0] text-[12px] [&_pre]:overflow-x-auto [&_pre]:mt-2 [&_pre]:mx-0 [&_pre]:p-2.5 [&_pre]:text-[#e2e8f0] [&_pre]:bg-[#0f172a] [&_pre]:rounded-lg">
+        <div className="px-3.5 py-3 text-sm text-[#cbd5e1] bg-[#080d1b] border-t border-[rgba(148,163,184,0.14)] [&_pre]:overflow-x-auto [&_pre]:mt-2 [&_pre]:mx-0 [&_pre]:p-2.5 [&_pre]:text-[#e2e8f0] [&_pre]:bg-[#050814] [&_pre]:rounded-lg">
           <div>ID: {event.id}</div>
           <div>Graph: {event.graph_id}</div>
           {event.node_id && <div>Node: {event.node_id}</div>}

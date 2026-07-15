@@ -45,6 +45,8 @@ interface TelemetryPanelProps {
 interface RecentOverview {
   id: number;
   status: string;
+  thread_id?: number | null;
+  parent_thread_id?: number | null;
   core_target?: { name?: string | null } | null;
 }
 

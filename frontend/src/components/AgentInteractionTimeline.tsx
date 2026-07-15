@@ -49,14 +49,14 @@ type AgentNodeData = {
 type AgentFlowNode = Node<AgentNodeData, 'agent'>;
 type AgentFlowEdge = Edge;
 
-const NODE_W = 172;
-const NODE_H = 56;
+const NODE_W = 204;
+const NODE_H = 68;
 
 const AgentNode = memo(function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
   return (
     <div
       className={cn(
-        'min-w-[156px] max-w-[180px] py-2 px-2.5 pb-2.5 rounded-[10px] border-[1.5px] border-[#475569] bg-[#0f172a] shadow-[0_2px_10px_rgba(0,0,0,0.35)] font-[Inter,system-ui,sans-serif] cursor-pointer hover:bg-[#1e293b]',
+        'min-w-[184px] max-w-[212px] py-2.5 px-3 pb-3 rounded-[10px] border-[1.5px] border-[#475569] bg-[#0f172a] shadow-[0_2px_10px_rgba(0,0,0,0.35)] font-body cursor-pointer hover:bg-[#1e293b]',
         selected && 'bg-[#1e293b] shadow-[0_0_0_2px_rgba(34,197,94,0.4),0_0_12px_rgba(34,197,94,0.2)]',
       )}
       style={{ borderColor: data.color, ['--ait-color' as string]: data.color }}
@@ -68,14 +68,14 @@ const AgentNode = memo(function AgentNode({ data, selected }: NodeProps<AgentFlo
       />
       <div className="flex items-center justify-between gap-1.5">
         <span
-          className="text-[#e2e8f0] text-[11px] font-['Fira_Code',ui-monospace,monospace] font-semibold whitespace-nowrap overflow-hidden text-ellipsis"
+          className="text-[#e2e8f0] text-[13px] font-['Fira_Code',ui-monospace,monospace] font-semibold whitespace-nowrap overflow-hidden text-ellipsis"
           title={data.label}
         >
           {data.label.length > 22 ? `${data.label.slice(0, 20)}…` : data.label}
         </span>
         {data.status !== 'ROOT' && <span className="w-2 h-2 rounded-full shrink-0" style={{ background: data.color }} />}
       </div>
-      <span className="block mt-1 text-[#64748b] text-[10px] whitespace-nowrap overflow-hidden text-ellipsis">{data.meta}</span>
+      <span className="block mt-1 text-[#94a3b8] text-[12px] whitespace-nowrap overflow-hidden text-ellipsis">{data.meta}</span>
       <Handle
         type="source"
         position={Position.Bottom}
