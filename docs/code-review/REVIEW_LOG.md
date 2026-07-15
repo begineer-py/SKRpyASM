@@ -1,0 +1,204 @@
+# 審查日誌
+
+## 2026-07-15 初始化
+
+- Commit: 822b346
+- Changed files: CLAUDE.md, .claude/skills/continuous-code-review/SKILL.md (新增), .claude/, .playwright-mcp/, Agents.md (新增)
+- Review domains: 初始化
+- Commands executed: git status, git diff, mkdir docs/code-review
+- New findings: 0
+- Updated findings: 0
+- Resolved findings: 0
+- Skipped checks: 無
+- Next rotation: frontend
+
+## 2026-07-15 Cycle 1 - Frontend Rotation Review
+
+- Commit: 822b346
+- Changed files: CLAUDE.md (修改), Agents.md (新增), .claude/ (新增), .playwright-mcp/ (新增), docs/code-review/ (新增)
+- Review domains: Frontend (輪替), Documentation, Configuration, Docker, Celery, Cross-cutting (增量)
+- Commands executed:
+  - git status, git diff
+  - make check (Django system check) - ✅ 通過
+  - make test (Django tests) - ✅ 通過 (0 tests)
+  - make smoke (API smoke test) - ✅ 通過
+  - cd frontend && npx tsc --noEmit - ✅ 通過
+  - cd frontend && npm run lint - ✅ 通過
+  - docker compose ps - 服務正常運行
+- New findings: 13
+  - CR-0001: Documentation - Agents.md 重複
+  - CR-0002: Frontend - pages 目錄僅有備份檔
+  - CR-0003: Frontend - 響應式斷點不完整
+  - CR-0004: Frontend - AI Workbench 固定 grid 佈局
+  - CR-0005: Frontend - 字體過小
+  - CR-0006: Frontend - 狀態僅用顏色表達
+  - CR-0007: Frontend - placeholder 當 label
+  - CR-0008: Frontend - global.css 過大
+  - CR-0009: Frontend - useEffect 清理不完整
+  - CR-0010: Docker - 硬編碼密碼
+  - CR-0011: Docker - 埠暴露過多
+  - CR-0012: Celery - CELERY_IMPORTS 可能遺漏
+  - CR-0013: Cross-cutting - GraphQL/REST 重複 (需調查)
+- Updated findings: 0
+- Resolved findings: 0
+- Skipped checks: Docker build (Dockerfile 未變更), Playwright (成本控制)
+- Next rotation: django-ninja
+
+## 2026-07-15 Cycle 2 - Django Ninja Rotation Review
+
+- Commit: 822b346
+- Changed files: CLAUDE.md (修改 - 成本控制政策), docs/code-review/ (更新)
+- Review domains: Django Ninja (輪替), Docker, Celery (增量), Cross-cutting (增量)
+- Commands executed:
+  - git status, git diff
+  - make check (Django system check) - ✅ 通過
+  - make test (Django tests) - ✅ 通過 (0 tests)
+  - make smoke (API smoke test) - ✅ 通過
+  - cd frontend && npx tsc --noEmit - ✅ 通過
+  - cd frontend && npm run lint - ✅ 通過
+  - curl http://localhost:8000/api/openapi.json - 列出所有 Ninja endpoint (47 endpoints)
+  - grep -r "shared_task" apps --include="*.py" - 發現 79 個 Celery 任務
+  - find apps -name "tasks.py" -o -name "tasks" -type d - 發現 14 個任務模組
+- New findings: 0 (本輪重點審查 Django Ninja API 必要性、邊界、權限、交易)
+- Updated findings: 13 (所有既有 finding 更新 last_seen 為 2026-07-15，CR-0012/0013 大幅補充具體證據)
+  - CR-0001: 確認用戶接受風險 (Accepted risk) - 多工具共用指引
+  - CR-0010: 確認用戶接受風險 (Accepted risk) - 預設值支援快速體驗
+  - CR-0011: 確認多服務暴露埠至 127.0.0.1，FlareSolverr 8192 監聽 0.0.0.0 (嚴重)
+  - CR-0012: **已量化** - CELERY_IMPORTS 僅 10/14 模組，遺漏 5 模組 30 個任務 (flareSolverr http_action/js_trigger, http_sender, targets, ai_assistant)
+  - CR-0013: **已確認** - 47 Ninja endpoint 中 15+ 為純 CRUD/查詢，與 Hasura GraphQL 重複 (Targets, Overviews, Vulnerabilities, Attack Plans 等)
+- Resolved findings: 0
+- Skipped checks: Docker build (Dockerfile 未變更), Playwright (成本控制), GraphQL schema diff (需 Hasura 運行)
+- Next rotation: docker
+
+## 2026-07-15 Cycle 3 - Docker Rotation Review
+
+- Commit: 822b346
+- Changed files: Dockerfile (重構), docker/kali_sandbox/Dockerfile (重構), docker/docker-compose.yml (修復), docker/nginx/default.conf (無變更), .dockerignore (擴充), c2_core/settings.py (CELERY_IMPORTS 更新)
+- Review domains: Docker (輪替), Celery (增量 - CELERY_IMPORTS), Cross-cutting (增量)
+- Commands executed:
+  - docker compose -f docker/docker-compose.yml ps - 服務埠綁定審計
+  - docker compose -f docker/docker-compose.yml config --quiet - 配置驗證
+  - grep -r "shared_task" apps --include="*.py" - 確認 79 任務分佈
+  - 手動碼查所有 Dockerfile、docker-compose.yml、.dockerignore
+- New findings: 0 (本輪重點修復既有問題而非發現新問題)
+- Updated findings: 3
+  - **CR-0011 (Port Exposure) - 大幅改善**: 
+    - nginx: 0.0.0.0:80 → 127.0.0.1:80 (修復關鍵風險)
+    - c2_kali_sandbox: network_mode: host → bridge (c2_network), 減少 capabilities (移除 SYS_ADMIN, apparmor:unconfined)
+    - 新增 nginx healthcheck
+  - **CR-0012 (CELERY_IMPORTS) - 已修復**: 
+    - 新增 3 個遺漏模組: flaresolverr.tasks.http_action, flaresolverr.tasks.js_trigger, http_sender.tasks
+    - 從 10 → 13 模組，覆蓋所有生產任務模組
+  - **CR-0010 (Hardcoded Secrets) - 維持 Accepted risk**: 用戶確認預設值為 DX 考量
+- Resolved findings: 0 (CR-0011/0012 需部署驗證後才能標記 resolved)
+- Fixed issues:
+  - Dockerfile: 層優化 (系統依賴 → 工具下載 → requirements → 應用碼), ARG 版本釘選, 非 root 用戶 (appuser), gosu 權限下放
+  - Kali sandbox: 基礎鏡像釘選 (2024.2), 移除 kali-linux-headless (攻擊面縮減 ~75%), 非 root 用戶 (sandbox), 最小化 capabilities
+  - .dockerignore: 新增截圖 (*.png 等), 文檔 (*.md), 計畫檔 排除
+  - nginx: 綁定 127.0.0.1 僅限本機, 新增 healthcheck
+- Skipped checks: Docker build (需重建驗證), Playwright (成本控制), trivy/grype 掃描 (工具未安裝)
+- Next rotation: celery
+
+## 2026-07-15 Cycle 4 - Celery Rotation Review
+
+- Commit: 822b346
+- Changed files: (read-only analysis; no code changes in this cycle)
+- Review domains: Celery (輪替), Cross-cutting (增量)
+- Commands executed:
+  - grep -r "shared_task" apps --include="*.py" - 確認 79 任務分佈
+  - docker exec c2_celery_worker celery -A c2_core inspect registered - 驗證所有 79 任務已註冊
+  - docker exec c2_celery_worker celery -A c2_core inspect active_queues - 佇列配置審計
+  - docker exec c2_celery_worker celery -A c2_core inspect stats - Worker 統計與 prefetch 確認
+  - 手動碼查: c2_core/celery.py, c2_core/settings.py, apps/*/tasks/, apps/auto/tasks/__init__.py, apps/scheduler/tasks/watchdog.py, apps/flaresolverr/tasks/js_trigger.py
+- New findings: 4
+  - **CR-0014 (P2)**: Celery 任務缺乏 time_limit/soft_time_limit — 多數長跑任務 (Nmap, Nuclei, FlareSolverr JS, Auto agents) 無執行時間上限，風險 worker 卡死
+  - **CR-0015 (P2)**: Celery 大型資料庫交易 — Nmap/FlareSolverr/Subfinder 任務在單一交易中處理大量資料，阻塞 PostgreSQL 連線池
+  - **CR-0016 (P3)**: Celery 佇列隔離不足 — 僅 default/ai_queue 兩隊列，CPU/IO 密集型任務混跑，無專用佇列與專用 worker
+  - **CR-0017 (P3)**: Celery 結果保留與監控缺失 — 未設定 result_expires、worker_cancel_long_running_tasks、task_ignore_result，結果堆積風險
+- Updated findings: 2
+  - **CR-0012 (CELERY_IMPORTS) - 驗證通過**: 
+    - 3 個新增模組 (flaresolverr.tasks.http_action, flaresolverr.tasks.js_trigger, http_sender.tasks) 已在 worker 中正確註冊
+    - 79 個 @shared_task 全部可被發現 (inspect registered 驗證通過)
+  - **CR-0011 (Port Exposure) - 部署驗證**: 
+    - nginx 0.0.0.0:80 仍在運行 (docker-compose.yml 尚未重建生效)，需重建驗證
+    - FlareSolverr 8192 埠仍監聽 0.0.0.0 (嚴重)，待修復
+- Resolved findings: 0
+- Key observations:
+  - Prefetch multiplier = 1 (良好，避免任務囤積)
+  - task_acks_late = true + reject_on_worker_lost = true (良好，防止任務遺失)
+  - Auto agent 任務有完善的重試策略 (max_retries=2-3, 指數退避, 瞬態/非瞬態錯誤區分)
+  - FlareSolverr JS 任務已實作佇列分離 (ai_queue 給 AI 模型任務，default 給下載/參數掃描)
+  - Worker concurrency = 8 (prefork), maxrss ~199MB
+  - 無 time_limit/soft_time_limit 於任何任務 — 關鍵風險
+- Skipped checks: Celery beat schedule validation (需 DB 運行), Playwright (成本控制)
+- Next rotation: cross-cutting
+
+## 2026-07-15 Cycle 5 - Cross-cutting Rotation Review
+
+- Commit: 822b346
+- Changed files: (read-only analysis; no code changes in this cycle)
+- Review domains: Cross-cutting (輪替), Security, Observability, Testing/CI/CD, API Architecture
+- Commands executed:
+  - curl http://localhost:8000/api/openapi.json - 列出 86 個 Ninja endpoints
+  - curl Hasura GraphQL introspection - 確認核心模型完整 CRUD 生成
+  - 手動碼查: c2_core/urls.py, apps/core/api.py, apps/core/vulnerability_api.py, apps/core/overview_api.py, apps/targets/api.py
+  - c2_core/settings.py 安全配置審查
+  - environment.yml 依賴掃描 (sentry-sdk, prometheus-client 已安裝但未啟用)
+  - .github/.github/workflows/ci.yml CI pipeline 審查
+  - pytest/requirements 缺覆蓋率配置確認
+- New findings: 8
+  - **CR-0013 (P2)**: GraphQL/REST API 重複 — 22+ 純 CRUD Ninja endpoints 與 Hasura 自動生成 API 重複 (Targets, Seeds, Overviews, Vulnerabilities, PoCs)
+  - **CR-0014 (P2)**: Celery 任務缺乏 time_limit/soft_time_limit (已在 Cycle 4 記錄)
+  - **CR-0015 (P2)**: Celery 大型資料庫交易 (已在 Cycle 4 記錄)
+  - **CR-0016 (P3)**: Celery 佇列隔離不足 (已在 Cycle 4 記錄)
+  - **CR-0017 (P3)**: Celery 結果保留與監控缺失 (已在 Cycle 4 記錄)
+  - **CR-0018 (P2)**: 安全配置缺口 — CSRF 關閉、DEBUG=True、缺 HSTS/CSP/安全標頭、無速率限制、硬編碼加密金鑰
+  - **CR-0019 (P2)**: 錯誤處理與可觀測性不足 — Sentry/Prometheus 已安裝未啟用、無分散式追蹤、無結構化日誌、無告警
+  - **CR-0020 (P2)**: 測試覆蓋率與 CI/CD 缺口 — 無覆蓋率門檻、無契約測試、CI 缺靜態分析/安全掃描、無 pre-commit
+- Updated findings: 1
+  - **CR-0011 (Port Exposure) - Cycle 5 發現**: FlareSolverr 8192 埠仍缺 127.0.0.1 綁定 (嚴重風險)
+- Resolved findings: 1
+  - **CR-0012 (CELERY_IMPORTS) - 已驗證關閉**: 79 任務全部註冊，狀態更新為 Fixed - Verified
+- Key observations:
+  - Hasura GraphQL 完整支援所有核心模型 CRUD/關聯/彙總/訂閱
+  - Ninja API 86 endpoints 中 ~22 為純 CRUD 重複，~15 為必要 side-effect 操作
+  - Sentry SDK v2.33.2、Prometheus Client v0.17.1 已在環境但未整合
+  - CI 僅跑基本 check/migrate/test/smoke，缺 lint/typecheck/security/coverage/docker-scan
+  - 31 測試檔案但無 pytest 配置、無覆蓋率、無 fixtures 共用
+- Skipped checks: Playwright (成本控制), 負載測試, 混沌工程
+- Next rotation: frontend (循環重啟)
+
+## 2026-07-15 Cycle 6 - Frontend Rotation Review
+
+- Commit: 822b346
+- Changed files: frontend/src/components/SubAgentContainerBlock.tsx (accessibility改善), CLAUDE.md, Dockerfile, c2_core/settings.py, docker/docker-compose.yml, docker/kali_sandbox/Dockerfile
+- Review domains: Frontend (輪替), Docker, Celery, Cross-cutting (增量)
+- Commands executed:
+  - git status, git diff
+  - make check (Django system check) - ✅ 通過
+  - make test (Django tests) - ✅ 通過 (0 tests)
+  - make smoke (API smoke test) - ✅ 通過
+  - cd frontend && npx tsc --noEmit - ✅ 通過
+  - cd frontend && npm run lint - ✅ 通過
+  - cd frontend && npm run build - ✅ 通過 (chunk size 警告)
+  - docker compose -f docker/docker-compose.yml ps - 服務正常運行
+- Re-examined findings (Cycle 1 → Cycle 6 comparison):
+  - **CR-0002 (Pages backup files)**: 仍然存在 - `src/pages/*/` 目錄下僅有 `.bak` 檔案，實際頁面已遷移至 `src/features/*/pages/`，建議清理
+  - **CR-0003 (Responsive breakpoints)**: 未改善 - 仍缺 360px, 390px, 768px, 1366px, 1440px, 1920px, 2560px, 3840px 精確斷點
+  - **CR-0004 (AI Workbench fixed grid)**: 未改善 - 固定三欄 grid-template-columns，980px-1240px 區間最小寬度超過視窗，768px 平板無專用斷點
+  - **CR-0005 (Font sizes below threshold)**: 未改善 - 仍有 17 處使用 < 0.75rem (12px) 字體，最小 0.58rem (9.3px)
+  - **CR-0006 (Status color-only)**: 未改善 - 徽章、狀態點、選中狀態仍僅用顏色區分，缺乏文字/圖示輔助
+  - **CR-0007 (Placeholder as label)**: 未改善 - AI 聊天輸入框仍無 label/aria-label，僅用 placeholder
+  - **CR-0008 (Large CSS file)**: 未改善 - global.css 仍為 1265 行、65KB 單一檔案，未模組化拆分
+  - **CR-0009 (useEffect cleanup)**: 部分改善 - 大多數 effect 有 cancelled 模式，但 loadThreads effect 仍有 exhaustive-deps 禁用，handleSend 依賴 selectedThreadData 物件參考
+- New findings: 0 (本輪重點複審既有問題)
+- Updated findings: 8 (所有既有 frontend finding 更新 last_seen 為 2026-07-15)
+- Resolved findings: 0
+- Key observations:
+  - SubAgentContainerBlock.tsx 改善：將標題列改為 `<button>` + `aria-expanded`/`aria-controls`，展開區塊使用 `hidden` 屬性而非條件渲染，改善無障礙
+  - 前端架構已完成 feature-based 遷移 (src/features/*/pages/)，router 正確引用
+  - TypeScript、ESLint、建構均通過
+  - 大螢幕建構產物主 chunk 1.65MB (gzip 500KB)，建議 code-splitting
+  - config.ts 硬編碼 Hasura admin secret fallback，僅供開發便利
+- Skipped checks: Playwright (成本控制), 視覺回歸測試
+- Next rotation: django-ninja

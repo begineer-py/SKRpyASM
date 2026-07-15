@@ -1,0 +1,29 @@
+{
+  "last_reviewed_commit": "822b346",
+  "last_reviewed_at": "2026-07-15T21:30:00Z",
+  "next_finding_id": 21,
+  "review_cycle": 6,
+  "next_rotation_domain": "django-ninja",
+  "finding_fingerprints": {
+    "documentation/duplicate-file/Agents.md/root": "CR-0001",
+    "frontend/missing-pages/src/pages/*/page-files": "CR-0002",
+    "frontend/responsive-breakpoints/global.css/media-queries": "CR-0003",
+    "frontend/fixed-grid/ai-workbench-shell/grid-template-columns": "CR-0004",
+    "frontend/small-font-sizes/global.css/font-size-tokens": "CR-0005",
+    "frontend/color-only-status/global.css/status-indicators": "CR-0006",
+    "frontend/placeholder-as-label/ai-composer-input/placeholder": "CR-0007",
+    "frontend/large-css-file/global.css/size": "CR-0008",
+    "frontend/useeffect-cleanup/AICenterPage/multiple-effects": "CR-0009",
+    "docker/hardcoded-secrets/docker-compose.yml/postgres-hasura-nocodb": "CR-0010",
+    "docker/port-exposure/docker-compose.yml/multiple-services": "CR-0011",
+    "celery/missing-imports/settings.py/CELERY_IMPORTS": "CR-0012",
+    "cross-cutting/api-duplication/graphql-rest/overlap": "CR-0013",
+    "celery/missing-time-limits/tasks/*.py/@shared_task": "CR-0014",
+    "celery/large-db-transactions/tasks/*.py/transaction.atomic": "CR-0015",
+    "celery/queue-isolation/celery.py/task_routes": "CR-0016",
+    "celery/result-monitoring/celery.py/result_expires": "CR-0017",
+    "cross-cutting/security/configuration/gaps": "CR-0018",
+    "cross-cutting/error-handling/observability/gaps": "CR-0019",
+    "cross-cutting/testing/ci-cd/gaps": "CR-0020"
+  }
+}
