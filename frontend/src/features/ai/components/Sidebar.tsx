@@ -1,5 +1,9 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { Bot, ChevronRight, Filter, MessageSquarePlus, Search, Settings2, SlidersHorizontal, X } from 'lucide-react';
 import type { OverviewData } from '../services/aiApi';
+import type { ThreadSummary } from '../../../services/assistantApi';
+import type { MessageFilterState } from '../../../components/MessageFilterBar';
+import { FilterPopover, SettingsDrawer } from './WorkbenchControls';
 
 interface SidebarProps {
   open: boolean;
@@ -8,15 +12,16 @@ interface SidebarProps {
   onTargetSearchChange: (value: string) => void;
   showInternal: boolean;
   onShowInternalChange: (value: boolean) => void;
+  msgFilter: MessageFilterState;
+  onMessageFilterChange: (next: MessageFilterState) => void;
+  onResetFilters: () => void;
   threadsLoading: boolean;
   threadsError: string | null;
   sidebarTab: 'threads' | 'overviews';
   onSidebarTabChange: (tab: 'threads' | 'overviews') => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  threads: any[];
+  threads: ThreadSummary[];
   selectedThreadId: string | null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  onSelectThread: (thread: any) => void;
+  onSelectThread: (thread: ThreadSummary) => void;
   onDeleteThread: (id: string | null) => void;
   onCreateThread: () => void;
   overviews: OverviewData[];
@@ -33,6 +38,9 @@ export function Sidebar({
   onTargetSearchChange,
   showInternal,
   onShowInternalChange,
+  msgFilter,
+  onMessageFilterChange,
+  onResetFilters,
   threadsLoading,
   threadsError,
   sidebarTab,
@@ -48,131 +56,140 @@ export function Sidebar({
   onNavigate,
   onUnbindTarget,
 }: SidebarProps): ReactNode {
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const filterCount = [
+    Boolean(targetSearchId),
+    !msgFilter.showUserConv,
+    !msgFilter.showAiResponse,
+    msgFilter.showToolCalls,
+    !msgFilter.showSubagent,
+    msgFilter.showSystem,
+    msgFilter.agentFilter.length > 0,
+  ].filter(Boolean).length;
+
   return (
-    <aside className={`sidebar ${open ? 'open' : 'closed'}`}>
-      <div className="sidebar-header">
-        <h3>CONVERSATIONS</h3>
-        <button className="sidebar-toggle" onClick={onClose} title="Collapse">✕</button>
+    <aside className={`ai-conversation-sidebar ${open ? 'is-open' : 'is-closed'}`} aria-label="Conversation navigation">
+      <div className="ai-sidebar__header">
+        <div className="ai-sidebar__identity">
+          <span className="ai-sidebar__mark"><Bot size={17} /></span>
+          <div>
+            <span className="ai-kicker">AI WORKBENCH</span>
+            <h1>Conversations</h1>
+          </div>
+        </div>
+        <button className="ai-icon-button ai-icon-button--sidebar" type="button" onClick={onClose} title="Collapse conversations" aria-label="Collapse conversations">
+          <X size={17} />
+        </button>
       </div>
 
-      <button className="new-chat-btn" onClick={onCreateThread} disabled={threadsLoading}>
-        + New Chat
-      </button>
+      <div className="ai-sidebar__actions">
+        <button className="ai-primary-button ai-primary-button--new-chat" type="button" onClick={onCreateThread} disabled={threadsLoading}>
+          <MessageSquarePlus size={16} />
+          <span>New Chat</span>
+          <kbd>⌘ K</kbd>
+        </button>
+        <div className="ai-sidebar__utility-row">
+          <div className="ai-popover-anchor">
+            <button className={`ai-secondary-button ai-secondary-button--utility ${filterCount > 0 ? 'is-active' : ''}`} type="button" onClick={() => setFilterOpen((value) => !value)} aria-expanded={filterOpen}>
+              <Filter size={15} />
+              <span>Filter</span>
+              {filterCount > 0 && <b>{filterCount}</b>}
+            </button>
+            <FilterPopover
+              open={filterOpen}
+              onClose={() => setFilterOpen(false)}
+              targetSearchId={targetSearchId}
+              onTargetSearchChange={onTargetSearchChange}
+              msgFilter={msgFilter}
+              onMessageFilterChange={onMessageFilterChange}
+              onReset={onResetFilters}
+              activeCount={filterCount}
+            />
+          </div>
+          <button className="ai-secondary-button ai-secondary-button--utility" type="button" onClick={() => setSettingsOpen(true)} title="Workbench settings">
+            <Settings2 size={15} />
+            <span>Settings</span>
+          </button>
+        </div>
+      </div>
 
-      <div className="sidebar-filter">
-        <input
-          type="text"
-          placeholder="Filter by Target ID..."
-          value={targetSearchId}
-          onChange={e => onTargetSearchChange(e.target.value)}
-        />
-        {targetSearchId && (
-          <button className="clear-filter" onClick={() => onTargetSearchChange('')}>✕</button>
+      <div className="ai-sidebar__context">
+        <div className="ai-sidebar__context-label"><span className="ai-status-dot" /> CONVERSATION INDEX</div>
+        <div className="ai-sidebar__context-copy">{threads.length} visible thread{threads.length === 1 ? '' : 's'}</div>
+      </div>
+
+      <div className="ai-sidebar__tabs" role="tablist" aria-label="Conversation views">
+        <button className={`ai-sidebar-tab ${sidebarTab === 'threads' ? 'is-active' : ''}`} type="button" role="tab" aria-selected={sidebarTab === 'threads'} onClick={() => onSidebarTabChange('threads')}>
+          <MessageSquarePlus size={14} /> Threads <span>{threads.length}</span>
+        </button>
+        <button className={`ai-sidebar-tab ${sidebarTab === 'overviews' ? 'is-active' : ''}`} type="button" role="tab" aria-selected={sidebarTab === 'overviews'} onClick={() => onSidebarTabChange('overviews')}>
+          <SlidersHorizontal size={14} /> Overviews <span>{overviews.length}</span>
+        </button>
+      </div>
+
+      <div className="ai-sidebar__body">
+        {threadsLoading && <div className="ai-sidebar-state"><span className="ai-loader" /> Loading conversations</div>}
+        {threadsError && <div className="ai-sidebar-state ai-sidebar-state--error"><strong>Could not load conversations</strong><span>{threadsError}</span></div>}
+
+        {sidebarTab === 'threads' && !threadsLoading && !threadsError && (
+          <div className="ai-thread-list">
+            {threads.length === 0 && (
+              <div className="ai-sidebar-empty">
+                <span className="ai-empty-icon"><Search size={18} /></span>
+                <strong>No conversations found</strong>
+                <span>Try clearing your filters or start a new chat.</span>
+                {filterCount > 0 && <button className="ai-text-button" type="button" onClick={onResetFilters}>Clear filters</button>}
+              </div>
+            )}
+            {threads.map((thread) => {
+              const selected = selectedThreadId === String(thread.id);
+              return (
+                <div key={thread.id} className={`ai-thread-item ${selected ? 'is-selected' : ''}`}>
+                  <button className="ai-thread-item__main" type="button" onClick={() => onSelectThread(thread)} aria-current={selected ? 'page' : undefined}>
+                    <span className="ai-thread-item__icon"><MessageSquarePlus size={15} /></span>
+                    <span className="ai-thread-item__copy">
+                      <strong>{thread.name || 'Untitled conversation'}</strong>
+                      <small>{thread.bound_target_id ? `Target #${thread.bound_target_id}` : 'No target bound'} · {thread.assistant_id || 'AI agent'}</small>
+                    </span>
+                    <ChevronRight className="ai-thread-item__chevron" size={15} />
+                  </button>
+                  {selected && (
+                    <button className="ai-thread-item__delete" type="button" onClick={(event) => { event.stopPropagation(); onDeleteThread(String(thread.id)); }} title="Delete conversation" aria-label={`Delete ${thread.name || 'conversation'}`}>
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {sidebarTab === 'overviews' && (
+          <div className="ai-overview-list">
+            {overviewsLoading && <div className="ai-sidebar-state"><span className="ai-loader" /> Loading overviews</div>}
+            {!boundTargetId && !overviewsLoading && <div className="ai-sidebar-empty"><span className="ai-empty-icon"><SlidersHorizontal size={18} /></span><strong>Bind a target first</strong><span>Select a target-bound conversation to inspect overviews.</span></div>}
+            {!overviewsLoading && boundTargetId && overviews.length === 0 && <div className="ai-sidebar-empty"><span className="ai-empty-icon"><SlidersHorizontal size={18} /></span><strong>No overviews yet</strong><span>Generated target overviews will appear here.</span></div>}
+            {overviews.map((overview) => (
+              <div key={overview.id} className="ai-overview-card">
+                <div className="ai-overview-card__topline"><span>OVERVIEW #{overview.id}</span><span className="ai-status-badge">{overview.status}</span></div>
+                <div className="ai-overview-card__meta">Risk score <strong>{overview.risk_score}</strong></div>
+                <div className="ai-overview-card__actions">
+                  {overview.thread_id != null && <button className="ai-secondary-button ai-secondary-button--tiny" type="button" onClick={() => onSelectThread({ id: overview.thread_id as number, name: `Overview #${overview.id}`, assistant_id: 'automation_agent', is_hidden: true, bound_target_id: null })}>View thread</button>}
+                  <button className="ai-secondary-button ai-secondary-button--tiny" type="button" onClick={() => onNavigate(`/overviews/${overview.id}`)}>Open detail</button>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
-      <div className="p-1 px-2 pb-2">
-        <button
-          className={`c2-btn c2-btn--sm w-full justify-center text-[0.7rem] ${showInternal ? 'c2-btn--primary' : 'c2-btn--ghost'}`}
-          onClick={() => { const next = !showInternal; onShowInternalChange(next); }}
-        >
-          {showInternal ? 'Show system threads' : 'User conversations only'}
-        </button>
-      </div>
-
-      {threadsLoading && <div className="sidebar-loading"><span className="pulse">●</span> Loading...</div>}
-      {threadsError && <div className="sidebar-error">Error: {threadsError}</div>}
-
-      <div className="sidebar-tabs flex gap-1 pt-1 px-2">
-        <button
-          className={`c2-btn c2-btn--sm flex-1 justify-center text-[0.7rem] ${sidebarTab === 'threads' ? 'c2-btn--primary' : 'c2-btn--ghost'}`}
-          onClick={() => onSidebarTabChange('threads')}
-        >
-          THREADS
-        </button>
-        <button
-          className={`c2-btn c2-btn--sm flex-1 justify-center text-[0.7rem] ${sidebarTab === 'overviews' ? 'c2-btn--primary' : 'c2-btn--ghost'}`}
-          onClick={() => onSidebarTabChange('overviews')}
-        >
-          OVERVIEWS{overviews.length > 0 ? ' ✓' : ''}
-        </button>
-      </div>
-
-      {sidebarTab === 'threads' && (
-        <div className="threads-list">
-          {threads.length === 0 && !threadsLoading && (
-            <div className="empty-state">No conversations yet</div>
-          )}
-          {threads.map(thread => (
-            <div
-              key={thread.id}
-              className={`thread-item ${selectedThreadId === String(thread.id) ? 'active' : ''}`}
-              onClick={() => onSelectThread(thread)}
-            >
-              <div className="thread-name">{thread.name || 'Untitled'}</div>
-              {selectedThreadId === String(thread.id) && (
-                <button
-                  className="delete-btn"
-                  onClick={e => { e.stopPropagation(); onDeleteThread(String(thread.id)); }}
-                  title="Delete conversation"
-                >
-                  Delete
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {sidebarTab === 'overviews' && (
-        <div className="threads-list">
-          {overviewsLoading && <div className="sidebar-loading"><span className="pulse">●</span> Loading...</div>}
-          {!boundTargetId && !overviewsLoading && (
-            <div className="empty-state">Select a thread bound to a target to see its overviews</div>
-          )}
-          {overviews.map(ov => (
-            <div key={ov.id} className="thread-item flex flex-col items-stretch gap-1.5">
-              <div className="flex justify-between items-center">
-                <div>
-                  <div className="thread-name">Overview #{ov.id}</div>
-                  <div className="text-[11px] text-[#64748b] mt-0.5">{ov.status} · risk {ov.risk_score}</div>
-                </div>
-              </div>
-              <div className="flex gap-1">
-                {ov.thread_id && (
-                  <button
-                    className="c2-btn c2-btn--ghost c2-btn--sm flex-1 text-[0.65rem]"
-                    onClick={() => onSelectThread({
-                      id: ov.thread_id,
-                      name: `Overview #${ov.id}`,
-                      assistant_id: 'automation_agent',
-                      is_hidden: true,
-                      bound_target_id: null,
-                    })}
-                  >
-                    VIEW THREAD
-                  </button>
-                )}
-                <button
-                  className="c2-btn c2-btn--ghost c2-btn--sm flex-1 text-[0.65rem]"
-                  onClick={() => onNavigate(`/overviews/${ov.id}`)}
-                >
-                  EDIT DETAIL
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
       {boundTargetId && (
-        <div className="sidebar-footer">
-          <div className="target-badge">
-            <span>Target: {boundTargetId}</span>
-            <button onClick={onUnbindTarget} title="Release target">✕</button>
-          </div>
+        <div className="ai-sidebar__footer">
+          <div className="ai-bound-target"><span><span className="ai-status-dot" /> Target #{boundTargetId}</span><button type="button" onClick={onUnbindTarget} aria-label="Unbind target"><X size={14} /></button></div>
         </div>
       )}
+      <SettingsDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} showInternal={showInternal} onShowInternalChange={onShowInternalChange} onResetFilters={onResetFilters} />
     </aside>
   );
 }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useHasuraQuery } from '../../../hooks/useHasuraQuery';
 import { GET_SINGLE_OVERVIEW } from '../../../queries';
 import { executionApi, OverviewService } from '../services/aiApi';
@@ -38,9 +38,10 @@ interface HasuraOverview {
 const OverviewDetailPage: React.FC = () => {
   const { overviewId } = useParams<{ overviewId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const id = parseInt(overviewId || '0');
 
-  const { data, loading, error, refetch } = useHasuraQuery(GET_SINGLE_OVERVIEW, { id });
+  const { data, loading, error, refetch } = useHasuraQuery<{ core_overview_by_pk: HasuraOverview | null }>(GET_SINGLE_OVERVIEW, { id });
 
   const [editFields, setEditFields] = useState<OverviewUpdatePayload>({});
   const [isSaving, setIsSaving] = useState(false);
@@ -49,7 +50,7 @@ const OverviewDetailPage: React.FC = () => {
   const [restData, setRestData] = useState<OverviewData | null>(null);
   const [needsHumanReview, setNeedsHumanReview] = useState(false);
 
-  const overview: HasuraOverview | null = data?.core_overview_by_pk;
+  const overview: HasuraOverview | null = data?.core_overview_by_pk ?? null;
 
   useEffect(() => {
     if (id) {
@@ -140,9 +141,9 @@ const OverviewDetailPage: React.FC = () => {
     <div className="c2-page c2-workspace--overview bg-[#09090b] text-slate-200 font-mono">
       <div className="flex justify-between items-center mb-6 border-b border-[rgba(0,255,0,0.1)] pb-5">
         <div className="flex items-center gap-5">
-          <button className="bg-white/5 border border-white/10 text-slate-400 px-3 py-1.5 rounded cursor-pointer text-xs font-bold transition-all duration-200 hover:bg-white/10 hover:text-slate-200" onClick={() => navigate(-1)}>← BACK</button>
+          <button className="bg-white/5 border border-white/10 text-slate-400 px-3 py-1.5 rounded cursor-pointer text-xs font-bold transition-all duration-200 hover:bg-white/10 hover:text-slate-200" onClick={() => navigate(searchParams.get('returnTo') || `/target/${overview.core_target.id}?tab=overview`)}>← BACK</button>
           <h1 className="text-2xl m-0 text-slate-200 flex items-center gap-3">
-            OVERVIEW <span className="text-[#00ff00] [text-shadow:0_0_10px_rgba(0,255,0,0.3)]">#{overview.id}</span>
+            概覽 <span className="text-[#00ff00] [text-shadow:0_0_10px_rgba(0,255,0,0.3)]">#{overview.id}</span>
             <span className="text-sm text-slate-500 font-normal">@{overview.core_target.name}</span>
             {needsHumanReview && (
               <span

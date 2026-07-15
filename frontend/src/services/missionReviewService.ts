@@ -32,27 +32,15 @@ export interface MissionReview {
   created_at: string;
 }
 
-function toReview(
-  r: GetMissionReviewsByOverviewQuery['mission_review'][number],
-): MissionReview {
+function toReview(r: Record<string, unknown>): MissionReview {
   return {
-    id: r.id,
-    overview_id: r.overview_id,
-    verdict: r.verdict as MissionVerdict,
-    confidence_score: r.confidence_score,
-    reasoning: r.reasoning,
-    rejection_reasons: r.rejection_reasons,
-    suggested_actions: r.suggested_actions,
-    needs_human_review: r.needs_human_review,
-    vuln_count: r.vuln_count,
-    confirmed_vuln_count: r.confirmed_vuln_count,
-    high_severity_count: r.high_severity_count,
-    has_poc_evidence: r.has_poc_evidence,
-    scan_coverage_pct: r.scan_coverage_pct,
-    triggered_by: r.triggered_by,
-    triggered_by_agent: r.triggered_by_agent,
-    reviewed_at: r.reviewed_at,
-    created_at: r.created_at,
+    id: Number(r.id), overview_id: Number(r.overview_id), verdict: r.verdict as MissionVerdict,
+    confidence_score: Number(r.confidence_score ?? 0), reasoning: String(r.reasoning ?? ''),
+    rejection_reasons: Array.isArray(r.rejection_reasons) ? r.rejection_reasons.filter((value): value is string => typeof value === 'string') : [],
+    suggested_actions: Array.isArray(r.suggested_actions) ? r.suggested_actions.filter((value): value is string => typeof value === 'string') : [],
+    needs_human_review: Boolean(r.needs_human_review), vuln_count: Number(r.vuln_count ?? 0), confirmed_vuln_count: Number(r.confirmed_vuln_count ?? 0),
+    high_severity_count: Number(r.high_severity_count ?? 0), has_poc_evidence: Boolean(r.has_poc_evidence), scan_coverage_pct: Number(r.scan_coverage_pct ?? 0),
+    triggered_by: String(r.triggered_by ?? ''), triggered_by_agent: String(r.triggered_by_agent ?? ''), reviewed_at: r.reviewed_at as string | null | undefined, created_at: String(r.created_at ?? ''),
   };
 }
 
@@ -62,7 +50,7 @@ export const MissionReviewService = {
       GetMissionReviewsByOverviewQuery,
       { overviewId: number }
     >(GetMissionReviewsByOverviewDocument, { overviewId });
-    return (data.mission_review ?? []).map(toReview);
+    return (data.mission_review ?? []).map((review) => toReview(review as unknown as Record<string, unknown>));
   },
 
   get: async (reviewId: number): Promise<MissionReview> => {
@@ -70,7 +58,7 @@ export const MissionReviewService = {
       GetMissionReviewDocument,
       { id: reviewId },
     );
-    return toReview(data.mission_review_by_pk!);
+    return toReview(data.mission_review_by_pk! as unknown as Record<string, unknown>);
   },
 
   list: async (params?: {
@@ -92,6 +80,6 @@ export const MissionReviewService = {
       where: Object.keys(where).length > 0 ? where : undefined,
       limit: params?.limit,
     });
-    return (data.mission_review ?? []).map(toReview);
+    return (data.mission_review ?? []).map((review) => toReview(review as unknown as Record<string, unknown>));
   },
 };

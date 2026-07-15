@@ -40,11 +40,11 @@ export default function PlanTab({ targetId }: PlanTabProps) {
       .then((res) => {
         if (cancelled) return;
         const items = Array.isArray(res.items) ? res.items : [];
-        setPlans(items);
+        setPlans(items.map((plan) => ({ ...plan, actions: [] })) as AttackPlanOut[]);
         // Auto-select: ACTIVE first, else most recent DRAFT, else first
         const active = items.find((p) => p.status === 'ACTIVE');
         const draft = items.find((p) => p.status === 'DRAFT');
-        setSelectedPlanId(active?.id ?? draft?.id ?? (items.length > 0 ? items[0].id : null));
+        setSelectedPlanId(Number(active?.id ?? draft?.id ?? (items.length > 0 ? items[0].id : null)) || null);
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load attack plans');
@@ -68,7 +68,7 @@ export default function PlanTab({ targetId }: PlanTabProps) {
 
     AttackPlanService.getPlan(selectedPlanId)
       .then((plan) => {
-        if (!cancelled) setDetailPlan(plan);
+        if (!cancelled && plan) setDetailPlan({ ...plan, actions: plan.core_actions ?? [] } as unknown as AttackPlanOut);
       })
       .catch(() => {
         // Fallback to the list-view plan data

@@ -1,3 +1,5 @@
+import { Activity, Bot, ChevronDown, Eye, PanelLeftOpen, Radio } from 'lucide-react';
+
 interface ChatHeaderProps {
   label: string | null;
   graphCount: number;
@@ -24,36 +26,47 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   onToggleTree,
 }) => {
   return (
-    <div className="chat-header-bar">
-      <div className="chat-header-label">{label}</div>
-      <div className="chat-header-actions">
+    <header className="ai-chat-header">
+      <div className="ai-chat-header__context">
+        <span className="ai-chat-header__icon"><Bot size={17} /></span>
+        <div>
+          <span className="ai-kicker">ACTIVE THREAD</span>
+          <h2>{label || 'Untitled conversation'}</h2>
+        </div>
+        <ChevronDown size={15} className="ai-chat-header__chevron" aria-hidden="true" />
+      </div>
+      <div className="ai-chat-header__status"><Radio size={13} /><span>Live session</span></div>
+      <div className="ai-chat-header__actions">
         {graphCount > 0 && (
           <button
-            className={`tool-log-toggle-btn ${showLogs ? 'active' : ''}`}
+            className={`ai-toolbar-button ${showLogs ? 'is-active' : ''}`}
             onClick={onToggleLogs}
             title="Toggle execution timeline"
+            aria-pressed={showLogs}
           >
-            {graphCount} graph{graphCount > 1 ? 's' : ''}
+            <Activity size={15} /> <span>{graphCount} graph{graphCount > 1 ? 's' : ''}</span>
           </button>
         )}
         <button
-          className={`tool-log-toggle-btn ${showEvents ? 'active' : ''}`}
+          className={`ai-toolbar-button ${showEvents ? 'is-active' : ''}`}
           onClick={onToggleEvents}
           title="Toggle thread events"
+          aria-pressed={showEvents}
         >
-          Events
+          <Eye size={15} /> <span>Events</span>
         </button>
         {hasTree && (
           <button
-            className={`tree-toggle-btn ${showTree ? 'active' : ''}`}
+            className={`ai-toolbar-button ai-toolbar-button--agent ${showTree ? 'is-active' : ''}`}
             onClick={onToggleTree}
             title="Toggle Agent Tree"
+            aria-pressed={showTree}
           >
-            {treeAgentCount > 1 ? `${treeAgentCount - 1} agent${treeAgentCount > 2 ? 's' : ''}` : 'Tree'}
+            <PanelLeftOpen size={15} /> <span>{treeAgentCount > 1 ? `${treeAgentCount - 1} agent${treeAgentCount > 2 ? 's' : ''}` : 'Agents'}</span>
           </button>
         )}
       </div>
-    </div>
+    </header>
   );
 };
 

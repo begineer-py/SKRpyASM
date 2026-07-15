@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { MessageSquarePlus } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { assistantApi, executionApi, OverviewService, type OverviewData } from '../services/aiApi';
@@ -7,7 +8,7 @@ import type { ThreadSummary } from '../../../services/assistantApi';
 import { useHasuraSubscription } from '../../../hooks/useHasuraSubscription';
 import { useDraftInput } from '../../../hooks/useDraftInput';
 import { usePersistentState } from '../../../hooks/usePersistentState';
-import MessageFilterBar, {
+import {
   DEFAULT_MSG_FILTER,
   messagePassesFilter,
   type MessageFilterState,
@@ -20,10 +21,10 @@ import SubAgentContainerBlock, {
 import type {
   AgentInteractionTree,
   ExecutionGraph,
-  SubAgentDispatchItem,
   TargetTopology,
   TopologyNode,
 } from '../services/aiApi';
+import type { SubAgentDispatchItem as ExecutionDispatchItem } from '../../../services/executionApi';
 import { GET_AGENT_TREE_SUBSCRIPTION } from '../../../queries';
 import {
   groupMessagesForRender,
@@ -191,7 +192,7 @@ const AICenterPage: React.FC = () => {
     }
     void executionApi
       .listDispatches(selectedThreadId)
-      .then((items: SubAgentDispatchItem[]) => {
+      .then((items: ExecutionDispatchItem[]) => {
         if (!cancelled) setDispatchedGraphs(items.map(dispatchToView));
       })
       .catch(() => {
@@ -583,8 +584,13 @@ const AICenterPage: React.FC = () => {
       ? `${selectedThreadData.name || 'Hacker AI'}`
       : null;
 
+  const resetWorkbenchFilters = useCallback(() => {
+    setTargetSearchId('');
+    setMsgFilter(DEFAULT_MSG_FILTER);
+  }, [setMsgFilter]);
+
   return (
-    <div className="c2-workspace c2-workspace--ai bg-[linear-gradient(135deg,#0f172a_0%,#0a0e27_100%)] text-slate-50">
+    <div className={`c2-workspace c2-workspace--ai ai-workbench-shell ${sidebarOpen ? '' : 'is-conversations-collapsed'} ${showTree ? '' : 'is-inspector-collapsed'}`}>
       <Sidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -592,6 +598,9 @@ const AICenterPage: React.FC = () => {
         onTargetSearchChange={setTargetSearchId}
         showInternal={showInternal}
         onShowInternalChange={(next) => { setShowInternal(next); localStorage.setItem('aiCenter_showInternal', String(next)); }}
+        msgFilter={msgFilter}
+        onMessageFilterChange={setMsgFilter}
+        onResetFilters={resetWorkbenchFilters}
         threadsLoading={threadsLoading}
         threadsError={threadsError}
         sidebarTab={sidebarTab}
@@ -609,12 +618,12 @@ const AICenterPage: React.FC = () => {
       />
 
       {/* ─── Main chat ───────────────────────────────────────────────── */}
-      <main className="flex-1 flex flex-col relative overflow-hidden">
+      <main className="ai-chat-pane">
         {!sidebarOpen && (
-          <button className="absolute top-4 left-4 bg-transparent border-0 text-slate-400 text-2xl cursor-pointer p-1 z-50 transition-colors duration-200 hover:text-slate-300" onClick={() => setSidebarOpen(true)} title="Open sidebar">☰</button>
+          <button className="ai-open-sidebar" onClick={() => setSidebarOpen(true)} title="Open conversations" aria-label="Open conversations">☰</button>
         )}
 
-        <div className="flex flex-col h-full relative">
+        <div className="ai-chat-pane__inner">
           {selectedThreadId ? (
             <>
               <ChatHeader
@@ -631,19 +640,19 @@ const AICenterPage: React.FC = () => {
               />
 
               {/* Upper area: messages + input */}
-              <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-                <MessageFilterBar filter={msgFilter} onChange={setMsgFilter} />
-                <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4 max-md:p-4 max-md:gap-3" onScroll={handleScroll}>
+              <div className="ai-chat-content">
+                <div className="ai-message-scroll" onScroll={handleScroll}>
                   {filteredMessages.length === 0 && !streamingText && (
-                    <div className="flex-1 flex flex-col items-center justify-center gap-4 text-slate-500">
-                      <div className="text-5xl">AI</div>
-                      <div className="text-base font-medium">
+                    <div className="ai-chat-empty">
+                      <div className="ai-chat-empty__mark">AI</div>
+                      <div className="ai-chat-empty__title">
                         {messages.length === 0 ? 'Start a conversation' : 'No messages match current filters'}
                       </div>
+                      <p>{messages.length === 0 ? 'Ask the active agent to inspect a target, explain evidence, or start a workflow.' : 'Open Filter to adjust what is visible in this thread.'}</p>
                     </div>
                   )}
                   {displayLimit < filteredMessages.length && (
-                    <div className="text-center p-2.5 text-slate-500 text-sm">Loading older messages...</div>
+                    <div className="ai-loading-history">Loading older messages...</div>
                   )}
                   {renderItems.map((item, idx) => {
                     if (item.kind === 'tool_group') {
@@ -689,14 +698,14 @@ const AICenterPage: React.FC = () => {
                     const msg = item.message;
                     return (
                       <div key={msg.id || idx} className={cn(
-                        "w-full max-w-[900px] mx-auto flex",
+                        "ai-message-row",
                         msg.role === 'user' ? 'justify-end' : 'justify-start',
                       )}>
                         <div className={cn(
-                          "px-4 py-3 break-words text-[0.95rem] leading-relaxed",
+                          "ai-message-card",
                           msg.role === 'user'
-                            ? "bg-green-500 text-[#020617] rounded-[12px_12px_4px_12px] max-w-[70%]"
-                            : "bg-slate-800 text-slate-300 rounded-[12px_12px_12px_4px] border border-slate-700 max-w-[90%]"
+                            ? "ai-message-card--user"
+                            : "ai-message-card--assistant"
                         )}>
                           {msg.role === 'user' ? (
                             <div className="whitespace-pre-wrap">{msg.textContent}</div>
@@ -708,8 +717,8 @@ const AICenterPage: React.FC = () => {
                     );
                   })}
                   {streamingText && (
-                    <div className="w-full max-w-[900px] mx-auto flex justify-start">
-                      <div className="px-4 py-3 break-words text-[0.95rem] leading-relaxed bg-slate-800 text-slate-300 rounded-[12px_12px_12px_4px] border border-slate-700 max-w-[90%]">
+                    <div className="ai-message-row justify-start">
+                      <div className="ai-message-card ai-message-card--assistant">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingText}</ReactMarkdown>
                       </div>
                     </div>
@@ -717,11 +726,11 @@ const AICenterPage: React.FC = () => {
                   <div ref={messagesEndRef} />
                 </div>
 
-                <div className="px-6 pt-4 pb-6 bg-[linear-gradient(180deg,rgba(15,23,42,0)_0%,rgba(15,23,42,0.8)_100%)] border-t border-slate-800 max-md:px-4 max-md:py-3">
-                  <div className="flex gap-3 max-w-[900px] mx-auto w-full max-md:flex-col max-md:px-4">
+                <div className="ai-composer-wrap">
+                  <div className="ai-composer">
                     <textarea
-                      className="flex-1 px-4 py-3 bg-slate-900 border border-slate-800 rounded-lg text-slate-50 text-[0.95rem] resize-none outline-none transition-all duration-200 leading-relaxed placeholder:text-slate-500 hover:border-slate-700 hover:bg-[#0a0f1f] focus:border-green-500 focus:bg-[#0a0f1f] focus:shadow-[0_0_0_2px_rgba(34,197,94,0.15),0_0_16px_rgba(34,197,94,0.2)] disabled:opacity-50 disabled:cursor-not-allowed"
-                      placeholder="Type your message... (Shift+Enter for new line)"
+                      className="ai-composer__input"
+                      placeholder="Message the active agent…"
                       value={inputVal}
                       onChange={e => setInputVal(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
@@ -729,14 +738,15 @@ const AICenterPage: React.FC = () => {
                       rows={3}
                     />
                     <button
-                      className="px-6 py-3 bg-green-500 text-[#020617] border-0 rounded-lg font-semibold text-[0.95rem] cursor-pointer transition-all duration-200 whitespace-nowrap min-w-[100px] hover:bg-green-400 hover:shadow-[0_0_16px_rgba(34,197,94,0.3)] hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed max-md:w-full"
+                      className="ai-send-button"
                       onClick={handleSend}
                       disabled={isSending || !inputVal.trim() || !selectedThreadId}
                       title={isSending ? 'Sending...' : 'Send message (Enter)'}
                     >
-                      {isSending ? '...' : 'Send'}
+                      {isSending ? 'Sending…' : 'Send'}
                     </button>
                   </div>
+                  <div className="ai-composer__hint"><span>↵ Send</span><span>⇧ ↵ New line</span><span className="ai-composer__hint-status"><span className="ai-status-dot" /> Agent ready</span></div>
                 </div>
               </div>
 
@@ -765,11 +775,13 @@ const AICenterPage: React.FC = () => {
               )}
             </>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center gap-4 text-slate-500">
-              <div className="text-5xl">AI</div>
-              <div className="text-base font-medium">
+            <div className="ai-workbench-empty">
+              <div className="ai-chat-empty__mark">AI</div>
+              <div className="ai-chat-empty__title">
                 {allThreads.length === 0 ? 'Create a new conversation to get started' : 'Select a conversation'}
               </div>
+              <p>{allThreads.length === 0 ? 'Your agent workspace will appear here once a conversation is active.' : 'Choose a thread from the conversation index to inspect its messages and execution context.'}</p>
+              {allThreads.length === 0 && <button className="ai-primary-button" type="button" onClick={createNewThread}> <MessageSquarePlus size={15} /> New Chat</button>}
             </div>
           )}
         </div>
