@@ -27,9 +27,10 @@ interface AIOverviewTabContentProps {
   overview: AIOverview | null;
   tabLoading: boolean;
   onRefresh: () => void;
+  targetId: number;
 }
 
-const AIOverviewTabContent: React.FC<AIOverviewTabContentProps> = ({ overview, tabLoading, onRefresh }) => {
+const AIOverviewTabContent: React.FC<AIOverviewTabContentProps> = ({ overview, tabLoading, onRefresh, targetId }) => {
   const navigate = useNavigate();
 
   return (
@@ -67,7 +68,7 @@ const AIOverviewTabContent: React.FC<AIOverviewTabContentProps> = ({ overview, t
                 <div className="td-muted">{new Date(overview.updated_at).toLocaleString()}</div>
                 <button
                   className="c2-btn c2-btn--ghost text-[0.7rem] mt-1"
-                  onClick={() => navigate(`/overviews/${overview.id}`)}
+                  onClick={() => navigate(`/overviews/${overview.id}?returnTo=${encodeURIComponent(`/target/${targetId}?tab=overview`)}`)}
                 >
                   EDIT DETAILS →
                 </button>

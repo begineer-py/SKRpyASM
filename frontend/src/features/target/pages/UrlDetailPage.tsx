@@ -1,6 +1,6 @@
 // src/pages/UrlDetailPage/UrlDetailPage.tsx
 import { useState, useEffect, useCallback } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useSearchParams } from "react-router-dom";
 import { GET_URL_DETAIL_QUERY, gqlFetcher } from "../services/targetApi";
 import { cn } from '@/lib/utils';
 
@@ -139,6 +139,7 @@ function Collapsible({ title, icon, count, children }: { title: string; icon: st
 
 export default function UrlDetailPage() {
   const { targetId, urlId } = useParams();
+  const [searchParams] = useSearchParams();
   const nUrlId = Number(urlId);
 
   const [data, setData] = useState<UrlDetail | null>(null);
@@ -193,12 +194,11 @@ export default function UrlDetailPage() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   if (loading) return (
-    <div className="max-w-[1280px] mx-auto px-6 py-7 font-mono text-[#8b949e] pt-[60px] text-center">
-      Loading URL intel...
+    <div className="c2-page text-center"><div className="c2-loading justify-center">正在載入 URL 詳情…</div>
     </div>
   );
   if (error || !data) return (
-    <div className="max-w-[1280px] mx-auto px-6 py-7 font-mono text-[#f85149] pt-[60px] text-center">
+    <div className="c2-page text-center">
       {error || "URL not found."}
     </div>
   );
@@ -210,13 +210,13 @@ export default function UrlDetailPage() {
     : {};
 
   return (
-    <div className="max-w-[1280px] mx-auto px-6 py-7 font-mono">
+    <div className="c2-page font-body text-text-primary">
       {/* ── Hero Header ── */}
       <div className="bg-[linear-gradient(135deg,#0d1117_0%,#161b22_100%)] border border-[#21262d] rounded-xl px-7 py-6 mb-6 relative overflow-hidden before:content-[''] before:absolute before:inset-0 before:bg-[linear-gradient(90deg,rgba(0,255,180,0.04)_0%,transparent_50%)] before:pointer-events-none">
         <div className="text-[0.72rem] text-[#484f58] mb-2.5 uppercase tracking-[0.08em]">
-          <Link to={`/target/${targetId}`} className="text-[#58a6ff] no-underline hover:underline">Target</Link>
+          <Link to={searchParams.get('returnTo') || `/target/${targetId}?tab=assets`} className="text-[#58a6ff] no-underline hover:underline">目標</Link>
           {" / "}
-          URL Detail
+          URL 詳情
         </div>
 
         <div className="text-[1.15rem] font-semibold text-[#e6edf3] break-all mb-3 leading-snug">
@@ -310,7 +310,7 @@ export default function UrlDetailPage() {
                     {subdomains.map(sub => (
                       <Link
                         key={sub.id}
-                        to={`/target/${targetId}/subdomain/${sub.id}`}
+                        to={`/target/${targetId}/subdomain/${sub.id}?returnTo=${encodeURIComponent(`/target/${targetId}?tab=assets`)}`}
                         className="inline-block mr-2 text-[#58a6ff]"
                       >
                         {sub.name}

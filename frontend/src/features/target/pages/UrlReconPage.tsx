@@ -130,11 +130,11 @@ function UrlReconPage() {
     }
   };
 
-  if (loading) return <div className="max-w-[1400px] mx-auto p-5 font-mono text-[#e0e0e0]">INITIALIZING URL RECON ENVIRONMENT...</div>;
-  if (!seedVal) return <div className="max-w-[1400px] mx-auto p-5 font-mono text-[#e0e0e0]">ERROR: SEED DATA NOT FOUND.</div>;
+  if (loading) return <div className="c2-page"><div className="c2-loading">正在載入 URL 偵察資料…</div></div>;
+  if (!seedVal) return <div className="c2-page"><div className="c2-empty">找不到 Seed 資料。</div></div>;
 
   return (
-    <div className="max-w-[1400px] mx-auto p-5 font-mono text-[#e0e0e0]">
+    <div className="c2-page font-body text-text-primary">
       {/* Target Module */}
       <div className="bg-[#1e1e1e] border border-[#333] px-[30px] py-[25px] rounded-md mb-[30px] flex justify-between items-center border-l-4 border-red">
         <div>

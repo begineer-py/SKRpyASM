@@ -14,7 +14,7 @@ export interface CreateTargetPayload {
 
 export interface UpdateTargetPayload {
   name?: string;
-  description?: string;
+  description?: string | null;
 }
 
 export interface AddSeedPayload {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
   AiAnalysisService,
   GET_SUBDOMAIN_DETAIL_QUERY,
@@ -16,6 +16,7 @@ const BooleanDisplay: React.FC<{ value: boolean }> = ({ value }) => (
 
 function SubdomainDetailPage() {
   const { targetId, subdomainId } = useParams();
+  const [searchParams] = useSearchParams();
   const nSubdomainId = Number(subdomainId);
 
   const [intel, setIntel] = useState<SubdomainIntelResponse | null>(null);
@@ -65,9 +66,10 @@ function SubdomainDetailPage() {
   );
 
   return (
-    <div className="max-w-[1600px] mx-auto p-5 pt-[calc(var(--navbar-height)+24px)] font-mono">
+    <div className="c2-page font-body text-text-primary">
       {/* 標頭 */}
       <div className="mb-5">
+        <Link to={searchParams.get('returnTo') || `/target/${targetId}?tab=assets`} className="c2-btn c2-btn--ghost">返回 Assets</Link>
         <h1 className="m-0">{subdomain.name}</h1>
         <div className="text-[#888]">Subdomain Deep-Dive Analysis</div>
       </div>

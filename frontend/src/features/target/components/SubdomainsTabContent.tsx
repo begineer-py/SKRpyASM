@@ -123,7 +123,7 @@ const SubdomainsTabContent: React.FC<SubdomainsTabContentProps> = ({
             </tr></thead>
             <tbody>
               {subdomains.map(sub => (
-                <tr key={sub.id} onClick={() => navigate(`/target/${targetId}/subdomain/${sub.id}`)} className="cursor-pointer">
+                  <tr key={sub.id} onClick={() => navigate(`/target/${targetId}/subdomain/${sub.id}?returnTo=${encodeURIComponent(`/target/${targetId}?tab=assets`)}`)} className="cursor-pointer">
                   <td className="td-mono">#{sub.id}</td>
                   <td className="td-mono text-cyan">{sub.name}</td>
                   <td>{sub.is_cdn ? <span className="c2-badge c2-badge--amber">CDN</span> : <span className="td-muted">—</span>}</td>

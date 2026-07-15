@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   gqlFetcher,
   GET_TARGET_DETAIL_QUERY,
@@ -11,7 +11,6 @@ import {
 import { GLOBAL_CONFIG } from "../../../config";
 import { createCoreClient } from "../../../services/apiClient";
 import { useApiQuery } from "../../../hooks/useApiQuery";
-import TargetActivityMonitor from "../../../components/TargetActivityMonitor";
 import TechStackCVEReport from "../../../components/TechStackCVEReport";
 import type { Target, Seed } from "../types";
 import TargetHeader from '../components/TargetHeader';
@@ -20,6 +19,10 @@ import SubdomainsTabContent from '../components/SubdomainsTabContent';
 import IPsTabContent from '../components/IPsTabContent';
 import URLsTabContent from '../components/URLsTabContent';
 import AIOverviewTabContent from '../components/AIOverviewTabContent';
+import { TargetExecutionsPanel } from '../components/TargetExecutionsPanel';
+import { TargetFindingsPanel } from '../components/TargetFindingsPanel';
+import PlanTab from '../../ai/components/PlanTab';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui/tabs';
 
 // ─── Type Definitions ─────────────────────────────────────────
 interface Port {
@@ -102,7 +105,8 @@ interface IPRaw {
   core_ports?: Port[];
 }
 
-type TabId = "seeds" | "activity" | "subdomains" | "ips" | "urls" | "cve" | "ai" | "requestConfig";
+type TabId = "overview" | "assets" | "attack-plans" | "findings" | "executions" | "ai-activity" | "settings";
+type AssetTabId = "seeds" | "subdomains" | "ips" | "urls" | "cve";
 type SubSortKey = "created_at_desc" | "created_at_asc" | "name_asc" | "name_desc";
 type IPSortKey = "id_desc" | "address_asc" | "address_desc";
 type URLSortKey = "created_at_desc" | "created_at_asc" | "status_code_asc" | "preliminary_score_desc" | "preliminary_score_asc";
@@ -112,6 +116,10 @@ const IP_PAGE_SIZE = 50;
 const URLS_PAGE_SIZE = 50;
 
 const coreApi = createCoreClient();
+
+function isTargetTab(value: string | null): value is TabId {
+  return value === "overview" || value === "assets" || value === "attack-plans" || value === "findings" || value === "executions" || value === "ai-activity" || value === "settings";
+}
 
 interface ReqConfig {
   header_enabled: boolean | null;
@@ -128,6 +136,7 @@ const DEFAULT_REQ_CONFIG: ReqConfig = { header_enabled: null, header_username: n
 // ─── MAIN COMPONENT ────────────────────────────────────────────
 function TargetDashboard() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { targetId } = useParams<{ targetId: string }>();
   const numericId = Number(targetId);
 
@@ -137,7 +146,11 @@ function TargetDashboard() {
   const [ips, setIps] = useState<IPAsset[]>([]);
   const [urls, setUrls] = useState<URLAsset[]>([]);
   const [overview, setOverview] = useState<AIOverview | null>(null);
-  const [activeTab, setActiveTab] = useState<TabId>("seeds");
+  const [activeTab, setActiveTab] = useState<TabId>(() => {
+    const tab = searchParams.get("tab");
+    return isTargetTab(tab) ? tab : "overview";
+  });
+  const [activeAssetTab, setActiveAssetTab] = useState<AssetTabId>("seeds");
   const [loading, setLoading] = useState(true);
   const [tabLoading, setTabLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -162,13 +175,14 @@ function TargetDashboard() {
   const [urlsSortBy, setUrlsSortBy] = useState<URLSortKey>("created_at_desc");
   const [urlSearch, setUrlSearch] = useState("");
   const [urlStatusFilter, setUrlStatusFilter] = useState("");
+  const lastHydratedSelectionRef = useRef<string | null>(null);
 
   // Per-target request config
   const {
     data: reqConfigFetched,
     refetch: refetchReqConfig,
   } = useApiQuery<ReqConfig>(
-    () => coreApi.get<ReqConfig>(`/target-request-config/${numericId}`).then(r => r.data),
+    async () => (await coreApi.get<ReqConfig>(`/target-request-config/${numericId}`)).data,
     [numericId],
     { immediate: false },
   );
@@ -179,6 +193,11 @@ function TargetDashboard() {
   useEffect(() => {
     if (reqConfigFetched) setReqConfig(reqConfigFetched);
   }, [reqConfigFetched]);
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    setActiveTab(isTargetTab(tab) ? tab : "overview");
+  }, [searchParams]);
 
   // ── Fetch base target data ──
   const fetchBase = useCallback(async () => {
@@ -378,21 +397,51 @@ function TargetDashboard() {
 
   useEffect(() => { fetchBase(); }, [fetchBase]);
 
+  useEffect(() => {
+    if (!numericId || isNaN(numericId)) return;
+    const selectionKey = `${numericId}:${activeTab}:${activeAssetTab}`;
+    if (lastHydratedSelectionRef.current === selectionKey) return;
+    lastHydratedSelectionRef.current = selectionKey;
+
+    if (activeTab === "assets" && activeAssetTab === "subdomains") {
+      void fetchSubdomains(subPage, subSortBy, subSearch, subFilterCdn, subFilterWaf);
+      return;
+    }
+    if (activeTab === "assets" && activeAssetTab === "ips") {
+      void fetchIPs(ipPage, ipSortBy, ipPortFilter);
+      return;
+    }
+    if (activeTab === "assets" && activeAssetTab === "urls") {
+      void fetchURLs(urlsOffset, urlsSortBy, urlSearch, urlStatusFilter);
+      return;
+    }
+    if (activeTab === "overview" || activeTab === "ai-activity") {
+      void fetchOverviews();
+      return;
+    }
+    if (activeTab === "settings") void refetchReqConfig();
+  }, [activeAssetTab, activeTab, fetchIPs, fetchOverviews, fetchSubdomains, fetchURLs, ipPage, ipPortFilter, ipSortBy, numericId, refetchReqConfig, subFilterCdn, subFilterWaf, subPage, subSearch, subSortBy, urlSearch, urlStatusFilter, urlsOffset, urlsSortBy]);
+
   const handleTabChange = (tab: TabId) => {
     setActiveTab(tab);
+    setSearchParams({ tab });
+    if (tab === "assets" && activeAssetTab === "subdomains") {
+      setSubPage(0);
+    } else if (tab === "assets" && activeAssetTab === "ips") {
+      setIpPage(0);
+    } else if (tab === "assets" && activeAssetTab === "urls") {
+      setUrlsOffset(0);
+    }
+  };
+
+  const handleAssetTabChange = (tab: AssetTabId) => {
+    setActiveAssetTab(tab);
     if (tab === "subdomains") {
       setSubPage(0);
-      fetchSubdomains(0, subSortBy, subSearch, subFilterCdn, subFilterWaf);
     } else if (tab === "ips") {
       setIpPage(0);
-      fetchIPs(0, ipSortBy, ipPortFilter);
     } else if (tab === "urls") {
       setUrlsOffset(0);
-      fetchURLs(0, urlsSortBy, urlSearch, urlStatusFilter);
-    } else if (tab === "ai") {
-      fetchOverviews();
-    } else if (tab === "requestConfig") {
-      refetchReqConfig();
     }
   };
 
@@ -401,15 +450,14 @@ function TargetDashboard() {
   if (error) return <div className="c2-loading text-red">ERROR: {error}</div>;
   if (!target) return null;
 
-  const TABS: { id: TabId; label: string; count?: number }[] = [
-    { id: "seeds",      label: "Seeds",         count: seeds.length },
-    { id: "activity",   label: "AI Activity" },
-    { id: "subdomains", label: "Subdomains",    count: subTotalCount || undefined },
-    { id: "ips",        label: "IPs / Ports",   count: ipTotalCount || undefined },
-    { id: "urls",       label: "URLs",          count: urlsTotalCount || undefined },
-    { id: "cve",        label: "CVE Report" },
-    { id: "ai",         label: "AI Overview",   count: overview ? 1 : undefined },
-    { id: "requestConfig", label: "Req Config" },
+  const TABS: { id: TabId; label: string }[] = [
+    { id: "overview", label: "Overview" },
+    { id: "assets", label: "Assets" },
+    { id: "attack-plans", label: "Attack Plans" },
+    { id: "findings", label: "Findings" },
+    { id: "executions", label: "Executions" },
+    { id: "ai-activity", label: "AI Activity" },
+    { id: "settings", label: "Settings" },
   ];
 
   return (
@@ -417,121 +465,41 @@ function TargetDashboard() {
       {/* ── Header ── */}
       <TargetHeader target={target} seeds={seeds} onBack={() => navigate("/")} />
 
-      {/* ── Tabs ── */}
-      <div className="c2-tabs">
-        {TABS.map(tab => (
-          <button
-            key={tab.id}
-            className={`c2-tab ${activeTab === tab.id ? "active" : ""}`}
-            onClick={() => handleTabChange(tab.id)}
-          >
-            {tab.label}
-            {tab.count !== undefined && (
-              <span className="inline-flex min-w-[22px] justify-center bg-[rgba(6,182,212,0.12)] border border-[rgba(6,182,212,0.22)] text-cyan text-[0.6rem] px-1.5 py-px rounded-[10px] ml-1.5 font-mono">{tab.count}</span>
-            )}
-          </button>
-        ))}
-      </div>
+      <Tabs value={activeTab} onValueChange={(value) => { if (isTargetTab(value)) handleTabChange(value); }}>
+        <TabsList variant="line" aria-label="Target workspace tabs" className="h-auto w-full justify-start overflow-x-auto rounded-xl border border-border-subtle bg-bg-card p-2">
+          {TABS.map((tab) => <TabsTrigger key={tab.id} value={tab.id} className="flex-none data-[state=active]:text-cyan">{tab.label}</TabsTrigger>)}
+        </TabsList>
 
-      {/* ── Tab Content ── */}
-      <div className="min-h-[300px] border border-[rgba(148,163,184,0.08)] rounded-[20px] bg-[rgba(5,8,20,0.22)] p-3.5">
+        <TabsContent value="overview" className="mt-6 rounded-2xl border border-border-subtle bg-bg-card p-5">
+          <AIOverviewTabContent overview={overview} tabLoading={tabLoading} onRefresh={fetchOverviews} targetId={numericId} />
+        </TabsContent>
 
-        {/* SEEDS TAB */}
-        {activeTab === "seeds" && (
-          <SeedsTabContent targetId={numericId} seeds={seeds} onRefresh={fetchBase} />
-        )}
+        <TabsContent value="assets" className="mt-6 rounded-2xl border border-border-subtle bg-bg-card p-5">
+          <Tabs value={activeAssetTab} onValueChange={(value) => { if (value === "seeds" || value === "subdomains" || value === "ips" || value === "urls" || value === "cve") handleAssetTabChange(value); }}>
+            <TabsList variant="line" aria-label="Asset categories" className="h-auto w-full justify-start overflow-x-auto rounded-xl bg-bg-surface p-2">
+              <TabsTrigger value="seeds" className="flex-none">Seeds ({seeds.length})</TabsTrigger>
+              <TabsTrigger value="subdomains" className="flex-none">Subdomains</TabsTrigger>
+              <TabsTrigger value="ips" className="flex-none">IPs / Ports</TabsTrigger>
+              <TabsTrigger value="urls" className="flex-none">URLs</TabsTrigger>
+              <TabsTrigger value="cve" className="flex-none">CVE Report</TabsTrigger>
+            </TabsList>
+            <TabsContent value="seeds" className="mt-5"><SeedsTabContent targetId={numericId} seeds={seeds} onRefresh={fetchBase} /></TabsContent>
+            <TabsContent value="subdomains" className="mt-5"><SubdomainsTabContent targetId={numericId} subdomains={subdomains} tabLoading={tabLoading} subTotalCount={subTotalCount} subSortBy={subSortBy} subSearch={subSearch} subFilterCdn={subFilterCdn} subFilterWaf={subFilterWaf} subPage={subPage} pageSize={SUB_PAGE_SIZE} onFetch={fetchSubdomains} onSortChange={setSubSortBy} onSearchChange={setSubSearch} onFilterCdnChange={setSubFilterCdn} onFilterWafChange={setSubFilterWaf} /></TabsContent>
+            <TabsContent value="ips" className="mt-5"><IPsTabContent ips={ips} tabLoading={tabLoading} ipTotalCount={ipTotalCount} ipSortBy={ipSortBy} ipPortFilter={ipPortFilter} ipPage={ipPage} pageSize={IP_PAGE_SIZE} onFetch={fetchIPs} onSortChange={setIpSortBy} onPortFilterChange={setIpPortFilter} /></TabsContent>
+            <TabsContent value="urls" className="mt-5"><URLsTabContent targetId={numericId} urls={urls} tabLoading={tabLoading} urlsTotalCount={urlsTotalCount} urlsSortBy={urlsSortBy} urlSearch={urlSearch} urlStatusFilter={urlStatusFilter} urlsOffset={urlsOffset} pageSize={URLS_PAGE_SIZE} onFetch={fetchURLs} onSortChange={setUrlsSortBy} onSearchChange={setUrlSearch} onStatusFilterChange={setUrlStatusFilter} /></TabsContent>
+            <TabsContent value="cve" className="mt-5"><TechStackCVEReport targetId={numericId} /></TabsContent>
+          </Tabs>
+        </TabsContent>
 
-        {/* ACTIVITY TAB */}
-        {activeTab === "activity" && (
-          <div className="flex flex-col h-full gap-3">
-            <div className="c2-section-header">
-              <span className="c2-section-title">AI ACTIVITY MONITOR</span>
-              <span className="td-muted text-xs">
-                Real-time tracking of AI operations on this target
-              </span>
-            </div>
-            <div className="flex-1 min-h-0 px-4">
-              <TargetActivityMonitor targetId={numericId} compact={false} maxSteps={50} />
-            </div>
-          </div>
-        )}
+        <TabsContent value="attack-plans" className="mt-6 rounded-2xl border border-border-subtle bg-bg-card p-5"><PlanTab targetId={numericId} /></TabsContent>
+        <TabsContent value="findings" className="mt-6 rounded-2xl border border-border-subtle bg-bg-card p-5"><TargetFindingsPanel targetId={numericId} /></TabsContent>
+        <TabsContent value="executions" className="mt-6 rounded-2xl border border-border-subtle bg-bg-card p-5"><TargetExecutionsPanel targetId={numericId} /></TabsContent>
+        <TabsContent value="ai-activity" className="mt-6 rounded-2xl border border-border-subtle bg-bg-card p-5">{overview?.thread_id ? <div className="flex flex-col gap-4"><p className="text-sm text-text-secondary">AI Activity is available for this Target’s linked Overview thread.</p><button className="c2-btn c2-btn--primary w-fit" onClick={() => navigate(`/aicenter?thread=${overview.thread_id}`)}>Open AI thread</button></div> : <div className="c2-empty">No Overview-linked AI thread is available for this Target.</div>}</TabsContent>
 
-        {/* SUBDOMAINS TAB */}
-        {activeTab === "subdomains" && (
-          <SubdomainsTabContent
-            targetId={numericId}
-            subdomains={subdomains}
-            tabLoading={tabLoading}
-            subTotalCount={subTotalCount}
-            subSortBy={subSortBy}
-            subSearch={subSearch}
-            subFilterCdn={subFilterCdn}
-            subFilterWaf={subFilterWaf}
-            subPage={subPage}
-            pageSize={SUB_PAGE_SIZE}
-            onFetch={fetchSubdomains}
-            onSortChange={setSubSortBy}
-            onSearchChange={setSubSearch}
-            onFilterCdnChange={setSubFilterCdn}
-            onFilterWafChange={setSubFilterWaf}
-          />
-        )}
-
-        {/* IPs / PORTS TAB */}
-        {activeTab === "ips" && (
-          <IPsTabContent
-            ips={ips}
-            tabLoading={tabLoading}
-            ipTotalCount={ipTotalCount}
-            ipSortBy={ipSortBy}
-            ipPortFilter={ipPortFilter}
-            ipPage={ipPage}
-            pageSize={IP_PAGE_SIZE}
-            onFetch={fetchIPs}
-            onSortChange={setIpSortBy}
-            onPortFilterChange={setIpPortFilter}
-          />
-        )}
-
-        {/* URLs TAB */}
-        {activeTab === "urls" && (
-          <URLsTabContent
-            urls={urls}
-            tabLoading={tabLoading}
-            urlsTotalCount={urlsTotalCount}
-            urlsSortBy={urlsSortBy}
-            urlSearch={urlSearch}
-            urlStatusFilter={urlStatusFilter}
-            urlsOffset={urlsOffset}
-            pageSize={URLS_PAGE_SIZE}
-            onFetch={fetchURLs}
-            onSortChange={setUrlsSortBy}
-            onSearchChange={setUrlSearch}
-            onStatusFilterChange={setUrlStatusFilter}
-          />
-        )}
-
-        {/* CVE REPORT TAB */}
-        {activeTab === "cve" && (
-          <div className="p-5">
-            <TechStackCVEReport targetId={numericId} />
-          </div>
-        )}
-
-        {/* AI OVERVIEW TAB */}
-        {activeTab === "ai" && (
-          <AIOverviewTabContent
-            overview={overview}
-            tabLoading={tabLoading}
-            onRefresh={fetchOverviews}
-          />
-        )}
-
-        {/* REQUEST CONFIG TAB */}
-        {activeTab === "requestConfig" && (
+        <TabsContent value="settings" className="mt-6 rounded-2xl border border-border-subtle bg-bg-card p-5">
           <div className="p-5 max-w-[700px]">
             <div className="c2-section-header">
-              <span className="c2-section-title">REQUEST CONFIG OVERRIDE</span>
+              <span className="c2-section-title">請求設定</span>
               <div className="flex gap-2">
                 <button className="c2-btn c2-btn--ghost text-[0.7rem]" onClick={() => void refetchReqConfig()}>↻ REFRESH</button>
               </div>
@@ -645,8 +613,8 @@ function TargetDashboard() {
               )}
             </div>
           </div>
-        )}
-      </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

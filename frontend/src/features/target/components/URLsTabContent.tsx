@@ -25,6 +25,7 @@ interface URLAsset {
 type URLSortKey = 'created_at_desc' | 'created_at_asc' | 'status_code_asc' | 'preliminary_score_desc' | 'preliminary_score_asc';
 
 interface URLsTabContentProps {
+  targetId: number;
   urls: URLAsset[];
   tabLoading: boolean;
   urlsTotalCount: number;
@@ -40,6 +41,7 @@ interface URLsTabContentProps {
 }
 
 const URLsTabContent: React.FC<URLsTabContentProps> = ({
+  targetId,
   urls,
   tabLoading,
   urlsTotalCount,
@@ -153,7 +155,7 @@ const URLsTabContent: React.FC<URLsTabContentProps> = ({
                       <td><StatusBadge status={url.content_fetch_status} /></td>
                       <td className="td-muted">{new Date(url.created_at).toLocaleDateString()}</td>
                       <td>
-                        <a href={`/target/${url.id.split('-')[0] || ''}/url/${url.id}`} className="text-cyan text-[0.72rem] no-underline font-mono">
+                        <a href={`/target/${targetId}/url/${url.id}?returnTo=${encodeURIComponent(`/target/${targetId}?tab=assets`)}`} className="text-cyan text-[0.72rem] no-underline font-mono">
                           DETAIL →
                         </a>
                       </td>

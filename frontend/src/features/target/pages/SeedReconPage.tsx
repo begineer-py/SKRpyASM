@@ -109,7 +109,7 @@ function SeedReconPage() {
   );
 
   return (
-    <div className="max-w-[1400px] mx-auto p-5 font-mono text-[#e0e0e0]">
+    <div className="c2-page font-body text-text-primary">
       {/* Header */}
       <div className="bg-[#1e1e1e] border border-[#333] px-[30px] py-[25px] rounded-md mb-[30px] flex justify-between items-center border-l-4 border-l-[#2196f3]">
         <div>

@@ -16,6 +16,10 @@ import type { Target, CreateTargetPayload, UpdateTargetPayload } from '../type';
 // ==========================================
 
 export const TargetService = {
+  list: async () => {
+    const data = await gqlFetcher<{ core_target: Target[] }>(GET_TARGETS_QUERY);
+    return data.core_target;
+  },
   create: async (payload: CreateTargetPayload) => {
     const data = await executeGraphQL<CreateTargetMutation, { object: CreateTargetPayload }>(
       CreateTargetDocument,
