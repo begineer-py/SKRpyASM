@@ -2,6 +2,7 @@
 # 核心基礎模型：專案（Target）與種子（Seed）管理
 
 from django.db import models
+from django.db.models.functions import Now
 
 
 class Target(models.Model):
@@ -16,7 +17,11 @@ class Target(models.Model):
     description = models.TextField(
         null=True, blank=True, help_text="對該專案的詳細描述、背景資訊或備註"
     )
-    created_at = models.DateTimeField(auto_now_add=True, help_text="建立時間")
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        db_default=Now(),
+        help_text="建立時間",
+    )
 
     class Meta:
         app_label = "core"
