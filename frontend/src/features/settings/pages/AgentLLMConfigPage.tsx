@@ -266,7 +266,7 @@ const AgentLLMConfigPage: React.FC = () => {
   const modalLabelCls = "block text-[10px] text-slate-500 mb-1 mt-3 tracking-[0.8px]";
 
   return (
-    <div className="pt-20 px-6 pb-6 max-w-6xl mx-auto text-slate-200 font-mono">
+    <div className="c2-page min-h-screen text-text-primary font-body text-base">
       <div className="flex justify-between items-center mb-4">
         <div className="flex flex-col">
           <h1 className="text-[28px] font-bold tracking-[2px] m-0 text-slate-100">

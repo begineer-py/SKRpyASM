@@ -245,15 +245,13 @@ const APIKeyManagerPage: React.FC = () => {
   const modalLabelCls = "block text-[11px] text-slate-500 mb-1 mt-2 tracking-[0.5px]";
 
   return (
-    <div className="pt-20 px-6 pb-6 max-w-[1400px] mx-auto text-slate-200 font-mono">
+    <div className="c2-page min-h-screen text-text-primary font-body text-base">
       <div className="flex justify-between items-center mb-4">
         <div className="flex flex-col">
           <h1 className="text-[28px] font-bold tracking-[2px] m-0 text-slate-100">
-            <span className="text-slate-500">[</span>
-            API_KEY_MANAGER
-            <span className="text-slate-500">]</span>
+            API 金鑰管理
           </h1>
-          <span className="text-[13px] text-slate-500 mt-1">外部服務金鑰管理 — 多金鑰輪轉 / 配置下載</span>
+          <span className="text-[13px] text-slate-500 mt-1">管理偵察、掃描與 AI 服務金鑰，包含新增、多把金鑰啟停／輪替與工具設定下載。</span>
         </div>
         <div className="flex gap-3">
           <button className="px-[18px] py-2 rounded-md text-[13px] font-semibold cursor-pointer border border-slate-600 transition-all duration-200 bg-[#1e2937] text-slate-200 hover:bg-slate-700" onClick={() => setShowBulkModal(true)}>
