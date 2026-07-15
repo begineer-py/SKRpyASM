@@ -17,7 +17,7 @@ const wsClient = createClient({
   shouldRetry: () => true, // 總是重試
 });
 
-export function useHasuraSubscription<T = unknown>(query: string, variables?: Record<string, unknown>, enabled = true) {
+export function useHasuraSubscription<T = Record<string, unknown>>(query: string, variables?: Record<string, unknown>, enabled = true) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -45,7 +45,7 @@ export function useHasuraSubscription<T = unknown>(query: string, variables?: Re
                 setLoading(false);
                 return;
               }
-              setData(res.data);
+              setData(res.data as T);
               setLoading(false);
               setError(null);
               // 📍 P1 FIX: 成功收到數據時重置重試計數

@@ -97,12 +97,12 @@ export type Ai_Assistant_Globalcontextoverview_Insert_Input = {
   critical_artifacts?: unknown;
   current_phase?: string | null | undefined;
   excluded_paths?: unknown;
-  generated_at?: unknown;
-  id?: unknown;
+  generated_at?: string | null | undefined;
+  id?: number | null | undefined;
   metrics?: unknown;
   mission?: string | null | undefined;
-  thread_id?: unknown;
-  updated_at?: unknown;
+  thread_id?: number | null | undefined;
+  updated_at?: string | null | undefined;
 };
 
 /** input type for inserting object relation for remote table "ai_assistant_globalcontextoverview" */
@@ -243,12 +243,12 @@ export type Ai_Assistant_Message_Insert_Input = {
   ai_assistant_tooloutputlifecycle?: Ai_Assistant_Tooloutputlifecycle_Obj_Rel_Insert_Input | null | undefined;
   compressed_content?: unknown;
   compression_applied?: boolean | null | undefined;
-  created_at?: unknown;
-  id?: unknown;
+  created_at?: string | null | undefined;
+  id?: number | null | undefined;
   is_tool_output?: boolean | null | undefined;
   message?: unknown;
   role?: string | null | undefined;
-  thread_id?: unknown;
+  thread_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "ai_assistant_message" */
@@ -525,15 +525,15 @@ export type Ai_Assistant_Messagecompressionchunk_Insert_Input = {
   chunk_index?: number | null | undefined;
   compressed_content?: unknown;
   compression_ratio?: unknown;
-  created_at?: unknown;
-  end_message_id?: unknown;
-  id?: unknown;
+  created_at?: string | null | undefined;
+  end_message_id?: number | null | undefined;
+  id?: number | null | undefined;
   original_content?: unknown;
-  start_message_id?: unknown;
+  start_message_id?: number | null | undefined;
   strategy?: string | null | undefined;
-  thread_id?: unknown;
+  thread_id?: number | null | undefined;
   tool_calls?: unknown;
-  updated_at?: unknown;
+  updated_at?: string | null | undefined;
 };
 
 /** order by max() on columns of table "ai_assistant_messagecompressionchunk" */
@@ -811,6 +811,14 @@ export type Ai_Assistant_Thread_Bool_Exp = {
   coreOverviewsByThreadId_aggregate?: Core_Overview_Aggregate_Bool_Exp | null | undefined;
   coreSubagentDispatchesBySubThreadId?: Core_Subagent_Dispatch_Bool_Exp | null | undefined;
   coreSubagentDispatchesBySubThreadId_aggregate?: Core_Subagent_Dispatch_Aggregate_Bool_Exp | null | undefined;
+  core_actions?: Core_Action_Bool_Exp | null | undefined;
+  core_actions_aggregate?: Core_Action_Aggregate_Bool_Exp | null | undefined;
+  core_assetlocks?: Core_Assetlock_Bool_Exp | null | undefined;
+  core_assetlocks_aggregate?: Core_Assetlock_Aggregate_Bool_Exp | null | undefined;
+  core_assetvectorlinks?: Core_Assetvectorlink_Bool_Exp | null | undefined;
+  core_assetvectorlinks_aggregate?: Core_Assetvectorlink_Aggregate_Bool_Exp | null | undefined;
+  core_attackplans?: Core_Attackplan_Bool_Exp | null | undefined;
+  core_attackplans_aggregate?: Core_Attackplan_Aggregate_Bool_Exp | null | undefined;
   core_overview?: Core_Overview_Bool_Exp | null | undefined;
   core_overviews?: Core_Overview_Bool_Exp | null | undefined;
   core_overviews_aggregate?: Core_Overview_Aggregate_Bool_Exp | null | undefined;
@@ -901,16 +909,16 @@ export type Ai_Assistant_Thread_Event_Constraint =
 export type Ai_Assistant_Thread_Event_Insert_Input = {
   ai_assistant_thread?: Ai_Assistant_Thread_Obj_Rel_Insert_Input | null | undefined;
   content?: string | null | undefined;
-  created_at?: unknown;
+  created_at?: string | null | undefined;
   event_type?: string | null | undefined;
-  id?: unknown;
+  id?: number | null | undefined;
   node_name?: string | null | undefined;
   parent_run_id?: string | null | undefined;
   payload?: unknown;
   run_id?: string | null | undefined;
-  sequence?: unknown;
+  sequence?: number | null | undefined;
   status?: string | null | undefined;
-  thread_id?: unknown;
+  thread_id?: number | null | undefined;
   tool_name?: string | null | undefined;
 };
 
@@ -1063,21 +1071,25 @@ export type Ai_Assistant_Thread_Insert_Input = {
   ai_assistant_threadcompressionstate?: Ai_Assistant_Threadcompressionstate_Obj_Rel_Insert_Input | null | undefined;
   assistant_id?: string | null | undefined;
   auth_user?: Auth_User_Obj_Rel_Insert_Input | null | undefined;
-  bound_overview_id?: unknown;
-  bound_target_id?: unknown;
+  bound_overview_id?: number | null | undefined;
+  bound_target_id?: number | null | undefined;
   coreOverviewsByThreadId?: Core_Overview_Arr_Rel_Insert_Input | null | undefined;
   coreSubagentDispatchesBySubThreadId?: Core_Subagent_Dispatch_Arr_Rel_Insert_Input | null | undefined;
+  core_actions?: Core_Action_Arr_Rel_Insert_Input | null | undefined;
+  core_assetlocks?: Core_Assetlock_Arr_Rel_Insert_Input | null | undefined;
+  core_assetvectorlinks?: Core_Assetvectorlink_Arr_Rel_Insert_Input | null | undefined;
+  core_attackplans?: Core_Attackplan_Arr_Rel_Insert_Input | null | undefined;
   core_overview?: Core_Overview_Obj_Rel_Insert_Input | null | undefined;
   core_overviews?: Core_Overview_Arr_Rel_Insert_Input | null | undefined;
   core_subagent_dispatches?: Core_Subagent_Dispatch_Arr_Rel_Insert_Input | null | undefined;
   core_target?: Core_Target_Obj_Rel_Insert_Input | null | undefined;
-  created_at?: unknown;
+  created_at?: string | null | undefined;
   created_by_id?: number | null | undefined;
   execution_graphs?: Execution_Graph_Arr_Rel_Insert_Input | null | undefined;
-  id?: unknown;
+  id?: number | null | undefined;
   is_hidden?: boolean | null | undefined;
   name?: string | null | undefined;
-  updated_at?: unknown;
+  updated_at?: string | null | undefined;
 };
 
 /** order by max() on columns of table "ai_assistant_thread" */
@@ -1131,6 +1143,10 @@ export type Ai_Assistant_Thread_Order_By = {
   bound_target_id?: Order_By | null | undefined;
   coreOverviewsByThreadId_aggregate?: Core_Overview_Aggregate_Order_By | null | undefined;
   coreSubagentDispatchesBySubThreadId_aggregate?: Core_Subagent_Dispatch_Aggregate_Order_By | null | undefined;
+  core_actions_aggregate?: Core_Action_Aggregate_Order_By | null | undefined;
+  core_assetlocks_aggregate?: Core_Assetlock_Aggregate_Order_By | null | undefined;
+  core_assetvectorlinks_aggregate?: Core_Assetvectorlink_Aggregate_Order_By | null | undefined;
+  core_attackplans_aggregate?: Core_Attackplan_Aggregate_Order_By | null | undefined;
   core_overview?: Core_Overview_Order_By | null | undefined;
   core_overviews_aggregate?: Core_Overview_Aggregate_Order_By | null | undefined;
   core_subagent_dispatches_aggregate?: Core_Subagent_Dispatch_Aggregate_Order_By | null | undefined;
@@ -1282,14 +1298,14 @@ export type Ai_Assistant_Threadcompressionstate_Insert_Input = {
   ai_assistant_thread?: Ai_Assistant_Thread_Obj_Rel_Insert_Input | null | undefined;
   compression_summary?: unknown;
   context_window_used_tokens?: number | null | undefined;
-  created_at?: unknown;
-  id?: unknown;
-  last_compressed_at?: unknown;
-  last_compressed_message_id?: unknown;
+  created_at?: string | null | undefined;
+  id?: number | null | undefined;
+  last_compressed_at?: string | null | undefined;
+  last_compressed_message_id?: number | null | undefined;
   requires_compression?: boolean | null | undefined;
-  thread_id?: unknown;
+  thread_id?: number | null | undefined;
   total_message_count?: number | null | undefined;
-  updated_at?: unknown;
+  updated_at?: string | null | undefined;
 };
 
 /** input type for inserting object relation for remote table "ai_assistant_threadcompressionstate" */
@@ -1373,9 +1389,9 @@ export type Ai_Assistant_Tooloutputlifecycle_Insert_Input = {
   ai_assistant_message?: Ai_Assistant_Message_Obj_Rel_Insert_Input | null | undefined;
   compressed_output?: string | null | undefined;
   compressed_size?: number | null | undefined;
-  created_at?: unknown;
-  id?: unknown;
-  message_id?: unknown;
+  created_at?: string | null | undefined;
+  id?: number | null | undefined;
+  message_id?: number | null | undefined;
   original_output_size?: number | null | undefined;
   reason?: string | null | undefined;
   strategy?: string | null | undefined;
@@ -1501,7 +1517,7 @@ export type Auth_Group_Permissions_Insert_Input = {
   auth_group?: Auth_Group_Obj_Rel_Insert_Input | null | undefined;
   auth_permission?: Auth_Permission_Obj_Rel_Insert_Input | null | undefined;
   group_id?: number | null | undefined;
-  id?: unknown;
+  id?: number | null | undefined;
   permission_id?: number | null | undefined;
 };
 
@@ -1731,7 +1747,7 @@ export type Auth_User_Groups_Insert_Input = {
   auth_group?: Auth_Group_Obj_Rel_Insert_Input | null | undefined;
   auth_user?: Auth_User_Obj_Rel_Insert_Input | null | undefined;
   group_id?: number | null | undefined;
-  id?: unknown;
+  id?: number | null | undefined;
   user_id?: number | null | undefined;
 };
 
@@ -1833,7 +1849,7 @@ export type Auth_User_Insert_Input = {
   core_historicalports?: Core_Historicalport_Arr_Rel_Insert_Input | null | undefined;
   core_historicalsubdomains?: Core_Historicalsubdomain_Arr_Rel_Insert_Input | null | undefined;
   core_historicalurlresults?: Core_Historicalurlresult_Arr_Rel_Insert_Input | null | undefined;
-  date_joined?: unknown;
+  date_joined?: string | null | undefined;
   django_admin_logs?: Django_Admin_Log_Arr_Rel_Insert_Input | null | undefined;
   email?: string | null | undefined;
   first_name?: string | null | undefined;
@@ -1841,7 +1857,7 @@ export type Auth_User_Insert_Input = {
   is_active?: boolean | null | undefined;
   is_staff?: boolean | null | undefined;
   is_superuser?: boolean | null | undefined;
-  last_login?: unknown;
+  last_login?: string | null | undefined;
   last_name?: string | null | undefined;
   password?: string | null | undefined;
   username?: string | null | undefined;
@@ -1973,7 +1989,7 @@ export type Auth_User_User_Permissions_Constraint =
 export type Auth_User_User_Permissions_Insert_Input = {
   auth_permission?: Auth_Permission_Obj_Rel_Insert_Input | null | undefined;
   auth_user?: Auth_User_Obj_Rel_Insert_Input | null | undefined;
-  id?: unknown;
+  id?: number | null | undefined;
   permission_id?: number | null | undefined;
   user_id?: number | null | undefined;
 };
@@ -2087,7 +2103,7 @@ export type Authtoken_Token_Constraint =
 /** input type for inserting data into table "authtoken_token" */
 export type Authtoken_Token_Insert_Input = {
   auth_user?: Auth_User_Obj_Rel_Insert_Input | null | undefined;
-  created?: unknown;
+  created?: string | null | undefined;
   key?: string | null | undefined;
   user_id?: number | null | undefined;
 };
@@ -2125,15 +2141,15 @@ export type Authtoken_Token_Update_Column =
 
 /** Boolean expression to compare columns of type "bigint". All fields are combined with logical 'AND'. */
 export type Bigint_Comparison_Exp = {
-  _eq?: unknown;
-  _gt?: unknown;
-  _gte?: unknown;
-  _in?: Array<unknown> | null | undefined;
+  _eq?: number | null | undefined;
+  _gt?: number | null | undefined;
+  _gte?: number | null | undefined;
+  _in?: Array<number> | null | undefined;
   _is_null?: boolean | null | undefined;
-  _lt?: unknown;
-  _lte?: unknown;
-  _neq?: unknown;
-  _nin?: Array<unknown> | null | undefined;
+  _lt?: number | null | undefined;
+  _lte?: number | null | undefined;
+  _neq?: number | null | undefined;
+  _nin?: Array<number> | null | undefined;
 };
 
 export type Core_Action_Aggregate_Bool_Exp = {
@@ -2169,6 +2185,162 @@ export type Core_Action_Arr_Rel_Insert_Input = {
   on_conflict?: Core_Action_On_Conflict | null | undefined;
 };
 
+export type Core_Action_Asset_Links_Aggregate_Bool_Exp = {
+  count?: Core_Action_Asset_Links_Aggregate_Bool_Exp_Count | null | undefined;
+};
+
+export type Core_Action_Asset_Links_Aggregate_Bool_Exp_Count = {
+  arguments?: Array<Core_Action_Asset_Links_Select_Column> | null | undefined;
+  distinct?: boolean | null | undefined;
+  filter?: Core_Action_Asset_Links_Bool_Exp | null | undefined;
+  predicate: Int_Comparison_Exp;
+};
+
+/** order by aggregate values of table "core_action_asset_links" */
+export type Core_Action_Asset_Links_Aggregate_Order_By = {
+  avg?: Core_Action_Asset_Links_Avg_Order_By | null | undefined;
+  count?: Order_By | null | undefined;
+  max?: Core_Action_Asset_Links_Max_Order_By | null | undefined;
+  min?: Core_Action_Asset_Links_Min_Order_By | null | undefined;
+  stddev?: Core_Action_Asset_Links_Stddev_Order_By | null | undefined;
+  stddev_pop?: Core_Action_Asset_Links_Stddev_Pop_Order_By | null | undefined;
+  stddev_samp?: Core_Action_Asset_Links_Stddev_Samp_Order_By | null | undefined;
+  sum?: Core_Action_Asset_Links_Sum_Order_By | null | undefined;
+  var_pop?: Core_Action_Asset_Links_Var_Pop_Order_By | null | undefined;
+  var_samp?: Core_Action_Asset_Links_Var_Samp_Order_By | null | undefined;
+  variance?: Core_Action_Asset_Links_Variance_Order_By | null | undefined;
+};
+
+/** input type for inserting array relation for remote table "core_action_asset_links" */
+export type Core_Action_Asset_Links_Arr_Rel_Insert_Input = {
+  data: Array<Core_Action_Asset_Links_Insert_Input>;
+  /** upsert condition */
+  on_conflict?: Core_Action_Asset_Links_On_Conflict | null | undefined;
+};
+
+/** order by avg() on columns of table "core_action_asset_links" */
+export type Core_Action_Asset_Links_Avg_Order_By = {
+  action_id?: Order_By | null | undefined;
+  assetvectorlink_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+};
+
+/** Boolean expression to filter rows from the table "core_action_asset_links". All fields are combined with a logical 'AND'. */
+export type Core_Action_Asset_Links_Bool_Exp = {
+  _and?: Array<Core_Action_Asset_Links_Bool_Exp> | null | undefined;
+  _not?: Core_Action_Asset_Links_Bool_Exp | null | undefined;
+  _or?: Array<Core_Action_Asset_Links_Bool_Exp> | null | undefined;
+  action_id?: Bigint_Comparison_Exp | null | undefined;
+  assetvectorlink_id?: Bigint_Comparison_Exp | null | undefined;
+  core_action?: Core_Action_Bool_Exp | null | undefined;
+  core_assetvectorlink?: Core_Assetvectorlink_Bool_Exp | null | undefined;
+  id?: Bigint_Comparison_Exp | null | undefined;
+};
+
+/** unique or primary key constraints on table "core_action_asset_links" */
+export type Core_Action_Asset_Links_Constraint =
+  /** unique or primary key constraint on columns "assetvectorlink_id", "action_id" */
+  | 'core_action_asset_links_action_id_assetvectorlin_487487df_uniq'
+  /** unique or primary key constraint on columns "id" */
+  | 'core_action_asset_links_pkey';
+
+/** input type for inserting data into table "core_action_asset_links" */
+export type Core_Action_Asset_Links_Insert_Input = {
+  action_id?: number | null | undefined;
+  assetvectorlink_id?: number | null | undefined;
+  core_action?: Core_Action_Obj_Rel_Insert_Input | null | undefined;
+  core_assetvectorlink?: Core_Assetvectorlink_Obj_Rel_Insert_Input | null | undefined;
+  id?: number | null | undefined;
+};
+
+/** order by max() on columns of table "core_action_asset_links" */
+export type Core_Action_Asset_Links_Max_Order_By = {
+  action_id?: Order_By | null | undefined;
+  assetvectorlink_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+};
+
+/** order by min() on columns of table "core_action_asset_links" */
+export type Core_Action_Asset_Links_Min_Order_By = {
+  action_id?: Order_By | null | undefined;
+  assetvectorlink_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+};
+
+/** on_conflict condition type for table "core_action_asset_links" */
+export type Core_Action_Asset_Links_On_Conflict = {
+  constraint: Core_Action_Asset_Links_Constraint;
+  update_columns?: Array<Core_Action_Asset_Links_Update_Column>;
+  where?: Core_Action_Asset_Links_Bool_Exp | null | undefined;
+};
+
+/** select columns of table "core_action_asset_links" */
+export type Core_Action_Asset_Links_Select_Column =
+  /** column name */
+  | 'action_id'
+  /** column name */
+  | 'assetvectorlink_id'
+  /** column name */
+  | 'id';
+
+/** order by stddev() on columns of table "core_action_asset_links" */
+export type Core_Action_Asset_Links_Stddev_Order_By = {
+  action_id?: Order_By | null | undefined;
+  assetvectorlink_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+};
+
+/** order by stddev_pop() on columns of table "core_action_asset_links" */
+export type Core_Action_Asset_Links_Stddev_Pop_Order_By = {
+  action_id?: Order_By | null | undefined;
+  assetvectorlink_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+};
+
+/** order by stddev_samp() on columns of table "core_action_asset_links" */
+export type Core_Action_Asset_Links_Stddev_Samp_Order_By = {
+  action_id?: Order_By | null | undefined;
+  assetvectorlink_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+};
+
+/** order by sum() on columns of table "core_action_asset_links" */
+export type Core_Action_Asset_Links_Sum_Order_By = {
+  action_id?: Order_By | null | undefined;
+  assetvectorlink_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+};
+
+/** update columns of table "core_action_asset_links" */
+export type Core_Action_Asset_Links_Update_Column =
+  /** column name */
+  | 'action_id'
+  /** column name */
+  | 'assetvectorlink_id'
+  /** column name */
+  | 'id';
+
+/** order by var_pop() on columns of table "core_action_asset_links" */
+export type Core_Action_Asset_Links_Var_Pop_Order_By = {
+  action_id?: Order_By | null | undefined;
+  assetvectorlink_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+};
+
+/** order by var_samp() on columns of table "core_action_asset_links" */
+export type Core_Action_Asset_Links_Var_Samp_Order_By = {
+  action_id?: Order_By | null | undefined;
+  assetvectorlink_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+};
+
+/** order by variance() on columns of table "core_action_asset_links" */
+export type Core_Action_Asset_Links_Variance_Order_By = {
+  action_id?: Order_By | null | undefined;
+  assetvectorlink_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+};
+
 /** order by avg() on columns of table "core_action" */
 export type Core_Action_Avg_Order_By = {
   agent_thread_id?: Order_By | null | undefined;
@@ -2186,8 +2358,22 @@ export type Core_Action_Bool_Exp = {
   _or?: Array<Core_Action_Bool_Exp> | null | undefined;
   agent_role?: String_Comparison_Exp | null | undefined;
   agent_thread_id?: Bigint_Comparison_Exp | null | undefined;
+  ai_assistant_thread?: Ai_Assistant_Thread_Bool_Exp | null | undefined;
   completed_at?: Timestamptz_Comparison_Exp | null | undefined;
+  core_action_asset_links?: Core_Action_Asset_Links_Bool_Exp | null | undefined;
+  core_action_asset_links_aggregate?: Core_Action_Asset_Links_Aggregate_Bool_Exp | null | undefined;
+  core_actionvectors?: Core_Actionvector_Bool_Exp | null | undefined;
+  core_actionvectors_aggregate?: Core_Actionvector_Aggregate_Bool_Exp | null | undefined;
+  core_assetedges?: Core_Assetedge_Bool_Exp | null | undefined;
+  core_assetedges_aggregate?: Core_Assetedge_Aggregate_Bool_Exp | null | undefined;
+  core_attackplan?: Core_Attackplan_Bool_Exp | null | undefined;
+  core_subagent_dispatches?: Core_Subagent_Dispatch_Bool_Exp | null | undefined;
+  core_subagent_dispatches_aggregate?: Core_Subagent_Dispatch_Aggregate_Bool_Exp | null | undefined;
+  core_target?: Core_Target_Bool_Exp | null | undefined;
+  core_vulnerabilities?: Core_Vulnerability_Bool_Exp | null | undefined;
+  core_vulnerabilities_aggregate?: Core_Vulnerability_Aggregate_Bool_Exp | null | undefined;
   created_at?: Timestamptz_Comparison_Exp | null | undefined;
+  execution_graph?: Execution_Graph_Bool_Exp | null | undefined;
   execution_graph_id?: Bigint_Comparison_Exp | null | undefined;
   id?: Bigint_Comparison_Exp | null | undefined;
   order?: Int_Comparison_Exp | null | undefined;
@@ -2208,19 +2394,28 @@ export type Core_Action_Constraint =
 /** input type for inserting data into table "core_action" */
 export type Core_Action_Insert_Input = {
   agent_role?: string | null | undefined;
-  agent_thread_id?: unknown;
-  completed_at?: unknown;
-  created_at?: unknown;
-  execution_graph_id?: unknown;
-  id?: unknown;
+  agent_thread_id?: number | null | undefined;
+  ai_assistant_thread?: Ai_Assistant_Thread_Obj_Rel_Insert_Input | null | undefined;
+  completed_at?: string | null | undefined;
+  core_action_asset_links?: Core_Action_Asset_Links_Arr_Rel_Insert_Input | null | undefined;
+  core_actionvectors?: Core_Actionvector_Arr_Rel_Insert_Input | null | undefined;
+  core_assetedges?: Core_Assetedge_Arr_Rel_Insert_Input | null | undefined;
+  core_attackplan?: Core_Attackplan_Obj_Rel_Insert_Input | null | undefined;
+  core_subagent_dispatches?: Core_Subagent_Dispatch_Arr_Rel_Insert_Input | null | undefined;
+  core_target?: Core_Target_Obj_Rel_Insert_Input | null | undefined;
+  core_vulnerabilities?: Core_Vulnerability_Arr_Rel_Insert_Input | null | undefined;
+  created_at?: string | null | undefined;
+  execution_graph?: Execution_Graph_Obj_Rel_Insert_Input | null | undefined;
+  execution_graph_id?: number | null | undefined;
+  id?: number | null | undefined;
   order?: number | null | undefined;
-  plan_id?: unknown;
+  plan_id?: number | null | undefined;
   purpose?: unknown;
   purpose_text?: string | null | undefined;
   result_summary?: string | null | undefined;
-  started_at?: unknown;
+  started_at?: string | null | undefined;
   status?: string | null | undefined;
-  target_id?: unknown;
+  target_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_action" */
@@ -2257,6 +2452,13 @@ export type Core_Action_Min_Order_By = {
   target_id?: Order_By | null | undefined;
 };
 
+/** input type for inserting object relation for remote table "core_action" */
+export type Core_Action_Obj_Rel_Insert_Input = {
+  data: Core_Action_Insert_Input;
+  /** upsert condition */
+  on_conflict?: Core_Action_On_Conflict | null | undefined;
+};
+
 /** on_conflict condition type for table "core_action" */
 export type Core_Action_On_Conflict = {
   constraint: Core_Action_Constraint;
@@ -2268,8 +2470,17 @@ export type Core_Action_On_Conflict = {
 export type Core_Action_Order_By = {
   agent_role?: Order_By | null | undefined;
   agent_thread_id?: Order_By | null | undefined;
+  ai_assistant_thread?: Ai_Assistant_Thread_Order_By | null | undefined;
   completed_at?: Order_By | null | undefined;
+  core_action_asset_links_aggregate?: Core_Action_Asset_Links_Aggregate_Order_By | null | undefined;
+  core_actionvectors_aggregate?: Core_Actionvector_Aggregate_Order_By | null | undefined;
+  core_assetedges_aggregate?: Core_Assetedge_Aggregate_Order_By | null | undefined;
+  core_attackplan?: Core_Attackplan_Order_By | null | undefined;
+  core_subagent_dispatches_aggregate?: Core_Subagent_Dispatch_Aggregate_Order_By | null | undefined;
+  core_target?: Core_Target_Order_By | null | undefined;
+  core_vulnerabilities_aggregate?: Core_Vulnerability_Aggregate_Order_By | null | undefined;
   created_at?: Order_By | null | undefined;
+  execution_graph?: Execution_Graph_Order_By | null | undefined;
   execution_graph_id?: Order_By | null | undefined;
   id?: Order_By | null | undefined;
   order?: Order_By | null | undefined;
@@ -2316,19 +2527,19 @@ export type Core_Action_Select_Column =
 /** input type for updating data in table "core_action" */
 export type Core_Action_Set_Input = {
   agent_role?: string | null | undefined;
-  agent_thread_id?: unknown;
-  completed_at?: unknown;
-  created_at?: unknown;
-  execution_graph_id?: unknown;
-  id?: unknown;
+  agent_thread_id?: number | null | undefined;
+  completed_at?: string | null | undefined;
+  created_at?: string | null | undefined;
+  execution_graph_id?: number | null | undefined;
+  id?: number | null | undefined;
   order?: number | null | undefined;
-  plan_id?: unknown;
+  plan_id?: number | null | undefined;
   purpose?: unknown;
   purpose_text?: string | null | undefined;
   result_summary?: string | null | undefined;
-  started_at?: unknown;
+  started_at?: string | null | undefined;
   status?: string | null | undefined;
-  target_id?: unknown;
+  target_id?: number | null | undefined;
 };
 
 /** order by stddev() on columns of table "core_action" */
@@ -2432,6 +2643,168 @@ export type Core_Action_Variance_Order_By = {
   target_id?: Order_By | null | undefined;
 };
 
+export type Core_Actionvector_Aggregate_Bool_Exp = {
+  count?: Core_Actionvector_Aggregate_Bool_Exp_Count | null | undefined;
+};
+
+export type Core_Actionvector_Aggregate_Bool_Exp_Count = {
+  arguments?: Array<Core_Actionvector_Select_Column> | null | undefined;
+  distinct?: boolean | null | undefined;
+  filter?: Core_Actionvector_Bool_Exp | null | undefined;
+  predicate: Int_Comparison_Exp;
+};
+
+/** order by aggregate values of table "core_actionvector" */
+export type Core_Actionvector_Aggregate_Order_By = {
+  avg?: Core_Actionvector_Avg_Order_By | null | undefined;
+  count?: Order_By | null | undefined;
+  max?: Core_Actionvector_Max_Order_By | null | undefined;
+  min?: Core_Actionvector_Min_Order_By | null | undefined;
+  stddev?: Core_Actionvector_Stddev_Order_By | null | undefined;
+  stddev_pop?: Core_Actionvector_Stddev_Pop_Order_By | null | undefined;
+  stddev_samp?: Core_Actionvector_Stddev_Samp_Order_By | null | undefined;
+  sum?: Core_Actionvector_Sum_Order_By | null | undefined;
+  var_pop?: Core_Actionvector_Var_Pop_Order_By | null | undefined;
+  var_samp?: Core_Actionvector_Var_Samp_Order_By | null | undefined;
+  variance?: Core_Actionvector_Variance_Order_By | null | undefined;
+};
+
+/** input type for inserting array relation for remote table "core_actionvector" */
+export type Core_Actionvector_Arr_Rel_Insert_Input = {
+  data: Array<Core_Actionvector_Insert_Input>;
+  /** upsert condition */
+  on_conflict?: Core_Actionvector_On_Conflict | null | undefined;
+};
+
+/** order by avg() on columns of table "core_actionvector" */
+export type Core_Actionvector_Avg_Order_By = {
+  action_id?: Order_By | null | undefined;
+  attack_vector_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+};
+
+/** Boolean expression to filter rows from the table "core_actionvector". All fields are combined with a logical 'AND'. */
+export type Core_Actionvector_Bool_Exp = {
+  _and?: Array<Core_Actionvector_Bool_Exp> | null | undefined;
+  _not?: Core_Actionvector_Bool_Exp | null | undefined;
+  _or?: Array<Core_Actionvector_Bool_Exp> | null | undefined;
+  action_id?: Bigint_Comparison_Exp | null | undefined;
+  attack_vector_id?: Bigint_Comparison_Exp | null | undefined;
+  core_action?: Core_Action_Bool_Exp | null | undefined;
+  core_attackvector?: Core_Attackvector_Bool_Exp | null | undefined;
+  execution_detail?: Jsonb_Comparison_Exp | null | undefined;
+  id?: Bigint_Comparison_Exp | null | undefined;
+};
+
+/** unique or primary key constraints on table "core_actionvector" */
+export type Core_Actionvector_Constraint =
+  /** unique or primary key constraint on columns "attack_vector_id", "action_id" */
+  | 'core_actionvector_action_id_attack_vector_id_a1ce11b1_uniq'
+  /** unique or primary key constraint on columns "id" */
+  | 'core_actionvector_pkey';
+
+/** input type for inserting data into table "core_actionvector" */
+export type Core_Actionvector_Insert_Input = {
+  action_id?: number | null | undefined;
+  attack_vector_id?: number | null | undefined;
+  core_action?: Core_Action_Obj_Rel_Insert_Input | null | undefined;
+  core_attackvector?: Core_Attackvector_Obj_Rel_Insert_Input | null | undefined;
+  execution_detail?: unknown;
+  id?: number | null | undefined;
+};
+
+/** order by max() on columns of table "core_actionvector" */
+export type Core_Actionvector_Max_Order_By = {
+  action_id?: Order_By | null | undefined;
+  attack_vector_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+};
+
+/** order by min() on columns of table "core_actionvector" */
+export type Core_Actionvector_Min_Order_By = {
+  action_id?: Order_By | null | undefined;
+  attack_vector_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+};
+
+/** on_conflict condition type for table "core_actionvector" */
+export type Core_Actionvector_On_Conflict = {
+  constraint: Core_Actionvector_Constraint;
+  update_columns?: Array<Core_Actionvector_Update_Column>;
+  where?: Core_Actionvector_Bool_Exp | null | undefined;
+};
+
+/** select columns of table "core_actionvector" */
+export type Core_Actionvector_Select_Column =
+  /** column name */
+  | 'action_id'
+  /** column name */
+  | 'attack_vector_id'
+  /** column name */
+  | 'execution_detail'
+  /** column name */
+  | 'id';
+
+/** order by stddev() on columns of table "core_actionvector" */
+export type Core_Actionvector_Stddev_Order_By = {
+  action_id?: Order_By | null | undefined;
+  attack_vector_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+};
+
+/** order by stddev_pop() on columns of table "core_actionvector" */
+export type Core_Actionvector_Stddev_Pop_Order_By = {
+  action_id?: Order_By | null | undefined;
+  attack_vector_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+};
+
+/** order by stddev_samp() on columns of table "core_actionvector" */
+export type Core_Actionvector_Stddev_Samp_Order_By = {
+  action_id?: Order_By | null | undefined;
+  attack_vector_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+};
+
+/** order by sum() on columns of table "core_actionvector" */
+export type Core_Actionvector_Sum_Order_By = {
+  action_id?: Order_By | null | undefined;
+  attack_vector_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+};
+
+/** update columns of table "core_actionvector" */
+export type Core_Actionvector_Update_Column =
+  /** column name */
+  | 'action_id'
+  /** column name */
+  | 'attack_vector_id'
+  /** column name */
+  | 'execution_detail'
+  /** column name */
+  | 'id';
+
+/** order by var_pop() on columns of table "core_actionvector" */
+export type Core_Actionvector_Var_Pop_Order_By = {
+  action_id?: Order_By | null | undefined;
+  attack_vector_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+};
+
+/** order by var_samp() on columns of table "core_actionvector" */
+export type Core_Actionvector_Var_Samp_Order_By = {
+  action_id?: Order_By | null | undefined;
+  attack_vector_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+};
+
+/** order by variance() on columns of table "core_actionvector" */
+export type Core_Actionvector_Variance_Order_By = {
+  action_id?: Order_By | null | undefined;
+  attack_vector_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+};
+
 export type Core_Amassscan_Aggregate_Bool_Exp = {
   count?: Core_Amassscan_Aggregate_Bool_Exp_Count | null | undefined;
 };
@@ -2499,16 +2872,16 @@ export type Core_Amassscan_Constraint =
 /** input type for inserting data into table "core_amassscan" */
 export type Core_Amassscan_Insert_Input = {
   added_count?: number | null | undefined;
-  completed_at?: unknown;
+  completed_at?: string | null | undefined;
   core_seed?: Core_Seed_Obj_Rel_Insert_Input | null | undefined;
   core_target?: Core_Target_Obj_Rel_Insert_Input | null | undefined;
-  created_at?: unknown;
+  created_at?: string | null | undefined;
   error_message?: string | null | undefined;
-  id?: unknown;
-  started_at?: unknown;
+  id?: number | null | undefined;
+  started_at?: string | null | undefined;
   status?: string | null | undefined;
-  which_seed_id?: unknown;
-  which_target_id?: unknown;
+  which_seed_id?: number | null | undefined;
+  which_target_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_amassscan" */
@@ -2710,14 +3083,14 @@ export type Core_Analysisfinding_Constraint =
 /** input type for inserting data into table "core_analysisfinding" */
 export type Core_Analysisfinding_Insert_Input = {
   core_urlresult?: Core_Urlresult_Obj_Rel_Insert_Input | null | undefined;
-  created_at?: unknown;
-  id?: unknown;
+  created_at?: string | null | undefined;
+  id?: number | null | undefined;
   line_number?: number | null | undefined;
   match_content?: string | null | undefined;
   match_end?: number | null | undefined;
   match_start?: number | null | undefined;
   pattern_name?: string | null | undefined;
-  which_url_result_id?: unknown;
+  which_url_result_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_analysisfinding" */
@@ -2940,13 +3313,13 @@ export type Core_Analyzedata_Insert_Input = {
   core_ip?: Core_Ip_Obj_Rel_Insert_Input | null | undefined;
   core_subdomain?: Core_Subdomain_Obj_Rel_Insert_Input | null | undefined;
   core_urlresult?: Core_Urlresult_Obj_Rel_Insert_Input | null | undefined;
-  created_at?: unknown;
-  id?: unknown;
-  ip_id?: unknown;
+  created_at?: string | null | undefined;
+  id?: number | null | undefined;
+  ip_id?: number | null | undefined;
   is_from_ai?: boolean | null | undefined;
-  subdomain_id?: unknown;
-  updated_at?: unknown;
-  url_result_id?: unknown;
+  subdomain_id?: number | null | undefined;
+  updated_at?: string | null | undefined;
+  url_result_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_analyzedata" */
@@ -3088,14 +3461,1055 @@ export type Core_Analyzedata_Variance_Order_By = {
   url_result_id?: Order_By | null | undefined;
 };
 
+export type Core_Assetedge_Aggregate_Bool_Exp = {
+  count?: Core_Assetedge_Aggregate_Bool_Exp_Count | null | undefined;
+};
+
+export type Core_Assetedge_Aggregate_Bool_Exp_Count = {
+  arguments?: Array<Core_Assetedge_Select_Column> | null | undefined;
+  distinct?: boolean | null | undefined;
+  filter?: Core_Assetedge_Bool_Exp | null | undefined;
+  predicate: Int_Comparison_Exp;
+};
+
+/** order by aggregate values of table "core_assetedge" */
+export type Core_Assetedge_Aggregate_Order_By = {
+  avg?: Core_Assetedge_Avg_Order_By | null | undefined;
+  count?: Order_By | null | undefined;
+  max?: Core_Assetedge_Max_Order_By | null | undefined;
+  min?: Core_Assetedge_Min_Order_By | null | undefined;
+  stddev?: Core_Assetedge_Stddev_Order_By | null | undefined;
+  stddev_pop?: Core_Assetedge_Stddev_Pop_Order_By | null | undefined;
+  stddev_samp?: Core_Assetedge_Stddev_Samp_Order_By | null | undefined;
+  sum?: Core_Assetedge_Sum_Order_By | null | undefined;
+  var_pop?: Core_Assetedge_Var_Pop_Order_By | null | undefined;
+  var_samp?: Core_Assetedge_Var_Samp_Order_By | null | undefined;
+  variance?: Core_Assetedge_Variance_Order_By | null | undefined;
+};
+
+/** input type for inserting array relation for remote table "core_assetedge" */
+export type Core_Assetedge_Arr_Rel_Insert_Input = {
+  data: Array<Core_Assetedge_Insert_Input>;
+  /** upsert condition */
+  on_conflict?: Core_Assetedge_On_Conflict | null | undefined;
+};
+
+/** order by avg() on columns of table "core_assetedge" */
+export type Core_Assetedge_Avg_Order_By = {
+  discovered_by_action_id?: Order_By | null | undefined;
+  from_endpoint_id?: Order_By | null | undefined;
+  from_ip_id?: Order_By | null | undefined;
+  from_port_id?: Order_By | null | undefined;
+  from_subdomain_id?: Order_By | null | undefined;
+  from_url_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  target_id?: Order_By | null | undefined;
+  to_endpoint_id?: Order_By | null | undefined;
+  to_ip_id?: Order_By | null | undefined;
+  to_port_id?: Order_By | null | undefined;
+  to_subdomain_id?: Order_By | null | undefined;
+  to_url_id?: Order_By | null | undefined;
+};
+
+/** Boolean expression to filter rows from the table "core_assetedge". All fields are combined with a logical 'AND'. */
+export type Core_Assetedge_Bool_Exp = {
+  _and?: Array<Core_Assetedge_Bool_Exp> | null | undefined;
+  _not?: Core_Assetedge_Bool_Exp | null | undefined;
+  _or?: Array<Core_Assetedge_Bool_Exp> | null | undefined;
+  coreEndpointByToEndpointId?: Core_Endpoint_Bool_Exp | null | undefined;
+  coreIpByToIpId?: Core_Ip_Bool_Exp | null | undefined;
+  corePortByToPortId?: Core_Port_Bool_Exp | null | undefined;
+  coreSubdomainByToSubdomainId?: Core_Subdomain_Bool_Exp | null | undefined;
+  coreUrlresultByToUrlId?: Core_Urlresult_Bool_Exp | null | undefined;
+  core_action?: Core_Action_Bool_Exp | null | undefined;
+  core_endpoint?: Core_Endpoint_Bool_Exp | null | undefined;
+  core_ip?: Core_Ip_Bool_Exp | null | undefined;
+  core_port?: Core_Port_Bool_Exp | null | undefined;
+  core_subdomain?: Core_Subdomain_Bool_Exp | null | undefined;
+  core_target?: Core_Target_Bool_Exp | null | undefined;
+  core_urlresult?: Core_Urlresult_Bool_Exp | null | undefined;
+  core_walkcursor_pending_edges?: Core_Walkcursor_Pending_Edges_Bool_Exp | null | undefined;
+  core_walkcursor_pending_edges_aggregate?: Core_Walkcursor_Pending_Edges_Aggregate_Bool_Exp | null | undefined;
+  core_walkcursor_traversed_edges?: Core_Walkcursor_Traversed_Edges_Bool_Exp | null | undefined;
+  core_walkcursor_traversed_edges_aggregate?: Core_Walkcursor_Traversed_Edges_Aggregate_Bool_Exp | null | undefined;
+  created_at?: Timestamptz_Comparison_Exp | null | undefined;
+  discovered_by_action_id?: Bigint_Comparison_Exp | null | undefined;
+  edge_type?: String_Comparison_Exp | null | undefined;
+  from_asset_type?: String_Comparison_Exp | null | undefined;
+  from_endpoint_id?: Bigint_Comparison_Exp | null | undefined;
+  from_ip_id?: Bigint_Comparison_Exp | null | undefined;
+  from_port_id?: Bigint_Comparison_Exp | null | undefined;
+  from_subdomain_id?: Bigint_Comparison_Exp | null | undefined;
+  from_url_id?: Bigint_Comparison_Exp | null | undefined;
+  id?: Bigint_Comparison_Exp | null | undefined;
+  target_id?: Bigint_Comparison_Exp | null | undefined;
+  to_asset_type?: String_Comparison_Exp | null | undefined;
+  to_endpoint_id?: Bigint_Comparison_Exp | null | undefined;
+  to_ip_id?: Bigint_Comparison_Exp | null | undefined;
+  to_port_id?: Bigint_Comparison_Exp | null | undefined;
+  to_subdomain_id?: Bigint_Comparison_Exp | null | undefined;
+  to_url_id?: Bigint_Comparison_Exp | null | undefined;
+};
+
+/** unique or primary key constraints on table "core_assetedge" */
+export type Core_Assetedge_Constraint =
+  /** unique or primary key constraint on columns "id" */
+  | 'core_assetedge_pkey';
+
+/** input type for inserting data into table "core_assetedge" */
+export type Core_Assetedge_Insert_Input = {
+  coreEndpointByToEndpointId?: Core_Endpoint_Obj_Rel_Insert_Input | null | undefined;
+  coreIpByToIpId?: Core_Ip_Obj_Rel_Insert_Input | null | undefined;
+  corePortByToPortId?: Core_Port_Obj_Rel_Insert_Input | null | undefined;
+  coreSubdomainByToSubdomainId?: Core_Subdomain_Obj_Rel_Insert_Input | null | undefined;
+  coreUrlresultByToUrlId?: Core_Urlresult_Obj_Rel_Insert_Input | null | undefined;
+  core_action?: Core_Action_Obj_Rel_Insert_Input | null | undefined;
+  core_endpoint?: Core_Endpoint_Obj_Rel_Insert_Input | null | undefined;
+  core_ip?: Core_Ip_Obj_Rel_Insert_Input | null | undefined;
+  core_port?: Core_Port_Obj_Rel_Insert_Input | null | undefined;
+  core_subdomain?: Core_Subdomain_Obj_Rel_Insert_Input | null | undefined;
+  core_target?: Core_Target_Obj_Rel_Insert_Input | null | undefined;
+  core_urlresult?: Core_Urlresult_Obj_Rel_Insert_Input | null | undefined;
+  core_walkcursor_pending_edges?: Core_Walkcursor_Pending_Edges_Arr_Rel_Insert_Input | null | undefined;
+  core_walkcursor_traversed_edges?: Core_Walkcursor_Traversed_Edges_Arr_Rel_Insert_Input | null | undefined;
+  created_at?: string | null | undefined;
+  discovered_by_action_id?: number | null | undefined;
+  edge_type?: string | null | undefined;
+  from_asset_type?: string | null | undefined;
+  from_endpoint_id?: number | null | undefined;
+  from_ip_id?: number | null | undefined;
+  from_port_id?: number | null | undefined;
+  from_subdomain_id?: number | null | undefined;
+  from_url_id?: number | null | undefined;
+  id?: number | null | undefined;
+  target_id?: number | null | undefined;
+  to_asset_type?: string | null | undefined;
+  to_endpoint_id?: number | null | undefined;
+  to_ip_id?: number | null | undefined;
+  to_port_id?: number | null | undefined;
+  to_subdomain_id?: number | null | undefined;
+  to_url_id?: number | null | undefined;
+};
+
+/** order by max() on columns of table "core_assetedge" */
+export type Core_Assetedge_Max_Order_By = {
+  created_at?: Order_By | null | undefined;
+  discovered_by_action_id?: Order_By | null | undefined;
+  edge_type?: Order_By | null | undefined;
+  from_asset_type?: Order_By | null | undefined;
+  from_endpoint_id?: Order_By | null | undefined;
+  from_ip_id?: Order_By | null | undefined;
+  from_port_id?: Order_By | null | undefined;
+  from_subdomain_id?: Order_By | null | undefined;
+  from_url_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  target_id?: Order_By | null | undefined;
+  to_asset_type?: Order_By | null | undefined;
+  to_endpoint_id?: Order_By | null | undefined;
+  to_ip_id?: Order_By | null | undefined;
+  to_port_id?: Order_By | null | undefined;
+  to_subdomain_id?: Order_By | null | undefined;
+  to_url_id?: Order_By | null | undefined;
+};
+
+/** order by min() on columns of table "core_assetedge" */
+export type Core_Assetedge_Min_Order_By = {
+  created_at?: Order_By | null | undefined;
+  discovered_by_action_id?: Order_By | null | undefined;
+  edge_type?: Order_By | null | undefined;
+  from_asset_type?: Order_By | null | undefined;
+  from_endpoint_id?: Order_By | null | undefined;
+  from_ip_id?: Order_By | null | undefined;
+  from_port_id?: Order_By | null | undefined;
+  from_subdomain_id?: Order_By | null | undefined;
+  from_url_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  target_id?: Order_By | null | undefined;
+  to_asset_type?: Order_By | null | undefined;
+  to_endpoint_id?: Order_By | null | undefined;
+  to_ip_id?: Order_By | null | undefined;
+  to_port_id?: Order_By | null | undefined;
+  to_subdomain_id?: Order_By | null | undefined;
+  to_url_id?: Order_By | null | undefined;
+};
+
+/** input type for inserting object relation for remote table "core_assetedge" */
+export type Core_Assetedge_Obj_Rel_Insert_Input = {
+  data: Core_Assetedge_Insert_Input;
+  /** upsert condition */
+  on_conflict?: Core_Assetedge_On_Conflict | null | undefined;
+};
+
+/** on_conflict condition type for table "core_assetedge" */
+export type Core_Assetedge_On_Conflict = {
+  constraint: Core_Assetedge_Constraint;
+  update_columns?: Array<Core_Assetedge_Update_Column>;
+  where?: Core_Assetedge_Bool_Exp | null | undefined;
+};
+
+/** select columns of table "core_assetedge" */
+export type Core_Assetedge_Select_Column =
+  /** column name */
+  | 'created_at'
+  /** column name */
+  | 'discovered_by_action_id'
+  /** column name */
+  | 'edge_type'
+  /** column name */
+  | 'from_asset_type'
+  /** column name */
+  | 'from_endpoint_id'
+  /** column name */
+  | 'from_ip_id'
+  /** column name */
+  | 'from_port_id'
+  /** column name */
+  | 'from_subdomain_id'
+  /** column name */
+  | 'from_url_id'
+  /** column name */
+  | 'id'
+  /** column name */
+  | 'target_id'
+  /** column name */
+  | 'to_asset_type'
+  /** column name */
+  | 'to_endpoint_id'
+  /** column name */
+  | 'to_ip_id'
+  /** column name */
+  | 'to_port_id'
+  /** column name */
+  | 'to_subdomain_id'
+  /** column name */
+  | 'to_url_id';
+
+/** order by stddev() on columns of table "core_assetedge" */
+export type Core_Assetedge_Stddev_Order_By = {
+  discovered_by_action_id?: Order_By | null | undefined;
+  from_endpoint_id?: Order_By | null | undefined;
+  from_ip_id?: Order_By | null | undefined;
+  from_port_id?: Order_By | null | undefined;
+  from_subdomain_id?: Order_By | null | undefined;
+  from_url_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  target_id?: Order_By | null | undefined;
+  to_endpoint_id?: Order_By | null | undefined;
+  to_ip_id?: Order_By | null | undefined;
+  to_port_id?: Order_By | null | undefined;
+  to_subdomain_id?: Order_By | null | undefined;
+  to_url_id?: Order_By | null | undefined;
+};
+
+/** order by stddev_pop() on columns of table "core_assetedge" */
+export type Core_Assetedge_Stddev_Pop_Order_By = {
+  discovered_by_action_id?: Order_By | null | undefined;
+  from_endpoint_id?: Order_By | null | undefined;
+  from_ip_id?: Order_By | null | undefined;
+  from_port_id?: Order_By | null | undefined;
+  from_subdomain_id?: Order_By | null | undefined;
+  from_url_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  target_id?: Order_By | null | undefined;
+  to_endpoint_id?: Order_By | null | undefined;
+  to_ip_id?: Order_By | null | undefined;
+  to_port_id?: Order_By | null | undefined;
+  to_subdomain_id?: Order_By | null | undefined;
+  to_url_id?: Order_By | null | undefined;
+};
+
+/** order by stddev_samp() on columns of table "core_assetedge" */
+export type Core_Assetedge_Stddev_Samp_Order_By = {
+  discovered_by_action_id?: Order_By | null | undefined;
+  from_endpoint_id?: Order_By | null | undefined;
+  from_ip_id?: Order_By | null | undefined;
+  from_port_id?: Order_By | null | undefined;
+  from_subdomain_id?: Order_By | null | undefined;
+  from_url_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  target_id?: Order_By | null | undefined;
+  to_endpoint_id?: Order_By | null | undefined;
+  to_ip_id?: Order_By | null | undefined;
+  to_port_id?: Order_By | null | undefined;
+  to_subdomain_id?: Order_By | null | undefined;
+  to_url_id?: Order_By | null | undefined;
+};
+
+/** order by sum() on columns of table "core_assetedge" */
+export type Core_Assetedge_Sum_Order_By = {
+  discovered_by_action_id?: Order_By | null | undefined;
+  from_endpoint_id?: Order_By | null | undefined;
+  from_ip_id?: Order_By | null | undefined;
+  from_port_id?: Order_By | null | undefined;
+  from_subdomain_id?: Order_By | null | undefined;
+  from_url_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  target_id?: Order_By | null | undefined;
+  to_endpoint_id?: Order_By | null | undefined;
+  to_ip_id?: Order_By | null | undefined;
+  to_port_id?: Order_By | null | undefined;
+  to_subdomain_id?: Order_By | null | undefined;
+  to_url_id?: Order_By | null | undefined;
+};
+
+/** update columns of table "core_assetedge" */
+export type Core_Assetedge_Update_Column =
+  /** column name */
+  | 'created_at'
+  /** column name */
+  | 'discovered_by_action_id'
+  /** column name */
+  | 'edge_type'
+  /** column name */
+  | 'from_asset_type'
+  /** column name */
+  | 'from_endpoint_id'
+  /** column name */
+  | 'from_ip_id'
+  /** column name */
+  | 'from_port_id'
+  /** column name */
+  | 'from_subdomain_id'
+  /** column name */
+  | 'from_url_id'
+  /** column name */
+  | 'id'
+  /** column name */
+  | 'target_id'
+  /** column name */
+  | 'to_asset_type'
+  /** column name */
+  | 'to_endpoint_id'
+  /** column name */
+  | 'to_ip_id'
+  /** column name */
+  | 'to_port_id'
+  /** column name */
+  | 'to_subdomain_id'
+  /** column name */
+  | 'to_url_id';
+
+/** order by var_pop() on columns of table "core_assetedge" */
+export type Core_Assetedge_Var_Pop_Order_By = {
+  discovered_by_action_id?: Order_By | null | undefined;
+  from_endpoint_id?: Order_By | null | undefined;
+  from_ip_id?: Order_By | null | undefined;
+  from_port_id?: Order_By | null | undefined;
+  from_subdomain_id?: Order_By | null | undefined;
+  from_url_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  target_id?: Order_By | null | undefined;
+  to_endpoint_id?: Order_By | null | undefined;
+  to_ip_id?: Order_By | null | undefined;
+  to_port_id?: Order_By | null | undefined;
+  to_subdomain_id?: Order_By | null | undefined;
+  to_url_id?: Order_By | null | undefined;
+};
+
+/** order by var_samp() on columns of table "core_assetedge" */
+export type Core_Assetedge_Var_Samp_Order_By = {
+  discovered_by_action_id?: Order_By | null | undefined;
+  from_endpoint_id?: Order_By | null | undefined;
+  from_ip_id?: Order_By | null | undefined;
+  from_port_id?: Order_By | null | undefined;
+  from_subdomain_id?: Order_By | null | undefined;
+  from_url_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  target_id?: Order_By | null | undefined;
+  to_endpoint_id?: Order_By | null | undefined;
+  to_ip_id?: Order_By | null | undefined;
+  to_port_id?: Order_By | null | undefined;
+  to_subdomain_id?: Order_By | null | undefined;
+  to_url_id?: Order_By | null | undefined;
+};
+
+/** order by variance() on columns of table "core_assetedge" */
+export type Core_Assetedge_Variance_Order_By = {
+  discovered_by_action_id?: Order_By | null | undefined;
+  from_endpoint_id?: Order_By | null | undefined;
+  from_ip_id?: Order_By | null | undefined;
+  from_port_id?: Order_By | null | undefined;
+  from_subdomain_id?: Order_By | null | undefined;
+  from_url_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  target_id?: Order_By | null | undefined;
+  to_endpoint_id?: Order_By | null | undefined;
+  to_ip_id?: Order_By | null | undefined;
+  to_port_id?: Order_By | null | undefined;
+  to_subdomain_id?: Order_By | null | undefined;
+  to_url_id?: Order_By | null | undefined;
+};
+
+export type Core_Assetlock_Aggregate_Bool_Exp = {
+  count?: Core_Assetlock_Aggregate_Bool_Exp_Count | null | undefined;
+};
+
+export type Core_Assetlock_Aggregate_Bool_Exp_Count = {
+  arguments?: Array<Core_Assetlock_Select_Column> | null | undefined;
+  distinct?: boolean | null | undefined;
+  filter?: Core_Assetlock_Bool_Exp | null | undefined;
+  predicate: Int_Comparison_Exp;
+};
+
+/** order by aggregate values of table "core_assetlock" */
+export type Core_Assetlock_Aggregate_Order_By = {
+  avg?: Core_Assetlock_Avg_Order_By | null | undefined;
+  count?: Order_By | null | undefined;
+  max?: Core_Assetlock_Max_Order_By | null | undefined;
+  min?: Core_Assetlock_Min_Order_By | null | undefined;
+  stddev?: Core_Assetlock_Stddev_Order_By | null | undefined;
+  stddev_pop?: Core_Assetlock_Stddev_Pop_Order_By | null | undefined;
+  stddev_samp?: Core_Assetlock_Stddev_Samp_Order_By | null | undefined;
+  sum?: Core_Assetlock_Sum_Order_By | null | undefined;
+  var_pop?: Core_Assetlock_Var_Pop_Order_By | null | undefined;
+  var_samp?: Core_Assetlock_Var_Samp_Order_By | null | undefined;
+  variance?: Core_Assetlock_Variance_Order_By | null | undefined;
+};
+
+/** input type for inserting array relation for remote table "core_assetlock" */
+export type Core_Assetlock_Arr_Rel_Insert_Input = {
+  data: Array<Core_Assetlock_Insert_Input>;
+  /** upsert condition */
+  on_conflict?: Core_Assetlock_On_Conflict | null | undefined;
+};
+
+/** order by avg() on columns of table "core_assetlock" */
+export type Core_Assetlock_Avg_Order_By = {
+  endpoint_asset_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  ip_asset_id?: Order_By | null | undefined;
+  port_asset_id?: Order_By | null | undefined;
+  subdomain_asset_id?: Order_By | null | undefined;
+  target_id?: Order_By | null | undefined;
+  thread_id?: Order_By | null | undefined;
+  url_asset_id?: Order_By | null | undefined;
+};
+
+/** Boolean expression to filter rows from the table "core_assetlock". All fields are combined with a logical 'AND'. */
+export type Core_Assetlock_Bool_Exp = {
+  _and?: Array<Core_Assetlock_Bool_Exp> | null | undefined;
+  _not?: Core_Assetlock_Bool_Exp | null | undefined;
+  _or?: Array<Core_Assetlock_Bool_Exp> | null | undefined;
+  acquired_at?: Timestamptz_Comparison_Exp | null | undefined;
+  agent_role?: String_Comparison_Exp | null | undefined;
+  ai_assistant_thread?: Ai_Assistant_Thread_Bool_Exp | null | undefined;
+  asset_type?: String_Comparison_Exp | null | undefined;
+  core_endpoint?: Core_Endpoint_Bool_Exp | null | undefined;
+  core_ip?: Core_Ip_Bool_Exp | null | undefined;
+  core_port?: Core_Port_Bool_Exp | null | undefined;
+  core_subdomain?: Core_Subdomain_Bool_Exp | null | undefined;
+  core_target?: Core_Target_Bool_Exp | null | undefined;
+  core_urlresult?: Core_Urlresult_Bool_Exp | null | undefined;
+  endpoint_asset_id?: Bigint_Comparison_Exp | null | undefined;
+  id?: Bigint_Comparison_Exp | null | undefined;
+  ip_asset_id?: Bigint_Comparison_Exp | null | undefined;
+  lock_status?: String_Comparison_Exp | null | undefined;
+  port_asset_id?: Bigint_Comparison_Exp | null | undefined;
+  released_at?: Timestamptz_Comparison_Exp | null | undefined;
+  subdomain_asset_id?: Bigint_Comparison_Exp | null | undefined;
+  target_id?: Bigint_Comparison_Exp | null | undefined;
+  thread_id?: Bigint_Comparison_Exp | null | undefined;
+  url_asset_id?: Bigint_Comparison_Exp | null | undefined;
+};
+
+/** unique or primary key constraints on table "core_assetlock" */
+export type Core_Assetlock_Constraint =
+  /** unique or primary key constraint on columns "id" */
+  | 'core_assetlock_pkey';
+
+/** input type for inserting data into table "core_assetlock" */
+export type Core_Assetlock_Insert_Input = {
+  acquired_at?: string | null | undefined;
+  agent_role?: string | null | undefined;
+  ai_assistant_thread?: Ai_Assistant_Thread_Obj_Rel_Insert_Input | null | undefined;
+  asset_type?: string | null | undefined;
+  core_endpoint?: Core_Endpoint_Obj_Rel_Insert_Input | null | undefined;
+  core_ip?: Core_Ip_Obj_Rel_Insert_Input | null | undefined;
+  core_port?: Core_Port_Obj_Rel_Insert_Input | null | undefined;
+  core_subdomain?: Core_Subdomain_Obj_Rel_Insert_Input | null | undefined;
+  core_target?: Core_Target_Obj_Rel_Insert_Input | null | undefined;
+  core_urlresult?: Core_Urlresult_Obj_Rel_Insert_Input | null | undefined;
+  endpoint_asset_id?: number | null | undefined;
+  id?: number | null | undefined;
+  ip_asset_id?: number | null | undefined;
+  lock_status?: string | null | undefined;
+  port_asset_id?: number | null | undefined;
+  released_at?: string | null | undefined;
+  subdomain_asset_id?: number | null | undefined;
+  target_id?: number | null | undefined;
+  thread_id?: number | null | undefined;
+  url_asset_id?: number | null | undefined;
+};
+
+/** order by max() on columns of table "core_assetlock" */
+export type Core_Assetlock_Max_Order_By = {
+  acquired_at?: Order_By | null | undefined;
+  agent_role?: Order_By | null | undefined;
+  asset_type?: Order_By | null | undefined;
+  endpoint_asset_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  ip_asset_id?: Order_By | null | undefined;
+  lock_status?: Order_By | null | undefined;
+  port_asset_id?: Order_By | null | undefined;
+  released_at?: Order_By | null | undefined;
+  subdomain_asset_id?: Order_By | null | undefined;
+  target_id?: Order_By | null | undefined;
+  thread_id?: Order_By | null | undefined;
+  url_asset_id?: Order_By | null | undefined;
+};
+
+/** order by min() on columns of table "core_assetlock" */
+export type Core_Assetlock_Min_Order_By = {
+  acquired_at?: Order_By | null | undefined;
+  agent_role?: Order_By | null | undefined;
+  asset_type?: Order_By | null | undefined;
+  endpoint_asset_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  ip_asset_id?: Order_By | null | undefined;
+  lock_status?: Order_By | null | undefined;
+  port_asset_id?: Order_By | null | undefined;
+  released_at?: Order_By | null | undefined;
+  subdomain_asset_id?: Order_By | null | undefined;
+  target_id?: Order_By | null | undefined;
+  thread_id?: Order_By | null | undefined;
+  url_asset_id?: Order_By | null | undefined;
+};
+
+/** on_conflict condition type for table "core_assetlock" */
+export type Core_Assetlock_On_Conflict = {
+  constraint: Core_Assetlock_Constraint;
+  update_columns?: Array<Core_Assetlock_Update_Column>;
+  where?: Core_Assetlock_Bool_Exp | null | undefined;
+};
+
+/** select columns of table "core_assetlock" */
+export type Core_Assetlock_Select_Column =
+  /** column name */
+  | 'acquired_at'
+  /** column name */
+  | 'agent_role'
+  /** column name */
+  | 'asset_type'
+  /** column name */
+  | 'endpoint_asset_id'
+  /** column name */
+  | 'id'
+  /** column name */
+  | 'ip_asset_id'
+  /** column name */
+  | 'lock_status'
+  /** column name */
+  | 'port_asset_id'
+  /** column name */
+  | 'released_at'
+  /** column name */
+  | 'subdomain_asset_id'
+  /** column name */
+  | 'target_id'
+  /** column name */
+  | 'thread_id'
+  /** column name */
+  | 'url_asset_id';
+
+/** order by stddev() on columns of table "core_assetlock" */
+export type Core_Assetlock_Stddev_Order_By = {
+  endpoint_asset_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  ip_asset_id?: Order_By | null | undefined;
+  port_asset_id?: Order_By | null | undefined;
+  subdomain_asset_id?: Order_By | null | undefined;
+  target_id?: Order_By | null | undefined;
+  thread_id?: Order_By | null | undefined;
+  url_asset_id?: Order_By | null | undefined;
+};
+
+/** order by stddev_pop() on columns of table "core_assetlock" */
+export type Core_Assetlock_Stddev_Pop_Order_By = {
+  endpoint_asset_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  ip_asset_id?: Order_By | null | undefined;
+  port_asset_id?: Order_By | null | undefined;
+  subdomain_asset_id?: Order_By | null | undefined;
+  target_id?: Order_By | null | undefined;
+  thread_id?: Order_By | null | undefined;
+  url_asset_id?: Order_By | null | undefined;
+};
+
+/** order by stddev_samp() on columns of table "core_assetlock" */
+export type Core_Assetlock_Stddev_Samp_Order_By = {
+  endpoint_asset_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  ip_asset_id?: Order_By | null | undefined;
+  port_asset_id?: Order_By | null | undefined;
+  subdomain_asset_id?: Order_By | null | undefined;
+  target_id?: Order_By | null | undefined;
+  thread_id?: Order_By | null | undefined;
+  url_asset_id?: Order_By | null | undefined;
+};
+
+/** order by sum() on columns of table "core_assetlock" */
+export type Core_Assetlock_Sum_Order_By = {
+  endpoint_asset_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  ip_asset_id?: Order_By | null | undefined;
+  port_asset_id?: Order_By | null | undefined;
+  subdomain_asset_id?: Order_By | null | undefined;
+  target_id?: Order_By | null | undefined;
+  thread_id?: Order_By | null | undefined;
+  url_asset_id?: Order_By | null | undefined;
+};
+
+/** update columns of table "core_assetlock" */
+export type Core_Assetlock_Update_Column =
+  /** column name */
+  | 'acquired_at'
+  /** column name */
+  | 'agent_role'
+  /** column name */
+  | 'asset_type'
+  /** column name */
+  | 'endpoint_asset_id'
+  /** column name */
+  | 'id'
+  /** column name */
+  | 'ip_asset_id'
+  /** column name */
+  | 'lock_status'
+  /** column name */
+  | 'port_asset_id'
+  /** column name */
+  | 'released_at'
+  /** column name */
+  | 'subdomain_asset_id'
+  /** column name */
+  | 'target_id'
+  /** column name */
+  | 'thread_id'
+  /** column name */
+  | 'url_asset_id';
+
+/** order by var_pop() on columns of table "core_assetlock" */
+export type Core_Assetlock_Var_Pop_Order_By = {
+  endpoint_asset_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  ip_asset_id?: Order_By | null | undefined;
+  port_asset_id?: Order_By | null | undefined;
+  subdomain_asset_id?: Order_By | null | undefined;
+  target_id?: Order_By | null | undefined;
+  thread_id?: Order_By | null | undefined;
+  url_asset_id?: Order_By | null | undefined;
+};
+
+/** order by var_samp() on columns of table "core_assetlock" */
+export type Core_Assetlock_Var_Samp_Order_By = {
+  endpoint_asset_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  ip_asset_id?: Order_By | null | undefined;
+  port_asset_id?: Order_By | null | undefined;
+  subdomain_asset_id?: Order_By | null | undefined;
+  target_id?: Order_By | null | undefined;
+  thread_id?: Order_By | null | undefined;
+  url_asset_id?: Order_By | null | undefined;
+};
+
+/** order by variance() on columns of table "core_assetlock" */
+export type Core_Assetlock_Variance_Order_By = {
+  endpoint_asset_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  ip_asset_id?: Order_By | null | undefined;
+  port_asset_id?: Order_By | null | undefined;
+  subdomain_asset_id?: Order_By | null | undefined;
+  target_id?: Order_By | null | undefined;
+  thread_id?: Order_By | null | undefined;
+  url_asset_id?: Order_By | null | undefined;
+};
+
+export type Core_Assetvectorlink_Aggregate_Bool_Exp = {
+  count?: Core_Assetvectorlink_Aggregate_Bool_Exp_Count | null | undefined;
+};
+
+export type Core_Assetvectorlink_Aggregate_Bool_Exp_Count = {
+  arguments?: Array<Core_Assetvectorlink_Select_Column> | null | undefined;
+  distinct?: boolean | null | undefined;
+  filter?: Core_Assetvectorlink_Bool_Exp | null | undefined;
+  predicate: Int_Comparison_Exp;
+};
+
+/** order by aggregate values of table "core_assetvectorlink" */
+export type Core_Assetvectorlink_Aggregate_Order_By = {
+  avg?: Core_Assetvectorlink_Avg_Order_By | null | undefined;
+  count?: Order_By | null | undefined;
+  max?: Core_Assetvectorlink_Max_Order_By | null | undefined;
+  min?: Core_Assetvectorlink_Min_Order_By | null | undefined;
+  stddev?: Core_Assetvectorlink_Stddev_Order_By | null | undefined;
+  stddev_pop?: Core_Assetvectorlink_Stddev_Pop_Order_By | null | undefined;
+  stddev_samp?: Core_Assetvectorlink_Stddev_Samp_Order_By | null | undefined;
+  sum?: Core_Assetvectorlink_Sum_Order_By | null | undefined;
+  var_pop?: Core_Assetvectorlink_Var_Pop_Order_By | null | undefined;
+  var_samp?: Core_Assetvectorlink_Var_Samp_Order_By | null | undefined;
+  variance?: Core_Assetvectorlink_Variance_Order_By | null | undefined;
+};
+
+/** input type for inserting array relation for remote table "core_assetvectorlink" */
+export type Core_Assetvectorlink_Arr_Rel_Insert_Input = {
+  data: Array<Core_Assetvectorlink_Insert_Input>;
+  /** upsert condition */
+  on_conflict?: Core_Assetvectorlink_On_Conflict | null | undefined;
+};
+
+/** order by avg() on columns of table "core_assetvectorlink" */
+export type Core_Assetvectorlink_Avg_Order_By = {
+  agent_thread_id?: Order_By | null | undefined;
+  attack_vector_id?: Order_By | null | undefined;
+  endpoint_asset_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  ip_asset_id?: Order_By | null | undefined;
+  port_asset_id?: Order_By | null | undefined;
+  subdomain_asset_id?: Order_By | null | undefined;
+  url_asset_id?: Order_By | null | undefined;
+};
+
+/** Boolean expression to filter rows from the table "core_assetvectorlink". All fields are combined with a logical 'AND'. */
+export type Core_Assetvectorlink_Bool_Exp = {
+  _and?: Array<Core_Assetvectorlink_Bool_Exp> | null | undefined;
+  _not?: Core_Assetvectorlink_Bool_Exp | null | undefined;
+  _or?: Array<Core_Assetvectorlink_Bool_Exp> | null | undefined;
+  agent_role?: String_Comparison_Exp | null | undefined;
+  agent_thread_id?: Bigint_Comparison_Exp | null | undefined;
+  ai_assistant_thread?: Ai_Assistant_Thread_Bool_Exp | null | undefined;
+  asset_type?: String_Comparison_Exp | null | undefined;
+  attack_vector_id?: Bigint_Comparison_Exp | null | undefined;
+  core_action_asset_links?: Core_Action_Asset_Links_Bool_Exp | null | undefined;
+  core_action_asset_links_aggregate?: Core_Action_Asset_Links_Aggregate_Bool_Exp | null | undefined;
+  core_attackvector?: Core_Attackvector_Bool_Exp | null | undefined;
+  core_endpoint?: Core_Endpoint_Bool_Exp | null | undefined;
+  core_ip?: Core_Ip_Bool_Exp | null | undefined;
+  core_port?: Core_Port_Bool_Exp | null | undefined;
+  core_subdomain?: Core_Subdomain_Bool_Exp | null | undefined;
+  core_urlresult?: Core_Urlresult_Bool_Exp | null | undefined;
+  core_walkcursors?: Core_Walkcursor_Bool_Exp | null | undefined;
+  core_walkcursors_aggregate?: Core_Walkcursor_Aggregate_Bool_Exp | null | undefined;
+  created_at?: Timestamptz_Comparison_Exp | null | undefined;
+  endpoint_asset_id?: Bigint_Comparison_Exp | null | undefined;
+  id?: Bigint_Comparison_Exp | null | undefined;
+  ip_asset_id?: Bigint_Comparison_Exp | null | undefined;
+  last_result?: String_Comparison_Exp | null | undefined;
+  port_asset_id?: Bigint_Comparison_Exp | null | undefined;
+  status?: String_Comparison_Exp | null | undefined;
+  subdomain_asset_id?: Bigint_Comparison_Exp | null | undefined;
+  updated_at?: Timestamptz_Comparison_Exp | null | undefined;
+  url_asset_id?: Bigint_Comparison_Exp | null | undefined;
+};
+
+/** unique or primary key constraints on table "core_assetvectorlink" */
+export type Core_Assetvectorlink_Constraint =
+  /** unique or primary key constraint on columns "id" */
+  | 'core_assetvectorlink_pkey';
+
+/** input type for inserting data into table "core_assetvectorlink" */
+export type Core_Assetvectorlink_Insert_Input = {
+  agent_role?: string | null | undefined;
+  agent_thread_id?: number | null | undefined;
+  ai_assistant_thread?: Ai_Assistant_Thread_Obj_Rel_Insert_Input | null | undefined;
+  asset_type?: string | null | undefined;
+  attack_vector_id?: number | null | undefined;
+  core_action_asset_links?: Core_Action_Asset_Links_Arr_Rel_Insert_Input | null | undefined;
+  core_attackvector?: Core_Attackvector_Obj_Rel_Insert_Input | null | undefined;
+  core_endpoint?: Core_Endpoint_Obj_Rel_Insert_Input | null | undefined;
+  core_ip?: Core_Ip_Obj_Rel_Insert_Input | null | undefined;
+  core_port?: Core_Port_Obj_Rel_Insert_Input | null | undefined;
+  core_subdomain?: Core_Subdomain_Obj_Rel_Insert_Input | null | undefined;
+  core_urlresult?: Core_Urlresult_Obj_Rel_Insert_Input | null | undefined;
+  core_walkcursors?: Core_Walkcursor_Arr_Rel_Insert_Input | null | undefined;
+  created_at?: string | null | undefined;
+  endpoint_asset_id?: number | null | undefined;
+  id?: number | null | undefined;
+  ip_asset_id?: number | null | undefined;
+  last_result?: string | null | undefined;
+  port_asset_id?: number | null | undefined;
+  status?: string | null | undefined;
+  subdomain_asset_id?: number | null | undefined;
+  updated_at?: string | null | undefined;
+  url_asset_id?: number | null | undefined;
+};
+
+/** order by max() on columns of table "core_assetvectorlink" */
+export type Core_Assetvectorlink_Max_Order_By = {
+  agent_role?: Order_By | null | undefined;
+  agent_thread_id?: Order_By | null | undefined;
+  asset_type?: Order_By | null | undefined;
+  attack_vector_id?: Order_By | null | undefined;
+  created_at?: Order_By | null | undefined;
+  endpoint_asset_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  ip_asset_id?: Order_By | null | undefined;
+  last_result?: Order_By | null | undefined;
+  port_asset_id?: Order_By | null | undefined;
+  status?: Order_By | null | undefined;
+  subdomain_asset_id?: Order_By | null | undefined;
+  updated_at?: Order_By | null | undefined;
+  url_asset_id?: Order_By | null | undefined;
+};
+
+/** order by min() on columns of table "core_assetvectorlink" */
+export type Core_Assetvectorlink_Min_Order_By = {
+  agent_role?: Order_By | null | undefined;
+  agent_thread_id?: Order_By | null | undefined;
+  asset_type?: Order_By | null | undefined;
+  attack_vector_id?: Order_By | null | undefined;
+  created_at?: Order_By | null | undefined;
+  endpoint_asset_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  ip_asset_id?: Order_By | null | undefined;
+  last_result?: Order_By | null | undefined;
+  port_asset_id?: Order_By | null | undefined;
+  status?: Order_By | null | undefined;
+  subdomain_asset_id?: Order_By | null | undefined;
+  updated_at?: Order_By | null | undefined;
+  url_asset_id?: Order_By | null | undefined;
+};
+
+/** input type for inserting object relation for remote table "core_assetvectorlink" */
+export type Core_Assetvectorlink_Obj_Rel_Insert_Input = {
+  data: Core_Assetvectorlink_Insert_Input;
+  /** upsert condition */
+  on_conflict?: Core_Assetvectorlink_On_Conflict | null | undefined;
+};
+
+/** on_conflict condition type for table "core_assetvectorlink" */
+export type Core_Assetvectorlink_On_Conflict = {
+  constraint: Core_Assetvectorlink_Constraint;
+  update_columns?: Array<Core_Assetvectorlink_Update_Column>;
+  where?: Core_Assetvectorlink_Bool_Exp | null | undefined;
+};
+
+/** Ordering options when selecting data from "core_assetvectorlink". */
+export type Core_Assetvectorlink_Order_By = {
+  agent_role?: Order_By | null | undefined;
+  agent_thread_id?: Order_By | null | undefined;
+  ai_assistant_thread?: Ai_Assistant_Thread_Order_By | null | undefined;
+  asset_type?: Order_By | null | undefined;
+  attack_vector_id?: Order_By | null | undefined;
+  core_action_asset_links_aggregate?: Core_Action_Asset_Links_Aggregate_Order_By | null | undefined;
+  core_attackvector?: Core_Attackvector_Order_By | null | undefined;
+  core_endpoint?: Core_Endpoint_Order_By | null | undefined;
+  core_ip?: Core_Ip_Order_By | null | undefined;
+  core_port?: Core_Port_Order_By | null | undefined;
+  core_subdomain?: Core_Subdomain_Order_By | null | undefined;
+  core_urlresult?: Core_Urlresult_Order_By | null | undefined;
+  core_walkcursors_aggregate?: Core_Walkcursor_Aggregate_Order_By | null | undefined;
+  created_at?: Order_By | null | undefined;
+  endpoint_asset_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  ip_asset_id?: Order_By | null | undefined;
+  last_result?: Order_By | null | undefined;
+  port_asset_id?: Order_By | null | undefined;
+  status?: Order_By | null | undefined;
+  subdomain_asset_id?: Order_By | null | undefined;
+  updated_at?: Order_By | null | undefined;
+  url_asset_id?: Order_By | null | undefined;
+};
+
+/** select columns of table "core_assetvectorlink" */
+export type Core_Assetvectorlink_Select_Column =
+  /** column name */
+  | 'agent_role'
+  /** column name */
+  | 'agent_thread_id'
+  /** column name */
+  | 'asset_type'
+  /** column name */
+  | 'attack_vector_id'
+  /** column name */
+  | 'created_at'
+  /** column name */
+  | 'endpoint_asset_id'
+  /** column name */
+  | 'id'
+  /** column name */
+  | 'ip_asset_id'
+  /** column name */
+  | 'last_result'
+  /** column name */
+  | 'port_asset_id'
+  /** column name */
+  | 'status'
+  /** column name */
+  | 'subdomain_asset_id'
+  /** column name */
+  | 'updated_at'
+  /** column name */
+  | 'url_asset_id';
+
+/** order by stddev() on columns of table "core_assetvectorlink" */
+export type Core_Assetvectorlink_Stddev_Order_By = {
+  agent_thread_id?: Order_By | null | undefined;
+  attack_vector_id?: Order_By | null | undefined;
+  endpoint_asset_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  ip_asset_id?: Order_By | null | undefined;
+  port_asset_id?: Order_By | null | undefined;
+  subdomain_asset_id?: Order_By | null | undefined;
+  url_asset_id?: Order_By | null | undefined;
+};
+
+/** order by stddev_pop() on columns of table "core_assetvectorlink" */
+export type Core_Assetvectorlink_Stddev_Pop_Order_By = {
+  agent_thread_id?: Order_By | null | undefined;
+  attack_vector_id?: Order_By | null | undefined;
+  endpoint_asset_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  ip_asset_id?: Order_By | null | undefined;
+  port_asset_id?: Order_By | null | undefined;
+  subdomain_asset_id?: Order_By | null | undefined;
+  url_asset_id?: Order_By | null | undefined;
+};
+
+/** order by stddev_samp() on columns of table "core_assetvectorlink" */
+export type Core_Assetvectorlink_Stddev_Samp_Order_By = {
+  agent_thread_id?: Order_By | null | undefined;
+  attack_vector_id?: Order_By | null | undefined;
+  endpoint_asset_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  ip_asset_id?: Order_By | null | undefined;
+  port_asset_id?: Order_By | null | undefined;
+  subdomain_asset_id?: Order_By | null | undefined;
+  url_asset_id?: Order_By | null | undefined;
+};
+
+/** order by sum() on columns of table "core_assetvectorlink" */
+export type Core_Assetvectorlink_Sum_Order_By = {
+  agent_thread_id?: Order_By | null | undefined;
+  attack_vector_id?: Order_By | null | undefined;
+  endpoint_asset_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  ip_asset_id?: Order_By | null | undefined;
+  port_asset_id?: Order_By | null | undefined;
+  subdomain_asset_id?: Order_By | null | undefined;
+  url_asset_id?: Order_By | null | undefined;
+};
+
+/** update columns of table "core_assetvectorlink" */
+export type Core_Assetvectorlink_Update_Column =
+  /** column name */
+  | 'agent_role'
+  /** column name */
+  | 'agent_thread_id'
+  /** column name */
+  | 'asset_type'
+  /** column name */
+  | 'attack_vector_id'
+  /** column name */
+  | 'created_at'
+  /** column name */
+  | 'endpoint_asset_id'
+  /** column name */
+  | 'id'
+  /** column name */
+  | 'ip_asset_id'
+  /** column name */
+  | 'last_result'
+  /** column name */
+  | 'port_asset_id'
+  /** column name */
+  | 'status'
+  /** column name */
+  | 'subdomain_asset_id'
+  /** column name */
+  | 'updated_at'
+  /** column name */
+  | 'url_asset_id';
+
+/** order by var_pop() on columns of table "core_assetvectorlink" */
+export type Core_Assetvectorlink_Var_Pop_Order_By = {
+  agent_thread_id?: Order_By | null | undefined;
+  attack_vector_id?: Order_By | null | undefined;
+  endpoint_asset_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  ip_asset_id?: Order_By | null | undefined;
+  port_asset_id?: Order_By | null | undefined;
+  subdomain_asset_id?: Order_By | null | undefined;
+  url_asset_id?: Order_By | null | undefined;
+};
+
+/** order by var_samp() on columns of table "core_assetvectorlink" */
+export type Core_Assetvectorlink_Var_Samp_Order_By = {
+  agent_thread_id?: Order_By | null | undefined;
+  attack_vector_id?: Order_By | null | undefined;
+  endpoint_asset_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  ip_asset_id?: Order_By | null | undefined;
+  port_asset_id?: Order_By | null | undefined;
+  subdomain_asset_id?: Order_By | null | undefined;
+  url_asset_id?: Order_By | null | undefined;
+};
+
+/** order by variance() on columns of table "core_assetvectorlink" */
+export type Core_Assetvectorlink_Variance_Order_By = {
+  agent_thread_id?: Order_By | null | undefined;
+  attack_vector_id?: Order_By | null | undefined;
+  endpoint_asset_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  ip_asset_id?: Order_By | null | undefined;
+  port_asset_id?: Order_By | null | undefined;
+  subdomain_asset_id?: Order_By | null | undefined;
+  url_asset_id?: Order_By | null | undefined;
+};
+
+export type Core_Attackplan_Aggregate_Bool_Exp = {
+  count?: Core_Attackplan_Aggregate_Bool_Exp_Count | null | undefined;
+};
+
+export type Core_Attackplan_Aggregate_Bool_Exp_Count = {
+  arguments?: Array<Core_Attackplan_Select_Column> | null | undefined;
+  distinct?: boolean | null | undefined;
+  filter?: Core_Attackplan_Bool_Exp | null | undefined;
+  predicate: Int_Comparison_Exp;
+};
+
+/** order by aggregate values of table "core_attackplan" */
+export type Core_Attackplan_Aggregate_Order_By = {
+  avg?: Core_Attackplan_Avg_Order_By | null | undefined;
+  count?: Order_By | null | undefined;
+  max?: Core_Attackplan_Max_Order_By | null | undefined;
+  min?: Core_Attackplan_Min_Order_By | null | undefined;
+  stddev?: Core_Attackplan_Stddev_Order_By | null | undefined;
+  stddev_pop?: Core_Attackplan_Stddev_Pop_Order_By | null | undefined;
+  stddev_samp?: Core_Attackplan_Stddev_Samp_Order_By | null | undefined;
+  sum?: Core_Attackplan_Sum_Order_By | null | undefined;
+  var_pop?: Core_Attackplan_Var_Pop_Order_By | null | undefined;
+  var_samp?: Core_Attackplan_Var_Samp_Order_By | null | undefined;
+  variance?: Core_Attackplan_Variance_Order_By | null | undefined;
+};
+
+/** input type for inserting array relation for remote table "core_attackplan" */
+export type Core_Attackplan_Arr_Rel_Insert_Input = {
+  data: Array<Core_Attackplan_Insert_Input>;
+  /** upsert condition */
+  on_conflict?: Core_Attackplan_On_Conflict | null | undefined;
+};
+
+/** order by avg() on columns of table "core_attackplan" */
+export type Core_Attackplan_Avg_Order_By = {
+  id?: Order_By | null | undefined;
+  parent_plan_id?: Order_By | null | undefined;
+  target_id?: Order_By | null | undefined;
+  thread_id?: Order_By | null | undefined;
+};
+
 /** Boolean expression to filter rows from the table "core_attackplan". All fields are combined with a logical 'AND'. */
 export type Core_Attackplan_Bool_Exp = {
   _and?: Array<Core_Attackplan_Bool_Exp> | null | undefined;
   _not?: Core_Attackplan_Bool_Exp | null | undefined;
   _or?: Array<Core_Attackplan_Bool_Exp> | null | undefined;
+  ai_assistant_thread?: Ai_Assistant_Thread_Bool_Exp | null | undefined;
   core_actions?: Core_Action_Bool_Exp | null | undefined;
   core_actions_aggregate?: Core_Action_Aggregate_Bool_Exp | null | undefined;
+  core_attackplan?: Core_Attackplan_Bool_Exp | null | undefined;
+  core_attackplans?: Core_Attackplan_Bool_Exp | null | undefined;
+  core_attackplans_aggregate?: Core_Attackplan_Aggregate_Bool_Exp | null | undefined;
   core_target?: Core_Target_Bool_Exp | null | undefined;
+  core_walkcursor?: Core_Walkcursor_Bool_Exp | null | undefined;
   created_at?: Timestamptz_Comparison_Exp | null | undefined;
   id?: Bigint_Comparison_Exp | null | undefined;
   objective?: String_Comparison_Exp | null | undefined;
@@ -3107,25 +4521,76 @@ export type Core_Attackplan_Bool_Exp = {
   updated_at?: Timestamptz_Comparison_Exp | null | undefined;
 };
 
+/** unique or primary key constraints on table "core_attackplan" */
+export type Core_Attackplan_Constraint =
+  /** unique or primary key constraint on columns "id" */
+  | 'core_attackplan_pkey';
+
 /** input type for inserting data into table "core_attackplan" */
 export type Core_Attackplan_Insert_Input = {
+  ai_assistant_thread?: Ai_Assistant_Thread_Obj_Rel_Insert_Input | null | undefined;
   core_actions?: Core_Action_Arr_Rel_Insert_Input | null | undefined;
+  core_attackplan?: Core_Attackplan_Obj_Rel_Insert_Input | null | undefined;
+  core_attackplans?: Core_Attackplan_Arr_Rel_Insert_Input | null | undefined;
   core_target?: Core_Target_Obj_Rel_Insert_Input | null | undefined;
-  created_at?: unknown;
-  id?: unknown;
+  core_walkcursor?: Core_Walkcursor_Obj_Rel_Insert_Input | null | undefined;
+  created_at?: string | null | undefined;
+  id?: number | null | undefined;
   objective?: string | null | undefined;
-  parent_plan_id?: unknown;
+  parent_plan_id?: number | null | undefined;
   scope?: unknown;
   status?: string | null | undefined;
-  target_id?: unknown;
-  thread_id?: unknown;
-  updated_at?: unknown;
+  target_id?: number | null | undefined;
+  thread_id?: number | null | undefined;
+  updated_at?: string | null | undefined;
+};
+
+/** order by max() on columns of table "core_attackplan" */
+export type Core_Attackplan_Max_Order_By = {
+  created_at?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  objective?: Order_By | null | undefined;
+  parent_plan_id?: Order_By | null | undefined;
+  status?: Order_By | null | undefined;
+  target_id?: Order_By | null | undefined;
+  thread_id?: Order_By | null | undefined;
+  updated_at?: Order_By | null | undefined;
+};
+
+/** order by min() on columns of table "core_attackplan" */
+export type Core_Attackplan_Min_Order_By = {
+  created_at?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  objective?: Order_By | null | undefined;
+  parent_plan_id?: Order_By | null | undefined;
+  status?: Order_By | null | undefined;
+  target_id?: Order_By | null | undefined;
+  thread_id?: Order_By | null | undefined;
+  updated_at?: Order_By | null | undefined;
+};
+
+/** input type for inserting object relation for remote table "core_attackplan" */
+export type Core_Attackplan_Obj_Rel_Insert_Input = {
+  data: Core_Attackplan_Insert_Input;
+  /** upsert condition */
+  on_conflict?: Core_Attackplan_On_Conflict | null | undefined;
+};
+
+/** on_conflict condition type for table "core_attackplan" */
+export type Core_Attackplan_On_Conflict = {
+  constraint: Core_Attackplan_Constraint;
+  update_columns?: Array<Core_Attackplan_Update_Column>;
+  where?: Core_Attackplan_Bool_Exp | null | undefined;
 };
 
 /** Ordering options when selecting data from "core_attackplan". */
 export type Core_Attackplan_Order_By = {
+  ai_assistant_thread?: Ai_Assistant_Thread_Order_By | null | undefined;
   core_actions_aggregate?: Core_Action_Aggregate_Order_By | null | undefined;
+  core_attackplan?: Core_Attackplan_Order_By | null | undefined;
+  core_attackplans_aggregate?: Core_Attackplan_Aggregate_Order_By | null | undefined;
   core_target?: Core_Target_Order_By | null | undefined;
+  core_walkcursor?: Core_Walkcursor_Order_By | null | undefined;
   created_at?: Order_By | null | undefined;
   id?: Order_By | null | undefined;
   objective?: Order_By | null | undefined;
@@ -3137,17 +4602,115 @@ export type Core_Attackplan_Order_By = {
   updated_at?: Order_By | null | undefined;
 };
 
+/** select columns of table "core_attackplan" */
+export type Core_Attackplan_Select_Column =
+  /** column name */
+  | 'created_at'
+  /** column name */
+  | 'id'
+  /** column name */
+  | 'objective'
+  /** column name */
+  | 'parent_plan_id'
+  /** column name */
+  | 'scope'
+  /** column name */
+  | 'status'
+  /** column name */
+  | 'target_id'
+  /** column name */
+  | 'thread_id'
+  /** column name */
+  | 'updated_at';
+
 /** input type for updating data in table "core_attackplan" */
 export type Core_Attackplan_Set_Input = {
-  created_at?: unknown;
-  id?: unknown;
+  created_at?: string | null | undefined;
+  id?: number | null | undefined;
   objective?: string | null | undefined;
-  parent_plan_id?: unknown;
+  parent_plan_id?: number | null | undefined;
   scope?: unknown;
   status?: string | null | undefined;
-  target_id?: unknown;
-  thread_id?: unknown;
-  updated_at?: unknown;
+  target_id?: number | null | undefined;
+  thread_id?: number | null | undefined;
+  updated_at?: string | null | undefined;
+};
+
+/** order by stddev() on columns of table "core_attackplan" */
+export type Core_Attackplan_Stddev_Order_By = {
+  id?: Order_By | null | undefined;
+  parent_plan_id?: Order_By | null | undefined;
+  target_id?: Order_By | null | undefined;
+  thread_id?: Order_By | null | undefined;
+};
+
+/** order by stddev_pop() on columns of table "core_attackplan" */
+export type Core_Attackplan_Stddev_Pop_Order_By = {
+  id?: Order_By | null | undefined;
+  parent_plan_id?: Order_By | null | undefined;
+  target_id?: Order_By | null | undefined;
+  thread_id?: Order_By | null | undefined;
+};
+
+/** order by stddev_samp() on columns of table "core_attackplan" */
+export type Core_Attackplan_Stddev_Samp_Order_By = {
+  id?: Order_By | null | undefined;
+  parent_plan_id?: Order_By | null | undefined;
+  target_id?: Order_By | null | undefined;
+  thread_id?: Order_By | null | undefined;
+};
+
+/** order by sum() on columns of table "core_attackplan" */
+export type Core_Attackplan_Sum_Order_By = {
+  id?: Order_By | null | undefined;
+  parent_plan_id?: Order_By | null | undefined;
+  target_id?: Order_By | null | undefined;
+  thread_id?: Order_By | null | undefined;
+};
+
+/** update columns of table "core_attackplan" */
+export type Core_Attackplan_Update_Column =
+  /** column name */
+  | 'created_at'
+  /** column name */
+  | 'id'
+  /** column name */
+  | 'objective'
+  /** column name */
+  | 'parent_plan_id'
+  /** column name */
+  | 'scope'
+  /** column name */
+  | 'status'
+  /** column name */
+  | 'target_id'
+  /** column name */
+  | 'thread_id'
+  /** column name */
+  | 'updated_at';
+
+/** order by var_pop() on columns of table "core_attackplan" */
+export type Core_Attackplan_Var_Pop_Order_By = {
+  id?: Order_By | null | undefined;
+  parent_plan_id?: Order_By | null | undefined;
+  target_id?: Order_By | null | undefined;
+  thread_id?: Order_By | null | undefined;
+};
+
+/** order by var_samp() on columns of table "core_attackplan" */
+export type Core_Attackplan_Var_Samp_Order_By = {
+  id?: Order_By | null | undefined;
+  parent_plan_id?: Order_By | null | undefined;
+  target_id?: Order_By | null | undefined;
+  thread_id?: Order_By | null | undefined;
+};
+
+/** order by variance() on columns of table "core_attackplan" */
+export type Core_Attackplan_Variance_Order_By = {
+  id?: Order_By | null | undefined;
+  parent_plan_id?: Order_By | null | undefined;
+  target_id?: Order_By | null | undefined;
+  thread_id?: Order_By | null | undefined;
 };
 
 export type Core_Attackvector_Aggregate_Bool_Exp = {
@@ -3195,6 +4758,10 @@ export type Core_Attackvector_Bool_Exp = {
   _and?: Array<Core_Attackvector_Bool_Exp> | null | undefined;
   _not?: Core_Attackvector_Bool_Exp | null | undefined;
   _or?: Array<Core_Attackvector_Bool_Exp> | null | undefined;
+  core_actionvectors?: Core_Actionvector_Bool_Exp | null | undefined;
+  core_actionvectors_aggregate?: Core_Actionvector_Aggregate_Bool_Exp | null | undefined;
+  core_assetvectorlinks?: Core_Assetvectorlink_Bool_Exp | null | undefined;
+  core_assetvectorlinks_aggregate?: Core_Assetvectorlink_Aggregate_Bool_Exp | null | undefined;
   core_commandtemplates?: Core_Commandtemplate_Bool_Exp | null | undefined;
   core_commandtemplates_aggregate?: Core_Commandtemplate_Aggregate_Bool_Exp | null | undefined;
   core_overview?: Core_Overview_Bool_Exp | null | undefined;
@@ -3223,20 +4790,22 @@ export type Core_Attackvector_Constraint =
 
 /** input type for inserting data into table "core_attackvector" */
 export type Core_Attackvector_Insert_Input = {
+  core_actionvectors?: Core_Actionvector_Arr_Rel_Insert_Input | null | undefined;
+  core_assetvectorlinks?: Core_Assetvectorlink_Arr_Rel_Insert_Input | null | undefined;
   core_commandtemplates?: Core_Commandtemplate_Arr_Rel_Insert_Input | null | undefined;
   core_overview?: Core_Overview_Obj_Rel_Insert_Input | null | undefined;
   core_payloads?: Core_Payload_Arr_Rel_Insert_Input | null | undefined;
   core_verifications?: Core_Verification_Arr_Rel_Insert_Input | null | undefined;
   core_vulnerabilities?: Core_Vulnerability_Arr_Rel_Insert_Input | null | undefined;
-  created_at?: unknown;
+  created_at?: string | null | undefined;
   description?: string | null | undefined;
   evidence?: string | null | undefined;
-  id?: unknown;
+  id?: number | null | undefined;
   name?: string | null | undefined;
-  overview_id?: unknown;
+  overview_id?: number | null | undefined;
   risk_score?: unknown;
   status?: string | null | undefined;
-  updated_at?: unknown;
+  updated_at?: string | null | undefined;
   vector_type?: string | null | undefined;
 };
 
@@ -3284,6 +4853,8 @@ export type Core_Attackvector_On_Conflict = {
 
 /** Ordering options when selecting data from "core_attackvector". */
 export type Core_Attackvector_Order_By = {
+  core_actionvectors_aggregate?: Core_Actionvector_Aggregate_Order_By | null | undefined;
+  core_assetvectorlinks_aggregate?: Core_Assetvectorlink_Aggregate_Order_By | null | undefined;
   core_commandtemplates_aggregate?: Core_Commandtemplate_Aggregate_Order_By | null | undefined;
   core_overview?: Core_Overview_Order_By | null | undefined;
   core_payloads_aggregate?: Core_Payload_Aggregate_Order_By | null | undefined;
@@ -3326,15 +4897,15 @@ export type Core_Attackvector_Select_Column =
 
 /** input type for updating data in table "core_attackvector" */
 export type Core_Attackvector_Set_Input = {
-  created_at?: unknown;
+  created_at?: string | null | undefined;
   description?: string | null | undefined;
   evidence?: string | null | undefined;
-  id?: unknown;
+  id?: number | null | undefined;
   name?: string | null | undefined;
-  overview_id?: unknown;
+  overview_id?: number | null | undefined;
   risk_score?: unknown;
   status?: string | null | undefined;
-  updated_at?: unknown;
+  updated_at?: string | null | undefined;
   vector_type?: string | null | undefined;
 };
 
@@ -3450,14 +5021,14 @@ export type Core_Commandexecution_Constraint =
 
 /** input type for inserting data into table "core_commandexecution" */
 export type Core_Commandexecution_Insert_Input = {
-  completed_at?: unknown;
+  completed_at?: string | null | undefined;
   core_commandtemplate?: Core_Commandtemplate_Obj_Rel_Insert_Input | null | undefined;
   error_message?: string | null | undefined;
-  executed_at?: unknown;
-  id?: unknown;
+  executed_at?: string | null | undefined;
+  id?: number | null | undefined;
   result?: string | null | undefined;
   status?: string | null | undefined;
-  template_id?: unknown;
+  template_id?: number | null | undefined;
 };
 
 /** on_conflict condition type for table "core_commandexecution" */
@@ -3581,13 +5152,13 @@ export type Core_Commandtemplate_Constraint =
 
 /** input type for inserting data into table "core_commandtemplate" */
 export type Core_Commandtemplate_Insert_Input = {
-  attack_vector_id?: unknown;
+  attack_vector_id?: number | null | undefined;
   command?: string | null | undefined;
   core_attackvector?: Core_Attackvector_Obj_Rel_Insert_Input | null | undefined;
   core_commandexecutions?: Core_Commandexecution_Arr_Rel_Insert_Input | null | undefined;
-  created_at?: unknown;
+  created_at?: string | null | undefined;
   description?: string | null | undefined;
-  id?: unknown;
+  id?: number | null | undefined;
   if_system_tool?: boolean | null | undefined;
   name?: string | null | undefined;
   tool_name?: string | null | undefined;
@@ -3778,8 +5349,8 @@ export type Core_Comment_Constraint =
 export type Core_Comment_Insert_Input = {
   content?: string | null | undefined;
   core_urlresult?: Core_Urlresult_Obj_Rel_Insert_Input | null | undefined;
-  id?: unknown;
-  which_url_id?: unknown;
+  id?: number | null | undefined;
+  which_url_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_comment" */
@@ -3889,9 +5460,9 @@ export type Core_Content_Blob_Constraint =
 export type Core_Content_Blob_Insert_Input = {
   ai_summary?: string | null | undefined;
   content_size?: number | null | undefined;
-  created_at?: unknown;
+  created_at?: string | null | undefined;
   execution_artifacts?: Execution_Artifact_Arr_Rel_Insert_Input | null | undefined;
-  id?: unknown;
+  id?: number | null | undefined;
   page_breakdown?: unknown;
   raw_content?: string | null | undefined;
   source_type?: string | null | undefined;
@@ -3974,7 +5545,7 @@ export type Core_Cveintelligence_Insert_Input = {
   cisa_kev?: boolean | null | undefined;
   core_techstackcvemappings?: Core_Techstackcvemapping_Arr_Rel_Insert_Input | null | undefined;
   core_vulnerabilities?: Core_Vulnerability_Arr_Rel_Insert_Input | null | undefined;
-  created_at?: unknown;
+  created_at?: string | null | undefined;
   cve_id?: string | null | undefined;
   cvss_score?: unknown;
   cvss_vector?: string | null | undefined;
@@ -3984,13 +5555,13 @@ export type Core_Cveintelligence_Insert_Input = {
   epss_score?: unknown;
   exploit_available?: boolean | null | undefined;
   exploited_in_wild?: boolean | null | undefined;
-  id?: unknown;
-  last_checked?: unknown;
-  last_modified_date?: unknown;
-  published_date?: unknown;
+  id?: number | null | undefined;
+  last_checked?: string | null | undefined;
+  last_modified_date?: string | null | undefined;
+  published_date?: string | null | undefined;
   references?: unknown;
   severity?: string | null | undefined;
-  updated_at?: unknown;
+  updated_at?: string | null | undefined;
 };
 
 /** input type for inserting object relation for remote table "core_cveintelligence" */
@@ -4137,10 +5708,10 @@ export type Core_Dnsrecord_Constraint =
 /** input type for inserting data into table "core_dnsrecord" */
 export type Core_Dnsrecord_Insert_Input = {
   core_subdomain?: Core_Subdomain_Obj_Rel_Insert_Input | null | undefined;
-  created_at?: unknown;
-  id?: unknown;
+  created_at?: string | null | undefined;
+  id?: number | null | undefined;
   record_type?: string | null | undefined;
-  subdomain_id?: unknown;
+  subdomain_id?: number | null | undefined;
   ttl?: number | null | undefined;
   value?: string | null | undefined;
 };
@@ -4295,6 +5866,14 @@ export type Core_Endpoint_Bool_Exp = {
   _and?: Array<Core_Endpoint_Bool_Exp> | null | undefined;
   _not?: Core_Endpoint_Bool_Exp | null | undefined;
   _or?: Array<Core_Endpoint_Bool_Exp> | null | undefined;
+  coreAssetedgesByToEndpointId?: Core_Assetedge_Bool_Exp | null | undefined;
+  coreAssetedgesByToEndpointId_aggregate?: Core_Assetedge_Aggregate_Bool_Exp | null | undefined;
+  core_assetedges?: Core_Assetedge_Bool_Exp | null | undefined;
+  core_assetedges_aggregate?: Core_Assetedge_Aggregate_Bool_Exp | null | undefined;
+  core_assetlocks?: Core_Assetlock_Bool_Exp | null | undefined;
+  core_assetlocks_aggregate?: Core_Assetlock_Aggregate_Bool_Exp | null | undefined;
+  core_assetvectorlinks?: Core_Assetvectorlink_Bool_Exp | null | undefined;
+  core_assetvectorlinks_aggregate?: Core_Assetvectorlink_Aggregate_Bool_Exp | null | undefined;
   core_endpoint_discovered_by_inline_js?: Core_Endpoint_Discovered_By_Inline_Js_Bool_Exp | null | undefined;
   core_endpoint_discovered_by_inline_js_aggregate?: Core_Endpoint_Discovered_By_Inline_Js_Aggregate_Bool_Exp | null | undefined;
   core_endpoint_discovered_by_js?: Core_Endpoint_Discovered_By_Js_Bool_Exp | null | undefined;
@@ -4386,9 +5965,9 @@ export type Core_Endpoint_Discovered_By_Inline_Js_Constraint =
 export type Core_Endpoint_Discovered_By_Inline_Js_Insert_Input = {
   core_endpoint?: Core_Endpoint_Obj_Rel_Insert_Input | null | undefined;
   core_extractedj?: Core_Extractedjs_Obj_Rel_Insert_Input | null | undefined;
-  endpoint_id?: unknown;
-  extractedjs_id?: unknown;
-  id?: unknown;
+  endpoint_id?: number | null | undefined;
+  extractedjs_id?: number | null | undefined;
+  id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_endpoint_discovered_by_inline_js" */
@@ -4490,11 +6069,33 @@ export type Core_Endpoint_Discovered_By_Js_Aggregate_Bool_Exp_Count = {
   predicate: Int_Comparison_Exp;
 };
 
+/** order by aggregate values of table "core_endpoint_discovered_by_js" */
+export type Core_Endpoint_Discovered_By_Js_Aggregate_Order_By = {
+  avg?: Core_Endpoint_Discovered_By_Js_Avg_Order_By | null | undefined;
+  count?: Order_By | null | undefined;
+  max?: Core_Endpoint_Discovered_By_Js_Max_Order_By | null | undefined;
+  min?: Core_Endpoint_Discovered_By_Js_Min_Order_By | null | undefined;
+  stddev?: Core_Endpoint_Discovered_By_Js_Stddev_Order_By | null | undefined;
+  stddev_pop?: Core_Endpoint_Discovered_By_Js_Stddev_Pop_Order_By | null | undefined;
+  stddev_samp?: Core_Endpoint_Discovered_By_Js_Stddev_Samp_Order_By | null | undefined;
+  sum?: Core_Endpoint_Discovered_By_Js_Sum_Order_By | null | undefined;
+  var_pop?: Core_Endpoint_Discovered_By_Js_Var_Pop_Order_By | null | undefined;
+  var_samp?: Core_Endpoint_Discovered_By_Js_Var_Samp_Order_By | null | undefined;
+  variance?: Core_Endpoint_Discovered_By_Js_Variance_Order_By | null | undefined;
+};
+
 /** input type for inserting array relation for remote table "core_endpoint_discovered_by_js" */
 export type Core_Endpoint_Discovered_By_Js_Arr_Rel_Insert_Input = {
   data: Array<Core_Endpoint_Discovered_By_Js_Insert_Input>;
   /** upsert condition */
   on_conflict?: Core_Endpoint_Discovered_By_Js_On_Conflict | null | undefined;
+};
+
+/** order by avg() on columns of table "core_endpoint_discovered_by_js" */
+export type Core_Endpoint_Discovered_By_Js_Avg_Order_By = {
+  endpoint_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  javascriptfile_id?: Order_By | null | undefined;
 };
 
 /** Boolean expression to filter rows from the table "core_endpoint_discovered_by_js". All fields are combined with a logical 'AND'. */
@@ -4520,9 +6121,23 @@ export type Core_Endpoint_Discovered_By_Js_Constraint =
 export type Core_Endpoint_Discovered_By_Js_Insert_Input = {
   core_endpoint?: Core_Endpoint_Obj_Rel_Insert_Input | null | undefined;
   core_javascriptfile?: Core_Javascriptfile_Obj_Rel_Insert_Input | null | undefined;
-  endpoint_id?: unknown;
-  id?: unknown;
-  javascriptfile_id?: unknown;
+  endpoint_id?: number | null | undefined;
+  id?: number | null | undefined;
+  javascriptfile_id?: number | null | undefined;
+};
+
+/** order by max() on columns of table "core_endpoint_discovered_by_js" */
+export type Core_Endpoint_Discovered_By_Js_Max_Order_By = {
+  endpoint_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  javascriptfile_id?: Order_By | null | undefined;
+};
+
+/** order by min() on columns of table "core_endpoint_discovered_by_js" */
+export type Core_Endpoint_Discovered_By_Js_Min_Order_By = {
+  endpoint_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  javascriptfile_id?: Order_By | null | undefined;
 };
 
 /** on_conflict condition type for table "core_endpoint_discovered_by_js" */
@@ -4541,6 +6156,34 @@ export type Core_Endpoint_Discovered_By_Js_Select_Column =
   /** column name */
   | 'javascriptfile_id';
 
+/** order by stddev() on columns of table "core_endpoint_discovered_by_js" */
+export type Core_Endpoint_Discovered_By_Js_Stddev_Order_By = {
+  endpoint_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  javascriptfile_id?: Order_By | null | undefined;
+};
+
+/** order by stddev_pop() on columns of table "core_endpoint_discovered_by_js" */
+export type Core_Endpoint_Discovered_By_Js_Stddev_Pop_Order_By = {
+  endpoint_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  javascriptfile_id?: Order_By | null | undefined;
+};
+
+/** order by stddev_samp() on columns of table "core_endpoint_discovered_by_js" */
+export type Core_Endpoint_Discovered_By_Js_Stddev_Samp_Order_By = {
+  endpoint_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  javascriptfile_id?: Order_By | null | undefined;
+};
+
+/** order by sum() on columns of table "core_endpoint_discovered_by_js" */
+export type Core_Endpoint_Discovered_By_Js_Sum_Order_By = {
+  endpoint_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  javascriptfile_id?: Order_By | null | undefined;
+};
+
 /** update columns of table "core_endpoint_discovered_by_js" */
 export type Core_Endpoint_Discovered_By_Js_Update_Column =
   /** column name */
@@ -4549,6 +6192,27 @@ export type Core_Endpoint_Discovered_By_Js_Update_Column =
   | 'id'
   /** column name */
   | 'javascriptfile_id';
+
+/** order by var_pop() on columns of table "core_endpoint_discovered_by_js" */
+export type Core_Endpoint_Discovered_By_Js_Var_Pop_Order_By = {
+  endpoint_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  javascriptfile_id?: Order_By | null | undefined;
+};
+
+/** order by var_samp() on columns of table "core_endpoint_discovered_by_js" */
+export type Core_Endpoint_Discovered_By_Js_Var_Samp_Order_By = {
+  endpoint_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  javascriptfile_id?: Order_By | null | undefined;
+};
+
+/** order by variance() on columns of table "core_endpoint_discovered_by_js" */
+export type Core_Endpoint_Discovered_By_Js_Variance_Order_By = {
+  endpoint_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  javascriptfile_id?: Order_By | null | undefined;
+};
 
 export type Core_Endpoint_Discovered_By_Scans_Aggregate_Bool_Exp = {
   count?: Core_Endpoint_Discovered_By_Scans_Aggregate_Bool_Exp_Count | null | undefined;
@@ -4561,11 +6225,33 @@ export type Core_Endpoint_Discovered_By_Scans_Aggregate_Bool_Exp_Count = {
   predicate: Int_Comparison_Exp;
 };
 
+/** order by aggregate values of table "core_endpoint_discovered_by_scans" */
+export type Core_Endpoint_Discovered_By_Scans_Aggregate_Order_By = {
+  avg?: Core_Endpoint_Discovered_By_Scans_Avg_Order_By | null | undefined;
+  count?: Order_By | null | undefined;
+  max?: Core_Endpoint_Discovered_By_Scans_Max_Order_By | null | undefined;
+  min?: Core_Endpoint_Discovered_By_Scans_Min_Order_By | null | undefined;
+  stddev?: Core_Endpoint_Discovered_By_Scans_Stddev_Order_By | null | undefined;
+  stddev_pop?: Core_Endpoint_Discovered_By_Scans_Stddev_Pop_Order_By | null | undefined;
+  stddev_samp?: Core_Endpoint_Discovered_By_Scans_Stddev_Samp_Order_By | null | undefined;
+  sum?: Core_Endpoint_Discovered_By_Scans_Sum_Order_By | null | undefined;
+  var_pop?: Core_Endpoint_Discovered_By_Scans_Var_Pop_Order_By | null | undefined;
+  var_samp?: Core_Endpoint_Discovered_By_Scans_Var_Samp_Order_By | null | undefined;
+  variance?: Core_Endpoint_Discovered_By_Scans_Variance_Order_By | null | undefined;
+};
+
 /** input type for inserting array relation for remote table "core_endpoint_discovered_by_scans" */
 export type Core_Endpoint_Discovered_By_Scans_Arr_Rel_Insert_Input = {
   data: Array<Core_Endpoint_Discovered_By_Scans_Insert_Input>;
   /** upsert condition */
   on_conflict?: Core_Endpoint_Discovered_By_Scans_On_Conflict | null | undefined;
+};
+
+/** order by avg() on columns of table "core_endpoint_discovered_by_scans" */
+export type Core_Endpoint_Discovered_By_Scans_Avg_Order_By = {
+  endpoint_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  urlscan_id?: Order_By | null | undefined;
 };
 
 /** Boolean expression to filter rows from the table "core_endpoint_discovered_by_scans". All fields are combined with a logical 'AND'. */
@@ -4591,9 +6277,23 @@ export type Core_Endpoint_Discovered_By_Scans_Constraint =
 export type Core_Endpoint_Discovered_By_Scans_Insert_Input = {
   core_endpoint?: Core_Endpoint_Obj_Rel_Insert_Input | null | undefined;
   core_urlscan?: Core_Urlscan_Obj_Rel_Insert_Input | null | undefined;
-  endpoint_id?: unknown;
-  id?: unknown;
-  urlscan_id?: unknown;
+  endpoint_id?: number | null | undefined;
+  id?: number | null | undefined;
+  urlscan_id?: number | null | undefined;
+};
+
+/** order by max() on columns of table "core_endpoint_discovered_by_scans" */
+export type Core_Endpoint_Discovered_By_Scans_Max_Order_By = {
+  endpoint_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  urlscan_id?: Order_By | null | undefined;
+};
+
+/** order by min() on columns of table "core_endpoint_discovered_by_scans" */
+export type Core_Endpoint_Discovered_By_Scans_Min_Order_By = {
+  endpoint_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  urlscan_id?: Order_By | null | undefined;
 };
 
 /** on_conflict condition type for table "core_endpoint_discovered_by_scans" */
@@ -4612,6 +6312,34 @@ export type Core_Endpoint_Discovered_By_Scans_Select_Column =
   /** column name */
   | 'urlscan_id';
 
+/** order by stddev() on columns of table "core_endpoint_discovered_by_scans" */
+export type Core_Endpoint_Discovered_By_Scans_Stddev_Order_By = {
+  endpoint_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  urlscan_id?: Order_By | null | undefined;
+};
+
+/** order by stddev_pop() on columns of table "core_endpoint_discovered_by_scans" */
+export type Core_Endpoint_Discovered_By_Scans_Stddev_Pop_Order_By = {
+  endpoint_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  urlscan_id?: Order_By | null | undefined;
+};
+
+/** order by stddev_samp() on columns of table "core_endpoint_discovered_by_scans" */
+export type Core_Endpoint_Discovered_By_Scans_Stddev_Samp_Order_By = {
+  endpoint_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  urlscan_id?: Order_By | null | undefined;
+};
+
+/** order by sum() on columns of table "core_endpoint_discovered_by_scans" */
+export type Core_Endpoint_Discovered_By_Scans_Sum_Order_By = {
+  endpoint_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  urlscan_id?: Order_By | null | undefined;
+};
+
 /** update columns of table "core_endpoint_discovered_by_scans" */
 export type Core_Endpoint_Discovered_By_Scans_Update_Column =
   /** column name */
@@ -4620,6 +6348,27 @@ export type Core_Endpoint_Discovered_By_Scans_Update_Column =
   | 'id'
   /** column name */
   | 'urlscan_id';
+
+/** order by var_pop() on columns of table "core_endpoint_discovered_by_scans" */
+export type Core_Endpoint_Discovered_By_Scans_Var_Pop_Order_By = {
+  endpoint_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  urlscan_id?: Order_By | null | undefined;
+};
+
+/** order by var_samp() on columns of table "core_endpoint_discovered_by_scans" */
+export type Core_Endpoint_Discovered_By_Scans_Var_Samp_Order_By = {
+  endpoint_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  urlscan_id?: Order_By | null | undefined;
+};
+
+/** order by variance() on columns of table "core_endpoint_discovered_by_scans" */
+export type Core_Endpoint_Discovered_By_Scans_Variance_Order_By = {
+  endpoint_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  urlscan_id?: Order_By | null | undefined;
+};
 
 export type Core_Endpoint_Discovered_By_Urls_Aggregate_Bool_Exp = {
   count?: Core_Endpoint_Discovered_By_Urls_Aggregate_Bool_Exp_Count | null | undefined;
@@ -4684,9 +6433,9 @@ export type Core_Endpoint_Discovered_By_Urls_Constraint =
 export type Core_Endpoint_Discovered_By_Urls_Insert_Input = {
   core_endpoint?: Core_Endpoint_Obj_Rel_Insert_Input | null | undefined;
   core_urlresult?: Core_Urlresult_Obj_Rel_Insert_Input | null | undefined;
-  endpoint_id?: unknown;
-  id?: unknown;
-  urlresult_id?: unknown;
+  endpoint_id?: number | null | undefined;
+  id?: number | null | undefined;
+  urlresult_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_endpoint_discovered_by_urls" */
@@ -4779,6 +6528,10 @@ export type Core_Endpoint_Discovered_By_Urls_Variance_Order_By = {
 
 /** input type for inserting data into table "core_endpoint" */
 export type Core_Endpoint_Insert_Input = {
+  coreAssetedgesByToEndpointId?: Core_Assetedge_Arr_Rel_Insert_Input | null | undefined;
+  core_assetedges?: Core_Assetedge_Arr_Rel_Insert_Input | null | undefined;
+  core_assetlocks?: Core_Assetlock_Arr_Rel_Insert_Input | null | undefined;
+  core_assetvectorlinks?: Core_Assetvectorlink_Arr_Rel_Insert_Input | null | undefined;
   core_endpoint_discovered_by_inline_js?: Core_Endpoint_Discovered_By_Inline_Js_Arr_Rel_Insert_Input | null | undefined;
   core_endpoint_discovered_by_js?: Core_Endpoint_Discovered_By_Js_Arr_Rel_Insert_Input | null | undefined;
   core_endpoint_discovered_by_scans?: Core_Endpoint_Discovered_By_Scans_Arr_Rel_Insert_Input | null | undefined;
@@ -4786,12 +6539,12 @@ export type Core_Endpoint_Insert_Input = {
   core_endpoint_related_subdomains?: Core_Endpoint_Related_Subdomains_Arr_Rel_Insert_Input | null | undefined;
   core_target?: Core_Target_Obj_Rel_Insert_Input | null | undefined;
   core_urlparameters?: Core_Urlparameter_Arr_Rel_Insert_Input | null | undefined;
-  created_at?: unknown;
-  id?: unknown;
-  last_seen?: unknown;
+  created_at?: string | null | undefined;
+  id?: number | null | undefined;
+  last_seen?: string | null | undefined;
   method?: string | null | undefined;
   path?: string | null | undefined;
-  target_id?: unknown;
+  target_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_endpoint" */
@@ -4826,6 +6579,27 @@ export type Core_Endpoint_On_Conflict = {
   constraint: Core_Endpoint_Constraint;
   update_columns?: Array<Core_Endpoint_Update_Column>;
   where?: Core_Endpoint_Bool_Exp | null | undefined;
+};
+
+/** Ordering options when selecting data from "core_endpoint". */
+export type Core_Endpoint_Order_By = {
+  coreAssetedgesByToEndpointId_aggregate?: Core_Assetedge_Aggregate_Order_By | null | undefined;
+  core_assetedges_aggregate?: Core_Assetedge_Aggregate_Order_By | null | undefined;
+  core_assetlocks_aggregate?: Core_Assetlock_Aggregate_Order_By | null | undefined;
+  core_assetvectorlinks_aggregate?: Core_Assetvectorlink_Aggregate_Order_By | null | undefined;
+  core_endpoint_discovered_by_inline_js_aggregate?: Core_Endpoint_Discovered_By_Inline_Js_Aggregate_Order_By | null | undefined;
+  core_endpoint_discovered_by_js_aggregate?: Core_Endpoint_Discovered_By_Js_Aggregate_Order_By | null | undefined;
+  core_endpoint_discovered_by_scans_aggregate?: Core_Endpoint_Discovered_By_Scans_Aggregate_Order_By | null | undefined;
+  core_endpoint_discovered_by_urls_aggregate?: Core_Endpoint_Discovered_By_Urls_Aggregate_Order_By | null | undefined;
+  core_endpoint_related_subdomains_aggregate?: Core_Endpoint_Related_Subdomains_Aggregate_Order_By | null | undefined;
+  core_target?: Core_Target_Order_By | null | undefined;
+  core_urlparameters_aggregate?: Core_Urlparameter_Aggregate_Order_By | null | undefined;
+  created_at?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  last_seen?: Order_By | null | undefined;
+  method?: Order_By | null | undefined;
+  path?: Order_By | null | undefined;
+  target_id?: Order_By | null | undefined;
 };
 
 export type Core_Endpoint_Related_Subdomains_Aggregate_Bool_Exp = {
@@ -4891,9 +6665,9 @@ export type Core_Endpoint_Related_Subdomains_Constraint =
 export type Core_Endpoint_Related_Subdomains_Insert_Input = {
   core_endpoint?: Core_Endpoint_Obj_Rel_Insert_Input | null | undefined;
   core_subdomain?: Core_Subdomain_Obj_Rel_Insert_Input | null | undefined;
-  endpoint_id?: unknown;
-  id?: unknown;
-  subdomain_id?: unknown;
+  endpoint_id?: number | null | undefined;
+  id?: number | null | undefined;
+  subdomain_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_endpoint_related_subdomains" */
@@ -5088,10 +6862,10 @@ export type Core_Extractedjs_Insert_Input = {
   core_endpoint_discovered_by_inline_js?: Core_Endpoint_Discovered_By_Inline_Js_Arr_Rel_Insert_Input | null | undefined;
   core_jsonobjects?: Core_Jsonobject_Arr_Rel_Insert_Input | null | undefined;
   core_urlresult?: Core_Urlresult_Obj_Rel_Insert_Input | null | undefined;
-  created_at?: unknown;
-  id?: unknown;
+  created_at?: string | null | undefined;
+  id?: number | null | undefined;
   is_analyzed?: boolean | null | undefined;
-  which_url_id?: unknown;
+  which_url_id?: number | null | undefined;
 };
 
 /** input type for inserting object relation for remote table "core_extractedjs" */
@@ -5199,10 +6973,10 @@ export type Core_Form_Constraint =
 export type Core_Form_Insert_Input = {
   action?: string | null | undefined;
   core_urlresult?: Core_Urlresult_Obj_Rel_Insert_Input | null | undefined;
-  id?: unknown;
+  id?: number | null | undefined;
   method?: string | null | undefined;
   parameters?: unknown;
-  which_url_id?: unknown;
+  which_url_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_form" */
@@ -5368,14 +7142,14 @@ export type Core_Historicalip_Insert_Input = {
   address?: unknown;
   auth_user?: Auth_User_Obj_Rel_Insert_Input | null | undefined;
   history_change_reason?: string | null | undefined;
-  history_date?: unknown;
+  history_date?: string | null | undefined;
   history_id?: number | null | undefined;
   history_type?: string | null | undefined;
   history_user_id?: number | null | undefined;
-  id?: unknown;
+  id?: number | null | undefined;
   last_scan_id?: number | null | undefined;
   last_scan_type?: string | null | undefined;
-  target_id?: unknown;
+  target_id?: number | null | undefined;
   version?: unknown;
 };
 
@@ -5609,17 +7383,17 @@ export type Core_Historicalport_Constraint =
 /** input type for inserting data into table "core_historicalport" */
 export type Core_Historicalport_Insert_Input = {
   auth_user?: Auth_User_Obj_Rel_Insert_Input | null | undefined;
-  first_seen?: unknown;
+  first_seen?: string | null | undefined;
   history_change_reason?: string | null | undefined;
-  history_date?: unknown;
+  history_date?: string | null | undefined;
   history_id?: number | null | undefined;
   history_type?: string | null | undefined;
   history_user_id?: number | null | undefined;
-  id?: unknown;
-  ip_id?: unknown;
+  id?: number | null | undefined;
+  ip_id?: number | null | undefined;
   last_scan_id?: number | null | undefined;
   last_scan_type?: string | null | undefined;
-  last_seen?: unknown;
+  last_seen?: string | null | undefined;
   port_number?: number | null | undefined;
   protocol?: string | null | undefined;
   service_name?: string | null | undefined;
@@ -5910,14 +7684,14 @@ export type Core_Historicalsubdomain_Constraint =
 export type Core_Historicalsubdomain_Insert_Input = {
   auth_user?: Auth_User_Obj_Rel_Insert_Input | null | undefined;
   cdn_name?: string | null | undefined;
-  created_at?: unknown;
-  first_seen?: unknown;
+  created_at?: string | null | undefined;
+  first_seen?: string | null | undefined;
   history_change_reason?: string | null | undefined;
-  history_date?: unknown;
+  history_date?: string | null | undefined;
   history_id?: number | null | undefined;
   history_type?: string | null | undefined;
   history_user_id?: number | null | undefined;
-  id?: unknown;
+  id?: number | null | undefined;
   is_active?: boolean | null | undefined;
   is_cdn?: boolean | null | undefined;
   is_resolvable?: boolean | null | undefined;
@@ -5925,10 +7699,10 @@ export type Core_Historicalsubdomain_Insert_Input = {
   is_waf?: boolean | null | undefined;
   last_scan_id?: number | null | undefined;
   last_scan_type?: string | null | undefined;
-  last_seen?: unknown;
+  last_seen?: string | null | undefined;
   name?: string | null | undefined;
   sources_text?: string | null | undefined;
-  target_id?: unknown;
+  target_id?: number | null | undefined;
   waf_name?: string | null | undefined;
 };
 
@@ -6265,17 +8039,17 @@ export type Core_Historicalurlresult_Insert_Input = {
   cleaned_html?: string | null | undefined;
   content_fetch_status?: string | null | undefined;
   content_length?: number | null | undefined;
-  created_at?: unknown;
+  created_at?: string | null | undefined;
   discovery_source?: string | null | undefined;
   dom_snapshot?: string | null | undefined;
   final_url?: string | null | undefined;
   headers?: unknown;
   history_change_reason?: string | null | undefined;
-  history_date?: unknown;
+  history_date?: string | null | undefined;
   history_id?: number | null | undefined;
   history_type?: string | null | undefined;
   history_user_id?: number | null | undefined;
-  id?: unknown;
+  id?: number | null | undefined;
   is_external_redirect?: boolean | null | undefined;
   is_important?: boolean | null | undefined;
   is_tech_analyzed?: boolean | null | undefined;
@@ -6285,7 +8059,7 @@ export type Core_Historicalurlresult_Insert_Input = {
   raw_response?: string | null | undefined;
   raw_response_hash?: string | null | undefined;
   status_code?: number | null | undefined;
-  target_id?: unknown;
+  target_id?: number | null | undefined;
   text?: string | null | undefined;
   title?: string | null | undefined;
   url?: string | null | undefined;
@@ -6630,9 +8404,9 @@ export type Core_Iframe_Constraint =
 /** input type for inserting data into table "core_iframe" */
 export type Core_Iframe_Insert_Input = {
   core_urlresult?: Core_Urlresult_Obj_Rel_Insert_Input | null | undefined;
-  id?: unknown;
+  id?: number | null | undefined;
   src?: string | null | undefined;
-  which_url_id?: unknown;
+  which_url_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_iframe" */
@@ -6808,24 +8582,24 @@ export type Core_Initialaianalysis_Constraint =
 
 /** input type for inserting data into table "core_initialaianalysis" */
 export type Core_Initialaianalysis_Insert_Input = {
-  completed_at?: unknown;
+  completed_at?: string | null | undefined;
   core_ip?: Core_Ip_Obj_Rel_Insert_Input | null | undefined;
   core_overview?: Core_Overview_Obj_Rel_Insert_Input | null | undefined;
   core_subdomain?: Core_Subdomain_Obj_Rel_Insert_Input | null | undefined;
   core_urlresult?: Core_Urlresult_Obj_Rel_Insert_Input | null | undefined;
-  created_at?: unknown;
+  created_at?: string | null | undefined;
   error_message?: string | null | undefined;
-  id?: unknown;
+  id?: number | null | undefined;
   inferred_purpose?: string | null | undefined;
-  ip_id?: unknown;
+  ip_id?: number | null | undefined;
   is_converted?: boolean | null | undefined;
-  overview_id?: unknown;
+  overview_id?: number | null | undefined;
   raw_response?: unknown;
   risk_score?: unknown;
   status?: string | null | undefined;
-  subdomain_id?: unknown;
+  subdomain_id?: number | null | undefined;
   summary?: string | null | undefined;
-  url_result_id?: unknown;
+  url_result_id?: number | null | undefined;
   worth_deep_analysis?: boolean | null | undefined;
 };
 
@@ -7065,8 +8839,16 @@ export type Core_Ip_Bool_Exp = {
   _not?: Core_Ip_Bool_Exp | null | undefined;
   _or?: Array<Core_Ip_Bool_Exp> | null | undefined;
   address?: Inet_Comparison_Exp | null | undefined;
+  coreAssetedgesByToIpId?: Core_Assetedge_Bool_Exp | null | undefined;
+  coreAssetedgesByToIpId_aggregate?: Core_Assetedge_Aggregate_Bool_Exp | null | undefined;
   core_analyzedata?: Core_Analyzedata_Bool_Exp | null | undefined;
   core_analyzedata_aggregate?: Core_Analyzedata_Aggregate_Bool_Exp | null | undefined;
+  core_assetedges?: Core_Assetedge_Bool_Exp | null | undefined;
+  core_assetedges_aggregate?: Core_Assetedge_Aggregate_Bool_Exp | null | undefined;
+  core_assetlocks?: Core_Assetlock_Bool_Exp | null | undefined;
+  core_assetlocks_aggregate?: Core_Assetlock_Aggregate_Bool_Exp | null | undefined;
+  core_assetvectorlinks?: Core_Assetvectorlink_Bool_Exp | null | undefined;
+  core_assetvectorlinks_aggregate?: Core_Assetvectorlink_Aggregate_Bool_Exp | null | undefined;
   core_initialaianalyses?: Core_Initialaianalysis_Bool_Exp | null | undefined;
   core_initialaianalyses_aggregate?: Core_Initialaianalysis_Aggregate_Bool_Exp | null | undefined;
   core_ip_discovered_by_scans?: Core_Ip_Discovered_By_Scans_Bool_Exp | null | undefined;
@@ -7159,9 +8941,9 @@ export type Core_Ip_Discovered_By_Scans_Constraint =
 export type Core_Ip_Discovered_By_Scans_Insert_Input = {
   core_ip?: Core_Ip_Obj_Rel_Insert_Input | null | undefined;
   core_nmapscan?: Core_Nmapscan_Obj_Rel_Insert_Input | null | undefined;
-  id?: unknown;
-  ip_id?: unknown;
-  nmapscan_id?: unknown;
+  id?: number | null | undefined;
+  ip_id?: number | null | undefined;
+  nmapscan_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_ip_discovered_by_scans" */
@@ -7255,7 +9037,11 @@ export type Core_Ip_Discovered_By_Scans_Variance_Order_By = {
 /** input type for inserting data into table "core_ip" */
 export type Core_Ip_Insert_Input = {
   address?: unknown;
+  coreAssetedgesByToIpId?: Core_Assetedge_Arr_Rel_Insert_Input | null | undefined;
   core_analyzedata?: Core_Analyzedata_Arr_Rel_Insert_Input | null | undefined;
+  core_assetedges?: Core_Assetedge_Arr_Rel_Insert_Input | null | undefined;
+  core_assetlocks?: Core_Assetlock_Arr_Rel_Insert_Input | null | undefined;
+  core_assetvectorlinks?: Core_Assetvectorlink_Arr_Rel_Insert_Input | null | undefined;
   core_initialaianalyses?: Core_Initialaianalysis_Arr_Rel_Insert_Input | null | undefined;
   core_ip_discovered_by_scans?: Core_Ip_Discovered_By_Scans_Arr_Rel_Insert_Input | null | undefined;
   core_ip_which_seeds?: Core_Ip_Which_Seed_Arr_Rel_Insert_Input | null | undefined;
@@ -7265,10 +9051,10 @@ export type Core_Ip_Insert_Input = {
   core_subdomain_ips?: Core_Subdomain_Ips_Arr_Rel_Insert_Input | null | undefined;
   core_target?: Core_Target_Obj_Rel_Insert_Input | null | undefined;
   core_vulnerabilities?: Core_Vulnerability_Arr_Rel_Insert_Input | null | undefined;
-  id?: unknown;
+  id?: number | null | undefined;
   last_scan_id?: number | null | undefined;
   last_scan_type?: string | null | undefined;
-  target_id?: unknown;
+  target_id?: number | null | undefined;
   version?: unknown;
 };
 
@@ -7307,7 +9093,11 @@ export type Core_Ip_On_Conflict = {
 /** Ordering options when selecting data from "core_ip". */
 export type Core_Ip_Order_By = {
   address?: Order_By | null | undefined;
+  coreAssetedgesByToIpId_aggregate?: Core_Assetedge_Aggregate_Order_By | null | undefined;
   core_analyzedata_aggregate?: Core_Analyzedata_Aggregate_Order_By | null | undefined;
+  core_assetedges_aggregate?: Core_Assetedge_Aggregate_Order_By | null | undefined;
+  core_assetlocks_aggregate?: Core_Assetlock_Aggregate_Order_By | null | undefined;
+  core_assetvectorlinks_aggregate?: Core_Assetvectorlink_Aggregate_Order_By | null | undefined;
   core_initialaianalyses_aggregate?: Core_Initialaianalysis_Aggregate_Order_By | null | undefined;
   core_ip_discovered_by_scans_aggregate?: Core_Ip_Discovered_By_Scans_Aggregate_Order_By | null | undefined;
   core_ip_which_seeds_aggregate?: Core_Ip_Which_Seed_Aggregate_Order_By | null | undefined;
@@ -7473,9 +9263,9 @@ export type Core_Ip_Which_Seed_Constraint =
 export type Core_Ip_Which_Seed_Insert_Input = {
   core_ip?: Core_Ip_Obj_Rel_Insert_Input | null | undefined;
   core_seed?: Core_Seed_Obj_Rel_Insert_Input | null | undefined;
-  id?: unknown;
-  ip_id?: unknown;
-  seed_id?: unknown;
+  id?: number | null | undefined;
+  ip_id?: number | null | undefined;
+  seed_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_ip_which_seed" */
@@ -7601,7 +9391,7 @@ export type Core_Javascriptfile_Insert_Input = {
   core_endpoint_discovered_by_js?: Core_Endpoint_Discovered_By_Js_Arr_Rel_Insert_Input | null | undefined;
   core_javascriptfile_related_pages?: Core_Javascriptfile_Related_Pages_Arr_Rel_Insert_Input | null | undefined;
   core_jsonobjects?: Core_Jsonobject_Arr_Rel_Insert_Input | null | undefined;
-  id?: unknown;
+  id?: number | null | undefined;
   is_analyzed?: boolean | null | undefined;
   is_source_map?: boolean | null | undefined;
   last_error?: string | null | undefined;
@@ -7688,9 +9478,9 @@ export type Core_Javascriptfile_Related_Pages_Constraint =
 export type Core_Javascriptfile_Related_Pages_Insert_Input = {
   core_javascriptfile?: Core_Javascriptfile_Obj_Rel_Insert_Input | null | undefined;
   core_urlresult?: Core_Urlresult_Obj_Rel_Insert_Input | null | undefined;
-  id?: unknown;
-  javascriptfile_id?: unknown;
-  urlresult_id?: unknown;
+  id?: number | null | undefined;
+  javascriptfile_id?: number | null | undefined;
+  urlresult_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_javascriptfile_related_pages" */
@@ -7948,14 +9738,14 @@ export type Core_Jsonobject_Insert_Input = {
   core_extractedj?: Core_Extractedjs_Obj_Rel_Insert_Input | null | undefined;
   core_javascriptfile?: Core_Javascriptfile_Obj_Rel_Insert_Input | null | undefined;
   depth?: number | null | undefined;
-  id?: unknown;
+  id?: number | null | undefined;
   key?: string | null | undefined;
   path?: string | null | undefined;
   score?: unknown;
   struct?: string | null | undefined;
   val?: string | null | undefined;
-  which_extracted_js_id?: unknown;
-  which_javascript_file_id?: unknown;
+  which_extracted_js_id?: number | null | undefined;
+  which_javascript_file_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_jsonobject" */
@@ -8196,9 +9986,9 @@ export type Core_Link_Constraint =
 export type Core_Link_Insert_Input = {
   core_urlresult?: Core_Urlresult_Obj_Rel_Insert_Input | null | undefined;
   href?: string | null | undefined;
-  id?: unknown;
+  id?: number | null | undefined;
   text?: string | null | undefined;
-  which_url_id?: unknown;
+  which_url_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_link" */
@@ -8347,8 +10137,8 @@ export type Core_Metatag_Constraint =
 export type Core_Metatag_Insert_Input = {
   attributes?: unknown;
   core_urlresult?: Core_Urlresult_Obj_Rel_Insert_Input | null | undefined;
-  id?: unknown;
-  which_url_id?: unknown;
+  id?: number | null | undefined;
+  which_url_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_metatag" */
@@ -8458,16 +10248,16 @@ export type Core_Nmapscan_Constraint =
 
 /** input type for inserting data into table "core_nmapscan" */
 export type Core_Nmapscan_Insert_Input = {
-  completed_at?: unknown;
+  completed_at?: string | null | undefined;
   core_ip_discovered_by_scans?: Core_Ip_Discovered_By_Scans_Arr_Rel_Insert_Input | null | undefined;
   core_nmapscan_which_seeds?: Core_Nmapscan_Which_Seed_Arr_Rel_Insert_Input | null | undefined;
   core_port_discovered_by_scans?: Core_Port_Discovered_By_Scans_Arr_Rel_Insert_Input | null | undefined;
-  created_at?: unknown;
+  created_at?: string | null | undefined;
   error_message?: string | null | undefined;
-  id?: unknown;
+  id?: number | null | undefined;
   nmap_args?: string | null | undefined;
   nmap_output?: string | null | undefined;
-  started_at?: unknown;
+  started_at?: string | null | undefined;
   status?: string | null | undefined;
 };
 
@@ -8567,9 +10357,9 @@ export type Core_Nmapscan_Which_Seed_Constraint =
 export type Core_Nmapscan_Which_Seed_Insert_Input = {
   core_nmapscan?: Core_Nmapscan_Obj_Rel_Insert_Input | null | undefined;
   core_seed?: Core_Seed_Obj_Rel_Insert_Input | null | undefined;
-  id?: unknown;
-  nmapscan_id?: unknown;
-  seed_id?: unknown;
+  id?: number | null | undefined;
+  nmapscan_id?: number | null | undefined;
+  seed_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_nmapscan_which_seed" */
@@ -8730,21 +10520,21 @@ export type Core_Nucleiscan_Constraint =
 
 /** input type for inserting data into table "core_nucleiscan" */
 export type Core_Nucleiscan_Insert_Input = {
-  completed_at?: unknown;
+  completed_at?: string | null | undefined;
   core_ip?: Core_Ip_Obj_Rel_Insert_Input | null | undefined;
   core_subdomain?: Core_Subdomain_Obj_Rel_Insert_Input | null | undefined;
   core_urlresult?: Core_Urlresult_Obj_Rel_Insert_Input | null | undefined;
-  created_at?: unknown;
+  created_at?: string | null | undefined;
   error_message?: string | null | undefined;
-  id?: unknown;
-  ip_asset_id?: unknown;
+  id?: number | null | undefined;
+  ip_asset_id?: number | null | undefined;
   output_file?: string | null | undefined;
   severity_filter?: string | null | undefined;
-  started_at?: unknown;
+  started_at?: string | null | undefined;
   status?: string | null | undefined;
-  subdomain_asset_id?: unknown;
+  subdomain_asset_id?: number | null | undefined;
   template_ids?: unknown;
-  url_asset_id?: unknown;
+  url_asset_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_nucleiscan" */
@@ -9011,24 +10801,24 @@ export type Core_Overview_Insert_Input = {
   core_subagent_dispatches?: Core_Subagent_Dispatch_Arr_Rel_Insert_Input | null | undefined;
   core_target?: Core_Target_Obj_Rel_Insert_Input | null | undefined;
   core_vulnerabilities?: Core_Vulnerability_Arr_Rel_Insert_Input | null | undefined;
-  created_at?: unknown;
-  id?: unknown;
+  created_at?: string | null | undefined;
+  id?: number | null | undefined;
   knowledge?: unknown;
   mission_reviews?: Mission_Review_Arr_Rel_Insert_Input | null | undefined;
-  parent_thread_id?: unknown;
+  parent_thread_id?: number | null | undefined;
   port_service?: unknown;
   recon_summary?: string | null | undefined;
   rescue_count?: unknown;
   risk_score?: unknown;
-  seed_id?: unknown;
+  seed_id?: number | null | undefined;
   status?: string | null | undefined;
   subdomain_intel?: unknown;
   summary?: string | null | undefined;
-  target_id?: unknown;
+  target_id?: number | null | undefined;
   tech_stack?: unknown;
   techs?: unknown;
-  thread_id?: unknown;
-  updated_at?: unknown;
+  thread_id?: number | null | undefined;
+  updated_at?: string | null | undefined;
   vuln_intel?: unknown;
 };
 
@@ -9095,9 +10885,9 @@ export type Core_Overview_Ips_Constraint =
 export type Core_Overview_Ips_Insert_Input = {
   core_ip?: Core_Ip_Obj_Rel_Insert_Input | null | undefined;
   core_overview?: Core_Overview_Obj_Rel_Insert_Input | null | undefined;
-  id?: unknown;
-  ip_id?: unknown;
-  overview_id?: unknown;
+  id?: number | null | undefined;
+  ip_id?: number | null | undefined;
+  overview_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_overview_ips" */
@@ -9339,15 +11129,15 @@ export type Core_Overview_Page_Constraint =
 export type Core_Overview_Page_Insert_Input = {
   content?: string | null | undefined;
   core_overview?: Core_Overview_Obj_Rel_Insert_Input | null | undefined;
-  created_at?: unknown;
-  id?: unknown;
-  overview_id?: unknown;
+  created_at?: string | null | undefined;
+  id?: number | null | undefined;
+  overview_id?: number | null | undefined;
   page_breakdown?: unknown;
   section_type?: string | null | undefined;
   source_agent?: string | null | undefined;
   summary?: string | null | undefined;
   title?: string | null | undefined;
-  updated_at?: unknown;
+  updated_at?: string | null | undefined;
 };
 
 /** order by max() on columns of table "core_overview_page" */
@@ -9608,9 +11398,9 @@ export type Core_Overview_Subdomains_Constraint =
 export type Core_Overview_Subdomains_Insert_Input = {
   core_overview?: Core_Overview_Obj_Rel_Insert_Input | null | undefined;
   core_subdomain?: Core_Subdomain_Obj_Rel_Insert_Input | null | undefined;
-  id?: unknown;
-  overview_id?: unknown;
-  subdomain_id?: unknown;
+  id?: number | null | undefined;
+  overview_id?: number | null | undefined;
+  subdomain_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_overview_subdomains" */
@@ -9816,9 +11606,9 @@ export type Core_Overview_Url_Results_Constraint =
 export type Core_Overview_Url_Results_Insert_Input = {
   core_overview?: Core_Overview_Obj_Rel_Insert_Input | null | undefined;
   core_urlresult?: Core_Urlresult_Obj_Rel_Insert_Input | null | undefined;
-  id?: unknown;
-  overview_id?: unknown;
-  urlresult_id?: unknown;
+  id?: number | null | undefined;
+  overview_id?: number | null | undefined;
+  urlresult_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_overview_url_results" */
@@ -10000,10 +11790,10 @@ export type Core_Payload_Constraint =
 
 /** input type for inserting data into table "core_payload" */
 export type Core_Payload_Insert_Input = {
-  attack_vector_id?: unknown;
+  attack_vector_id?: number | null | undefined;
   content?: string | null | undefined;
   core_attackvector?: Core_Attackvector_Obj_Rel_Insert_Input | null | undefined;
-  id?: unknown;
+  id?: number | null | undefined;
   platform?: string | null | undefined;
 };
 
@@ -10175,14 +11965,14 @@ export type Core_Pocrecord_Constraint =
 export type Core_Pocrecord_Insert_Input = {
   content?: string | null | undefined;
   core_vulnerability?: Core_Vulnerability_Obj_Rel_Insert_Input | null | undefined;
-  created_at?: unknown;
-  id?: unknown;
+  created_at?: string | null | undefined;
+  id?: number | null | undefined;
   is_verified?: boolean | null | undefined;
   language?: string | null | undefined;
   result?: string | null | undefined;
   title?: string | null | undefined;
-  updated_at?: unknown;
-  vulnerability_id?: unknown;
+  updated_at?: string | null | undefined;
+  vulnerability_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_pocrecord" */
@@ -10250,14 +12040,14 @@ export type Core_Pocrecord_Select_Column_Core_Pocrecord_Aggregate_Bool_Exp_Bool_
 /** input type for updating data in table "core_pocrecord" */
 export type Core_Pocrecord_Set_Input = {
   content?: string | null | undefined;
-  created_at?: unknown;
-  id?: unknown;
+  created_at?: string | null | undefined;
+  id?: number | null | undefined;
   is_verified?: boolean | null | undefined;
   language?: string | null | undefined;
   result?: string | null | undefined;
   title?: string | null | undefined;
-  updated_at?: unknown;
-  vulnerability_id?: unknown;
+  updated_at?: string | null | undefined;
+  vulnerability_id?: number | null | undefined;
 };
 
 /** order by stddev() on columns of table "core_pocrecord" */
@@ -10369,6 +12159,14 @@ export type Core_Port_Bool_Exp = {
   _and?: Array<Core_Port_Bool_Exp> | null | undefined;
   _not?: Core_Port_Bool_Exp | null | undefined;
   _or?: Array<Core_Port_Bool_Exp> | null | undefined;
+  coreAssetedgesByToPortId?: Core_Assetedge_Bool_Exp | null | undefined;
+  coreAssetedgesByToPortId_aggregate?: Core_Assetedge_Aggregate_Bool_Exp | null | undefined;
+  core_assetedges?: Core_Assetedge_Bool_Exp | null | undefined;
+  core_assetedges_aggregate?: Core_Assetedge_Aggregate_Bool_Exp | null | undefined;
+  core_assetlocks?: Core_Assetlock_Bool_Exp | null | undefined;
+  core_assetlocks_aggregate?: Core_Assetlock_Aggregate_Bool_Exp | null | undefined;
+  core_assetvectorlinks?: Core_Assetvectorlink_Bool_Exp | null | undefined;
+  core_assetvectorlinks_aggregate?: Core_Assetvectorlink_Aggregate_Bool_Exp | null | undefined;
   core_ip?: Core_Ip_Bool_Exp | null | undefined;
   core_port_discovered_by_scans?: Core_Port_Discovered_By_Scans_Bool_Exp | null | undefined;
   core_port_discovered_by_scans_aggregate?: Core_Port_Discovered_By_Scans_Aggregate_Bool_Exp | null | undefined;
@@ -10403,11 +12201,33 @@ export type Core_Port_Discovered_By_Scans_Aggregate_Bool_Exp_Count = {
   predicate: Int_Comparison_Exp;
 };
 
+/** order by aggregate values of table "core_port_discovered_by_scans" */
+export type Core_Port_Discovered_By_Scans_Aggregate_Order_By = {
+  avg?: Core_Port_Discovered_By_Scans_Avg_Order_By | null | undefined;
+  count?: Order_By | null | undefined;
+  max?: Core_Port_Discovered_By_Scans_Max_Order_By | null | undefined;
+  min?: Core_Port_Discovered_By_Scans_Min_Order_By | null | undefined;
+  stddev?: Core_Port_Discovered_By_Scans_Stddev_Order_By | null | undefined;
+  stddev_pop?: Core_Port_Discovered_By_Scans_Stddev_Pop_Order_By | null | undefined;
+  stddev_samp?: Core_Port_Discovered_By_Scans_Stddev_Samp_Order_By | null | undefined;
+  sum?: Core_Port_Discovered_By_Scans_Sum_Order_By | null | undefined;
+  var_pop?: Core_Port_Discovered_By_Scans_Var_Pop_Order_By | null | undefined;
+  var_samp?: Core_Port_Discovered_By_Scans_Var_Samp_Order_By | null | undefined;
+  variance?: Core_Port_Discovered_By_Scans_Variance_Order_By | null | undefined;
+};
+
 /** input type for inserting array relation for remote table "core_port_discovered_by_scans" */
 export type Core_Port_Discovered_By_Scans_Arr_Rel_Insert_Input = {
   data: Array<Core_Port_Discovered_By_Scans_Insert_Input>;
   /** upsert condition */
   on_conflict?: Core_Port_Discovered_By_Scans_On_Conflict | null | undefined;
+};
+
+/** order by avg() on columns of table "core_port_discovered_by_scans" */
+export type Core_Port_Discovered_By_Scans_Avg_Order_By = {
+  id?: Order_By | null | undefined;
+  nmapscan_id?: Order_By | null | undefined;
+  port_id?: Order_By | null | undefined;
 };
 
 /** Boolean expression to filter rows from the table "core_port_discovered_by_scans". All fields are combined with a logical 'AND'. */
@@ -10433,9 +12253,23 @@ export type Core_Port_Discovered_By_Scans_Constraint =
 export type Core_Port_Discovered_By_Scans_Insert_Input = {
   core_nmapscan?: Core_Nmapscan_Obj_Rel_Insert_Input | null | undefined;
   core_port?: Core_Port_Obj_Rel_Insert_Input | null | undefined;
-  id?: unknown;
-  nmapscan_id?: unknown;
-  port_id?: unknown;
+  id?: number | null | undefined;
+  nmapscan_id?: number | null | undefined;
+  port_id?: number | null | undefined;
+};
+
+/** order by max() on columns of table "core_port_discovered_by_scans" */
+export type Core_Port_Discovered_By_Scans_Max_Order_By = {
+  id?: Order_By | null | undefined;
+  nmapscan_id?: Order_By | null | undefined;
+  port_id?: Order_By | null | undefined;
+};
+
+/** order by min() on columns of table "core_port_discovered_by_scans" */
+export type Core_Port_Discovered_By_Scans_Min_Order_By = {
+  id?: Order_By | null | undefined;
+  nmapscan_id?: Order_By | null | undefined;
+  port_id?: Order_By | null | undefined;
 };
 
 /** on_conflict condition type for table "core_port_discovered_by_scans" */
@@ -10454,6 +12288,34 @@ export type Core_Port_Discovered_By_Scans_Select_Column =
   /** column name */
   | 'port_id';
 
+/** order by stddev() on columns of table "core_port_discovered_by_scans" */
+export type Core_Port_Discovered_By_Scans_Stddev_Order_By = {
+  id?: Order_By | null | undefined;
+  nmapscan_id?: Order_By | null | undefined;
+  port_id?: Order_By | null | undefined;
+};
+
+/** order by stddev_pop() on columns of table "core_port_discovered_by_scans" */
+export type Core_Port_Discovered_By_Scans_Stddev_Pop_Order_By = {
+  id?: Order_By | null | undefined;
+  nmapscan_id?: Order_By | null | undefined;
+  port_id?: Order_By | null | undefined;
+};
+
+/** order by stddev_samp() on columns of table "core_port_discovered_by_scans" */
+export type Core_Port_Discovered_By_Scans_Stddev_Samp_Order_By = {
+  id?: Order_By | null | undefined;
+  nmapscan_id?: Order_By | null | undefined;
+  port_id?: Order_By | null | undefined;
+};
+
+/** order by sum() on columns of table "core_port_discovered_by_scans" */
+export type Core_Port_Discovered_By_Scans_Sum_Order_By = {
+  id?: Order_By | null | undefined;
+  nmapscan_id?: Order_By | null | undefined;
+  port_id?: Order_By | null | undefined;
+};
+
 /** update columns of table "core_port_discovered_by_scans" */
 export type Core_Port_Discovered_By_Scans_Update_Column =
   /** column name */
@@ -10463,16 +12325,41 @@ export type Core_Port_Discovered_By_Scans_Update_Column =
   /** column name */
   | 'port_id';
 
+/** order by var_pop() on columns of table "core_port_discovered_by_scans" */
+export type Core_Port_Discovered_By_Scans_Var_Pop_Order_By = {
+  id?: Order_By | null | undefined;
+  nmapscan_id?: Order_By | null | undefined;
+  port_id?: Order_By | null | undefined;
+};
+
+/** order by var_samp() on columns of table "core_port_discovered_by_scans" */
+export type Core_Port_Discovered_By_Scans_Var_Samp_Order_By = {
+  id?: Order_By | null | undefined;
+  nmapscan_id?: Order_By | null | undefined;
+  port_id?: Order_By | null | undefined;
+};
+
+/** order by variance() on columns of table "core_port_discovered_by_scans" */
+export type Core_Port_Discovered_By_Scans_Variance_Order_By = {
+  id?: Order_By | null | undefined;
+  nmapscan_id?: Order_By | null | undefined;
+  port_id?: Order_By | null | undefined;
+};
+
 /** input type for inserting data into table "core_port" */
 export type Core_Port_Insert_Input = {
+  coreAssetedgesByToPortId?: Core_Assetedge_Arr_Rel_Insert_Input | null | undefined;
+  core_assetedges?: Core_Assetedge_Arr_Rel_Insert_Input | null | undefined;
+  core_assetlocks?: Core_Assetlock_Arr_Rel_Insert_Input | null | undefined;
+  core_assetvectorlinks?: Core_Assetvectorlink_Arr_Rel_Insert_Input | null | undefined;
   core_ip?: Core_Ip_Obj_Rel_Insert_Input | null | undefined;
   core_port_discovered_by_scans?: Core_Port_Discovered_By_Scans_Arr_Rel_Insert_Input | null | undefined;
-  first_seen?: unknown;
-  id?: unknown;
-  ip_id?: unknown;
+  first_seen?: string | null | undefined;
+  id?: number | null | undefined;
+  ip_id?: number | null | undefined;
   last_scan_id?: number | null | undefined;
   last_scan_type?: string | null | undefined;
-  last_seen?: unknown;
+  last_seen?: string | null | undefined;
   port_number?: number | null | undefined;
   protocol?: string | null | undefined;
   service_name?: string | null | undefined;
@@ -10522,6 +12409,27 @@ export type Core_Port_On_Conflict = {
   constraint: Core_Port_Constraint;
   update_columns?: Array<Core_Port_Update_Column>;
   where?: Core_Port_Bool_Exp | null | undefined;
+};
+
+/** Ordering options when selecting data from "core_port". */
+export type Core_Port_Order_By = {
+  coreAssetedgesByToPortId_aggregate?: Core_Assetedge_Aggregate_Order_By | null | undefined;
+  core_assetedges_aggregate?: Core_Assetedge_Aggregate_Order_By | null | undefined;
+  core_assetlocks_aggregate?: Core_Assetlock_Aggregate_Order_By | null | undefined;
+  core_assetvectorlinks_aggregate?: Core_Assetvectorlink_Aggregate_Order_By | null | undefined;
+  core_ip?: Core_Ip_Order_By | null | undefined;
+  core_port_discovered_by_scans_aggregate?: Core_Port_Discovered_By_Scans_Aggregate_Order_By | null | undefined;
+  first_seen?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  ip_id?: Order_By | null | undefined;
+  last_scan_id?: Order_By | null | undefined;
+  last_scan_type?: Order_By | null | undefined;
+  last_seen?: Order_By | null | undefined;
+  port_number?: Order_By | null | undefined;
+  protocol?: Order_By | null | undefined;
+  service_name?: Order_By | null | undefined;
+  service_version?: Order_By | null | undefined;
+  state?: Order_By | null | undefined;
 };
 
 /** select columns of table "core_port" */
@@ -10727,10 +12635,10 @@ export type Core_Seed_Insert_Input = {
   core_subdomainseeds?: Core_Subdomainseed_Arr_Rel_Insert_Input | null | undefined;
   core_subfinderscans?: Core_Subfinderscan_Arr_Rel_Insert_Input | null | undefined;
   core_target?: Core_Target_Obj_Rel_Insert_Input | null | undefined;
-  created_at?: unknown;
-  id?: unknown;
+  created_at?: string | null | undefined;
+  id?: number | null | undefined;
   is_active?: boolean | null | undefined;
-  target_id?: unknown;
+  target_id?: number | null | undefined;
   type?: string | null | undefined;
   value?: string | null | undefined;
 };
@@ -10933,6 +12841,7 @@ export type Core_Subagent_Dispatch_Bool_Exp = {
   aiAssistantThreadBySubThreadId?: Ai_Assistant_Thread_Bool_Exp | null | undefined;
   ai_assistant_thread?: Ai_Assistant_Thread_Bool_Exp | null | undefined;
   completed_at?: Timestamptz_Comparison_Exp | null | undefined;
+  core_action?: Core_Action_Bool_Exp | null | undefined;
   core_overview?: Core_Overview_Bool_Exp | null | undefined;
   dispatched_at?: Timestamptz_Comparison_Exp | null | undefined;
   dispatcher_agent?: String_Comparison_Exp | null | undefined;
@@ -10954,21 +12863,22 @@ export type Core_Subagent_Dispatch_Constraint =
 
 /** input type for inserting data into table "core_subagent_dispatch" */
 export type Core_Subagent_Dispatch_Insert_Input = {
-  action_id?: unknown;
+  action_id?: number | null | undefined;
   aiAssistantThreadBySubThreadId?: Ai_Assistant_Thread_Obj_Rel_Insert_Input | null | undefined;
   ai_assistant_thread?: Ai_Assistant_Thread_Obj_Rel_Insert_Input | null | undefined;
-  completed_at?: unknown;
+  completed_at?: string | null | undefined;
+  core_action?: Core_Action_Obj_Rel_Insert_Input | null | undefined;
   core_overview?: Core_Overview_Obj_Rel_Insert_Input | null | undefined;
-  dispatched_at?: unknown;
+  dispatched_at?: string | null | undefined;
   dispatcher_agent?: string | null | undefined;
-  dispatcher_thread_id?: unknown;
-  id?: unknown;
+  dispatcher_thread_id?: number | null | undefined;
+  id?: number | null | undefined;
   objective?: string | null | undefined;
-  overview_id?: unknown;
+  overview_id?: number | null | undefined;
   result_summary?: string | null | undefined;
   status?: string | null | undefined;
   sub_agent_type?: string | null | undefined;
-  sub_thread_id?: unknown;
+  sub_thread_id?: number | null | undefined;
   synthesized?: boolean | null | undefined;
 };
 
@@ -11206,14 +13116,14 @@ export type Core_Subbrute_Constraint =
 /** input type for inserting data into table "core_subbrute" */
 export type Core_Subbrute_Insert_Input = {
   added_count?: number | null | undefined;
-  completed_at?: unknown;
+  completed_at?: string | null | undefined;
   core_subdomain?: Core_Subdomain_Obj_Rel_Insert_Input | null | undefined;
-  created_at?: unknown;
+  created_at?: string | null | undefined;
   error_message?: string | null | undefined;
-  id?: unknown;
-  started_at?: unknown;
+  id?: number | null | undefined;
+  started_at?: string | null | undefined;
   status?: string | null | undefined;
-  which_sub_id?: unknown;
+  which_sub_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_subbrute" */
@@ -11396,8 +13306,16 @@ export type Core_Subdomain_Bool_Exp = {
   _not?: Core_Subdomain_Bool_Exp | null | undefined;
   _or?: Array<Core_Subdomain_Bool_Exp> | null | undefined;
   cdn_name?: String_Comparison_Exp | null | undefined;
+  coreAssetedgesByToSubdomainId?: Core_Assetedge_Bool_Exp | null | undefined;
+  coreAssetedgesByToSubdomainId_aggregate?: Core_Assetedge_Aggregate_Bool_Exp | null | undefined;
   core_analyzedata?: Core_Analyzedata_Bool_Exp | null | undefined;
   core_analyzedata_aggregate?: Core_Analyzedata_Aggregate_Bool_Exp | null | undefined;
+  core_assetedges?: Core_Assetedge_Bool_Exp | null | undefined;
+  core_assetedges_aggregate?: Core_Assetedge_Aggregate_Bool_Exp | null | undefined;
+  core_assetlocks?: Core_Assetlock_Bool_Exp | null | undefined;
+  core_assetlocks_aggregate?: Core_Assetlock_Aggregate_Bool_Exp | null | undefined;
+  core_assetvectorlinks?: Core_Assetvectorlink_Bool_Exp | null | undefined;
+  core_assetvectorlinks_aggregate?: Core_Assetvectorlink_Aggregate_Bool_Exp | null | undefined;
   core_dnsrecords?: Core_Dnsrecord_Bool_Exp | null | undefined;
   core_dnsrecords_aggregate?: Core_Dnsrecord_Aggregate_Bool_Exp | null | undefined;
   core_endpoint_related_subdomains?: Core_Endpoint_Related_Subdomains_Bool_Exp | null | undefined;
@@ -11510,9 +13428,9 @@ export type Core_Subdomain_Discovered_By_Scans_Constraint =
 export type Core_Subdomain_Discovered_By_Scans_Insert_Input = {
   core_subdomain?: Core_Subdomain_Obj_Rel_Insert_Input | null | undefined;
   core_subfinderscan?: Core_Subfinderscan_Obj_Rel_Insert_Input | null | undefined;
-  id?: unknown;
-  subdomain_id?: unknown;
-  subfinderscan_id?: unknown;
+  id?: number | null | undefined;
+  subdomain_id?: number | null | undefined;
+  subfinderscan_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_subdomain_discovered_by_scans" */
@@ -11606,7 +13524,11 @@ export type Core_Subdomain_Discovered_By_Scans_Variance_Order_By = {
 /** input type for inserting data into table "core_subdomain" */
 export type Core_Subdomain_Insert_Input = {
   cdn_name?: string | null | undefined;
+  coreAssetedgesByToSubdomainId?: Core_Assetedge_Arr_Rel_Insert_Input | null | undefined;
   core_analyzedata?: Core_Analyzedata_Arr_Rel_Insert_Input | null | undefined;
+  core_assetedges?: Core_Assetedge_Arr_Rel_Insert_Input | null | undefined;
+  core_assetlocks?: Core_Assetlock_Arr_Rel_Insert_Input | null | undefined;
+  core_assetvectorlinks?: Core_Assetvectorlink_Arr_Rel_Insert_Input | null | undefined;
   core_dnsrecords?: Core_Dnsrecord_Arr_Rel_Insert_Input | null | undefined;
   core_endpoint_related_subdomains?: Core_Endpoint_Related_Subdomains_Arr_Rel_Insert_Input | null | undefined;
   core_initialaianalyses?: Core_Initialaianalysis_Arr_Rel_Insert_Input | null | undefined;
@@ -11621,9 +13543,9 @@ export type Core_Subdomain_Insert_Input = {
   core_urlresult_related_subdomains?: Core_Urlresult_Related_Subdomains_Arr_Rel_Insert_Input | null | undefined;
   core_urlscans?: Core_Urlscan_Arr_Rel_Insert_Input | null | undefined;
   core_vulnerabilities?: Core_Vulnerability_Arr_Rel_Insert_Input | null | undefined;
-  created_at?: unknown;
-  first_seen?: unknown;
-  id?: unknown;
+  created_at?: string | null | undefined;
+  first_seen?: string | null | undefined;
+  id?: number | null | undefined;
   is_active?: boolean | null | undefined;
   is_cdn?: boolean | null | undefined;
   is_resolvable?: boolean | null | undefined;
@@ -11631,10 +13553,10 @@ export type Core_Subdomain_Insert_Input = {
   is_waf?: boolean | null | undefined;
   last_scan_id?: number | null | undefined;
   last_scan_type?: string | null | undefined;
-  last_seen?: unknown;
+  last_seen?: string | null | undefined;
   name?: string | null | undefined;
   sources_text?: string | null | undefined;
-  target_id?: unknown;
+  target_id?: number | null | undefined;
   waf_name?: string | null | undefined;
 };
 
@@ -11701,9 +13623,9 @@ export type Core_Subdomain_Ips_Constraint =
 export type Core_Subdomain_Ips_Insert_Input = {
   core_ip?: Core_Ip_Obj_Rel_Insert_Input | null | undefined;
   core_subdomain?: Core_Subdomain_Obj_Rel_Insert_Input | null | undefined;
-  id?: unknown;
-  ip_id?: unknown;
-  subdomain_id?: unknown;
+  id?: number | null | undefined;
+  ip_id?: number | null | undefined;
+  subdomain_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_subdomain_ips" */
@@ -11841,7 +13763,11 @@ export type Core_Subdomain_On_Conflict = {
 /** Ordering options when selecting data from "core_subdomain". */
 export type Core_Subdomain_Order_By = {
   cdn_name?: Order_By | null | undefined;
+  coreAssetedgesByToSubdomainId_aggregate?: Core_Assetedge_Aggregate_Order_By | null | undefined;
   core_analyzedata_aggregate?: Core_Analyzedata_Aggregate_Order_By | null | undefined;
+  core_assetedges_aggregate?: Core_Assetedge_Aggregate_Order_By | null | undefined;
+  core_assetlocks_aggregate?: Core_Assetlock_Aggregate_Order_By | null | undefined;
+  core_assetvectorlinks_aggregate?: Core_Assetvectorlink_Aggregate_Order_By | null | undefined;
   core_dnsrecords_aggregate?: Core_Dnsrecord_Aggregate_Order_By | null | undefined;
   core_endpoint_related_subdomains_aggregate?: Core_Endpoint_Related_Subdomains_Aggregate_Order_By | null | undefined;
   core_initialaianalyses_aggregate?: Core_Initialaianalysis_Aggregate_Order_By | null | undefined;
@@ -12082,10 +14008,10 @@ export type Core_Subdomainseed_Constraint =
 export type Core_Subdomainseed_Insert_Input = {
   core_seed?: Core_Seed_Obj_Rel_Insert_Input | null | undefined;
   core_subdomain?: Core_Subdomain_Obj_Rel_Insert_Input | null | undefined;
-  created_at?: unknown;
-  id?: unknown;
-  seed_id?: unknown;
-  subdomain_id?: unknown;
+  created_at?: string | null | undefined;
+  id?: number | null | undefined;
+  seed_id?: number | null | undefined;
+  subdomain_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_subdomainseed" */
@@ -12248,15 +14174,15 @@ export type Core_Subfinderscan_Constraint =
 /** input type for inserting data into table "core_subfinderscan" */
 export type Core_Subfinderscan_Insert_Input = {
   added_count?: number | null | undefined;
-  completed_at?: unknown;
+  completed_at?: string | null | undefined;
   core_seed?: Core_Seed_Obj_Rel_Insert_Input | null | undefined;
   core_subdomain_discovered_by_scans?: Core_Subdomain_Discovered_By_Scans_Arr_Rel_Insert_Input | null | undefined;
-  created_at?: unknown;
+  created_at?: string | null | undefined;
   error_message?: string | null | undefined;
-  id?: unknown;
-  started_at?: unknown;
+  id?: number | null | undefined;
+  started_at?: string | null | undefined;
   status?: string | null | undefined;
-  which_seed_id?: unknown;
+  which_seed_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_subfinderscan" */
@@ -12391,8 +14317,16 @@ export type Core_Target_Bool_Exp = {
   _or?: Array<Core_Target_Bool_Exp> | null | undefined;
   ai_assistant_threads?: Ai_Assistant_Thread_Bool_Exp | null | undefined;
   ai_assistant_threads_aggregate?: Ai_Assistant_Thread_Aggregate_Bool_Exp | null | undefined;
+  core_actions?: Core_Action_Bool_Exp | null | undefined;
+  core_actions_aggregate?: Core_Action_Aggregate_Bool_Exp | null | undefined;
   core_amassscans?: Core_Amassscan_Bool_Exp | null | undefined;
   core_amassscans_aggregate?: Core_Amassscan_Aggregate_Bool_Exp | null | undefined;
+  core_assetedges?: Core_Assetedge_Bool_Exp | null | undefined;
+  core_assetedges_aggregate?: Core_Assetedge_Aggregate_Bool_Exp | null | undefined;
+  core_assetlocks?: Core_Assetlock_Bool_Exp | null | undefined;
+  core_assetlocks_aggregate?: Core_Assetlock_Aggregate_Bool_Exp | null | undefined;
+  core_attackplans?: Core_Attackplan_Bool_Exp | null | undefined;
+  core_attackplans_aggregate?: Core_Attackplan_Aggregate_Bool_Exp | null | undefined;
   core_endpoints?: Core_Endpoint_Bool_Exp | null | undefined;
   core_endpoints_aggregate?: Core_Endpoint_Aggregate_Bool_Exp | null | undefined;
   core_ips?: Core_Ip_Bool_Exp | null | undefined;
@@ -12427,7 +14361,11 @@ export type Core_Target_Constraint =
 /** input type for inserting data into table "core_target" */
 export type Core_Target_Insert_Input = {
   ai_assistant_threads?: Ai_Assistant_Thread_Arr_Rel_Insert_Input | null | undefined;
+  core_actions?: Core_Action_Arr_Rel_Insert_Input | null | undefined;
   core_amassscans?: Core_Amassscan_Arr_Rel_Insert_Input | null | undefined;
+  core_assetedges?: Core_Assetedge_Arr_Rel_Insert_Input | null | undefined;
+  core_assetlocks?: Core_Assetlock_Arr_Rel_Insert_Input | null | undefined;
+  core_attackplans?: Core_Attackplan_Arr_Rel_Insert_Input | null | undefined;
   core_endpoints?: Core_Endpoint_Arr_Rel_Insert_Input | null | undefined;
   core_ips?: Core_Ip_Arr_Rel_Insert_Input | null | undefined;
   core_overview?: Core_Overview_Obj_Rel_Insert_Input | null | undefined;
@@ -12438,9 +14376,9 @@ export type Core_Target_Insert_Input = {
   core_techstacks?: Core_Techstack_Arr_Rel_Insert_Input | null | undefined;
   core_urlresults?: Core_Urlresult_Arr_Rel_Insert_Input | null | undefined;
   core_vulnerabilities?: Core_Vulnerability_Arr_Rel_Insert_Input | null | undefined;
-  created_at?: unknown;
+  created_at?: string | null | undefined;
   description?: string | null | undefined;
-  id?: unknown;
+  id?: number | null | undefined;
   name?: string | null | undefined;
 };
 
@@ -12461,7 +14399,11 @@ export type Core_Target_On_Conflict = {
 /** Ordering options when selecting data from "core_target". */
 export type Core_Target_Order_By = {
   ai_assistant_threads_aggregate?: Ai_Assistant_Thread_Aggregate_Order_By | null | undefined;
+  core_actions_aggregate?: Core_Action_Aggregate_Order_By | null | undefined;
   core_amassscans_aggregate?: Core_Amassscan_Aggregate_Order_By | null | undefined;
+  core_assetedges_aggregate?: Core_Assetedge_Aggregate_Order_By | null | undefined;
+  core_assetlocks_aggregate?: Core_Assetlock_Aggregate_Order_By | null | undefined;
+  core_attackplans_aggregate?: Core_Attackplan_Aggregate_Order_By | null | undefined;
   core_endpoints_aggregate?: Core_Endpoint_Aggregate_Order_By | null | undefined;
   core_ips_aggregate?: Core_Ip_Aggregate_Order_By | null | undefined;
   core_overview?: Core_Overview_Order_By | null | undefined;
@@ -12480,9 +14422,9 @@ export type Core_Target_Order_By = {
 
 /** input type for updating data in table "core_target" */
 export type Core_Target_Set_Input = {
-  created_at?: unknown;
+  created_at?: string | null | undefined;
   description?: string | null | undefined;
-  id?: unknown;
+  id?: number | null | undefined;
   name?: string | null | undefined;
 };
 
@@ -12526,17 +14468,17 @@ export type Core_Targetrequestconfig_Constraint =
 /** input type for inserting data into table "core_targetrequestconfig" */
 export type Core_Targetrequestconfig_Insert_Input = {
   core_target?: Core_Target_Obj_Rel_Insert_Input | null | undefined;
-  created_at?: unknown;
+  created_at?: string | null | undefined;
   custom_headers?: unknown;
   header_enabled?: boolean | null | undefined;
   header_prefix?: string | null | undefined;
   header_username?: string | null | undefined;
-  id?: unknown;
+  id?: number | null | undefined;
   max_concurrency?: number | null | undefined;
   rps?: number | null | undefined;
-  target_id?: unknown;
+  target_id?: number | null | undefined;
   timeout?: number | null | undefined;
-  updated_at?: unknown;
+  updated_at?: string | null | undefined;
 };
 
 /** input type for inserting object relation for remote table "core_targetrequestconfig" */
@@ -12667,13 +14609,13 @@ export type Core_Techstack_Insert_Input = {
   core_target?: Core_Target_Obj_Rel_Insert_Input | null | undefined;
   core_techstackcvemappings?: Core_Techstackcvemapping_Arr_Rel_Insert_Input | null | undefined;
   core_urlresult?: Core_Urlresult_Obj_Rel_Insert_Input | null | undefined;
-  id?: unknown;
-  last_seen?: unknown;
+  id?: number | null | undefined;
+  last_seen?: string | null | undefined;
   name?: string | null | undefined;
-  subdomain_id?: unknown;
-  target_id?: unknown;
+  subdomain_id?: number | null | undefined;
+  target_id?: number | null | undefined;
   version?: string | null | undefined;
-  which_url_result_id?: unknown;
+  which_url_result_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_techstack" */
@@ -12965,11 +14907,11 @@ export type Core_Techstackcvemapping_Insert_Input = {
   confidence?: unknown;
   core_cveintelligence?: Core_Cveintelligence_Obj_Rel_Insert_Input | null | undefined;
   core_techstack?: Core_Techstack_Obj_Rel_Insert_Input | null | undefined;
-  cve_intelligence_id?: unknown;
-  discovered_at?: unknown;
-  id?: unknown;
+  cve_intelligence_id?: number | null | undefined;
+  discovered_at?: string | null | undefined;
+  id?: number | null | undefined;
   notified?: boolean | null | undefined;
-  techstack_id?: unknown;
+  techstack_id?: number | null | undefined;
   version_match?: string | null | undefined;
 };
 
@@ -13151,11 +15093,33 @@ export type Core_Urlparameter_Aggregate_Bool_Exp_Count = {
   predicate: Int_Comparison_Exp;
 };
 
+/** order by aggregate values of table "core_urlparameter" */
+export type Core_Urlparameter_Aggregate_Order_By = {
+  avg?: Core_Urlparameter_Avg_Order_By | null | undefined;
+  count?: Order_By | null | undefined;
+  max?: Core_Urlparameter_Max_Order_By | null | undefined;
+  min?: Core_Urlparameter_Min_Order_By | null | undefined;
+  stddev?: Core_Urlparameter_Stddev_Order_By | null | undefined;
+  stddev_pop?: Core_Urlparameter_Stddev_Pop_Order_By | null | undefined;
+  stddev_samp?: Core_Urlparameter_Stddev_Samp_Order_By | null | undefined;
+  sum?: Core_Urlparameter_Sum_Order_By | null | undefined;
+  var_pop?: Core_Urlparameter_Var_Pop_Order_By | null | undefined;
+  var_samp?: Core_Urlparameter_Var_Samp_Order_By | null | undefined;
+  variance?: Core_Urlparameter_Variance_Order_By | null | undefined;
+};
+
 /** input type for inserting array relation for remote table "core_urlparameter" */
 export type Core_Urlparameter_Arr_Rel_Insert_Input = {
   data: Array<Core_Urlparameter_Insert_Input>;
   /** upsert condition */
   on_conflict?: Core_Urlparameter_On_Conflict | null | undefined;
+};
+
+/** order by avg() on columns of table "core_urlparameter" */
+export type Core_Urlparameter_Avg_Order_By = {
+  id?: Order_By | null | undefined;
+  line_number?: Order_By | null | undefined;
+  which_endpoint_id?: Order_By | null | undefined;
 };
 
 /** Boolean expression to filter rows from the table "core_urlparameter". All fields are combined with a logical 'AND'. */
@@ -13186,14 +15150,40 @@ export type Core_Urlparameter_Constraint =
 export type Core_Urlparameter_Insert_Input = {
   core_endpoint?: Core_Endpoint_Obj_Rel_Insert_Input | null | undefined;
   data_type?: string | null | undefined;
-  id?: unknown;
+  id?: number | null | undefined;
   key?: string | null | undefined;
   line_number?: number | null | undefined;
   param_hash?: string | null | undefined;
   param_location?: string | null | undefined;
   source_type?: string | null | undefined;
   value?: string | null | undefined;
-  which_endpoint_id?: unknown;
+  which_endpoint_id?: number | null | undefined;
+};
+
+/** order by max() on columns of table "core_urlparameter" */
+export type Core_Urlparameter_Max_Order_By = {
+  data_type?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  key?: Order_By | null | undefined;
+  line_number?: Order_By | null | undefined;
+  param_hash?: Order_By | null | undefined;
+  param_location?: Order_By | null | undefined;
+  source_type?: Order_By | null | undefined;
+  value?: Order_By | null | undefined;
+  which_endpoint_id?: Order_By | null | undefined;
+};
+
+/** order by min() on columns of table "core_urlparameter" */
+export type Core_Urlparameter_Min_Order_By = {
+  data_type?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  key?: Order_By | null | undefined;
+  line_number?: Order_By | null | undefined;
+  param_hash?: Order_By | null | undefined;
+  param_location?: Order_By | null | undefined;
+  source_type?: Order_By | null | undefined;
+  value?: Order_By | null | undefined;
+  which_endpoint_id?: Order_By | null | undefined;
 };
 
 /** on_conflict condition type for table "core_urlparameter" */
@@ -13224,6 +15214,34 @@ export type Core_Urlparameter_Select_Column =
   /** column name */
   | 'which_endpoint_id';
 
+/** order by stddev() on columns of table "core_urlparameter" */
+export type Core_Urlparameter_Stddev_Order_By = {
+  id?: Order_By | null | undefined;
+  line_number?: Order_By | null | undefined;
+  which_endpoint_id?: Order_By | null | undefined;
+};
+
+/** order by stddev_pop() on columns of table "core_urlparameter" */
+export type Core_Urlparameter_Stddev_Pop_Order_By = {
+  id?: Order_By | null | undefined;
+  line_number?: Order_By | null | undefined;
+  which_endpoint_id?: Order_By | null | undefined;
+};
+
+/** order by stddev_samp() on columns of table "core_urlparameter" */
+export type Core_Urlparameter_Stddev_Samp_Order_By = {
+  id?: Order_By | null | undefined;
+  line_number?: Order_By | null | undefined;
+  which_endpoint_id?: Order_By | null | undefined;
+};
+
+/** order by sum() on columns of table "core_urlparameter" */
+export type Core_Urlparameter_Sum_Order_By = {
+  id?: Order_By | null | undefined;
+  line_number?: Order_By | null | undefined;
+  which_endpoint_id?: Order_By | null | undefined;
+};
+
 /** update columns of table "core_urlparameter" */
 export type Core_Urlparameter_Update_Column =
   /** column name */
@@ -13244,6 +15262,27 @@ export type Core_Urlparameter_Update_Column =
   | 'value'
   /** column name */
   | 'which_endpoint_id';
+
+/** order by var_pop() on columns of table "core_urlparameter" */
+export type Core_Urlparameter_Var_Pop_Order_By = {
+  id?: Order_By | null | undefined;
+  line_number?: Order_By | null | undefined;
+  which_endpoint_id?: Order_By | null | undefined;
+};
+
+/** order by var_samp() on columns of table "core_urlparameter" */
+export type Core_Urlparameter_Var_Samp_Order_By = {
+  id?: Order_By | null | undefined;
+  line_number?: Order_By | null | undefined;
+  which_endpoint_id?: Order_By | null | undefined;
+};
+
+/** order by variance() on columns of table "core_urlparameter" */
+export type Core_Urlparameter_Variance_Order_By = {
+  id?: Order_By | null | undefined;
+  line_number?: Order_By | null | undefined;
+  which_endpoint_id?: Order_By | null | undefined;
+};
 
 export type Core_Urlresult_Aggregate_Bool_Exp = {
   bool_and?: Core_Urlresult_Aggregate_Bool_Exp_Bool_And | null | undefined;
@@ -13311,10 +15350,18 @@ export type Core_Urlresult_Bool_Exp = {
   cleaned_html?: String_Comparison_Exp | null | undefined;
   content_fetch_status?: String_Comparison_Exp | null | undefined;
   content_length?: Int_Comparison_Exp | null | undefined;
+  coreAssetedgesByToUrlId?: Core_Assetedge_Bool_Exp | null | undefined;
+  coreAssetedgesByToUrlId_aggregate?: Core_Assetedge_Aggregate_Bool_Exp | null | undefined;
   core_analysisfindings?: Core_Analysisfinding_Bool_Exp | null | undefined;
   core_analysisfindings_aggregate?: Core_Analysisfinding_Aggregate_Bool_Exp | null | undefined;
   core_analyzedata?: Core_Analyzedata_Bool_Exp | null | undefined;
   core_analyzedata_aggregate?: Core_Analyzedata_Aggregate_Bool_Exp | null | undefined;
+  core_assetedges?: Core_Assetedge_Bool_Exp | null | undefined;
+  core_assetedges_aggregate?: Core_Assetedge_Aggregate_Bool_Exp | null | undefined;
+  core_assetlocks?: Core_Assetlock_Bool_Exp | null | undefined;
+  core_assetlocks_aggregate?: Core_Assetlock_Aggregate_Bool_Exp | null | undefined;
+  core_assetvectorlinks?: Core_Assetvectorlink_Bool_Exp | null | undefined;
+  core_assetvectorlinks_aggregate?: Core_Assetvectorlink_Aggregate_Bool_Exp | null | undefined;
   core_comments?: Core_Comment_Bool_Exp | null | undefined;
   core_comments_aggregate?: Core_Comment_Aggregate_Bool_Exp | null | undefined;
   core_endpoint_discovered_by_urls?: Core_Endpoint_Discovered_By_Urls_Bool_Exp | null | undefined;
@@ -13439,9 +15486,9 @@ export type Core_Urlresult_Discovered_By_Scans_Constraint =
 export type Core_Urlresult_Discovered_By_Scans_Insert_Input = {
   core_urlresult?: Core_Urlresult_Obj_Rel_Insert_Input | null | undefined;
   core_urlscan?: Core_Urlscan_Obj_Rel_Insert_Input | null | undefined;
-  id?: unknown;
-  urlresult_id?: unknown;
-  urlscan_id?: unknown;
+  id?: number | null | undefined;
+  urlresult_id?: number | null | undefined;
+  urlscan_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_urlresult_discovered_by_scans" */
@@ -13537,8 +15584,12 @@ export type Core_Urlresult_Insert_Input = {
   cleaned_html?: string | null | undefined;
   content_fetch_status?: string | null | undefined;
   content_length?: number | null | undefined;
+  coreAssetedgesByToUrlId?: Core_Assetedge_Arr_Rel_Insert_Input | null | undefined;
   core_analysisfindings?: Core_Analysisfinding_Arr_Rel_Insert_Input | null | undefined;
   core_analyzedata?: Core_Analyzedata_Arr_Rel_Insert_Input | null | undefined;
+  core_assetedges?: Core_Assetedge_Arr_Rel_Insert_Input | null | undefined;
+  core_assetlocks?: Core_Assetlock_Arr_Rel_Insert_Input | null | undefined;
+  core_assetvectorlinks?: Core_Assetvectorlink_Arr_Rel_Insert_Input | null | undefined;
   core_comments?: Core_Comment_Arr_Rel_Insert_Input | null | undefined;
   core_endpoint_discovered_by_urls?: Core_Endpoint_Discovered_By_Urls_Arr_Rel_Insert_Input | null | undefined;
   core_extractedj?: Core_Extractedjs_Obj_Rel_Insert_Input | null | undefined;
@@ -13556,12 +15607,12 @@ export type Core_Urlresult_Insert_Input = {
   core_urlresult_related_subdomains?: Core_Urlresult_Related_Subdomains_Arr_Rel_Insert_Input | null | undefined;
   core_urlscans?: Core_Urlscan_Arr_Rel_Insert_Input | null | undefined;
   core_vulnerabilities?: Core_Vulnerability_Arr_Rel_Insert_Input | null | undefined;
-  created_at?: unknown;
+  created_at?: string | null | undefined;
   discovery_source?: string | null | undefined;
   dom_snapshot?: string | null | undefined;
   final_url?: string | null | undefined;
   headers?: unknown;
-  id?: unknown;
+  id?: number | null | undefined;
   is_external_redirect?: boolean | null | undefined;
   is_important?: boolean | null | undefined;
   is_tech_analyzed?: boolean | null | undefined;
@@ -13571,7 +15622,7 @@ export type Core_Urlresult_Insert_Input = {
   raw_response?: string | null | undefined;
   raw_response_hash?: string | null | undefined;
   status_code?: number | null | undefined;
-  target_id?: unknown;
+  target_id?: number | null | undefined;
   text?: string | null | undefined;
   title?: string | null | undefined;
   url?: string | null | undefined;
@@ -13641,8 +15692,12 @@ export type Core_Urlresult_Order_By = {
   cleaned_html?: Order_By | null | undefined;
   content_fetch_status?: Order_By | null | undefined;
   content_length?: Order_By | null | undefined;
+  coreAssetedgesByToUrlId_aggregate?: Core_Assetedge_Aggregate_Order_By | null | undefined;
   core_analysisfindings_aggregate?: Core_Analysisfinding_Aggregate_Order_By | null | undefined;
   core_analyzedata_aggregate?: Core_Analyzedata_Aggregate_Order_By | null | undefined;
+  core_assetedges_aggregate?: Core_Assetedge_Aggregate_Order_By | null | undefined;
+  core_assetlocks_aggregate?: Core_Assetlock_Aggregate_Order_By | null | undefined;
+  core_assetvectorlinks_aggregate?: Core_Assetvectorlink_Aggregate_Order_By | null | undefined;
   core_comments_aggregate?: Core_Comment_Aggregate_Order_By | null | undefined;
   core_endpoint_discovered_by_urls_aggregate?: Core_Endpoint_Discovered_By_Urls_Aggregate_Order_By | null | undefined;
   core_extractedj?: Core_Extractedjs_Order_By | null | undefined;
@@ -13745,9 +15800,9 @@ export type Core_Urlresult_Related_Subdomains_Constraint =
 export type Core_Urlresult_Related_Subdomains_Insert_Input = {
   core_subdomain?: Core_Subdomain_Obj_Rel_Insert_Input | null | undefined;
   core_urlresult?: Core_Urlresult_Obj_Rel_Insert_Input | null | undefined;
-  id?: unknown;
-  subdomain_id?: unknown;
-  urlresult_id?: unknown;
+  id?: number | null | undefined;
+  subdomain_id?: number | null | undefined;
+  urlresult_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_urlresult_related_subdomains" */
@@ -14092,18 +16147,18 @@ export type Core_Urlscan_Constraint =
 
 /** input type for inserting data into table "core_urlscan" */
 export type Core_Urlscan_Insert_Input = {
-  completed_at?: unknown;
+  completed_at?: string | null | undefined;
   core_endpoint_discovered_by_scans?: Core_Endpoint_Discovered_By_Scans_Arr_Rel_Insert_Input | null | undefined;
   core_subdomain?: Core_Subdomain_Obj_Rel_Insert_Input | null | undefined;
   core_urlresult?: Core_Urlresult_Obj_Rel_Insert_Input | null | undefined;
   core_urlresult_discovered_by_scans?: Core_Urlresult_Discovered_By_Scans_Arr_Rel_Insert_Input | null | undefined;
-  created_at?: unknown;
+  created_at?: string | null | undefined;
   error_message?: string | null | undefined;
-  id?: unknown;
-  started_at?: unknown;
+  id?: number | null | undefined;
+  started_at?: string | null | undefined;
   status?: string | null | undefined;
-  target_subdomain_id?: unknown;
-  target_url_id?: unknown;
+  target_subdomain_id?: number | null | undefined;
+  target_url_id?: number | null | undefined;
   tool?: string | null | undefined;
   urls_found_count?: number | null | undefined;
 };
@@ -14343,23 +16398,23 @@ export type Core_Verification_Constraint =
 /** input type for inserting data into table "core_verification" */
 export type Core_Verification_Insert_Input = {
   ai_response?: unknown;
-  attack_vector_id?: unknown;
+  attack_vector_id?: number | null | undefined;
   auto_create_vulnerability?: boolean | null | undefined;
   confidence?: number | null | undefined;
   confidence_threshold?: unknown;
   core_attackvector?: Core_Attackvector_Obj_Rel_Insert_Input | null | undefined;
   core_vulnerability?: Core_Vulnerability_Obj_Rel_Insert_Input | null | undefined;
-  created_at?: unknown;
+  created_at?: string | null | undefined;
   evidence?: string | null | undefined;
   execution_output?: string | null | undefined;
-  id?: unknown;
+  id?: number | null | undefined;
   match_type?: string | null | undefined;
   observation_prompt?: string | null | undefined;
   pattern?: string | null | undefined;
   reason?: string | null | undefined;
-  updated_at?: unknown;
+  updated_at?: string | null | undefined;
   verdict?: string | null | undefined;
-  vulnerability_id?: unknown;
+  vulnerability_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_verification" */
@@ -14600,6 +16655,7 @@ export type Core_Vulnerability_Bool_Exp = {
   _not?: Core_Vulnerability_Bool_Exp | null | undefined;
   _or?: Array<Core_Vulnerability_Bool_Exp> | null | undefined;
   action_id?: Bigint_Comparison_Exp | null | undefined;
+  core_action?: Core_Action_Bool_Exp | null | undefined;
   core_attackvector?: Core_Attackvector_Bool_Exp | null | undefined;
   core_cveintelligence?: Core_Cveintelligence_Bool_Exp | null | undefined;
   core_ip?: Core_Ip_Bool_Exp | null | undefined;
@@ -14647,7 +16703,8 @@ export type Core_Vulnerability_Constraint =
 
 /** input type for inserting data into table "core_vulnerability" */
 export type Core_Vulnerability_Insert_Input = {
-  action_id?: unknown;
+  action_id?: number | null | undefined;
+  core_action?: Core_Action_Obj_Rel_Insert_Input | null | undefined;
   core_attackvector?: Core_Attackvector_Obj_Rel_Insert_Input | null | undefined;
   core_cveintelligence?: Core_Cveintelligence_Obj_Rel_Insert_Input | null | undefined;
   core_ip?: Core_Ip_Obj_Rel_Insert_Input | null | undefined;
@@ -14657,31 +16714,31 @@ export type Core_Vulnerability_Insert_Input = {
   core_target?: Core_Target_Obj_Rel_Insert_Input | null | undefined;
   core_urlresult?: Core_Urlresult_Obj_Rel_Insert_Input | null | undefined;
   core_verifications?: Core_Verification_Arr_Rel_Insert_Input | null | undefined;
-  created_at?: unknown;
-  cve_intelligence_id?: unknown;
+  created_at?: string | null | undefined;
+  cve_intelligence_id?: number | null | undefined;
   description?: string | null | undefined;
-  enrichment_attempted_at?: unknown;
+  enrichment_attempted_at?: string | null | undefined;
   enrichment_status?: string | null | undefined;
   extracted_results?: unknown;
   fingerprint?: string | null | undefined;
-  id?: unknown;
-  ip_asset_id?: unknown;
-  last_seen?: unknown;
+  id?: number | null | undefined;
+  ip_asset_id?: number | null | undefined;
+  last_seen?: string | null | undefined;
   matched_at?: string | null | undefined;
   name?: string | null | undefined;
-  overview_id?: unknown;
+  overview_id?: number | null | undefined;
   remediation?: string | null | undefined;
   request_raw?: string | null | undefined;
   response_raw?: string | null | undefined;
   severity?: string | null | undefined;
-  source_attack_vector_id?: unknown;
+  source_attack_vector_id?: number | null | undefined;
   status?: string | null | undefined;
-  subdomain_asset_id?: unknown;
-  target_id?: unknown;
+  subdomain_asset_id?: number | null | undefined;
+  target_id?: number | null | undefined;
   template_id?: string | null | undefined;
   tool_source?: string | null | undefined;
-  updated_at?: unknown;
-  url_asset_id?: unknown;
+  updated_at?: string | null | undefined;
+  url_asset_id?: number | null | undefined;
 };
 
 /** order by max() on columns of table "core_vulnerability" */
@@ -14759,6 +16816,7 @@ export type Core_Vulnerability_On_Conflict = {
 /** Ordering options when selecting data from "core_vulnerability". */
 export type Core_Vulnerability_Order_By = {
   action_id?: Order_By | null | undefined;
+  core_action?: Core_Action_Order_By | null | undefined;
   core_attackvector?: Core_Attackvector_Order_By | null | undefined;
   core_cveintelligence?: Core_Cveintelligence_Order_By | null | undefined;
   core_ip?: Core_Ip_Order_By | null | undefined;
@@ -14852,32 +16910,32 @@ export type Core_Vulnerability_Select_Column =
 
 /** input type for updating data in table "core_vulnerability" */
 export type Core_Vulnerability_Set_Input = {
-  action_id?: unknown;
-  created_at?: unknown;
-  cve_intelligence_id?: unknown;
+  action_id?: number | null | undefined;
+  created_at?: string | null | undefined;
+  cve_intelligence_id?: number | null | undefined;
   description?: string | null | undefined;
-  enrichment_attempted_at?: unknown;
+  enrichment_attempted_at?: string | null | undefined;
   enrichment_status?: string | null | undefined;
   extracted_results?: unknown;
   fingerprint?: string | null | undefined;
-  id?: unknown;
-  ip_asset_id?: unknown;
-  last_seen?: unknown;
+  id?: number | null | undefined;
+  ip_asset_id?: number | null | undefined;
+  last_seen?: string | null | undefined;
   matched_at?: string | null | undefined;
   name?: string | null | undefined;
-  overview_id?: unknown;
+  overview_id?: number | null | undefined;
   remediation?: string | null | undefined;
   request_raw?: string | null | undefined;
   response_raw?: string | null | undefined;
   severity?: string | null | undefined;
-  source_attack_vector_id?: unknown;
+  source_attack_vector_id?: number | null | undefined;
   status?: string | null | undefined;
-  subdomain_asset_id?: unknown;
-  target_id?: unknown;
+  subdomain_asset_id?: number | null | undefined;
+  target_id?: number | null | undefined;
   template_id?: string | null | undefined;
   tool_source?: string | null | undefined;
-  updated_at?: unknown;
-  url_asset_id?: unknown;
+  updated_at?: string | null | undefined;
+  url_asset_id?: number | null | undefined;
 };
 
 /** order by stddev() on columns of table "core_vulnerability" */
@@ -15026,6 +17084,507 @@ export type Core_Vulnerability_Variance_Order_By = {
   url_asset_id?: Order_By | null | undefined;
 };
 
+export type Core_Walkcursor_Aggregate_Bool_Exp = {
+  count?: Core_Walkcursor_Aggregate_Bool_Exp_Count | null | undefined;
+};
+
+export type Core_Walkcursor_Aggregate_Bool_Exp_Count = {
+  arguments?: Array<Core_Walkcursor_Select_Column> | null | undefined;
+  distinct?: boolean | null | undefined;
+  filter?: Core_Walkcursor_Bool_Exp | null | undefined;
+  predicate: Int_Comparison_Exp;
+};
+
+/** order by aggregate values of table "core_walkcursor" */
+export type Core_Walkcursor_Aggregate_Order_By = {
+  avg?: Core_Walkcursor_Avg_Order_By | null | undefined;
+  count?: Order_By | null | undefined;
+  max?: Core_Walkcursor_Max_Order_By | null | undefined;
+  min?: Core_Walkcursor_Min_Order_By | null | undefined;
+  stddev?: Core_Walkcursor_Stddev_Order_By | null | undefined;
+  stddev_pop?: Core_Walkcursor_Stddev_Pop_Order_By | null | undefined;
+  stddev_samp?: Core_Walkcursor_Stddev_Samp_Order_By | null | undefined;
+  sum?: Core_Walkcursor_Sum_Order_By | null | undefined;
+  var_pop?: Core_Walkcursor_Var_Pop_Order_By | null | undefined;
+  var_samp?: Core_Walkcursor_Var_Samp_Order_By | null | undefined;
+  variance?: Core_Walkcursor_Variance_Order_By | null | undefined;
+};
+
+/** input type for inserting array relation for remote table "core_walkcursor" */
+export type Core_Walkcursor_Arr_Rel_Insert_Input = {
+  data: Array<Core_Walkcursor_Insert_Input>;
+  /** upsert condition */
+  on_conflict?: Core_Walkcursor_On_Conflict | null | undefined;
+};
+
+/** order by avg() on columns of table "core_walkcursor" */
+export type Core_Walkcursor_Avg_Order_By = {
+  current_asset_link_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  plan_id?: Order_By | null | undefined;
+};
+
+/** Boolean expression to filter rows from the table "core_walkcursor". All fields are combined with a logical 'AND'. */
+export type Core_Walkcursor_Bool_Exp = {
+  _and?: Array<Core_Walkcursor_Bool_Exp> | null | undefined;
+  _not?: Core_Walkcursor_Bool_Exp | null | undefined;
+  _or?: Array<Core_Walkcursor_Bool_Exp> | null | undefined;
+  core_assetvectorlink?: Core_Assetvectorlink_Bool_Exp | null | undefined;
+  core_attackplan?: Core_Attackplan_Bool_Exp | null | undefined;
+  core_walkcursor_pending_edges?: Core_Walkcursor_Pending_Edges_Bool_Exp | null | undefined;
+  core_walkcursor_pending_edges_aggregate?: Core_Walkcursor_Pending_Edges_Aggregate_Bool_Exp | null | undefined;
+  core_walkcursor_traversed_edges?: Core_Walkcursor_Traversed_Edges_Bool_Exp | null | undefined;
+  core_walkcursor_traversed_edges_aggregate?: Core_Walkcursor_Traversed_Edges_Aggregate_Bool_Exp | null | undefined;
+  current_asset_link_id?: Bigint_Comparison_Exp | null | undefined;
+  id?: Bigint_Comparison_Exp | null | undefined;
+  plan_id?: Bigint_Comparison_Exp | null | undefined;
+  updated_at?: Timestamptz_Comparison_Exp | null | undefined;
+};
+
+/** unique or primary key constraints on table "core_walkcursor" */
+export type Core_Walkcursor_Constraint =
+  /** unique or primary key constraint on columns "id" */
+  | 'core_walkcursor_pkey'
+  /** unique or primary key constraint on columns "plan_id" */
+  | 'core_walkcursor_plan_id_key';
+
+/** input type for inserting data into table "core_walkcursor" */
+export type Core_Walkcursor_Insert_Input = {
+  core_assetvectorlink?: Core_Assetvectorlink_Obj_Rel_Insert_Input | null | undefined;
+  core_attackplan?: Core_Attackplan_Obj_Rel_Insert_Input | null | undefined;
+  core_walkcursor_pending_edges?: Core_Walkcursor_Pending_Edges_Arr_Rel_Insert_Input | null | undefined;
+  core_walkcursor_traversed_edges?: Core_Walkcursor_Traversed_Edges_Arr_Rel_Insert_Input | null | undefined;
+  current_asset_link_id?: number | null | undefined;
+  id?: number | null | undefined;
+  plan_id?: number | null | undefined;
+  updated_at?: string | null | undefined;
+};
+
+/** order by max() on columns of table "core_walkcursor" */
+export type Core_Walkcursor_Max_Order_By = {
+  current_asset_link_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  plan_id?: Order_By | null | undefined;
+  updated_at?: Order_By | null | undefined;
+};
+
+/** order by min() on columns of table "core_walkcursor" */
+export type Core_Walkcursor_Min_Order_By = {
+  current_asset_link_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  plan_id?: Order_By | null | undefined;
+  updated_at?: Order_By | null | undefined;
+};
+
+/** input type for inserting object relation for remote table "core_walkcursor" */
+export type Core_Walkcursor_Obj_Rel_Insert_Input = {
+  data: Core_Walkcursor_Insert_Input;
+  /** upsert condition */
+  on_conflict?: Core_Walkcursor_On_Conflict | null | undefined;
+};
+
+/** on_conflict condition type for table "core_walkcursor" */
+export type Core_Walkcursor_On_Conflict = {
+  constraint: Core_Walkcursor_Constraint;
+  update_columns?: Array<Core_Walkcursor_Update_Column>;
+  where?: Core_Walkcursor_Bool_Exp | null | undefined;
+};
+
+/** Ordering options when selecting data from "core_walkcursor". */
+export type Core_Walkcursor_Order_By = {
+  core_assetvectorlink?: Core_Assetvectorlink_Order_By | null | undefined;
+  core_attackplan?: Core_Attackplan_Order_By | null | undefined;
+  core_walkcursor_pending_edges_aggregate?: Core_Walkcursor_Pending_Edges_Aggregate_Order_By | null | undefined;
+  core_walkcursor_traversed_edges_aggregate?: Core_Walkcursor_Traversed_Edges_Aggregate_Order_By | null | undefined;
+  current_asset_link_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  plan_id?: Order_By | null | undefined;
+  updated_at?: Order_By | null | undefined;
+};
+
+export type Core_Walkcursor_Pending_Edges_Aggregate_Bool_Exp = {
+  count?: Core_Walkcursor_Pending_Edges_Aggregate_Bool_Exp_Count | null | undefined;
+};
+
+export type Core_Walkcursor_Pending_Edges_Aggregate_Bool_Exp_Count = {
+  arguments?: Array<Core_Walkcursor_Pending_Edges_Select_Column> | null | undefined;
+  distinct?: boolean | null | undefined;
+  filter?: Core_Walkcursor_Pending_Edges_Bool_Exp | null | undefined;
+  predicate: Int_Comparison_Exp;
+};
+
+/** order by aggregate values of table "core_walkcursor_pending_edges" */
+export type Core_Walkcursor_Pending_Edges_Aggregate_Order_By = {
+  avg?: Core_Walkcursor_Pending_Edges_Avg_Order_By | null | undefined;
+  count?: Order_By | null | undefined;
+  max?: Core_Walkcursor_Pending_Edges_Max_Order_By | null | undefined;
+  min?: Core_Walkcursor_Pending_Edges_Min_Order_By | null | undefined;
+  stddev?: Core_Walkcursor_Pending_Edges_Stddev_Order_By | null | undefined;
+  stddev_pop?: Core_Walkcursor_Pending_Edges_Stddev_Pop_Order_By | null | undefined;
+  stddev_samp?: Core_Walkcursor_Pending_Edges_Stddev_Samp_Order_By | null | undefined;
+  sum?: Core_Walkcursor_Pending_Edges_Sum_Order_By | null | undefined;
+  var_pop?: Core_Walkcursor_Pending_Edges_Var_Pop_Order_By | null | undefined;
+  var_samp?: Core_Walkcursor_Pending_Edges_Var_Samp_Order_By | null | undefined;
+  variance?: Core_Walkcursor_Pending_Edges_Variance_Order_By | null | undefined;
+};
+
+/** input type for inserting array relation for remote table "core_walkcursor_pending_edges" */
+export type Core_Walkcursor_Pending_Edges_Arr_Rel_Insert_Input = {
+  data: Array<Core_Walkcursor_Pending_Edges_Insert_Input>;
+  /** upsert condition */
+  on_conflict?: Core_Walkcursor_Pending_Edges_On_Conflict | null | undefined;
+};
+
+/** order by avg() on columns of table "core_walkcursor_pending_edges" */
+export type Core_Walkcursor_Pending_Edges_Avg_Order_By = {
+  assetedge_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  walkcursor_id?: Order_By | null | undefined;
+};
+
+/** Boolean expression to filter rows from the table "core_walkcursor_pending_edges". All fields are combined with a logical 'AND'. */
+export type Core_Walkcursor_Pending_Edges_Bool_Exp = {
+  _and?: Array<Core_Walkcursor_Pending_Edges_Bool_Exp> | null | undefined;
+  _not?: Core_Walkcursor_Pending_Edges_Bool_Exp | null | undefined;
+  _or?: Array<Core_Walkcursor_Pending_Edges_Bool_Exp> | null | undefined;
+  assetedge_id?: Bigint_Comparison_Exp | null | undefined;
+  core_assetedge?: Core_Assetedge_Bool_Exp | null | undefined;
+  core_walkcursor?: Core_Walkcursor_Bool_Exp | null | undefined;
+  id?: Bigint_Comparison_Exp | null | undefined;
+  walkcursor_id?: Bigint_Comparison_Exp | null | undefined;
+};
+
+/** unique or primary key constraints on table "core_walkcursor_pending_edges" */
+export type Core_Walkcursor_Pending_Edges_Constraint =
+  /** unique or primary key constraint on columns "walkcursor_id", "assetedge_id" */
+  | 'core_walkcursor_pending__walkcursor_id_assetedge__2fd9099f_uniq'
+  /** unique or primary key constraint on columns "id" */
+  | 'core_walkcursor_pending_edges_pkey';
+
+/** input type for inserting data into table "core_walkcursor_pending_edges" */
+export type Core_Walkcursor_Pending_Edges_Insert_Input = {
+  assetedge_id?: number | null | undefined;
+  core_assetedge?: Core_Assetedge_Obj_Rel_Insert_Input | null | undefined;
+  core_walkcursor?: Core_Walkcursor_Obj_Rel_Insert_Input | null | undefined;
+  id?: number | null | undefined;
+  walkcursor_id?: number | null | undefined;
+};
+
+/** order by max() on columns of table "core_walkcursor_pending_edges" */
+export type Core_Walkcursor_Pending_Edges_Max_Order_By = {
+  assetedge_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  walkcursor_id?: Order_By | null | undefined;
+};
+
+/** order by min() on columns of table "core_walkcursor_pending_edges" */
+export type Core_Walkcursor_Pending_Edges_Min_Order_By = {
+  assetedge_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  walkcursor_id?: Order_By | null | undefined;
+};
+
+/** on_conflict condition type for table "core_walkcursor_pending_edges" */
+export type Core_Walkcursor_Pending_Edges_On_Conflict = {
+  constraint: Core_Walkcursor_Pending_Edges_Constraint;
+  update_columns?: Array<Core_Walkcursor_Pending_Edges_Update_Column>;
+  where?: Core_Walkcursor_Pending_Edges_Bool_Exp | null | undefined;
+};
+
+/** select columns of table "core_walkcursor_pending_edges" */
+export type Core_Walkcursor_Pending_Edges_Select_Column =
+  /** column name */
+  | 'assetedge_id'
+  /** column name */
+  | 'id'
+  /** column name */
+  | 'walkcursor_id';
+
+/** order by stddev() on columns of table "core_walkcursor_pending_edges" */
+export type Core_Walkcursor_Pending_Edges_Stddev_Order_By = {
+  assetedge_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  walkcursor_id?: Order_By | null | undefined;
+};
+
+/** order by stddev_pop() on columns of table "core_walkcursor_pending_edges" */
+export type Core_Walkcursor_Pending_Edges_Stddev_Pop_Order_By = {
+  assetedge_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  walkcursor_id?: Order_By | null | undefined;
+};
+
+/** order by stddev_samp() on columns of table "core_walkcursor_pending_edges" */
+export type Core_Walkcursor_Pending_Edges_Stddev_Samp_Order_By = {
+  assetedge_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  walkcursor_id?: Order_By | null | undefined;
+};
+
+/** order by sum() on columns of table "core_walkcursor_pending_edges" */
+export type Core_Walkcursor_Pending_Edges_Sum_Order_By = {
+  assetedge_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  walkcursor_id?: Order_By | null | undefined;
+};
+
+/** update columns of table "core_walkcursor_pending_edges" */
+export type Core_Walkcursor_Pending_Edges_Update_Column =
+  /** column name */
+  | 'assetedge_id'
+  /** column name */
+  | 'id'
+  /** column name */
+  | 'walkcursor_id';
+
+/** order by var_pop() on columns of table "core_walkcursor_pending_edges" */
+export type Core_Walkcursor_Pending_Edges_Var_Pop_Order_By = {
+  assetedge_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  walkcursor_id?: Order_By | null | undefined;
+};
+
+/** order by var_samp() on columns of table "core_walkcursor_pending_edges" */
+export type Core_Walkcursor_Pending_Edges_Var_Samp_Order_By = {
+  assetedge_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  walkcursor_id?: Order_By | null | undefined;
+};
+
+/** order by variance() on columns of table "core_walkcursor_pending_edges" */
+export type Core_Walkcursor_Pending_Edges_Variance_Order_By = {
+  assetedge_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  walkcursor_id?: Order_By | null | undefined;
+};
+
+/** select columns of table "core_walkcursor" */
+export type Core_Walkcursor_Select_Column =
+  /** column name */
+  | 'current_asset_link_id'
+  /** column name */
+  | 'id'
+  /** column name */
+  | 'plan_id'
+  /** column name */
+  | 'updated_at';
+
+/** order by stddev() on columns of table "core_walkcursor" */
+export type Core_Walkcursor_Stddev_Order_By = {
+  current_asset_link_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  plan_id?: Order_By | null | undefined;
+};
+
+/** order by stddev_pop() on columns of table "core_walkcursor" */
+export type Core_Walkcursor_Stddev_Pop_Order_By = {
+  current_asset_link_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  plan_id?: Order_By | null | undefined;
+};
+
+/** order by stddev_samp() on columns of table "core_walkcursor" */
+export type Core_Walkcursor_Stddev_Samp_Order_By = {
+  current_asset_link_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  plan_id?: Order_By | null | undefined;
+};
+
+/** order by sum() on columns of table "core_walkcursor" */
+export type Core_Walkcursor_Sum_Order_By = {
+  current_asset_link_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  plan_id?: Order_By | null | undefined;
+};
+
+export type Core_Walkcursor_Traversed_Edges_Aggregate_Bool_Exp = {
+  count?: Core_Walkcursor_Traversed_Edges_Aggregate_Bool_Exp_Count | null | undefined;
+};
+
+export type Core_Walkcursor_Traversed_Edges_Aggregate_Bool_Exp_Count = {
+  arguments?: Array<Core_Walkcursor_Traversed_Edges_Select_Column> | null | undefined;
+  distinct?: boolean | null | undefined;
+  filter?: Core_Walkcursor_Traversed_Edges_Bool_Exp | null | undefined;
+  predicate: Int_Comparison_Exp;
+};
+
+/** order by aggregate values of table "core_walkcursor_traversed_edges" */
+export type Core_Walkcursor_Traversed_Edges_Aggregate_Order_By = {
+  avg?: Core_Walkcursor_Traversed_Edges_Avg_Order_By | null | undefined;
+  count?: Order_By | null | undefined;
+  max?: Core_Walkcursor_Traversed_Edges_Max_Order_By | null | undefined;
+  min?: Core_Walkcursor_Traversed_Edges_Min_Order_By | null | undefined;
+  stddev?: Core_Walkcursor_Traversed_Edges_Stddev_Order_By | null | undefined;
+  stddev_pop?: Core_Walkcursor_Traversed_Edges_Stddev_Pop_Order_By | null | undefined;
+  stddev_samp?: Core_Walkcursor_Traversed_Edges_Stddev_Samp_Order_By | null | undefined;
+  sum?: Core_Walkcursor_Traversed_Edges_Sum_Order_By | null | undefined;
+  var_pop?: Core_Walkcursor_Traversed_Edges_Var_Pop_Order_By | null | undefined;
+  var_samp?: Core_Walkcursor_Traversed_Edges_Var_Samp_Order_By | null | undefined;
+  variance?: Core_Walkcursor_Traversed_Edges_Variance_Order_By | null | undefined;
+};
+
+/** input type for inserting array relation for remote table "core_walkcursor_traversed_edges" */
+export type Core_Walkcursor_Traversed_Edges_Arr_Rel_Insert_Input = {
+  data: Array<Core_Walkcursor_Traversed_Edges_Insert_Input>;
+  /** upsert condition */
+  on_conflict?: Core_Walkcursor_Traversed_Edges_On_Conflict | null | undefined;
+};
+
+/** order by avg() on columns of table "core_walkcursor_traversed_edges" */
+export type Core_Walkcursor_Traversed_Edges_Avg_Order_By = {
+  assetedge_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  walkcursor_id?: Order_By | null | undefined;
+};
+
+/** Boolean expression to filter rows from the table "core_walkcursor_traversed_edges". All fields are combined with a logical 'AND'. */
+export type Core_Walkcursor_Traversed_Edges_Bool_Exp = {
+  _and?: Array<Core_Walkcursor_Traversed_Edges_Bool_Exp> | null | undefined;
+  _not?: Core_Walkcursor_Traversed_Edges_Bool_Exp | null | undefined;
+  _or?: Array<Core_Walkcursor_Traversed_Edges_Bool_Exp> | null | undefined;
+  assetedge_id?: Bigint_Comparison_Exp | null | undefined;
+  core_assetedge?: Core_Assetedge_Bool_Exp | null | undefined;
+  core_walkcursor?: Core_Walkcursor_Bool_Exp | null | undefined;
+  id?: Bigint_Comparison_Exp | null | undefined;
+  walkcursor_id?: Bigint_Comparison_Exp | null | undefined;
+};
+
+/** unique or primary key constraints on table "core_walkcursor_traversed_edges" */
+export type Core_Walkcursor_Traversed_Edges_Constraint =
+  /** unique or primary key constraint on columns "walkcursor_id", "assetedge_id" */
+  | 'core_walkcursor_traverse_walkcursor_id_assetedge__9a9832c3_uniq'
+  /** unique or primary key constraint on columns "id" */
+  | 'core_walkcursor_traversed_edges_pkey';
+
+/** input type for inserting data into table "core_walkcursor_traversed_edges" */
+export type Core_Walkcursor_Traversed_Edges_Insert_Input = {
+  assetedge_id?: number | null | undefined;
+  core_assetedge?: Core_Assetedge_Obj_Rel_Insert_Input | null | undefined;
+  core_walkcursor?: Core_Walkcursor_Obj_Rel_Insert_Input | null | undefined;
+  id?: number | null | undefined;
+  walkcursor_id?: number | null | undefined;
+};
+
+/** order by max() on columns of table "core_walkcursor_traversed_edges" */
+export type Core_Walkcursor_Traversed_Edges_Max_Order_By = {
+  assetedge_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  walkcursor_id?: Order_By | null | undefined;
+};
+
+/** order by min() on columns of table "core_walkcursor_traversed_edges" */
+export type Core_Walkcursor_Traversed_Edges_Min_Order_By = {
+  assetedge_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  walkcursor_id?: Order_By | null | undefined;
+};
+
+/** on_conflict condition type for table "core_walkcursor_traversed_edges" */
+export type Core_Walkcursor_Traversed_Edges_On_Conflict = {
+  constraint: Core_Walkcursor_Traversed_Edges_Constraint;
+  update_columns?: Array<Core_Walkcursor_Traversed_Edges_Update_Column>;
+  where?: Core_Walkcursor_Traversed_Edges_Bool_Exp | null | undefined;
+};
+
+/** select columns of table "core_walkcursor_traversed_edges" */
+export type Core_Walkcursor_Traversed_Edges_Select_Column =
+  /** column name */
+  | 'assetedge_id'
+  /** column name */
+  | 'id'
+  /** column name */
+  | 'walkcursor_id';
+
+/** order by stddev() on columns of table "core_walkcursor_traversed_edges" */
+export type Core_Walkcursor_Traversed_Edges_Stddev_Order_By = {
+  assetedge_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  walkcursor_id?: Order_By | null | undefined;
+};
+
+/** order by stddev_pop() on columns of table "core_walkcursor_traversed_edges" */
+export type Core_Walkcursor_Traversed_Edges_Stddev_Pop_Order_By = {
+  assetedge_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  walkcursor_id?: Order_By | null | undefined;
+};
+
+/** order by stddev_samp() on columns of table "core_walkcursor_traversed_edges" */
+export type Core_Walkcursor_Traversed_Edges_Stddev_Samp_Order_By = {
+  assetedge_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  walkcursor_id?: Order_By | null | undefined;
+};
+
+/** order by sum() on columns of table "core_walkcursor_traversed_edges" */
+export type Core_Walkcursor_Traversed_Edges_Sum_Order_By = {
+  assetedge_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  walkcursor_id?: Order_By | null | undefined;
+};
+
+/** update columns of table "core_walkcursor_traversed_edges" */
+export type Core_Walkcursor_Traversed_Edges_Update_Column =
+  /** column name */
+  | 'assetedge_id'
+  /** column name */
+  | 'id'
+  /** column name */
+  | 'walkcursor_id';
+
+/** order by var_pop() on columns of table "core_walkcursor_traversed_edges" */
+export type Core_Walkcursor_Traversed_Edges_Var_Pop_Order_By = {
+  assetedge_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  walkcursor_id?: Order_By | null | undefined;
+};
+
+/** order by var_samp() on columns of table "core_walkcursor_traversed_edges" */
+export type Core_Walkcursor_Traversed_Edges_Var_Samp_Order_By = {
+  assetedge_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  walkcursor_id?: Order_By | null | undefined;
+};
+
+/** order by variance() on columns of table "core_walkcursor_traversed_edges" */
+export type Core_Walkcursor_Traversed_Edges_Variance_Order_By = {
+  assetedge_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  walkcursor_id?: Order_By | null | undefined;
+};
+
+/** update columns of table "core_walkcursor" */
+export type Core_Walkcursor_Update_Column =
+  /** column name */
+  | 'current_asset_link_id'
+  /** column name */
+  | 'id'
+  /** column name */
+  | 'plan_id'
+  /** column name */
+  | 'updated_at';
+
+/** order by var_pop() on columns of table "core_walkcursor" */
+export type Core_Walkcursor_Var_Pop_Order_By = {
+  current_asset_link_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  plan_id?: Order_By | null | undefined;
+};
+
+/** order by var_samp() on columns of table "core_walkcursor" */
+export type Core_Walkcursor_Var_Samp_Order_By = {
+  current_asset_link_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  plan_id?: Order_By | null | undefined;
+};
+
+/** order by variance() on columns of table "core_walkcursor" */
+export type Core_Walkcursor_Variance_Order_By = {
+  current_asset_link_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  plan_id?: Order_By | null | undefined;
+};
+
 export type Django_Admin_Log_Aggregate_Bool_Exp = {
   count?: Django_Admin_Log_Aggregate_Bool_Exp_Count | null | undefined;
 };
@@ -15092,7 +17651,7 @@ export type Django_Admin_Log_Constraint =
 /** input type for inserting data into table "django_admin_log" */
 export type Django_Admin_Log_Insert_Input = {
   action_flag?: unknown;
-  action_time?: unknown;
+  action_time?: string | null | undefined;
   auth_user?: Auth_User_Obj_Rel_Insert_Input | null | undefined;
   change_message?: string | null | undefined;
   content_type_id?: number | null | undefined;
@@ -15292,11 +17851,34 @@ export type Execution_Artifact_Aggregate_Bool_Exp_Count = {
   predicate: Int_Comparison_Exp;
 };
 
+/** order by aggregate values of table "execution_artifact" */
+export type Execution_Artifact_Aggregate_Order_By = {
+  avg?: Execution_Artifact_Avg_Order_By | null | undefined;
+  count?: Order_By | null | undefined;
+  max?: Execution_Artifact_Max_Order_By | null | undefined;
+  min?: Execution_Artifact_Min_Order_By | null | undefined;
+  stddev?: Execution_Artifact_Stddev_Order_By | null | undefined;
+  stddev_pop?: Execution_Artifact_Stddev_Pop_Order_By | null | undefined;
+  stddev_samp?: Execution_Artifact_Stddev_Samp_Order_By | null | undefined;
+  sum?: Execution_Artifact_Sum_Order_By | null | undefined;
+  var_pop?: Execution_Artifact_Var_Pop_Order_By | null | undefined;
+  var_samp?: Execution_Artifact_Var_Samp_Order_By | null | undefined;
+  variance?: Execution_Artifact_Variance_Order_By | null | undefined;
+};
+
 /** input type for inserting array relation for remote table "execution_artifact" */
 export type Execution_Artifact_Arr_Rel_Insert_Input = {
   data: Array<Execution_Artifact_Insert_Input>;
   /** upsert condition */
   on_conflict?: Execution_Artifact_On_Conflict | null | undefined;
+};
+
+/** order by avg() on columns of table "execution_artifact" */
+export type Execution_Artifact_Avg_Order_By = {
+  content_blob_id?: Order_By | null | undefined;
+  graph_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  node_id?: Order_By | null | undefined;
 };
 
 /** Boolean expression to filter rows from the table "execution_artifact". All fields are combined with a logical 'AND'. */
@@ -15328,17 +17910,41 @@ export type Execution_Artifact_Constraint =
 export type Execution_Artifact_Insert_Input = {
   artifact_type?: string | null | undefined;
   content?: string | null | undefined;
-  content_blob_id?: unknown;
+  content_blob_id?: number | null | undefined;
   core_content_blob?: Core_Content_Blob_Obj_Rel_Insert_Input | null | undefined;
-  created_at?: unknown;
+  created_at?: string | null | undefined;
   data?: unknown;
   execution_graph?: Execution_Graph_Obj_Rel_Insert_Input | null | undefined;
   execution_node?: Execution_Node_Obj_Rel_Insert_Input | null | undefined;
-  graph_id?: unknown;
-  id?: unknown;
+  graph_id?: number | null | undefined;
+  id?: number | null | undefined;
   metadata?: unknown;
   name?: string | null | undefined;
-  node_id?: unknown;
+  node_id?: number | null | undefined;
+};
+
+/** order by max() on columns of table "execution_artifact" */
+export type Execution_Artifact_Max_Order_By = {
+  artifact_type?: Order_By | null | undefined;
+  content?: Order_By | null | undefined;
+  content_blob_id?: Order_By | null | undefined;
+  created_at?: Order_By | null | undefined;
+  graph_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  name?: Order_By | null | undefined;
+  node_id?: Order_By | null | undefined;
+};
+
+/** order by min() on columns of table "execution_artifact" */
+export type Execution_Artifact_Min_Order_By = {
+  artifact_type?: Order_By | null | undefined;
+  content?: Order_By | null | undefined;
+  content_blob_id?: Order_By | null | undefined;
+  created_at?: Order_By | null | undefined;
+  graph_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  name?: Order_By | null | undefined;
+  node_id?: Order_By | null | undefined;
 };
 
 /** on_conflict condition type for table "execution_artifact" */
@@ -15371,6 +17977,38 @@ export type Execution_Artifact_Select_Column =
   /** column name */
   | 'node_id';
 
+/** order by stddev() on columns of table "execution_artifact" */
+export type Execution_Artifact_Stddev_Order_By = {
+  content_blob_id?: Order_By | null | undefined;
+  graph_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  node_id?: Order_By | null | undefined;
+};
+
+/** order by stddev_pop() on columns of table "execution_artifact" */
+export type Execution_Artifact_Stddev_Pop_Order_By = {
+  content_blob_id?: Order_By | null | undefined;
+  graph_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  node_id?: Order_By | null | undefined;
+};
+
+/** order by stddev_samp() on columns of table "execution_artifact" */
+export type Execution_Artifact_Stddev_Samp_Order_By = {
+  content_blob_id?: Order_By | null | undefined;
+  graph_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  node_id?: Order_By | null | undefined;
+};
+
+/** order by sum() on columns of table "execution_artifact" */
+export type Execution_Artifact_Sum_Order_By = {
+  content_blob_id?: Order_By | null | undefined;
+  graph_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  node_id?: Order_By | null | undefined;
+};
+
 /** update columns of table "execution_artifact" */
 export type Execution_Artifact_Update_Column =
   /** column name */
@@ -15394,6 +18032,30 @@ export type Execution_Artifact_Update_Column =
   /** column name */
   | 'node_id';
 
+/** order by var_pop() on columns of table "execution_artifact" */
+export type Execution_Artifact_Var_Pop_Order_By = {
+  content_blob_id?: Order_By | null | undefined;
+  graph_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  node_id?: Order_By | null | undefined;
+};
+
+/** order by var_samp() on columns of table "execution_artifact" */
+export type Execution_Artifact_Var_Samp_Order_By = {
+  content_blob_id?: Order_By | null | undefined;
+  graph_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  node_id?: Order_By | null | undefined;
+};
+
+/** order by variance() on columns of table "execution_artifact" */
+export type Execution_Artifact_Variance_Order_By = {
+  content_blob_id?: Order_By | null | undefined;
+  graph_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  node_id?: Order_By | null | undefined;
+};
+
 export type Execution_Event_Aggregate_Bool_Exp = {
   count?: Execution_Event_Aggregate_Bool_Exp_Count | null | undefined;
 };
@@ -15405,11 +18067,34 @@ export type Execution_Event_Aggregate_Bool_Exp_Count = {
   predicate: Int_Comparison_Exp;
 };
 
+/** order by aggregate values of table "execution_event" */
+export type Execution_Event_Aggregate_Order_By = {
+  avg?: Execution_Event_Avg_Order_By | null | undefined;
+  count?: Order_By | null | undefined;
+  max?: Execution_Event_Max_Order_By | null | undefined;
+  min?: Execution_Event_Min_Order_By | null | undefined;
+  stddev?: Execution_Event_Stddev_Order_By | null | undefined;
+  stddev_pop?: Execution_Event_Stddev_Pop_Order_By | null | undefined;
+  stddev_samp?: Execution_Event_Stddev_Samp_Order_By | null | undefined;
+  sum?: Execution_Event_Sum_Order_By | null | undefined;
+  var_pop?: Execution_Event_Var_Pop_Order_By | null | undefined;
+  var_samp?: Execution_Event_Var_Samp_Order_By | null | undefined;
+  variance?: Execution_Event_Variance_Order_By | null | undefined;
+};
+
 /** input type for inserting array relation for remote table "execution_event" */
 export type Execution_Event_Arr_Rel_Insert_Input = {
   data: Array<Execution_Event_Insert_Input>;
   /** upsert condition */
   on_conflict?: Execution_Event_On_Conflict | null | undefined;
+};
+
+/** order by avg() on columns of table "execution_event" */
+export type Execution_Event_Avg_Order_By = {
+  graph_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  node_id?: Order_By | null | undefined;
+  sequence?: Order_By | null | undefined;
 };
 
 /** Boolean expression to filter rows from the table "execution_event". All fields are combined with a logical 'AND'. */
@@ -15440,16 +18125,40 @@ export type Execution_Event_Constraint =
 /** input type for inserting data into table "execution_event" */
 export type Execution_Event_Insert_Input = {
   content?: string | null | undefined;
-  created_at?: unknown;
+  created_at?: string | null | undefined;
   event_type?: string | null | undefined;
   execution_graph?: Execution_Graph_Obj_Rel_Insert_Input | null | undefined;
   execution_node?: Execution_Node_Obj_Rel_Insert_Input | null | undefined;
-  graph_id?: unknown;
-  id?: unknown;
-  node_id?: unknown;
+  graph_id?: number | null | undefined;
+  id?: number | null | undefined;
+  node_id?: number | null | undefined;
   payload?: unknown;
-  sequence?: unknown;
+  sequence?: number | null | undefined;
   status?: string | null | undefined;
+};
+
+/** order by max() on columns of table "execution_event" */
+export type Execution_Event_Max_Order_By = {
+  content?: Order_By | null | undefined;
+  created_at?: Order_By | null | undefined;
+  event_type?: Order_By | null | undefined;
+  graph_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  node_id?: Order_By | null | undefined;
+  sequence?: Order_By | null | undefined;
+  status?: Order_By | null | undefined;
+};
+
+/** order by min() on columns of table "execution_event" */
+export type Execution_Event_Min_Order_By = {
+  content?: Order_By | null | undefined;
+  created_at?: Order_By | null | undefined;
+  event_type?: Order_By | null | undefined;
+  graph_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  node_id?: Order_By | null | undefined;
+  sequence?: Order_By | null | undefined;
+  status?: Order_By | null | undefined;
 };
 
 /** on_conflict condition type for table "execution_event" */
@@ -15480,6 +18189,38 @@ export type Execution_Event_Select_Column =
   /** column name */
   | 'status';
 
+/** order by stddev() on columns of table "execution_event" */
+export type Execution_Event_Stddev_Order_By = {
+  graph_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  node_id?: Order_By | null | undefined;
+  sequence?: Order_By | null | undefined;
+};
+
+/** order by stddev_pop() on columns of table "execution_event" */
+export type Execution_Event_Stddev_Pop_Order_By = {
+  graph_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  node_id?: Order_By | null | undefined;
+  sequence?: Order_By | null | undefined;
+};
+
+/** order by stddev_samp() on columns of table "execution_event" */
+export type Execution_Event_Stddev_Samp_Order_By = {
+  graph_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  node_id?: Order_By | null | undefined;
+  sequence?: Order_By | null | undefined;
+};
+
+/** order by sum() on columns of table "execution_event" */
+export type Execution_Event_Sum_Order_By = {
+  graph_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  node_id?: Order_By | null | undefined;
+  sequence?: Order_By | null | undefined;
+};
+
 /** update columns of table "execution_event" */
 export type Execution_Event_Update_Column =
   /** column name */
@@ -15500,6 +18241,30 @@ export type Execution_Event_Update_Column =
   | 'sequence'
   /** column name */
   | 'status';
+
+/** order by var_pop() on columns of table "execution_event" */
+export type Execution_Event_Var_Pop_Order_By = {
+  graph_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  node_id?: Order_By | null | undefined;
+  sequence?: Order_By | null | undefined;
+};
+
+/** order by var_samp() on columns of table "execution_event" */
+export type Execution_Event_Var_Samp_Order_By = {
+  graph_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  node_id?: Order_By | null | undefined;
+  sequence?: Order_By | null | undefined;
+};
+
+/** order by variance() on columns of table "execution_event" */
+export type Execution_Event_Variance_Order_By = {
+  graph_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  node_id?: Order_By | null | undefined;
+  sequence?: Order_By | null | undefined;
+};
 
 export type Execution_Graph_Aggregate_Bool_Exp = {
   count?: Execution_Graph_Aggregate_Bool_Exp_Count | null | undefined;
@@ -15548,6 +18313,8 @@ export type Execution_Graph_Bool_Exp = {
   ai_assistant_thread?: Ai_Assistant_Thread_Bool_Exp | null | undefined;
   assistant_id?: String_Comparison_Exp | null | undefined;
   completed_at?: Timestamptz_Comparison_Exp | null | undefined;
+  core_actions?: Core_Action_Bool_Exp | null | undefined;
+  core_actions_aggregate?: Core_Action_Aggregate_Bool_Exp | null | undefined;
   execution_artifacts?: Execution_Artifact_Bool_Exp | null | undefined;
   execution_artifacts_aggregate?: Execution_Artifact_Aggregate_Bool_Exp | null | undefined;
   execution_events?: Execution_Event_Bool_Exp | null | undefined;
@@ -15573,18 +18340,19 @@ export type Execution_Graph_Constraint =
 export type Execution_Graph_Insert_Input = {
   ai_assistant_thread?: Ai_Assistant_Thread_Obj_Rel_Insert_Input | null | undefined;
   assistant_id?: string | null | undefined;
-  completed_at?: unknown;
+  completed_at?: string | null | undefined;
+  core_actions?: Core_Action_Arr_Rel_Insert_Input | null | undefined;
   execution_artifacts?: Execution_Artifact_Arr_Rel_Insert_Input | null | undefined;
   execution_events?: Execution_Event_Arr_Rel_Insert_Input | null | undefined;
   execution_nodes?: Execution_Node_Arr_Rel_Insert_Input | null | undefined;
-  id?: unknown;
+  id?: number | null | undefined;
   metadata?: unknown;
   run_id?: string | null | undefined;
-  started_at?: unknown;
+  started_at?: string | null | undefined;
   status?: string | null | undefined;
-  thread_id?: unknown;
+  thread_id?: number | null | undefined;
   title?: string | null | undefined;
-  updated_at?: unknown;
+  updated_at?: string | null | undefined;
 };
 
 /** order by max() on columns of table "execution_graph" */
@@ -15625,6 +18393,25 @@ export type Execution_Graph_On_Conflict = {
   constraint: Execution_Graph_Constraint;
   update_columns?: Array<Execution_Graph_Update_Column>;
   where?: Execution_Graph_Bool_Exp | null | undefined;
+};
+
+/** Ordering options when selecting data from "execution_graph". */
+export type Execution_Graph_Order_By = {
+  ai_assistant_thread?: Ai_Assistant_Thread_Order_By | null | undefined;
+  assistant_id?: Order_By | null | undefined;
+  completed_at?: Order_By | null | undefined;
+  core_actions_aggregate?: Core_Action_Aggregate_Order_By | null | undefined;
+  execution_artifacts_aggregate?: Execution_Artifact_Aggregate_Order_By | null | undefined;
+  execution_events_aggregate?: Execution_Event_Aggregate_Order_By | null | undefined;
+  execution_nodes_aggregate?: Execution_Node_Aggregate_Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  metadata?: Order_By | null | undefined;
+  run_id?: Order_By | null | undefined;
+  started_at?: Order_By | null | undefined;
+  status?: Order_By | null | undefined;
+  thread_id?: Order_By | null | undefined;
+  title?: Order_By | null | undefined;
+  updated_at?: Order_By | null | undefined;
 };
 
 /** select columns of table "execution_graph" */
@@ -15726,11 +18513,34 @@ export type Execution_Node_Aggregate_Bool_Exp_Count = {
   predicate: Int_Comparison_Exp;
 };
 
+/** order by aggregate values of table "execution_node" */
+export type Execution_Node_Aggregate_Order_By = {
+  avg?: Execution_Node_Avg_Order_By | null | undefined;
+  count?: Order_By | null | undefined;
+  max?: Execution_Node_Max_Order_By | null | undefined;
+  min?: Execution_Node_Min_Order_By | null | undefined;
+  stddev?: Execution_Node_Stddev_Order_By | null | undefined;
+  stddev_pop?: Execution_Node_Stddev_Pop_Order_By | null | undefined;
+  stddev_samp?: Execution_Node_Stddev_Samp_Order_By | null | undefined;
+  sum?: Execution_Node_Sum_Order_By | null | undefined;
+  var_pop?: Execution_Node_Var_Pop_Order_By | null | undefined;
+  var_samp?: Execution_Node_Var_Samp_Order_By | null | undefined;
+  variance?: Execution_Node_Variance_Order_By | null | undefined;
+};
+
 /** input type for inserting array relation for remote table "execution_node" */
 export type Execution_Node_Arr_Rel_Insert_Input = {
   data: Array<Execution_Node_Insert_Input>;
   /** upsert condition */
   on_conflict?: Execution_Node_On_Conflict | null | undefined;
+};
+
+/** order by avg() on columns of table "execution_node" */
+export type Execution_Node_Avg_Order_By = {
+  graph_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  parent_id?: Order_By | null | undefined;
+  sequence?: Order_By | null | undefined;
 };
 
 /** Boolean expression to filter rows from the table "execution_node". All fields are combined with a logical 'AND'. */
@@ -15775,8 +18585,8 @@ export type Execution_Node_Constraint =
 
 /** input type for inserting data into table "execution_node" */
 export type Execution_Node_Insert_Input = {
-  completed_at?: unknown;
-  created_at?: unknown;
+  completed_at?: string | null | undefined;
+  created_at?: string | null | undefined;
   error?: unknown;
   execution_artifacts?: Execution_Artifact_Arr_Rel_Insert_Input | null | undefined;
   execution_events?: Execution_Event_Arr_Rel_Insert_Input | null | undefined;
@@ -15784,20 +18594,56 @@ export type Execution_Node_Insert_Input = {
   execution_node?: Execution_Node_Obj_Rel_Insert_Input | null | undefined;
   execution_nodes?: Execution_Node_Arr_Rel_Insert_Input | null | undefined;
   external_task_id?: string | null | undefined;
-  graph_id?: unknown;
-  id?: unknown;
+  graph_id?: number | null | undefined;
+  id?: number | null | undefined;
   input?: unknown;
   kind?: string | null | undefined;
   metadata?: unknown;
   name?: string | null | undefined;
   output?: unknown;
-  parent_id?: unknown;
-  sequence?: unknown;
-  started_at?: unknown;
+  parent_id?: number | null | undefined;
+  sequence?: number | null | undefined;
+  started_at?: string | null | undefined;
   status?: string | null | undefined;
   tool_call_id?: string | null | undefined;
-  updated_at?: unknown;
+  updated_at?: string | null | undefined;
   wait_reason?: string | null | undefined;
+};
+
+/** order by max() on columns of table "execution_node" */
+export type Execution_Node_Max_Order_By = {
+  completed_at?: Order_By | null | undefined;
+  created_at?: Order_By | null | undefined;
+  external_task_id?: Order_By | null | undefined;
+  graph_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  kind?: Order_By | null | undefined;
+  name?: Order_By | null | undefined;
+  parent_id?: Order_By | null | undefined;
+  sequence?: Order_By | null | undefined;
+  started_at?: Order_By | null | undefined;
+  status?: Order_By | null | undefined;
+  tool_call_id?: Order_By | null | undefined;
+  updated_at?: Order_By | null | undefined;
+  wait_reason?: Order_By | null | undefined;
+};
+
+/** order by min() on columns of table "execution_node" */
+export type Execution_Node_Min_Order_By = {
+  completed_at?: Order_By | null | undefined;
+  created_at?: Order_By | null | undefined;
+  external_task_id?: Order_By | null | undefined;
+  graph_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  kind?: Order_By | null | undefined;
+  name?: Order_By | null | undefined;
+  parent_id?: Order_By | null | undefined;
+  sequence?: Order_By | null | undefined;
+  started_at?: Order_By | null | undefined;
+  status?: Order_By | null | undefined;
+  tool_call_id?: Order_By | null | undefined;
+  updated_at?: Order_By | null | undefined;
+  wait_reason?: Order_By | null | undefined;
 };
 
 /** input type for inserting object relation for remote table "execution_node" */
@@ -15853,6 +18699,38 @@ export type Execution_Node_Select_Column =
   /** column name */
   | 'wait_reason';
 
+/** order by stddev() on columns of table "execution_node" */
+export type Execution_Node_Stddev_Order_By = {
+  graph_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  parent_id?: Order_By | null | undefined;
+  sequence?: Order_By | null | undefined;
+};
+
+/** order by stddev_pop() on columns of table "execution_node" */
+export type Execution_Node_Stddev_Pop_Order_By = {
+  graph_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  parent_id?: Order_By | null | undefined;
+  sequence?: Order_By | null | undefined;
+};
+
+/** order by stddev_samp() on columns of table "execution_node" */
+export type Execution_Node_Stddev_Samp_Order_By = {
+  graph_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  parent_id?: Order_By | null | undefined;
+  sequence?: Order_By | null | undefined;
+};
+
+/** order by sum() on columns of table "execution_node" */
+export type Execution_Node_Sum_Order_By = {
+  graph_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  parent_id?: Order_By | null | undefined;
+  sequence?: Order_By | null | undefined;
+};
+
 /** update columns of table "execution_node" */
 export type Execution_Node_Update_Column =
   /** column name */
@@ -15891,6 +18769,30 @@ export type Execution_Node_Update_Column =
   | 'updated_at'
   /** column name */
   | 'wait_reason';
+
+/** order by var_pop() on columns of table "execution_node" */
+export type Execution_Node_Var_Pop_Order_By = {
+  graph_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  parent_id?: Order_By | null | undefined;
+  sequence?: Order_By | null | undefined;
+};
+
+/** order by var_samp() on columns of table "execution_node" */
+export type Execution_Node_Var_Samp_Order_By = {
+  graph_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  parent_id?: Order_By | null | undefined;
+  sequence?: Order_By | null | undefined;
+};
+
+/** order by variance() on columns of table "execution_node" */
+export type Execution_Node_Variance_Order_By = {
+  graph_id?: Order_By | null | undefined;
+  id?: Order_By | null | undefined;
+  parent_id?: Order_By | null | undefined;
+  sequence?: Order_By | null | undefined;
+};
 
 /** Boolean expression to compare columns of type "float8". All fields are combined with logical 'AND'. */
 export type Float8_Comparison_Exp = {
@@ -16041,15 +18943,15 @@ export type Mission_Review_Insert_Input = {
   confidence_score?: unknown;
   confirmed_vuln_count?: unknown;
   core_overview?: Core_Overview_Obj_Rel_Insert_Input | null | undefined;
-  created_at?: unknown;
+  created_at?: string | null | undefined;
   has_poc_evidence?: boolean | null | undefined;
   high_severity_count?: unknown;
-  id?: unknown;
+  id?: number | null | undefined;
   needs_human_review?: boolean | null | undefined;
-  overview_id?: unknown;
+  overview_id?: number | null | undefined;
   reasoning?: string | null | undefined;
   rejection_reasons?: unknown;
-  reviewed_at?: unknown;
+  reviewed_at?: string | null | undefined;
   scan_coverage_pct?: unknown;
   suggested_actions?: unknown;
   triggered_by?: string | null | undefined;
@@ -16316,15 +19218,15 @@ export type Smallint_Comparison_Exp = {
 
 /** Boolean expression to compare columns of type "timestamptz". All fields are combined with logical 'AND'. */
 export type Timestamptz_Comparison_Exp = {
-  _eq?: unknown;
-  _gt?: unknown;
-  _gte?: unknown;
-  _in?: Array<unknown> | null | undefined;
+  _eq?: string | null | undefined;
+  _gt?: string | null | undefined;
+  _gte?: string | null | undefined;
+  _in?: Array<string> | null | undefined;
   _is_null?: boolean | null | undefined;
-  _lt?: unknown;
-  _lte?: unknown;
-  _neq?: unknown;
-  _nin?: Array<unknown> | null | undefined;
+  _lt?: string | null | undefined;
+  _lte?: string | null | undefined;
+  _neq?: string | null | undefined;
+  _nin?: Array<string> | null | undefined;
 };
 
 export type GetAttackPlansQueryVariables = Exact<{
@@ -16335,29 +19237,29 @@ export type GetAttackPlansQueryVariables = Exact<{
 }>;
 
 
-export type GetAttackPlansQuery = { core_attackplan: Array<{ id: unknown, target_id: unknown, thread_id: unknown, objective: string, scope: unknown, status: string, parent_plan_id: unknown, created_at: unknown, updated_at: unknown }>, core_attackplan_aggregate: { aggregate: { count: number } | null } };
+export type GetAttackPlansQuery = { core_attackplan: Array<{ id: number, target_id: number, thread_id: number | null, objective: string, scope: unknown, status: string, parent_plan_id: number | null, created_at: string, updated_at: string }>, core_attackplan_aggregate: { aggregate: { count: number } | null } };
 
 export type GetAttackPlanQueryVariables = Exact<{
-  id: unknown;
+  id: number;
 }>;
 
 
-export type GetAttackPlanQuery = { core_attackplan_by_pk: { id: unknown, target_id: unknown, thread_id: unknown, objective: string, scope: unknown, status: string, parent_plan_id: unknown, created_at: unknown, updated_at: unknown, core_actions: Array<{ id: unknown, target_id: unknown, plan_id: unknown, purpose: unknown, purpose_text: string | null, status: string, agent_thread_id: unknown, agent_role: string | null, execution_graph_id: unknown, result_summary: string | null, order: number, created_at: unknown, started_at: unknown, completed_at: unknown }> } | null };
+export type GetAttackPlanQuery = { core_attackplan_by_pk: { id: number, target_id: number, thread_id: number | null, objective: string, scope: unknown, status: string, parent_plan_id: number | null, created_at: string, updated_at: string, core_actions: Array<{ id: number, target_id: number, plan_id: number | null, purpose: unknown, purpose_text: string | null, status: string, agent_thread_id: number | null, agent_role: string | null, execution_graph_id: number | null, result_summary: string | null, order: number, created_at: string, started_at: string | null, completed_at: string | null }> } | null };
 
 export type CreateAttackPlanMutationVariables = Exact<{
   object: Core_Attackplan_Insert_Input;
 }>;
 
 
-export type CreateAttackPlanMutation = { insert_core_attackplan_one: { id: unknown, target_id: unknown, thread_id: unknown, objective: string, scope: unknown, status: string, parent_plan_id: unknown, created_at: unknown, updated_at: unknown } | null };
+export type CreateAttackPlanMutation = { insert_core_attackplan_one: { id: number, target_id: number, thread_id: number | null, objective: string, scope: unknown, status: string, parent_plan_id: number | null, created_at: string, updated_at: string } | null };
 
 export type UpdateAttackPlanMutationVariables = Exact<{
-  id: unknown;
+  id: number;
   updates: Core_Attackplan_Set_Input;
 }>;
 
 
-export type UpdateAttackPlanMutation = { update_core_attackplan_by_pk: { id: unknown, target_id: unknown, thread_id: unknown, objective: string, scope: unknown, status: string, parent_plan_id: unknown, created_at: unknown, updated_at: unknown } | null };
+export type UpdateAttackPlanMutation = { update_core_attackplan_by_pk: { id: number, target_id: number, thread_id: number | null, objective: string, scope: unknown, status: string, parent_plan_id: number | null, created_at: string, updated_at: string } | null };
 
 export type GetPlanActionsQueryVariables = Exact<{
   where?: Core_Action_Bool_Exp | null | undefined;
@@ -16367,22 +19269,22 @@ export type GetPlanActionsQueryVariables = Exact<{
 }>;
 
 
-export type GetPlanActionsQuery = { core_action: Array<{ id: unknown, target_id: unknown, plan_id: unknown, purpose: unknown, purpose_text: string | null, status: string, agent_thread_id: unknown, agent_role: string | null, execution_graph_id: unknown, result_summary: string | null, order: number, created_at: unknown, started_at: unknown, completed_at: unknown }>, core_action_aggregate: { aggregate: { count: number } | null } };
+export type GetPlanActionsQuery = { core_action: Array<{ id: number, target_id: number, plan_id: number | null, purpose: unknown, purpose_text: string | null, status: string, agent_thread_id: number | null, agent_role: string | null, execution_graph_id: number | null, result_summary: string | null, order: number, created_at: string, started_at: string | null, completed_at: string | null }>, core_action_aggregate: { aggregate: { count: number } | null } };
 
 export type GetActionQueryVariables = Exact<{
-  id: unknown;
+  id: number;
 }>;
 
 
-export type GetActionQuery = { core_action_by_pk: { id: unknown, target_id: unknown, plan_id: unknown, purpose: unknown, purpose_text: string | null, status: string, agent_thread_id: unknown, agent_role: string | null, execution_graph_id: unknown, result_summary: string | null, order: number, created_at: unknown, started_at: unknown, completed_at: unknown } | null };
+export type GetActionQuery = { core_action_by_pk: { id: number, target_id: number, plan_id: number | null, purpose: unknown, purpose_text: string | null, status: string, agent_thread_id: number | null, agent_role: string | null, execution_graph_id: number | null, result_summary: string | null, order: number, created_at: string, started_at: string | null, completed_at: string | null } | null };
 
 export type UpdateActionMutationVariables = Exact<{
-  id: unknown;
+  id: number;
   updates: Core_Action_Set_Input;
 }>;
 
 
-export type UpdateActionMutation = { update_core_action_by_pk: { id: unknown, target_id: unknown, plan_id: unknown, purpose: unknown, purpose_text: string | null, status: string, result_summary: string | null, order: number, created_at: unknown, started_at: unknown, completed_at: unknown } | null };
+export type UpdateActionMutation = { update_core_action_by_pk: { id: number, target_id: number, plan_id: number | null, purpose: unknown, purpose_text: string | null, status: string, result_summary: string | null, order: number, created_at: string, started_at: string | null, completed_at: string | null } | null };
 
 export type GetAttackVectorsQueryVariables = Exact<{
   where?: Core_Attackvector_Bool_Exp | null | undefined;
@@ -16392,36 +19294,36 @@ export type GetAttackVectorsQueryVariables = Exact<{
 }>;
 
 
-export type GetAttackVectorsQuery = { core_attackvector: Array<{ id: unknown, overview_id: unknown, name: string, description: string | null, vector_type: string, status: string, risk_score: unknown, evidence: string | null, created_at: unknown, updated_at: unknown }>, core_attackvector_aggregate: { aggregate: { count: number } | null } };
+export type GetAttackVectorsQuery = { core_attackvector: Array<{ id: number, overview_id: number, name: string, description: string | null, vector_type: string, status: string, risk_score: unknown, evidence: string | null, created_at: string, updated_at: string }>, core_attackvector_aggregate: { aggregate: { count: number } | null } };
 
 export type GetAttackVectorQueryVariables = Exact<{
-  id: unknown;
+  id: number;
 }>;
 
 
-export type GetAttackVectorQuery = { core_attackvector_by_pk: { id: unknown, overview_id: unknown, name: string, description: string | null, vector_type: string, status: string, risk_score: unknown, evidence: string | null, created_at: unknown, updated_at: unknown } | null };
+export type GetAttackVectorQuery = { core_attackvector_by_pk: { id: number, overview_id: number, name: string, description: string | null, vector_type: string, status: string, risk_score: unknown, evidence: string | null, created_at: string, updated_at: string } | null };
 
 export type UpdateAttackVectorMutationVariables = Exact<{
-  id: unknown;
+  id: number;
   updates: Core_Attackvector_Set_Input;
 }>;
 
 
-export type UpdateAttackVectorMutation = { update_core_attackvector_by_pk: { id: unknown, overview_id: unknown, name: string, description: string | null, vector_type: string, status: string, risk_score: unknown, evidence: string | null, created_at: unknown, updated_at: unknown } | null };
+export type UpdateAttackVectorMutation = { update_core_attackvector_by_pk: { id: number, overview_id: number, name: string, description: string | null, vector_type: string, status: string, risk_score: unknown, evidence: string | null, created_at: string, updated_at: string } | null };
 
 export type GetMissionReviewsByOverviewQueryVariables = Exact<{
-  overviewId: unknown;
+  overviewId: number;
 }>;
 
 
-export type GetMissionReviewsByOverviewQuery = { mission_review: Array<{ id: unknown, overview_id: unknown, verdict: string, confidence_score: unknown, reasoning: string, rejection_reasons: unknown, suggested_actions: unknown, needs_human_review: boolean, vuln_count: unknown, confirmed_vuln_count: unknown, high_severity_count: unknown, has_poc_evidence: boolean, scan_coverage_pct: unknown, triggered_by: string, triggered_by_agent: string, reviewed_at: unknown, created_at: unknown }> };
+export type GetMissionReviewsByOverviewQuery = { mission_review: Array<{ id: number, overview_id: number, verdict: string, confidence_score: unknown, reasoning: string, rejection_reasons: unknown, suggested_actions: unknown, needs_human_review: boolean, vuln_count: unknown, confirmed_vuln_count: unknown, high_severity_count: unknown, has_poc_evidence: boolean, scan_coverage_pct: unknown, triggered_by: string, triggered_by_agent: string, reviewed_at: string | null, created_at: string }> };
 
 export type GetMissionReviewQueryVariables = Exact<{
-  id: unknown;
+  id: number;
 }>;
 
 
-export type GetMissionReviewQuery = { mission_review_by_pk: { id: unknown, overview_id: unknown, verdict: string, confidence_score: unknown, reasoning: string, rejection_reasons: unknown, suggested_actions: unknown, needs_human_review: boolean, vuln_count: unknown, confirmed_vuln_count: unknown, high_severity_count: unknown, has_poc_evidence: boolean, scan_coverage_pct: unknown, triggered_by: string, triggered_by_agent: string, reviewed_at: unknown, created_at: unknown } | null };
+export type GetMissionReviewQuery = { mission_review_by_pk: { id: number, overview_id: number, verdict: string, confidence_score: unknown, reasoning: string, rejection_reasons: unknown, suggested_actions: unknown, needs_human_review: boolean, vuln_count: unknown, confirmed_vuln_count: unknown, high_severity_count: unknown, has_poc_evidence: boolean, scan_coverage_pct: unknown, triggered_by: string, triggered_by_agent: string, reviewed_at: string | null, created_at: string } | null };
 
 export type GetMissionReviewsQueryVariables = Exact<{
   where?: Mission_Review_Bool_Exp | null | undefined;
@@ -16430,43 +19332,43 @@ export type GetMissionReviewsQueryVariables = Exact<{
 }>;
 
 
-export type GetMissionReviewsQuery = { mission_review: Array<{ id: unknown, overview_id: unknown, verdict: string, confidence_score: unknown, reasoning: string, needs_human_review: boolean, vuln_count: unknown, confirmed_vuln_count: unknown, high_severity_count: unknown, has_poc_evidence: boolean, scan_coverage_pct: unknown, triggered_by: string, triggered_by_agent: string, reviewed_at: unknown, created_at: unknown }> };
+export type GetMissionReviewsQuery = { mission_review: Array<{ id: number, overview_id: number, verdict: string, confidence_score: unknown, reasoning: string, needs_human_review: boolean, vuln_count: unknown, confirmed_vuln_count: unknown, high_severity_count: unknown, has_poc_evidence: boolean, scan_coverage_pct: unknown, triggered_by: string, triggered_by_agent: string, reviewed_at: string | null, created_at: string }> };
 
 export type AddSeedMutationVariables = Exact<{
   object: Core_Seed_Insert_Input;
 }>;
 
 
-export type AddSeedMutation = { insert_core_seed_one: { id: unknown, target_id: unknown, value: string, type: string, is_active: boolean, created_at: unknown } | null };
+export type AddSeedMutation = { insert_core_seed_one: { id: number, target_id: number, value: string, type: string, is_active: boolean, created_at: string } | null };
 
 export type DeleteSeedMutationVariables = Exact<{
-  id: unknown;
+  id: number;
 }>;
 
 
-export type DeleteSeedMutation = { delete_core_seed_by_pk: { id: unknown } | null };
+export type DeleteSeedMutation = { delete_core_seed_by_pk: { id: number } | null };
 
 export type CreateTargetMutationVariables = Exact<{
   object: Core_Target_Insert_Input;
 }>;
 
 
-export type CreateTargetMutation = { insert_core_target_one: { id: unknown, name: string, description: string | null, created_at: unknown } | null };
+export type CreateTargetMutation = { insert_core_target_one: { id: number, name: string, description: string | null, created_at: string } | null };
 
 export type UpdateTargetMutationVariables = Exact<{
-  id: unknown;
+  id: number;
   updates: Core_Target_Set_Input;
 }>;
 
 
-export type UpdateTargetMutation = { update_core_target_by_pk: { id: unknown, name: string, description: string | null, created_at: unknown } | null };
+export type UpdateTargetMutation = { update_core_target_by_pk: { id: number, name: string, description: string | null, created_at: string } | null };
 
 export type DeleteTargetMutationVariables = Exact<{
-  id: unknown;
+  id: number;
 }>;
 
 
-export type DeleteTargetMutation = { delete_core_target_by_pk: { id: unknown } | null };
+export type DeleteTargetMutation = { delete_core_target_by_pk: { id: number } | null };
 
 export type GetVulnerabilitiesQueryVariables = Exact<{
   where?: Core_Vulnerability_Bool_Exp | null | undefined;
@@ -16476,14 +19378,14 @@ export type GetVulnerabilitiesQueryVariables = Exact<{
 }>;
 
 
-export type GetVulnerabilitiesQuery = { core_vulnerability: Array<{ id: unknown, target_id: unknown, ip_asset_id: unknown, subdomain_asset_id: unknown, url_asset_id: unknown, source_attack_vector_id: unknown, action_id: unknown, overview_id: unknown, cve_intelligence_id: unknown, enrichment_status: string, enrichment_attempted_at: unknown, tool_source: string, template_id: string, name: string, severity: string, matched_at: string, extracted_results: unknown, request_raw: string | null, response_raw: string | null, fingerprint: string, status: string, description: string | null, remediation: string | null, last_seen: unknown, created_at: unknown, updated_at: unknown, core_target: { id: unknown, name: string } | null }>, core_vulnerability_aggregate: { aggregate: { count: number } | null } };
+export type GetVulnerabilitiesQuery = { core_vulnerability: Array<{ id: number, target_id: number | null, ip_asset_id: number | null, subdomain_asset_id: number | null, url_asset_id: number | null, source_attack_vector_id: number | null, action_id: number | null, overview_id: number | null, cve_intelligence_id: number | null, enrichment_status: string, enrichment_attempted_at: string | null, tool_source: string, template_id: string, name: string, severity: string, matched_at: string, extracted_results: unknown, request_raw: string | null, response_raw: string | null, fingerprint: string, status: string, description: string | null, remediation: string | null, last_seen: string, created_at: string, updated_at: string, core_target: { id: number, name: string } | null }>, core_vulnerability_aggregate: { aggregate: { count: number } | null } };
 
 export type GetVulnerabilityQueryVariables = Exact<{
-  id: unknown;
+  id: number;
 }>;
 
 
-export type GetVulnerabilityQuery = { core_vulnerability_by_pk: { id: unknown, target_id: unknown, ip_asset_id: unknown, subdomain_asset_id: unknown, url_asset_id: unknown, source_attack_vector_id: unknown, action_id: unknown, overview_id: unknown, cve_intelligence_id: unknown, enrichment_status: string, enrichment_attempted_at: unknown, tool_source: string, template_id: string, name: string, severity: string, matched_at: string, extracted_results: unknown, request_raw: string | null, response_raw: string | null, fingerprint: string, status: string, description: string | null, remediation: string | null, last_seen: unknown, created_at: unknown, updated_at: unknown, core_target: { id: unknown, name: string } | null, core_pocrecords: Array<{ id: unknown, vulnerability_id: unknown, title: string, content: string, language: string, result: string | null, is_verified: boolean, created_at: unknown, updated_at: unknown }> } | null };
+export type GetVulnerabilityQuery = { core_vulnerability_by_pk: { id: number, target_id: number | null, ip_asset_id: number | null, subdomain_asset_id: number | null, url_asset_id: number | null, source_attack_vector_id: number | null, action_id: number | null, overview_id: number | null, cve_intelligence_id: number | null, enrichment_status: string, enrichment_attempted_at: string | null, tool_source: string, template_id: string, name: string, severity: string, matched_at: string, extracted_results: unknown, request_raw: string | null, response_raw: string | null, fingerprint: string, status: string, description: string | null, remediation: string | null, last_seen: string, created_at: string, updated_at: string, core_target: { id: number, name: string } | null, core_pocrecords: Array<{ id: number, vulnerability_id: number, title: string, content: string, language: string, result: string | null, is_verified: boolean, created_at: string, updated_at: string }> } | null };
 
 export type GetVulnerabilityCountsQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -16495,25 +19397,25 @@ export type CreateVulnerabilityMutationVariables = Exact<{
 }>;
 
 
-export type CreateVulnerabilityMutation = { insert_core_vulnerability_one: { id: unknown, target_id: unknown, name: string, severity: string, template_id: string, matched_at: string, tool_source: string, status: string, description: string | null, remediation: string | null, created_at: unknown } | null };
+export type CreateVulnerabilityMutation = { insert_core_vulnerability_one: { id: number, target_id: number | null, name: string, severity: string, template_id: string, matched_at: string, tool_source: string, status: string, description: string | null, remediation: string | null, created_at: string } | null };
 
 export type UpdateVulnerabilityMutationVariables = Exact<{
-  id: unknown;
+  id: number;
   updates: Core_Vulnerability_Set_Input;
 }>;
 
 
-export type UpdateVulnerabilityMutation = { update_core_vulnerability_by_pk: { id: unknown, target_id: unknown, name: string, severity: string, status: string, description: string | null, remediation: string | null, updated_at: unknown } | null };
+export type UpdateVulnerabilityMutation = { update_core_vulnerability_by_pk: { id: number, target_id: number | null, name: string, severity: string, status: string, description: string | null, remediation: string | null, updated_at: string } | null };
 
 export type DeleteVulnerabilityMutationVariables = Exact<{
-  id: unknown;
+  id: number;
 }>;
 
 
-export type DeleteVulnerabilityMutation = { delete_core_vulnerability_by_pk: { id: unknown } | null };
+export type DeleteVulnerabilityMutation = { delete_core_vulnerability_by_pk: { id: number } | null };
 
 export type BatchUpdateVulnerabilityStatusMutationVariables = Exact<{
-  ids: Array<unknown> | unknown;
+  ids: Array<number> | number;
   status: string;
 }>;
 
@@ -16521,40 +19423,42 @@ export type BatchUpdateVulnerabilityStatusMutationVariables = Exact<{
 export type BatchUpdateVulnerabilityStatusMutation = { update_core_vulnerability_many: Array<{ affected_rows: number } | null> | null };
 
 export type BatchDeleteVulnerabilitiesMutationVariables = Exact<{
-  ids: Array<unknown> | unknown;
+  ids: Array<number> | number;
 }>;
 
 
 export type BatchDeleteVulnerabilitiesMutation = { delete_core_vulnerability: { affected_rows: number } | null };
 
 export type GetPoCsQueryVariables = Exact<{
-  vulnId: unknown;
+  vulnId: number;
 }>;
 
 
-export type GetPoCsQuery = { core_pocrecord: Array<{ id: unknown, vulnerability_id: unknown, title: string, content: string, language: string, result: string | null, is_verified: boolean, created_at: unknown, updated_at: unknown }> };
+export type GetPoCsQuery = { core_pocrecord: Array<{ id: number, vulnerability_id: number, title: string, content: string, language: string, result: string | null, is_verified: boolean, created_at: string, updated_at: string }> };
 
 export type CreatePoCMutationVariables = Exact<{
   object: Core_Pocrecord_Insert_Input;
 }>;
 
 
-export type CreatePoCMutation = { insert_core_pocrecord_one: { id: unknown, vulnerability_id: unknown, title: string, content: string, language: string, result: string | null, is_verified: boolean, created_at: unknown, updated_at: unknown } | null };
+export type CreatePoCMutation = { insert_core_pocrecord_one: { id: number, vulnerability_id: number, title: string, content: string, language: string, result: string | null, is_verified: boolean, created_at: string, updated_at: string } | null };
 
 export type UpdatePoCMutationVariables = Exact<{
-  id: unknown;
+  id: number;
+  vulnId: number;
   updates: Core_Pocrecord_Set_Input;
 }>;
 
 
-export type UpdatePoCMutation = { update_core_pocrecord_by_pk: { id: unknown, vulnerability_id: unknown, title: string, content: string, language: string, result: string | null, is_verified: boolean, created_at: unknown, updated_at: unknown } | null };
+export type UpdatePoCMutation = { update_core_pocrecord: { affected_rows: number, returning: Array<{ id: number, vulnerability_id: number, title: string, content: string, language: string, result: string | null, is_verified: boolean, created_at: string, updated_at: string }> } | null };
 
 export type DeletePoCMutationVariables = Exact<{
-  id: unknown;
+  id: number;
+  vulnId: number;
 }>;
 
 
-export type DeletePoCMutation = { delete_core_pocrecord_by_pk: { id: unknown } | null };
+export type DeletePoCMutation = { delete_core_pocrecord: { affected_rows: number } | null };
 
 
 export const GetAttackPlansDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"GetAttackPlans"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"where"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"core_attackplan_bool_exp"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"orderBy"}},"type":{"kind":"ListType","type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"core_attackplan_order_by"}}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"limit"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"offset"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"core_attackplan"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"where"},"value":{"kind":"Variable","name":{"kind":"Name","value":"where"}}},{"kind":"Argument","name":{"kind":"Name","value":"order_by"},"value":{"kind":"Variable","name":{"kind":"Name","value":"orderBy"}}},{"kind":"Argument","name":{"kind":"Name","value":"limit"},"value":{"kind":"Variable","name":{"kind":"Name","value":"limit"}}},{"kind":"Argument","name":{"kind":"Name","value":"offset"},"value":{"kind":"Variable","name":{"kind":"Name","value":"offset"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"target_id"}},{"kind":"Field","name":{"kind":"Name","value":"thread_id"}},{"kind":"Field","name":{"kind":"Name","value":"objective"}},{"kind":"Field","name":{"kind":"Name","value":"scope"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"parent_plan_id"}},{"kind":"Field","name":{"kind":"Name","value":"created_at"}},{"kind":"Field","name":{"kind":"Name","value":"updated_at"}}]}},{"kind":"Field","name":{"kind":"Name","value":"core_attackplan_aggregate"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"where"},"value":{"kind":"Variable","name":{"kind":"Name","value":"where"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"aggregate"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"count"}}]}}]}}]}}]} as unknown as DocumentNode<GetAttackPlansQuery, GetAttackPlansQueryVariables>;
@@ -16585,5 +19489,5 @@ export const BatchUpdateVulnerabilityStatusDocument = {"kind":"Document","defini
 export const BatchDeleteVulnerabilitiesDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"BatchDeleteVulnerabilities"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"ids"}},"type":{"kind":"NonNullType","type":{"kind":"ListType","type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"bigint"}}}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"delete_core_vulnerability"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"where"},"value":{"kind":"ObjectValue","fields":[{"kind":"ObjectField","name":{"kind":"Name","value":"id"},"value":{"kind":"ObjectValue","fields":[{"kind":"ObjectField","name":{"kind":"Name","value":"_in"},"value":{"kind":"Variable","name":{"kind":"Name","value":"ids"}}}]}}]}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"affected_rows"}}]}}]}}]} as unknown as DocumentNode<BatchDeleteVulnerabilitiesMutation, BatchDeleteVulnerabilitiesMutationVariables>;
 export const GetPoCsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"GetPoCs"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"vulnId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"bigint"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"core_pocrecord"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"where"},"value":{"kind":"ObjectValue","fields":[{"kind":"ObjectField","name":{"kind":"Name","value":"vulnerability_id"},"value":{"kind":"ObjectValue","fields":[{"kind":"ObjectField","name":{"kind":"Name","value":"_eq"},"value":{"kind":"Variable","name":{"kind":"Name","value":"vulnId"}}}]}}]}},{"kind":"Argument","name":{"kind":"Name","value":"order_by"},"value":{"kind":"ObjectValue","fields":[{"kind":"ObjectField","name":{"kind":"Name","value":"created_at"},"value":{"kind":"EnumValue","value":"desc"}}]}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"vulnerability_id"}},{"kind":"Field","name":{"kind":"Name","value":"title"}},{"kind":"Field","name":{"kind":"Name","value":"content"}},{"kind":"Field","name":{"kind":"Name","value":"language"}},{"kind":"Field","name":{"kind":"Name","value":"result"}},{"kind":"Field","name":{"kind":"Name","value":"is_verified"}},{"kind":"Field","name":{"kind":"Name","value":"created_at"}},{"kind":"Field","name":{"kind":"Name","value":"updated_at"}}]}}]}}]} as unknown as DocumentNode<GetPoCsQuery, GetPoCsQueryVariables>;
 export const CreatePoCDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"CreatePoC"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"object"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"core_pocrecord_insert_input"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"insert_core_pocrecord_one"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"object"},"value":{"kind":"Variable","name":{"kind":"Name","value":"object"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"vulnerability_id"}},{"kind":"Field","name":{"kind":"Name","value":"title"}},{"kind":"Field","name":{"kind":"Name","value":"content"}},{"kind":"Field","name":{"kind":"Name","value":"language"}},{"kind":"Field","name":{"kind":"Name","value":"result"}},{"kind":"Field","name":{"kind":"Name","value":"is_verified"}},{"kind":"Field","name":{"kind":"Name","value":"created_at"}},{"kind":"Field","name":{"kind":"Name","value":"updated_at"}}]}}]}}]} as unknown as DocumentNode<CreatePoCMutation, CreatePoCMutationVariables>;
-export const UpdatePoCDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"UpdatePoC"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"bigint"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"updates"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"core_pocrecord_set_input"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"update_core_pocrecord_by_pk"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"pk_columns"},"value":{"kind":"ObjectValue","fields":[{"kind":"ObjectField","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}}]}},{"kind":"Argument","name":{"kind":"Name","value":"_set"},"value":{"kind":"Variable","name":{"kind":"Name","value":"updates"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"vulnerability_id"}},{"kind":"Field","name":{"kind":"Name","value":"title"}},{"kind":"Field","name":{"kind":"Name","value":"content"}},{"kind":"Field","name":{"kind":"Name","value":"language"}},{"kind":"Field","name":{"kind":"Name","value":"result"}},{"kind":"Field","name":{"kind":"Name","value":"is_verified"}},{"kind":"Field","name":{"kind":"Name","value":"created_at"}},{"kind":"Field","name":{"kind":"Name","value":"updated_at"}}]}}]}}]} as unknown as DocumentNode<UpdatePoCMutation, UpdatePoCMutationVariables>;
-export const DeletePoCDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DeletePoC"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"bigint"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"delete_core_pocrecord_by_pk"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}}]}}]}}]} as unknown as DocumentNode<DeletePoCMutation, DeletePoCMutationVariables>;
+export const UpdatePoCDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"UpdatePoC"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"bigint"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"vulnId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"bigint"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"updates"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"core_pocrecord_set_input"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"update_core_pocrecord"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"where"},"value":{"kind":"ObjectValue","fields":[{"kind":"ObjectField","name":{"kind":"Name","value":"id"},"value":{"kind":"ObjectValue","fields":[{"kind":"ObjectField","name":{"kind":"Name","value":"_eq"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}}]}},{"kind":"ObjectField","name":{"kind":"Name","value":"vulnerability_id"},"value":{"kind":"ObjectValue","fields":[{"kind":"ObjectField","name":{"kind":"Name","value":"_eq"},"value":{"kind":"Variable","name":{"kind":"Name","value":"vulnId"}}}]}}]}},{"kind":"Argument","name":{"kind":"Name","value":"_set"},"value":{"kind":"Variable","name":{"kind":"Name","value":"updates"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"affected_rows"}},{"kind":"Field","name":{"kind":"Name","value":"returning"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"vulnerability_id"}},{"kind":"Field","name":{"kind":"Name","value":"title"}},{"kind":"Field","name":{"kind":"Name","value":"content"}},{"kind":"Field","name":{"kind":"Name","value":"language"}},{"kind":"Field","name":{"kind":"Name","value":"result"}},{"kind":"Field","name":{"kind":"Name","value":"is_verified"}},{"kind":"Field","name":{"kind":"Name","value":"created_at"}},{"kind":"Field","name":{"kind":"Name","value":"updated_at"}}]}}]}}]}}]} as unknown as DocumentNode<UpdatePoCMutation, UpdatePoCMutationVariables>;
+export const DeletePoCDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DeletePoC"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"bigint"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"vulnId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"bigint"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"delete_core_pocrecord"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"where"},"value":{"kind":"ObjectValue","fields":[{"kind":"ObjectField","name":{"kind":"Name","value":"id"},"value":{"kind":"ObjectValue","fields":[{"kind":"ObjectField","name":{"kind":"Name","value":"_eq"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}}]}},{"kind":"ObjectField","name":{"kind":"Name","value":"vulnerability_id"},"value":{"kind":"ObjectValue","fields":[{"kind":"ObjectField","name":{"kind":"Name","value":"_eq"},"value":{"kind":"Variable","name":{"kind":"Name","value":"vulnId"}}}]}}]}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"affected_rows"}}]}}]}}]} as unknown as DocumentNode<DeletePoCMutation, DeletePoCMutationVariables>;

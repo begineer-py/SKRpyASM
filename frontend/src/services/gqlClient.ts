@@ -1,4 +1,5 @@
 import { GLOBAL_CONFIG } from '../config';
+import { print, type DocumentNode } from 'graphql';
 
 interface GraphQLDocument {
   loc?: { source?: { body?: string } };
@@ -19,7 +20,10 @@ export async function executeGraphQL<TResult, TVariables>(
   variables?: TVariables,
   options?: { adminSecret?: string },
 ): Promise<TResult> {
-  const query = document.loc?.source?.body ?? '';
+  // The generated typed documents are ASTs and do not include `loc` metadata.
+  // Printing the AST keeps the request valid for both generated documents and
+  // documents created from source text.
+  const query = document.loc?.source?.body || print(document as DocumentNode);
 
   const res = await fetch(GLOBAL_CONFIG.HASURA_GRAPHQL_URL, {
     method: 'POST',

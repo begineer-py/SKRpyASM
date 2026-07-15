@@ -10,7 +10,7 @@ interface GraphQLQueryError {
   message: string;
 }
 
-export function useHasuraQuery<T = unknown>(
+export function useHasuraQuery<T = Record<string, unknown>>(
   query: string,
   variables?: Record<string, unknown>,
 ) {
@@ -37,7 +37,7 @@ export function useHasuraQuery<T = unknown>(
       if (json.errors) {
         throw new Error((json.errors as GraphQLQueryError[]).map((e) => e.message).join(', '));
       }
-      setData(json.data);
+      setData(json.data as T);
     } catch (err: unknown) {
       setError(err instanceof Error ? err : new Error(String(err)));
     } finally {
