@@ -174,6 +174,10 @@ When adding new Celery tasks, add the module path to `CELERY_IMPORTS` in `c2_cor
 
 React 19 + TypeScript 5.8 + Vite 7. **Hasura GraphQL as the primary data layer** — custom `useHasuraQuery`/`useHasuraSubscription` hooks (via `graphql-ws`) replace Axios calls to Django CRUD endpoints for all simple database operations. Axios is reserved for Django Ninja REST endpoints that involve non-CRUD actions (scan triggers, AI analysis, SSE streaming). Key dependencies: `react-router-dom`, `react-markdown`, `graphql-ws`.
 
+#### Frontend Copy
+
+Do not add decorative copy that only repeats a page name, route, or information already visible in the interface. Every label, heading, and description must communicate actionable context, distinct state, or information the user cannot otherwise infer.
+
 
 ## Environment
 
