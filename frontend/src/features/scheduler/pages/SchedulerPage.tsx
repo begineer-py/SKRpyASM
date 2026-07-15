@@ -12,6 +12,7 @@ import { useMutation } from '../../../hooks/useMutation';
 import { TaskRow, DeleteConfirm } from '../components/TaskRow';
 import { TaskForm, type FormState, DEFAULT_FORM, taskToForm } from '../components/TaskForm';
 import WatchdogPanel from '../components/WatchdogPanel';
+import { Settings } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -39,6 +40,7 @@ export default function SchedulerPage() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [watchdogStatus, setWatchdogStatus] = useState<WatchdogStatus | null>(null);
+  const [watchdogDialogOpen, setWatchdogDialogOpen] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const { mutate: deleteTask } = useMutation<void, number>(
@@ -146,23 +148,29 @@ export default function SchedulerPage() {
     }
   };
 
-  const enabledCount = tasks.filter(t => t.enabled).length;
+  const refreshWatchdogStatus = () => {
+    SchedulerService.getWatchdogStatus()
+      .then(setWatchdogStatus)
+      .catch(() => {});
+  };
 
   return (
-    <div className="max-w-[960px] mx-auto px-5 pb-10 pt-[calc(var(--navbar-height)+24px)]">
+    <div className="w-full px-8 pb-10 pt-[calc(var(--navbar-height)+24px)] max-md:px-5">
       {/* Header */}
       <div className="flex justify-between items-start mb-5">
         <div>
-          <h1 className="font-mono text-[1.1rem] text-green m-0 tracking-[0.06em]">
-            CELERY SCHEDULER
-          </h1>
-          {!loading && (
-            <p className="text-xs text-text-muted mt-1">
-              {tasks.length} task{tasks.length !== 1 ? 's' : ''} · {enabledCount} enabled
-            </p>
-          )}
+          <h1 className="font-mono text-[1.1rem] text-green m-0 tracking-[0.06em]">排程任務</h1>
         </div>
         <div className="flex gap-2">
+          <button
+            className="c2-btn c2-btn--sm c2-btn--ghost inline-flex items-center justify-center"
+            type="button"
+            aria-label="開啟 Watchdog 診斷"
+            title="Watchdog 診斷"
+            onClick={() => { setWatchdogDialogOpen(true); refreshWatchdogStatus(); }}
+          >
+            <Settings size={16} aria-hidden="true" />
+          </button>
           <button className="c2-btn c2-btn--sm" onClick={() => void refetchTasks()} disabled={loading}>
             {loading ? 'Loading…' : '↺ Refresh'}
           </button>
@@ -172,17 +180,18 @@ export default function SchedulerPage() {
         </div>
       </div>
 
-      {/* Watchdog Status Panel */}
-      {watchdogStatus && (
-        <WatchdogPanel
-          status={watchdogStatus}
-          onRefresh={() => {
-            SchedulerService.getWatchdogStatus()
-              .then(setWatchdogStatus)
-              .catch(() => {});
-          }}
-        />
-      )}
+      <Dialog open={watchdogDialogOpen} onOpenChange={setWatchdogDialogOpen}>
+        <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto border-border-subtle bg-bg-elevated text-text-primary">
+          <DialogHeader>
+            <DialogTitle className="font-mono text-green">Watchdog 診斷</DialogTitle>
+          </DialogHeader>
+          {watchdogStatus ? (
+            <WatchdogPanel status={watchdogStatus} onRefresh={refreshWatchdogStatus} />
+          ) : (
+            <div className="py-8 text-center text-sm text-text-muted">正在載入診斷狀態…</div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Create / Edit Form */}
       <Dialog open={formMode !== 'hidden'} onOpenChange={(open) => { if (!open) { setFormMode('hidden'); setEditingTask(null); setFormError(null); } }}>
