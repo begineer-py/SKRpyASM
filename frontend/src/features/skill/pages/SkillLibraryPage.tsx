@@ -29,6 +29,11 @@ interface SkillTemplate {
   test_input_example: unknown;
 }
 
+interface SkillsQuery {
+  core_skill_template: SkillTemplate[];
+  core_skill_template_aggregate: { aggregate?: { count?: number } | null } | null;
+}
+
 const LANG_COLOR: Record<string, string> = {
   python: 'var(--text-cyan)',
   bash: 'var(--green)',
@@ -53,7 +58,11 @@ const renderSchemaProperties = (schema: unknown) => {
     return <div className="text-xs text-slate-600 italic p-2">Empty or invalid schema format.</div>;
   }
 
-  if (!parsedSchema.properties || Object.keys(parsedSchema.properties).length === 0) {
+  const schemaObject = parsedSchema as Record<string, unknown>;
+  const properties = (schemaObject.properties && typeof schemaObject.properties === 'object') ? schemaObject.properties as Record<string, Record<string, unknown>> : {};
+  const requiredFields = Array.isArray(schemaObject.required) ? schemaObject.required.filter((value): value is string => typeof value === 'string') : [];
+
+  if (Object.keys(properties).length === 0) {
     return (
       <div>
         <span className="text-xs text-slate-600 italic">No properties defined. Raw Schema:</span>
@@ -62,8 +71,6 @@ const renderSchemaProperties = (schema: unknown) => {
     );
   }
 
-  const properties = parsedSchema.properties;
-  const requiredFields = parsedSchema.required || [];
   const propertyKeys = Object.keys(properties);
 
   return (
@@ -82,7 +89,7 @@ const renderSchemaProperties = (schema: unknown) => {
           return (
             <tr key={key}>
               <td className="px-3 py-2.5 border-b border-white/[0.04] align-middle"><code className="text-sky-400">{key}</code></td>
-              <td className="px-3 py-2.5 border-b border-white/[0.04] align-middle"><span className="bg-sky-400/10 text-sky-400 px-1.5 py-0.5 rounded text-[0.65rem] font-semibold">{prop.type || 'any'}</span></td>
+              <td className="px-3 py-2.5 border-b border-white/[0.04] align-middle"><span className="bg-sky-400/10 text-sky-400 px-1.5 py-0.5 rounded text-[0.65rem] font-semibold">{typeof prop.type === 'string' ? prop.type : 'any'}</span></td>
               <td className="px-3 py-2.5 border-b border-white/[0.04] align-middle">
                 {requiredFields.includes(key) ? (
                   <span className="bg-red-500/10 text-red-400 px-1.5 py-0.5 rounded text-[0.65rem] font-bold">Yes</span>
@@ -90,7 +97,7 @@ const renderSchemaProperties = (schema: unknown) => {
                   <span className="bg-slate-600/20 text-slate-400 px-1.5 py-0.5 rounded text-[0.65rem] font-bold">No</span>
                 )}
               </td>
-              <td className="px-3 py-2.5 border-b border-white/[0.04] align-middle text-slate-400 leading-snug">{prop.description || prop.title || '-'}</td>
+              <td className="px-3 py-2.5 border-b border-white/[0.04] align-middle text-slate-400 leading-snug">{typeof prop.description === 'string' ? prop.description : typeof prop.title === 'string' ? prop.title : '-'}</td>
             </tr>
           );
         })}
@@ -107,7 +114,7 @@ const SkillLibraryPage: React.FC = () => {
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navigate = useNavigate();
 
-  const { data, loading, error, refetch } = useHasuraQuery(GET_SKILLS, {
+  const { data, loading, error, refetch } = useHasuraQuery<SkillsQuery>(GET_SKILLS, {
     search: '%',
   });
 
@@ -146,12 +153,7 @@ const SkillLibraryPage: React.FC = () => {
       {/* ========== Header ========== */}
       <div className="flex items-center justify-between flex-wrap gap-4 px-8 py-5 border-b border-border-subtle bg-green-500/[0.02] shrink-0">
         <div>
-          <h1 className="text-xl font-bold text-green [text-shadow:var(--glow-green)] tracking-[0.1em] m-0">
-            <span className="text-[rgba(0,255,0,0.4)]">[</span>
-            SKILL_LIBRARY
-            <span className="text-[rgba(0,255,0,0.4)]">]</span>
-          </h1>
-          <span className="text-[0.7rem] text-text-secondary tracking-wide opacity-80">AI 自我進化知識庫 — 跨任務重用腳本系統</span>
+          <h1 className="text-xl font-bold text-green [text-shadow:var(--glow-green)] tracking-[0.1em] m-0">技能庫</h1>
         </div>
 
         <div className="flex gap-6 items-center flex-wrap">
@@ -291,25 +293,6 @@ const SkillLibraryPage: React.FC = () => {
                   </div>
                 )}
 
-                {/* Merge Info */}
-                {(selectedSkill.merged_from && selectedSkill.merged_from.length > 0) && (
-                  <div className="flex items-center gap-1.5 mt-2.5 text-[0.75rem] text-amber-400 bg-amber-400/[0.08] px-2.5 py-1 rounded border border-amber-400/20">
-                    <span className="text-[0.85rem]">⚡</span>
-                    <span>Merged from IDs: </span>
-                    {selectedSkill.merged_from?.map((id, i) => (
-                      <span key={id}>
-                        <span className="font-semibold text-amber-200">#{id}</span>
-                        {(selectedSkill.merged_from && i < selectedSkill.merged_from.length - 1) && <span> + </span>}
-                      </span>
-                    ))}
-                  </div>
-                )}
-                {selectedSkill.is_robust && (
-                  <div className="inline-block mt-2 text-[0.7rem] font-bold px-2 py-0.5 rounded text-emerald-500 border border-emerald-500 bg-emerald-500/10">🛡️ ROBUST</div>
-                )}
-                {(selectedSkill.input_schema || selectedSkill.output_schema) && (
-                  <div className="inline-block mt-2 ml-1.5 text-[0.7rem] font-bold px-2 py-0.5 rounded text-purple-500 border border-purple-500 bg-purple-500/10">📋 I/O CONTRACT</div>
-                )}
 
               </div>
 

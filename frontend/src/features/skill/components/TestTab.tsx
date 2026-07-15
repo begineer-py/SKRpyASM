@@ -11,7 +11,7 @@ function generateStubFromSchema(skill: SkillTemplate | null): string {
   if (!skill || !skill.input_schema) return '{\n  \n}';
   const schema = skill.input_schema as Record<string, unknown>;
   const props = schema?.properties || {};
-  const required: string[] = schema?.required || [];
+  const required = Array.isArray(schema.required) ? schema.required.filter((value): value is string => typeof value === 'string') : [];
   if (Object.keys(props).length === 0) return '{\n  \n}';
   const lines: string[] = ['{'];
   for (const [key, def] of Object.entries(props)) {
@@ -215,7 +215,7 @@ export default function TestTab({ skillId }: Props) {
             )}
             <div>
               <span className="text-text-muted">Duration: </span>
-              <span className="text-[#e2e8f0]">{formatDuration(result.duration_ms)}</span>
+              <span className="text-[#e2e8f0]">{formatDuration(result.duration_ms ?? null)}</span>
             </div>
             <div>
               <span className="text-text-muted">Exit code: </span>
