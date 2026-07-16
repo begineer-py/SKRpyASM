@@ -1,0 +1,137 @@
+- generic [ref=f3e1]:
+  - generic [ref=f3e3]:
+    - navigation [ref=f3e4]:
+      - generic [ref=f3e5]:
+        - button "ASM SKRpyASM surface intelligence" [ref=f3e6] [cursor=pointer]:
+          - generic [ref=f3e7]: ASM
+          - generic [ref=f3e8]:
+            - strong [ref=f3e9]: SKRpyASM
+            - generic [ref=f3e10]: surface intelligence
+        - button "收合導覽列" [ref=f3e11] [cursor=pointer]
+      - generic [ref=f3e15]:
+        - generic [ref=f3e16]:
+          - generic [ref=f3e17]: "01"
+          - text: 作業
+        - link "目標" [ref=f3e18] [cursor=pointer]:
+          - /url: /
+        - link "執行監控" [ref=f3e27] [cursor=pointer]:
+          - /url: /execution-monitor
+        - link "排程" [ref=f3e31] [cursor=pointer]:
+          - /url: /scheduler
+        - generic [ref=f3e36]:
+          - generic [ref=f3e37]: "02"
+          - text: 分析
+        - link "漏洞" [ref=f3e38] [cursor=pointer]:
+          - /url: /vulnerabilities
+        - link "CVE 情報" [ref=f3e42] [cursor=pointer]:
+          - /url: /cve-intelligence
+        - link "AI 工作台" [ref=f3e51] [cursor=pointer]:
+          - /url: /aicenter
+        - link "技能庫" [ref=f3e56] [cursor=pointer]:
+          - /url: /skills
+        - generic [ref=f3e62]:
+          - generic [ref=f3e63]: "03"
+          - text: 系統
+        - link "Agent 設定" [ref=f3e64] [cursor=pointer]:
+          - /url: /agent-config
+        - link "API 金鑰" [ref=f3e69] [cursor=pointer]:
+          - /url: /api-keys
+        - link "請求政策" [ref=f3e74] [cursor=pointer]:
+          - /url: /pentest-config
+    - main [ref=f3e79]:
+      - main [ref=f3e80]:
+        - generic [ref=f3e81]:
+          - button "Back" [ref=f3e82] [cursor=pointer]
+          - generic [ref=f3e83]:
+            - paragraph [ref=f3e84]: "Vulnerability #26"
+            - paragraph [ref=f3e85]: https://vuln-f9wi.onrender.com/
+          - button "Edit" [ref=f3e86] [cursor=pointer]
+        - tablist "漏洞工作區" [ref=f3e87]:
+          - tab "Details" [active] [selected] [ref=f3e88]
+          - tab "Report" [ref=f3e89]
+        - tabpanel "Details" [ref=f3e284]:
+          - article [ref=f3e285]:
+            - region [ref=f3e286]:
+              - heading "Missing Security Headers (HSTS, CSP, Permissions-Policy)" [level=1] [ref=f3e287]
+              - generic [ref=f3e288]:
+                - generic [ref=f3e289]:
+                  - term [ref=f3e290]: Severity
+                  - definition [ref=f3e291]: MEDIUM
+                - generic [ref=f3e292]:
+                  - term [ref=f3e293]: Status
+                  - definition [ref=f3e294]: Verifying
+                - generic [ref=f3e295]:
+                  - term [ref=f3e296]: Matched location
+                  - definition [ref=f3e297]: https://vuln-f9wi.onrender.com/
+            - region [ref=f3e298]:
+              - heading "Affected target" [level=2] [ref=f3e299]
+              - paragraph [ref=f3e300]: 未關聯目標。
+            - region [ref=f3e301]:
+              - heading "Description" [level=2] [ref=f3e302]
+              - generic [ref=f3e303]:
+                - paragraph [ref=f3e304]: "The application is missing several critical security headers:"
+                - paragraph [ref=f3e305]:
+                  - strong [ref=f3e306]: "Missing Headers:"
+                - list [ref=f3e307]:
+                  - listitem [ref=f3e308]:
+                    - strong [ref=f3e309]: Strict-Transport-Security (HSTS)
+                    - text: "- Not set. Without HSTS, users are vulnerable to SSL stripping attacks and downgrade attacks."
+                  - listitem [ref=f3e310]:
+                    - strong [ref=f3e311]: Content-Security-Policy (CSP)
+                    - text: "- Not set. Without CSP, the application is fully vulnerable to XSS attacks (both reflected and stored). Any injected JavaScript can execute without restriction."
+                  - listitem [ref=f3e312]:
+                    - strong [ref=f3e313]: Permissions-Policy
+                    - text: "- Not set. Browser features (camera, microphone, geolocation) are not restricted."
+                - paragraph [ref=f3e314]:
+                  - strong [ref=f3e315]: "Present Headers (for reference):"
+                - list [ref=f3e316]:
+                  - listitem [ref=f3e317]: "X-Content-Type-Options: nosniff ✓"
+                  - listitem [ref=f3e318]: "X-Frame-Options: DENY ✓"
+                  - listitem [ref=f3e319]: "Referrer-Policy: same-origin ✓"
+                - paragraph [ref=f3e320]: The absence of CSP is particularly concerning given that the application uses Pico CSS from CDN and has multiple user-input fields that could be exploited for XSS.
+            - region [ref=f3e321]:
+              - heading "Remediation" [level=2] [ref=f3e322]
+              - paragraph [ref=f3e323]: 尚未提供。
+            - region [ref=f3e324]:
+              - heading "Evidence" [level=2] [ref=f3e325]
+              - paragraph [ref=f3e326]: 尚無 PoC 記錄。
+              - group [ref=f3e327]:
+                - generic "Raw request" [ref=f3e328] [cursor=pointer]
+              - group [ref=f3e329]:
+                - generic "Raw response" [ref=f3e330] [cursor=pointer]
+            - region [ref=f3e331]:
+              - heading "Technical details" [level=2] [ref=f3e332]
+              - generic [ref=f3e333]:
+                - generic [ref=f3e334]:
+                  - term [ref=f3e335]: Template
+                  - definition [ref=f3e336]: missing-security-headers-(hsts,-csp,-permissions-policy)
+                - generic [ref=f3e337]:
+                  - term [ref=f3e338]: Tool
+                  - definition [ref=f3e339]: automation-agent
+                - generic [ref=f3e340]:
+                  - term [ref=f3e341]: Fingerprint
+                  - definition [ref=f3e342]: 85be622e886c82f2b2cac3d1002f5333dbf10aa4b3645c79b4e4336fab1d91cd
+                - generic [ref=f3e343]:
+                  - term [ref=f3e344]: Record ID
+                  - definition [ref=f3e345]: "26"
+                - generic [ref=f3e346]:
+                  - term [ref=f3e347]: Attack vector ID
+                  - definition [ref=f3e348]: "225"
+                - generic [ref=f3e349]:
+                  - term [ref=f3e350]: Overview ID
+                  - definition [ref=f3e351]: "89"
+                - generic [ref=f3e352]:
+                  - term [ref=f3e353]: Created
+                  - definition [ref=f3e354]: 2026-07-04T13:56:59.589038+00:00
+                - generic [ref=f3e355]:
+                  - term [ref=f3e356]: Updated
+                  - definition [ref=f3e357]: 2026-07-04T13:56:59.589044+00:00
+                - generic [ref=f3e358]:
+                  - term [ref=f3e359]: Last seen
+                  - definition [ref=f3e360]: 2026-07-04T13:56:59.589049+00:00
+                - generic [ref=f3e361]:
+                  - term [ref=f3e362]: 豐富化狀態
+                  - definition [ref=f3e363]: 待豐富化
+  - generic [ref=f3e283]:
+    - alert
+    - alert

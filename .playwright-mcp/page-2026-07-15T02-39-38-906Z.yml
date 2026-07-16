@@ -1,0 +1,147 @@
+- generic [active] [ref=f3e1]:
+  - generic [ref=f3e3]:
+    - navigation [ref=f3e4]:
+      - generic [ref=f3e5]:
+        - button "ASM SKRpyASM surface intelligence" [ref=f3e6] [cursor=pointer]:
+          - generic [ref=f3e7]: ASM
+          - generic [ref=f3e8]:
+            - strong [ref=f3e9]: SKRpyASM
+            - generic [ref=f3e10]: surface intelligence
+        - button "收合導覽列" [ref=f3e11] [cursor=pointer]
+      - generic [ref=f3e15]:
+        - generic [ref=f3e16]:
+          - generic [ref=f3e17]: "01"
+          - text: 作業
+        - link "目標" [ref=f3e18] [cursor=pointer]:
+          - /url: /
+        - link "執行監控" [ref=f3e27] [cursor=pointer]:
+          - /url: /execution-monitor
+        - link "排程" [ref=f3e31] [cursor=pointer]:
+          - /url: /scheduler
+        - generic [ref=f3e36]:
+          - generic [ref=f3e37]: "02"
+          - text: 分析
+        - link "漏洞" [ref=f3e38] [cursor=pointer]:
+          - /url: /vulnerabilities
+        - link "CVE 情報" [ref=f3e42] [cursor=pointer]:
+          - /url: /cve-intelligence
+        - link "AI 工作台" [ref=f3e51] [cursor=pointer]:
+          - /url: /aicenter
+        - link "技能庫" [ref=f3e56] [cursor=pointer]:
+          - /url: /skills
+        - generic [ref=f3e62]:
+          - generic [ref=f3e63]: "03"
+          - text: 系統
+        - link "Agent 設定" [ref=f3e64] [cursor=pointer]:
+          - /url: /agent-config
+        - link "API 金鑰" [ref=f3e69] [cursor=pointer]:
+          - /url: /api-keys
+        - link "請求政策" [ref=f3e74] [cursor=pointer]:
+          - /url: /pentest-config
+    - main [ref=f3e79]:
+      - main [ref=f3e80]:
+        - generic [ref=f3e81]:
+          - button "Back" [ref=f3e82] [cursor=pointer]
+          - generic [ref=f3e83]:
+            - paragraph [ref=f3e84]: "Vulnerability #26"
+            - paragraph [ref=f3e85]: https://vuln-f9wi.onrender.com/
+          - generic [ref=f3e171]:
+            - button "Cancel" [ref=f3e172] [cursor=pointer]
+            - button "Save" [disabled] [ref=f3e173]
+        - navigation "漏洞工作區" [ref=f3e87]:
+          - tab "Details" [selected] [ref=f3e88]
+          - tab "PoCs" [ref=f3e174]
+          - tab "Report" [ref=f3e89]
+        - generic [ref=f3e176]:
+          - region [ref=f3e177]:
+            - heading "Core details" [level=1] [ref=f3e178]
+            - generic [ref=f3e179]: Name *
+            - textbox "Name *" [ref=f3e180]:
+              - /placeholder: "如: OpenSSH Default Config"
+              - text: Missing Security Headers (HSTS, CSP, Permissions-Policy)
+            - generic [ref=f3e181]:
+              - generic [ref=f3e182]:
+                - generic [ref=f3e183]: Severity *
+                - combobox "Severity *" [ref=f3e184]:
+                  - option "CRITICAL"
+                  - option "HIGH"
+                  - option "MEDIUM" [selected]
+                  - option "LOW"
+                  - option "INFO"
+              - generic [ref=f3e185]:
+                - generic [ref=f3e186]: Status
+                - combobox "Status" [ref=f3e187]:
+                  - option "Unverified" [selected]
+                  - option "Confirmed"
+                  - option "False Positive"
+            - generic [ref=f3e188]: Target
+            - combobox "Target" [ref=f3e189]:
+              - option "— 無關聯 Target —" [selected]
+              - option "建中園遊會靶場"
+            - generic [ref=f3e190]: Matched location *
+            - textbox "Matched location *" [ref=f3e191]:
+              - /placeholder: "如: 45.33.32.156:22 或 https://example.com"
+              - text: https://vuln-f9wi.onrender.com/
+            - generic [ref=f3e192]:
+              - generic [ref=f3e193]:
+                - generic [ref=f3e194]: Template ID
+                - textbox "Template ID" [ref=f3e195]:
+                  - /placeholder: manual
+                  - text: missing-security-headers-(hsts,-csp,-permissions-policy)
+              - generic [ref=f3e196]:
+                - generic [ref=f3e197]: Tool source
+                - textbox "Tool source" [ref=f3e198]:
+                  - /placeholder: manual
+                  - text: automation-agent
+            - group [ref=f3e199]:
+              - generic "Raw request and response" [ref=f3e200] [cursor=pointer]
+          - generic [ref=f3e201]:
+            - region [ref=f3e202]:
+              - generic [ref=f3e203]:
+                - heading "Description" [level=2] [ref=f3e204]
+                - group "Description 檢視模式" [ref=f3e205]:
+                  - button "Write" [pressed] [ref=f3e206]
+                  - button "Preview" [ref=f3e207]
+              - code [ref=f3e212]:
+                - generic [ref=f3e213]:
+                  - textbox "Editor content" [ref=f3e214]
+                  - textbox [ref=f3e215]
+                  - generic [ref=f3e217]:
+                    - generic [ref=f3e218]: "1"
+                    - generic [ref=f3e223]: "2"
+                    - generic [ref=f3e225]: "3"
+                    - generic [ref=f3e227]: "4"
+                    - generic [ref=f3e232]: "5"
+                    - generic [ref=f3e239]: "6"
+                  - generic [ref=f3e261]:
+                    - generic [ref=f3e262]: The application is missing several
+                    - generic [ref=f3e264]: "critical security headers:"
+                    - generic [ref=f3e267]: "**Missing Headers:**"
+                    - generic [ref=f3e269]: 1. **Strict-Transport-Security (HSTS)** -
+                    - generic [ref=f3e271]: Not set. Without HSTS, users are
+                    - generic [ref=f3e273]: vulnerable to SSL stripping attacks and
+                    - generic [ref=f3e275]: downgrade attacks.
+                    - generic [ref=f3e277]: 2. **Content-Security-Policy (CSP)** -
+                    - generic [ref=f3e279]: Not set. Without CSP, the application is
+                    - generic [ref=f3e281]: fully vulnerable to XSS attacks (both
+                    - generic [ref=f3e283]: reflected and stored). Any injected
+                    - generic [ref=f3e285]: JavaScript can execute without
+                    - generic [ref=f3e287]: restriction.
+                    - generic [ref=f3e289]: 3. **Permissions-Policy** - Not set.
+                    - generic [ref=f3e291]: Browser features (camera, microphone,
+            - region [ref=f3e294]:
+              - generic [ref=f3e295]:
+                - heading "Remediation" [level=2] [ref=f3e296]
+                - group "Remediation 檢視模式" [ref=f3e297]:
+                  - button "Write" [pressed] [ref=f3e298]
+                  - button "Preview" [ref=f3e299]
+              - generic [ref=f3e301]:
+                - code [ref=f3e304]:
+                  - generic [ref=f3e305]:
+                    - textbox "Editor content" [ref=f3e306]
+                    - textbox [ref=f3e307]
+                    - generic [ref=f3e308]: "1"
+                - generic: 修復建議、緩解措施、升級指引…
+  - generic [ref=f3e319]:
+    - alert
+    - alert

@@ -1,0 +1,46 @@
+- generic [ref=f4e3]:
+  - navigation [ref=f4e4]:
+    - generic [ref=f4e5]:
+      - button "ASM SKRpyASM surface intelligence" [ref=f4e6] [cursor=pointer]:
+        - generic [ref=f4e7]: ASM
+        - generic [ref=f4e8]:
+          - strong [ref=f4e9]: SKRpyASM
+          - generic [ref=f4e10]: surface intelligence
+      - button "收合導覽列" [ref=f4e11] [cursor=pointer]
+    - generic [ref=f4e15]:
+      - generic [ref=f4e16]:
+        - generic [ref=f4e17]: "01"
+        - text: 作業
+      - link "目標" [ref=f4e18] [cursor=pointer]:
+        - /url: /
+      - link "執行監控" [ref=f4e27] [cursor=pointer]:
+        - /url: /execution-monitor
+      - link "排程" [ref=f4e31] [cursor=pointer]:
+        - /url: /scheduler
+      - generic [ref=f4e36]:
+        - generic [ref=f4e37]: "02"
+        - text: 分析
+      - link "漏洞" [ref=f4e38] [cursor=pointer]:
+        - /url: /vulnerabilities
+      - link "CVE 情報" [ref=f4e42] [cursor=pointer]:
+        - /url: /cve-intelligence
+      - link "AI 工作台" [ref=f4e51] [cursor=pointer]:
+        - /url: /aicenter
+      - link "技能庫" [ref=f4e56] [cursor=pointer]:
+        - /url: /skills
+      - generic [ref=f4e62]:
+        - generic [ref=f4e63]: "03"
+        - text: 系統
+      - link "Agent 設定" [ref=f4e64] [cursor=pointer]:
+        - /url: /agent-config
+      - link "API 金鑰" [ref=f4e69] [cursor=pointer]:
+        - /url: /api-keys
+      - link "請求政策" [ref=f4e74] [cursor=pointer]:
+        - /url: /pentest-config
+  - main [ref=f4e79]:
+    - generic [ref=f4e80]:
+      - generic [ref=f4e81]:
+        - heading "漏洞" [level=1] [ref=f4e82]
+        - button "開啟漏洞篩選" [ref=f4e84] [cursor=pointer]
+      - generic [ref=f4e88]: "Failed to execute 'json' on 'Response': Unexpected end of JSON input"
+      - generic [ref=f4e89]: 尚無漏洞資料；請使用「新增漏洞」建立紀錄。

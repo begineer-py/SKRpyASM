@@ -1,0 +1,81 @@
+- generic [ref=e3]:
+  - navigation [ref=e4]:
+    - generic [ref=e5]:
+      - button "ASM SKRpyASM surface intelligence" [ref=e6] [cursor=pointer]:
+        - generic [ref=e7]: ASM
+        - generic [ref=e8]:
+          - strong [ref=e9]: SKRpyASM
+          - generic [ref=e10]: surface intelligence
+      - button "收合導覽列" [ref=e11] [cursor=pointer]
+    - generic [ref=e15]:
+      - generic [ref=e16]:
+        - generic [ref=e17]: "01"
+        - text: 作業
+      - link "目標" [ref=e18] [cursor=pointer]:
+        - /url: /
+      - link "執行監控" [ref=e27] [cursor=pointer]:
+        - /url: /execution-monitor
+      - link "排程" [ref=e31] [cursor=pointer]:
+        - /url: /scheduler
+      - generic [ref=e36]:
+        - generic [ref=e37]: "02"
+        - text: 分析
+      - link "漏洞" [ref=e38] [cursor=pointer]:
+        - /url: /vulnerabilities
+      - link "CVE 情報" [ref=e42] [cursor=pointer]:
+        - /url: /cve-intelligence
+      - link "AI 工作台" [ref=e51] [cursor=pointer]:
+        - /url: /aicenter
+      - link "技能庫" [ref=e56] [cursor=pointer]:
+        - /url: /skills
+      - generic [ref=e62]:
+        - generic [ref=e63]: "03"
+        - text: 系統
+      - link "Agent 設定" [ref=e64] [cursor=pointer]:
+        - /url: /agent-config
+      - link "API 金鑰" [ref=e69] [cursor=pointer]:
+        - /url: /api-keys
+      - link "請求政策" [ref=e74] [cursor=pointer]:
+        - /url: /pentest-config
+  - main [ref=e79]:
+    - generic [ref=e80]:
+      - generic [ref=e81]:
+        - heading "漏洞" [level=1] [ref=e82]
+        - button "開啟漏洞篩選" [ref=e84] [cursor=pointer]
+      - generic [ref=e88]:
+        - button "開啟漏洞詳情：Missing Security Headers (HSTS, CSP, Permissions-Policy)" [ref=e89]:
+          - generic [ref=e90]: MEDIUM
+          - generic [ref=e91]:
+            - generic [ref=e92]: Missing Security Headers (HSTS, CSP, Permissions-Policy)
+            - generic [ref=e93]:
+              - generic [ref=e94]: missing-security-headers-(hsts,-csp,-permissions-policy)
+              - generic [ref=e95]: https://vuln-f9wi.onrender.com/
+          - generic [ref=e96]: 查看詳情 →
+          - generic [ref=e97]: "The application is missing several critical security headers: **Missing Headers:** 1. **Strict-Transport-Security (HSTS)** - Not set. Without HSTS, users are vulnerable to SSL stripping attacks and downgrade attacks. 2. **Content-Security-Policy (CSP)** - Not set. Without CSP, the application is fully vulnerable to XSS attacks (both reflected and stored). Any injected JavaScript can execute without restriction. 3. **Permissions-Policy** - Not set. Browser features (camera, microphone, geolocation) are not restricted. **Present Headers (for reference):** - X-Content-Type-Options: nosniff ✓ - X-Frame-Options: DENY ✓ - Referrer-Policy: same-origin ✓ The absence of CSP is particularly concerning given that the application uses Pico CSS from CDN and has multiple user-input fields that could be exploited for XSS."
+        - button "開啟漏洞詳情：SQL Query Structure Disclosure via Error Pages" [ref=e98]:
+          - generic [ref=e99]: MEDIUM
+          - generic [ref=e100]:
+            - generic [ref=e101]: SQL Query Structure Disclosure via Error Pages
+            - generic [ref=e102]:
+              - generic [ref=e103]: sql-query-structure-disclosure-via-error-pages
+              - generic [ref=e104]: https://vuln-f9wi.onrender.com/dashboard/?search='
+          - generic [ref=e105]: 查看詳情 →
+          - generic [ref=e106]: "The Django DEBUG error pages leak the raw SQL query structure used by the application. When triggering an SQL error via the search parameter (`search='`), the 500 error page reveals: **Leaked SQL Query:** `SELECT id FROM cake_product WHERE name LIKE '%'%' AND is_available` This information disclosure reveals: - Table name: `cake_product` - Column names: `id`, `name`, `is_available` - Query pattern: LIKE-based search without parameterization - Database type: MySQL (identified from error message syntax) An attacker can use this information to craft precise SQL injection payloads for data extraction and to understand the database schema for further exploitation."
+        - button "開啟漏洞詳情：Django DEBUG=True Information Disclosure" [ref=e107]:
+          - generic [ref=e108]: HIGH
+          - generic [ref=e109]:
+            - generic [ref=e110]: Django DEBUG=True Information Disclosure
+            - generic [ref=e111]:
+              - generic [ref=e112]: django-debug=true-information-disclosure
+              - generic [ref=e113]: https://vuln-f9wi.onrender.com/nonexistent_page_12345/
+          - generic [ref=e114]: 查看詳情 →
+          - generic [ref=e115]: "Django's DEBUG mode is set to True in production. This causes all error pages (404 and 500) to expose sensitive information: **404 Page Leaks:** - Full URL routing table (`config.urls`) including all URL patterns: `admin/`, `management/`, `register/`, `login/`, `logout/`, `dashboard/`, `profile/`, `order/<int:pk>/`, `products/image/<int:pk>/`, `partials/order-list/` - Internal app path `/app/` - Django framework details **500 Page Leaks:** - Full Python stack traces - Local variables and their values at each frame - SQL queries that caused the error - Django settings (potentially including SECRET_KEY) - Database connection details **Evidence:** Accessing any non-existent URL returns a debug page containing: \"Using the URLconf defined in `config.urls`, Django tried these URL patterns, in this order:\" followed by the full URL pattern list. The page footer states: \"You're seeing this error because you have `DEBUG = True` in your Django settings file.\""
+        - button "開啟漏洞詳情：SQL Injection in Dashboard Search Parameter" [ref=e116]:
+          - generic [ref=e117]: CRITICAL
+          - generic [ref=e118]:
+            - generic [ref=e119]: SQL Injection in Dashboard Search Parameter
+            - generic [ref=e120]:
+              - generic [ref=e121]: sql-injection-in-dashboard-search-parameter
+              - generic [ref=e122]: https://vuln-f9wi.onrender.com/dashboard/?search=
+          - generic [ref=e123]: 查看詳情 →
+          - generic [ref=e124]: "The `search` GET parameter on the `/dashboard/` endpoint is vulnerable to SQL Injection. The backend constructs a raw SQL query: `SELECT id FROM cake_product WHERE name LIKE '%{user_input}%' AND is_available` without proper parameterization. **Confirmed attack vectors:** 1. **Error-based SQLi** (HTTP 500): Payload `search='` triggers a Django `ProgrammingError` with MySQL error: `(1064, \"You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near '%'%' AND is_available' at line 1\")`. The full SQL query structure is leaked in the Django DEBUG error page. 2. **Boolean-based Blind SQLi**: - TRUE condition: `search=' OR '1'='1` returns HTTP 200, 115,990 bytes (6 products shown) - FALSE condition: `search=' AND '1'='2` returns HTTP 200, 76,898 bytes (0 products shown) - Size difference: 39,092 bytes confirms boolean oracle 3. **UNION-based SQLi**: `search=' UNION SELECT 1-- -` returns HTTP 200 successfully (1 column confirmed) **Impact:** Full database compromise. An attacker can extract all data including user credentials, order history, and application secrets via UNION-based or blind SQLi techniques."
