@@ -163,6 +163,8 @@ class Command(BaseCommand):
                 skill_type = meta.get("skill_type") or "documentation"
                 tags = meta.get("tags") or []
                 short_desc = meta.get("short_description") or ""
+                source_type = meta.get("source_type") or "vulnclaw"
+                warstory_metadata = meta.get("warstory_metadata") or {}
 
                 if not name:
                     self.stdout.write(self.style.WARNING(
@@ -237,6 +239,8 @@ class Command(BaseCommand):
                     short_description=short_desc[:200],
                     detailed_overview=detailed_overview,
                     skill_type=skill_type,
+                    source_type=source_type,
+                    warstory_metadata=warstory_metadata,
                     tags=final_tags,
                     version=new_version,
                     is_deprecated=False,

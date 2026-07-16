@@ -16,7 +16,7 @@ class SkillMixin:
     """
 
     @method_tool
-    def search_skills(self, query: str, skill_type: str = None) -> str:
+    def search_skills(self, query: str, skill_type: str = None, source_type: str = None, tags: list = None) -> str:
         """
         [Skill System] 透過關鍵字搜尋全域通用的技能清單 (Skill Templates)。
         這能幫助你發現在過去任務中寫好的自動化繞過腳本 (如 CSRF token 獲取工具等)，
@@ -25,6 +25,8 @@ class SkillMixin:
         Args:
             query: 搜尋關鍵字（比對 name / description / tags / short_description）
             skill_type: 篩選技能類型（script / documentation / hybrid），不指定則全部
+            source_type: 篩選來源類型（vulnclaw / auto / legacy），不指定則全部
+            tags: 篩選標籤列表（支援多標籤 AND 條件），例如 ["django", "csrf"]
         """
         from apps.core.models.analyze.SkillTemplate import SkillTemplate
         from django.db.models import Q
@@ -37,19 +39,27 @@ class SkillMixin:
         )
         if skill_type:
             qs = qs.filter(skill_type=skill_type)
+        if source_type:
+            qs = qs.filter(source_type=source_type)
+        if tags:
+            for tag in tags:
+                qs = qs.filter(tags__contains=[tag])
         skills = qs.order_by('-is_robust', '-usage_count')[:10]
         
         if not skills.exists():
             type_hint = f" (skill_type={skill_type})" if skill_type else ""
-            return f"找不到符合 '{query}'{type_hint} 的 Skill。"
+            src_hint = f" (source_type={source_type})" if source_type else ""
+            tag_hint = f" (tags={tags})" if tags else ""
+            return f"找不到符合 '{query}'{type_hint}{src_hint}{tag_hint} 的 Skill。"
             
         res = [f"Found {len(list(skills))} skills:"]
         for s in skills:
             robust_badge = " [ROBUST]" if s.is_robust else ""
             type_badge = f" [{s.skill_type}]" if s.skill_type != "script" else ""
+            src_badge = f" [{s.source_type}]" if s.source_type != "vulnclaw" else ""
             short = f" — {s.short_description}" if s.short_description else ""
             res.append(
-                f"- Name: {s.name} v{s.version}{robust_badge}{type_badge}\n"
+                f"- Name: {s.name} v{s.version}{robust_badge}{type_badge}{src_badge}\n"
                 f"  Tags: {s.tags}\n"
                 f"  Usage Count: {s.usage_count}\n"
                 f"  Description: {s.description}{short}"

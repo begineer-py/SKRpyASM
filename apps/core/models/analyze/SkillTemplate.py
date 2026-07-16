@@ -20,6 +20,12 @@ class SkillTemplate(models.Model):
         ("hybrid", "Hybrid — 文件 + 腳本"),
     ]
 
+    SOURCE_TYPE_CHOICES = [
+        ("vulnclaw", "VulnClaw — 知識庫技能"),
+        ("auto", "Auto-generated — Agent 自動創建"),
+        ("legacy", "Legacy — 遷移前的舊格式"),
+    ]
+
     # === 技能類型（決定如何被 agent 使用）===
     skill_type = models.CharField(
         max_length=20,
@@ -27,6 +33,15 @@ class SkillTemplate(models.Model):
         default="script",
         db_index=True,
         help_text="技能本質：script（可執行）/ documentation（指引文件）/ hybrid（兩者皆有）",
+    )
+
+    # === 來源類型（區分知識庫/自動生成/遺留）===
+    source_type = models.CharField(
+        max_length=20,
+        choices=SOURCE_TYPE_CHOICES,
+        default="vulnclaw",
+        db_index=True,
+        help_text="技能來源：vulnclaw（知識庫）/ auto（Agent自動生成）/ legacy（遷移前舊格式）",
     )
 
     name = models.CharField(max_length=100, db_index=True, help_text="技能名稱，例如 django-csrf-bypass")
@@ -124,6 +139,14 @@ class SkillTemplate(models.Model):
     is_deprecated = models.BooleanField(
         default=False,
         help_text="若此技能已被合併到其他技能，標記為棄用以避免使用。"
+    )
+
+    # === War Story 專用：結構化 metadata（僅 documentation/hybrid 且為 War Story 使用）===
+    warstory_metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        null=True,
+        help_text="War Story 結構化 metadata：target_type, scope, attack_chain[], tools_used[], outcome, lessons_learned[], severity, evidence_refs[]",
     )
     
     created_at = models.DateTimeField(auto_now_add=True)
