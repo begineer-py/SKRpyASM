@@ -1,3 +1,4 @@
+from django.db.models import Q
 from ninja import Router
 from ninja.errors import HttpError
 from typing import List, Optional
@@ -17,7 +18,6 @@ from .models import (
     ExecutionEvent,
     ExecutionGraph,
     ExecutionNode,
-    Overview,
     SubAgentDispatch,
 )
 from .schemas import (
@@ -125,14 +125,14 @@ def list_execution_graphs(
     if thread_id is not None:
         queryset = queryset.filter(thread_id=thread_id)
     if target_id is not None:
-        # 1:1 關係：target 只有唯一 overview，直接取得其 thread_ids
-        ov = Overview.objects.filter(target_id=target_id).first()
-        if ov:
-            thread_ids = {ov.thread_id, ov.parent_thread_id}
-            thread_ids.discard(None)
-        else:
-            thread_ids = set()
-        queryset = queryset.filter(thread_id__in=thread_ids) if thread_ids else queryset.none()
+        queryset = queryset.filter(
+            Q(
+                ("thread__bound_target_id", target_id),
+                ("thread__overviews__target_id", target_id),
+                ("thread__child_overviews__target_id", target_id),
+                _connector=Q.OR,
+            )
+        ).distinct()
     if status:
         queryset = queryset.filter(status=status)
     if search:
