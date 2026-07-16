@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Activity, MousePointer2, Radio } from 'lucide-react';
+import { Activity, MousePointer2, Radio, Filter, X, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useExecutionEventStream } from '../hooks/useExecutionEventStream';
 import { executionApi } from '../services/executionApi';
@@ -46,9 +46,143 @@ const STATUS_BORDER: Record<string, string> = {
   blocked: 'border-l-[#ef4444]',
 };
 
+// Node status filter configuration
+const NODE_STATUSES = [
+  { value: 'RUNNING', label: 'Running', icon: '▶' },
+  { value: 'WAITING', label: 'Waiting', icon: '⏸' },
+  { value: 'SUCCEEDED', label: 'Succeeded', icon: '✓' },
+  { value: 'COMPLETED', label: 'Completed', icon: '✓' },
+  { value: 'FAILED', label: 'Failed', icon: '✗' },
+  { value: 'CANCELLED', label: 'Cancelled', icon: '⊘' },
+  { value: 'BLOCKED', label: 'Blocked', icon: '⛔' },
+  { value: 'PENDING', label: 'Pending', icon: '○' },
+] as const;
+
+type NodeStatus = typeof NODE_STATUSES[number]['value'];
+
+interface NodeFilterState {
+  selectedStatuses: NodeStatus[];
+}
+
+const DEFAULT_NODE_FILTER: NodeFilterState = {
+  selectedStatuses: NODE_STATUSES.map(s => s.value),
+};
+
 function formatJson(value: Record<string, unknown>): string {
   if (!value || Object.keys(value).length === 0) return '';
   return JSON.stringify(value, null, 2);
+}
+
+// Filter popover component for node status selection
+function NodeFilterPopover({
+  filter,
+  onChange,
+}: {
+  filter: NodeFilterState;
+  onChange: (next: NodeFilterState) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const activeCount = NODE_STATUSES.length - filter.selectedStatuses.length;
+
+  const toggleStatus = (status: NodeStatus) => {
+    const has = filter.selectedStatuses.includes(status);
+    onChange({
+      ...filter,
+      selectedStatuses: has
+        ? filter.selectedStatuses.filter(s => s !== status)
+        : [...filter.selectedStatuses, status],
+    });
+  };
+
+  const selectAll = () => onChange({ ...filter, selectedStatuses: NODE_STATUSES.map(s => s.value) });
+  const selectNone = () => onChange({ ...filter, selectedStatuses: [] });
+
+  return (
+    <div className="relative">
+      <button
+        ref={triggerRef}
+        type="button"
+        className={cn(
+          'ai-secondary-button ai-secondary-button--utility',
+          activeCount > 0 && 'is-active'
+        )}
+        aria-expanded={open}
+        aria-haspopup="true"
+        onClick={() => setOpen(!open)}
+      >
+        <Filter size={15} />
+        <span>Node Status</span>
+        {activeCount > 0 && <span className="ml-1 bg-red-500 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{activeCount}</span>}
+      </button>
+
+      {open && (
+        <>
+          <div
+            className="fixed inset-0 z-10"
+            onClick={() => setOpen(false)}
+            aria-hidden="true"
+          />
+          <div
+            className="fixed z-20 right-0 mt-2 w-56 rounded-xl border border-[#334155] bg-[#1e293b] shadow-lg py-2"
+            role="menu"
+            aria-label="Node status filter"
+          >
+            <div className="px-3 py-2 border-b border-[#334155] flex items-center justify-between">
+              <span className="text-sm font-semibold text-[#e2e8f0]">Node Status Filter</span>
+              <button
+                type="button"
+                className="text-[#94a3b8] hover:text-[#e2e8f0] text-xs"
+                onClick={(e) => { e.stopPropagation(); setOpen(false); }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+            <div className="py-2 space-y-1 px-2">
+              {NODE_STATUSES.map(({ value, label, icon }) => {
+                const active = filter.selectedStatuses.includes(value);
+                const pillColor = STATUS_PILL[statusClass(value)] || STATUS_PILL.neutral;
+                return (
+                  <label
+                    key={value}
+                    className="flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded-lg hover:bg-[#334155]"
+                    onClick={(e) => { e.stopPropagation(); toggleStatus(value); }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={active}
+                      onChange={() => {}}
+                      className="w-4 h-4 accent-green-500"
+                      aria-checked={active}
+                    />
+                    <span className={cn('inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold', pillColor)}>
+                      {icon} {label}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+            <div className="px-3 py-2 border-t border-[#334155] flex gap-2">
+              <button
+                type="button"
+                className="flex-1 text-xs text-[#94a3b8] hover:text-[#e2e8f0] py-1.5"
+                onClick={(e) => { e.stopPropagation(); selectAll(); }}
+              >
+                <Check size={12} className="inline mr-1" /> All
+              </button>
+              <button
+                type="button"
+                className="flex-1 text-xs text-[#94a3b8] hover:text-[#e2e8f0] py-1.5"
+                onClick={(e) => { e.stopPropagation(); selectNone(); }}
+              >
+                <X size={12} className="inline mr-1" /> None
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
 
 export default function ExecutionTimelineViewer({ graphId, autoScroll = true, compact = false }: ExecutionTimelineViewerProps) {
@@ -56,6 +190,7 @@ export default function ExecutionTimelineViewer({ graphId, autoScroll = true, co
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<Error | null>(null);
   const [filter, setFilter] = useState('');
+  const [nodeFilter, setNodeFilter] = useState<NodeFilterState>(DEFAULT_NODE_FILTER);
   const [expandedEventId, setExpandedEventId] = useState<number | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -94,15 +229,35 @@ export default function ExecutionTimelineViewer({ graphId, autoScroll = true, co
     return map;
   }, [graph?.nodes]);
 
+  // Node status filter: create a set of allowed statuses for quick lookup
+  const allowedNodeStatuses = useMemo(() => new Set(nodeFilter.selectedStatuses), [nodeFilter.selectedStatuses]);
+
+  // Filter nodes by selected statuses
+  const filteredNodes = useMemo(() => {
+    if (!graph) return [];
+    return graph.nodes.filter((node) => allowedNodeStatuses.has(node.status as NodeStatus));
+  }, [graph, allowedNodeStatuses]);
+
+  // Filter events: only show events from nodes that match the status filter
   const filteredEvents = useMemo(() => {
     const query = filter.trim().toLowerCase();
-    if (!query) return events;
-    return events.filter((event) => {
-      const nodeName = event.node_id ? nodeById.get(event.node_id) || '' : '';
-      return [event.event_type, event.status || '', event.content, nodeName]
-        .some((value) => value.toLowerCase().includes(query));
+    const allowedNodeIds = new Set(filteredNodes.map(n => n.id));
+    
+    const result = events.filter((event) => {
+      // If event has a node_id, check if that node is in the allowed set
+      if (event.node_id && !allowedNodeIds.has(event.node_id)) {
+        return false;
+      }
+      // Text search filter
+      if (query) {
+        const nodeName = event.node_id ? nodeById.get(event.node_id) || '' : '';
+        return [event.event_type, event.status || '', event.content, nodeName]
+          .some((value) => value.toLowerCase().includes(query));
+      }
+      return true;
     });
-  }, [events, filter, nodeById]);
+    return result;
+  }, [events, filter, nodeById, filteredNodes]);
 
   useEffect(() => {
     if (autoScroll && endRef.current) {
@@ -161,14 +316,20 @@ export default function ExecutionTimelineViewer({ graphId, autoScroll = true, co
       {visibleError && <div className="px-4 py-2.5 text-[#fca5a5] bg-[rgba(239,68,68,0.12)] border-b border-[rgba(248,113,113,0.24)]">{visibleError.message}</div>}
 
       <div className={`${rowClass} px-4 py-4 bg-[#0d1424] border-b border-[rgba(148,163,184,0.14)]`}>
-        <input
-          value={filter}
-          onChange={(event) => setFilter(event.target.value)}
-          placeholder="Search events..."
-          className="h-10 flex-1 min-w-[180px] px-3 text-sm text-[#e2e8f0] bg-[#080d1b] border border-[rgba(148,163,184,0.24)] rounded-lg font-[inherit] focus:outline-none focus:border-[#38bdf8] focus:shadow-[0_0_0_3px_rgba(56,189,248,0.12)] placeholder:text-[#64748b]"
-        />
+        <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+          <input
+            value={filter}
+            onChange={(event) => setFilter(event.target.value)}
+            placeholder="Search events..."
+            className="h-10 flex-1 min-w-[180px] px-3 text-sm text-[#e2e8f0] bg-[#080d1b] border border-[rgba(148,163,184,0.24)] rounded-lg font-[inherit] focus:outline-none focus:border-[#38bdf8] focus:shadow-[0_0_0_3px_rgba(56,189,248,0.12)] placeholder:text-[#64748b]"
+          />
+          <NodeFilterPopover
+            filter={nodeFilter}
+            onChange={setNodeFilter}
+          />
+        </div>
         <span className={cn(pillClass, 'text-[#cbd5e1] bg-[rgba(148,163,184,0.14)]')}>{filteredEvents.length} / {events.length} events</span>
-        <span className={cn(pillClass, 'text-[#cbd5e1] bg-[rgba(148,163,184,0.14)]')}>{graph?.nodes.length ?? 0} nodes</span>
+        <span className={cn(pillClass, 'text-[#cbd5e1] bg-[rgba(148,163,184,0.14)]')}>{filteredNodes.length} / {graph?.nodes.length ?? 0} nodes</span>
         <span className={cn(pillClass, 'text-[#cbd5e1] bg-[rgba(148,163,184,0.14)]')}>{graph?.artifacts.length ?? 0} artifacts</span>
       </div>
 
