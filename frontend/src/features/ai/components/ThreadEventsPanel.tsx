@@ -1,29 +1,51 @@
 import ThreadEventTimeline from '../../../components/ThreadEventTimeline';
+import type { RefObject } from 'react';
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerDismiss,
+  DrawerHeader,
+  DrawerTitle,
+} from '../../../components/ui/drawer';
 
 interface ThreadEventsPanelProps {
+  open: boolean;
   threadId: string;
-  onClose: () => void;
+  onOpenChange: (open: boolean) => void;
+  triggerRef: RefObject<HTMLButtonElement | null>;
 }
 
-const ThreadEventsPanel: React.FC<ThreadEventsPanelProps> = ({ threadId, onClose }) => {
+const ThreadEventsPanel: React.FC<ThreadEventsPanelProps> = ({ open, threadId, onOpenChange, triggerRef }) => {
   return (
-    <div className="logs-panel">
-      <div className="logs-panel-header">
-        <div className="logs-panel-title">
-          <span>THREAD EVENTS</span>
+    <Drawer open={open} onOpenChange={(nextOpen) => {
+      onOpenChange(nextOpen);
+      if (!nextOpen) {
+        window.requestAnimationFrame(() => triggerRef.current?.focus());
+      }
+    }}>
+      <DrawerContent
+        id="ai-thread-events-drawer"
+        aria-describedby="ai-thread-events-description"
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          triggerRef.current?.focus();
+        }}
+      >
+        <DrawerHeader>
+          <div>
+            <DrawerTitle>Thread events</DrawerTitle>
+            <DrawerDescription id="ai-thread-events-description">
+              Review thread-scoped activity without mixing it with execution graph events.
+            </DrawerDescription>
+          </div>
+          <DrawerDismiss />
+        </DrawerHeader>
+        <div className="mt-6 min-h-0 flex-1 overflow-hidden">
+          <ThreadEventTimeline threadId={threadId} autoScroll />
         </div>
-        <div className="logs-panel-controls">
-          <button
-            className="logs-close-btn"
-            onClick={onClose}
-            title="Close events panel"
-          >✕</button>
-        </div>
-      </div>
-      <div className="logs-panel-body">
-        <ThreadEventTimeline threadId={threadId} autoScroll />
-      </div>
-    </div>
+      </DrawerContent>
+    </Drawer>
   );
 };
 
