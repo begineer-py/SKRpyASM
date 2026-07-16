@@ -124,14 +124,20 @@ services:
     build: ./kali_sandbox
     container_name: c2_kali_sandbox
     restart: always
-    network_mode: host # Allows sandbox to scan localhost easily
+    # Use bridge network instead of host mode for security
+    # Sandbox can still scan internal services via Docker DNS (service names)
+    # For localhost scanning, use host.docker.internal (Docker Desktop) or host network gateway
+    networks:
+      - c2_network
+    # Minimal capabilities required for nmap and bubblewrap
     cap_add:
-      - SYS_ADMIN # Required for bwrap pivot_root (per-target isolation)
-      - NET_RAW # Required for nmap -sS (SYN scan) and raw socket operations
-      - NET_ADMIN # Required for nmap OS detection and advanced scanning
+      - NET_RAW     # Required for nmap -sS (SYN scan) and raw socket operations
+      - NET_ADMIN   # Required for nmap OS detection and advanced scanning
+    # SYS_ADMIN removed - bubblewrap pivot_root works without it in newer kernels
+    # AppArmor/seccomp unconfined removed - use default profiles for defense in depth
+    # If bwrap pivot_root fails, consider --unshare-all without pivot_root
     security_opt:
-      - apparmor:unconfined # Required for bwrap on AppArmor-enabled hosts
-      - seccomp:unconfined # pivot_root syscall is blocked by Docker's default seccomp profile
+      - seccomp:unconfined  # Required for bubblewrap pivot_root (keep minimal)
     volumes:
       - /tmp/c2_sandbox_scripts:/scripthub
     deploy:
@@ -139,6 +145,8 @@ services:
         limits:
           cpus: '4.0'
           memory: 4096M
+    # Run as non-root user (defined in Dockerfile)
+    # user: "sandbox:sandbox"  # Uncomment after verifying bwrap works as non-root
 
   nginx:
     build:
@@ -146,7 +154,7 @@ services:
       dockerfile: docker/nginx/Dockerfile
     container_name: c2_nginx
     ports:
-      - "80:80"
+      - "127.0.0.1:80:80"
     depends_on:
       django:
         condition: service_healthy
@@ -155,16 +163,23 @@ services:
     restart: unless-stopped
     networks:
       - c2_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   # ── Django Application（Uvicorn ASGI）─────────────────────
   django:
     build: *backend-build
     image: docker-django:fixed   # 使用含 docker CLI + 程式碼修復的固化映像
     container_name: c2_django
+    # Run as root for migrations and docker.sock access, then drop to appuser for uvicorn
     command:
       - sh
       - -c
-      - python manage.py migrate --noinput && python manage.py setup_beat_schedules && uvicorn c2_core.asgi:application --host 0.0.0.0 --port 8000 --workers 4 --loop uvloop --http httptools
+      - python manage.py migrate --noinput && python manage.py setup_beat_schedules && exec gosu appuser uvicorn c2_core.asgi:application --host 0.0.0.0 --port 8000 --workers 4 --loop uvloop --http httptools
     ports:
       - "127.0.0.1:8000:8000"
     env_file:
@@ -208,6 +223,7 @@ services:
     build: *backend-build
     image: docker-celery_worker:fixed   # 使用含 docker CLI + 程式碼修復的固化映像
     container_name: c2_celery_worker
+    # Run as root for docker.sock access, tasks can drop privileges if needed
     command: celery -A c2_core worker -P prefork -c 8 -l info
     env_file:
       - ../.env

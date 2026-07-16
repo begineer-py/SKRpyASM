@@ -108,6 +108,8 @@ ESLint	npm run lint
 
 When debugging, testing, or verifying behavior, **always prefer the REST API over `docker exec` + Django shell**. It is simpler, faster, and double-tests the API layer.
 
+**Cost policy**: Do not use Playwright or other browser automation for testing unless the user explicitly requests it. Prefer REST API checks with `curl`, existing non-browser tests through the Makefile workflow, and static checks such as `npx tsc --noEmit` and `npm run lint`.
+
 ```bash
 # Check state via API (no auth required)
 curl -s http://localhost:8000/api/core/overviews/                # list all overviews

@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import BlobPageViewer from './BlobPageViewer';
+import ExecutionTimelineViewer from './ExecutionTimelineViewer';
 import type { SubAgentDispatchItem } from '../services/executionApi';
 
 export interface DispatchedGraphView {
@@ -109,46 +110,57 @@ export function SubAgentContainerBlock({ graph, onViewGraph, onViewThread }: Sub
         <div className="px-3 pb-2.5 text-[0.75rem] text-[#86efac] opacity-90">{graph.result_summary.slice(0, 200)}</div>
       )}
 
-      {expanded && (
-        <div id={detailsId} className="border-t border-[#1e293b] px-3 py-2.5 flex flex-col gap-2.5">
-          {graph.content_blobs.length === 0 && (
-            <div className="text-[0.75rem] text-[#64748b] text-center p-2">No ContentBlob artifacts yet</div>
-          )}
-          {graph.content_blobs.map((blob) => (
-            <div key={blob.blob_id} className="bg-[#0f172a] border border-[#1e293b] rounded-lg px-2.5 py-2">
-              <div className="flex gap-2.5 items-center text-[0.72rem] text-[#cbd5e1] mb-1.5">
-                <span>Blob #{blob.blob_id}</span>
-                <span className="text-[#64748b]">{(blob.content_size / 1000).toFixed(1)}k chars</span>
-                {blob.page_count != null && blob.page_count > 0 && (
-                  <span className="text-[#64748b]">{blob.page_count} pages</span>
+      <div
+        id={detailsId}
+        hidden={!expanded}
+        className="border-t border-[#1e293b] px-3 py-2.5 flex flex-col gap-2.5"
+      >
+        {expanded && (
+          <>
+            {graph.content_blobs.length === 0 && (
+              <div className="text-[0.75rem] text-[#64748b] text-center p-2">No ContentBlob artifacts yet</div>
+            )}
+            {graph.content_blobs.map((blob) => (
+              <div key={blob.blob_id} className="bg-[#0f172a] border border-[#1e293b] rounded-lg px-2.5 py-2">
+                <div className="flex gap-2.5 items-center text-[0.72rem] text-[#cbd5e1] mb-1.5">
+                  <span>Blob #{blob.blob_id}</span>
+                  <span className="text-[#64748b]">{(blob.content_size / 1000).toFixed(1)}k chars</span>
+                  {blob.page_count != null && blob.page_count > 0 && (
+                    <span className="text-[#64748b]">{blob.page_count} pages</span>
+                  )}
+                </div>
+                {blob.ai_summary && <div className="text-[0.78rem] text-[#e2e8f0] leading-[1.45] mb-1.5">{blob.ai_summary}</div>}
+                {blob.page_count != null && blob.page_count > 1 && (
+                  <div className="flex flex-wrap gap-1 mb-1.5">
+                    {Array.from({ length: blob.page_count }, (_, i) => i + 1).map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        className={cn(
+                          'bg-[#1e293b] border border-[#334155] text-[#94a3b8] rounded px-2 py-0.5 text-[0.68rem] cursor-pointer hover:border-[#a78bfa] hover:text-[#c4b5fd]',
+                          activeBlobPage?.blobId === blob.blob_id && activeBlobPage.page === p && 'border-[#a78bfa] text-[#c4b5fd]',
+                        )}
+                        onClick={() => setActiveBlobPage({ blobId: blob.blob_id, page: p })}
+                      >
+                        P{p}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {activeBlobPage?.blobId === blob.blob_id && (
+                  <BlobPageViewer blobId={activeBlobPage.blobId} page={activeBlobPage.page} />
                 )}
               </div>
-              {blob.ai_summary && <div className="text-[0.78rem] text-[#e2e8f0] leading-[1.45] mb-1.5">{blob.ai_summary}</div>}
-              {blob.page_count != null && blob.page_count > 1 && (
-                <div className="flex flex-wrap gap-1 mb-1.5">
-                  {Array.from({ length: blob.page_count }, (_, i) => i + 1).map((p) => (
-                    <button
-                      key={p}
-                      type="button"
-                      className={cn(
-                        'bg-[#1e293b] border border-[#334155] text-[#94a3b8] rounded px-2 py-0.5 text-[0.68rem] cursor-pointer hover:border-[#a78bfa] hover:text-[#c4b5fd]',
-                        activeBlobPage?.blobId === blob.blob_id && activeBlobPage.page === p && 'border-[#a78bfa] text-[#c4b5fd]',
-                      )}
-                      onClick={() => setActiveBlobPage({ blobId: blob.blob_id, page: p })}
-                    >
-                      P{p}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {activeBlobPage?.blobId === blob.blob_id && (
-                <BlobPageViewer blobId={activeBlobPage.blobId} page={activeBlobPage.page} />
-              )}
-            </div>
-          ))}
+            ))}
 
-        </div>
-      )}
+            {graph.graph_id != null && (
+              <div className="max-h-[280px] overflow-auto border border-[#1e293b] rounded-lg">
+                <ExecutionTimelineViewer graphId={graph.graph_id} compact autoScroll={false} />
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
       <div className="flex gap-2 px-3 py-2 pt-2.5 border-t border-[#1e293b]">
         {graph.callee_thread_id != null && onViewThread && (

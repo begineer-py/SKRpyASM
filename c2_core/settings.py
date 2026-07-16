@@ -248,6 +248,8 @@ REST_FRAMEWORK = {  # Django REST framework 配置
 CELERY_IMPORTS = (
     "apps.scanners.nmap_scanner.tasks",
     "apps.flaresolverr.tasks.spider",
+    "apps.flaresolverr.tasks.http_action",  # FlareSolverr HTTP actions
+    "apps.flaresolverr.tasks.js_trigger",   # FlareSolverr JS analysis
     "apps.scanners.get_all_url.tasks",
     "apps.scanners.subfinder.tasks",
     "apps.analyze_ai.tasks",
@@ -257,6 +259,7 @@ CELERY_IMPORTS = (
     "apps.scanners.cve_intelligence.tasks.enrichment_tasks",  # CVE Enrichment
     "apps.scanners.cve_intelligence.tasks.scheduled_sync",  # CVE Scheduled Sync
     "apps.scanners.katana_scanner.tasks",  # Katana Active Crawler
+    "apps.http_sender.tasks",  # HTTP Sender / Fuzzing
 )
 API_BASE_URL = os.environ.get("API_BASE_URL", "http://django:8000")
 INTERNAL_API_BASE_URL = os.environ.get("INTERNAL_API_BASE_URL", API_BASE_URL)

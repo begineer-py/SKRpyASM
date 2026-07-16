@@ -63,6 +63,7 @@ describe('AgentPanel legacy topology compatibility', () => {
     // Given
     const user = userEvent.setup()
     const onSelectTopoNode = vi.fn()
+    const triggerRef = { current: null }
     render(
       <AgentPanel
         activeNodeThreadId={null}
@@ -72,15 +73,14 @@ describe('AgentPanel legacy topology compatibility', () => {
         dispatchTree={null}
         onClose={vi.fn()}
         onOpenGraph={vi.fn()}
-        onOpenLogsPanel={vi.fn()}
         onSelectTopoNode={onSelectTopoNode}
         onSelectTreeNode={vi.fn()}
         onTabChange={vi.fn()}
         rootNode={null}
         selectedTopoNode={selectedLegacyNode}
-        showTree
+        showTree={true}
         topology={legacyTopology}
-        treeConnected
+        triggerRef={triggerRef}
       />,
     )
 
