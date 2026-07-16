@@ -94,7 +94,7 @@ Wave 2: Styles + tests (2 todos - parallel)
   QA scenarios: npm run test AssetTopologyMap.spec.tsx; Evidence .omo/evidence/task-4-asset-map-fullscreen.json
   Commit: Y | test(asset-map): add fullscreen modal tests
 
-- [ ] 5. Manual integration verification in TargetDashboard
+- [x] 5. Manual integration verification in TargetDashboard
   What to do / Must NOT do: Verify AssetMapTabContent renders fullscreen button, fullscreen works in tabs context, no layout regression. No code changes.
   Parallelization: Wave 2 | Blocked by: 4 | Blocks: -
   References: frontend/src/features/target/pages/TargetDashboard.tsx:495 (AssetMapTabContent in assets tab), :480 (TabsContent wrapper)
@@ -104,10 +104,10 @@ Wave 2: Styles + tests (2 todos - parallel)
 
 ## Final verification wave
 > Runs in parallel after ALL todos. ALL must APPROVE. Surface results and wait for the user's explicit okay before declaring complete.
-- [ ] F1. Plan compliance audit - verify all 5 todos completed per acceptance criteria
-- [ ] F2. Code quality review - run `make check` (ruff, mypy, eslint), `npx tsc --noEmit`
-- [ ] F3. Real manual QA - browser test at http://localhost:5173/target/1?tab=assets
-- [ ] F4. Scope fidelity - confirm no changes to AssetMapTabContent.tsx, TargetDashboard.tsx, or ReactFlow rendering logic
+- [x] F1. Plan compliance audit - verify all 5 todos completed per acceptance criteria
+- [x] F2. Code quality review - run `make check` (ruff, mypy, eslint), `npx tsc --noEmit`
+- [x] F3. Real manual QA - browser test at http://localhost:5173/target/1?tab=assets
+- [x] F4. Scope fidelity - confirm no changes to AssetMapTabContent.tsx, TargetDashboard.tsx, or ReactFlow rendering logic
 
 ## Commit strategy
 Atomic commits per todo (4 commits):
@@ -119,11 +119,11 @@ Atomic commits per todo (4 commits):
 No push unless explicitly requested.
 
 ## Success criteria
-- [ ] Fullscreen button visible in Asset Map header (Maximize2 icon)
-- [ ] Clicking button opens fullscreen modal with ReactFlow canvas at viewport size
-- [ ] Graph auto-fits on modal open (padding: 0.15, duration: 300)
-- [ ] Node selection syncs between inline and fullscreen views
-- [ ] ESC key and close button (X icon) close fullscreen modal
-- [ ] No layout regression in TargetDashboard assets tab
-- [ ] All existing tests pass + new fullscreen tests pass
-- [ ] `make check` and `npx tsc --noEmit` pass
+- [x] Fullscreen button visible in Asset Map header (Maximize2 icon)
+- [x] Clicking button opens fullscreen modal with ReactFlow canvas at viewport size
+- [x] Graph auto-fits on modal open (padding: 0.15, duration: 300)
+- [x] Node selection syncs between inline and fullscreen views
+- [x] ESC key and close button (X icon) close fullscreen modal
+- [x] No layout regression in TargetDashboard assets tab
+- [x] All existing tests pass + new fullscreen tests pass
+- [x] `make check` and `npx tsc --noEmit` pass
