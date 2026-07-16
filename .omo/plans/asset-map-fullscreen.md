@@ -78,7 +78,7 @@ Wave 2: Styles + tests (2 todos - parallel)
   QA scenarios: Open fullscreen -> graph fits; click node -> selects in both; close -> returns to inline; Evidence .omo/evidence/task-2-asset-map-fullscreen.json
   Commit: Y | feat(asset-map): implement fullscreen modal with ReactFlow canvas
 
-- [ ] 3. Add fullscreen modal styles to global.css
+- [x] 3. Add fullscreen modal styles to global.css
   What to do / Must NOT do: Add `.asset-topology-map__fullscreen` styles for DialogContent override (max-w-none, full viewport), ensure ReactFlow canvas fills dialog. Do NOT modify existing .asset-topology-map styles.
   Parallelization: Wave 1 | Blocked by: 1 | Blocks: 4
   References: frontend/src/global.css:76-90 (.asset-topology-map), :63-65 (DialogContent max-w-lg default), components/ui/dialog.tsx:64 (max-w-[calc(100%-2rem)])
