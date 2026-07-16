@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import type { AgentInteractionTree, TargetTopology, TopologyNode } from '../services/aiApi';
+import { adaptLegacyTopology } from '../legacyTopologyAdapter';
 import AgentInteractionTimeline from '../../../components/AgentInteractionTimeline';
 import AssetTopologyMap from '../../../components/AssetTopologyMap';
 import AssetDetailPanel from '../../../components/AssetDetailPanel';
@@ -48,6 +49,14 @@ export function AgentPanel({
   selectedTopoNode,
   onSelectTopoNode,
 }: AgentPanelProps): ReactNode {
+  const adaptedTopology = useMemo(
+    () => (topology === null ? null : adaptLegacyTopology(topology)),
+    [topology],
+  );
+  const selectedGraphNodeId = selectedTopoNode === null
+    ? null
+    : adaptedTopology?.graphNodeIdsByLegacyId.get(selectedTopoNode.id) ?? null;
+
   if (!showTree) return null;
 
   return (
@@ -124,9 +133,12 @@ export function AgentPanel({
         {agentPanelTab === 'topology' && (
           <div className="topology-panel-stack">
             <AssetTopologyMap
-              topology={topology}
-              selectedNodeId={selectedTopoNode?.id ?? null}
-              onSelectNode={onSelectTopoNode}
+              graph={adaptedTopology?.graph ?? null}
+              selectedNodeId={selectedGraphNodeId}
+              onSelectNode={(node) => {
+                const legacyNode = adaptedTopology?.legacyNodesByGraphId.get(node.id);
+                if (legacyNode !== undefined) onSelectTopoNode(legacyNode);
+              }}
             />
             {selectedTopoNode && (
               <AssetDetailPanel
