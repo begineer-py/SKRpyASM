@@ -12,6 +12,8 @@
     "diagnostics": "npm run diagnostics:doctor",
     "diagnostics:doctor": "react-doctor --json",
     "lint": "eslint .",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -45,6 +47,9 @@
     "@eslint/js": "^9.30.1",
     "@graphql-codegen/cli": "^7.2.0",
     "@graphql-codegen/client-preset": "^6.1.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/axios": "^0.9.36",
     "@types/dagre": "^0.7.54",
     "@types/file-saver": "^2.0.7",
@@ -57,12 +62,14 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^16.3.0",
+    "jsdom": "^29.1.1",
     "openapi-typescript": "^7.13.0",
     "react-doctor": "^0.7.8",
     "react-grab": "^0.1.48",
     "react-scan": "^0.5.7",
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.35.1",
-    "vite": "^7.0.4"
+    "vite": "^7.0.4",
+    "vitest": "^4.1.10"
   }
 }

@@ -1,0 +1,202 @@
+query GetTargetAssetMap($targetId: bigint!) {
+  target: core_target_by_pk(id: $targetId) {
+    id
+    name
+    description
+  }
+
+  seeds: core_seed(
+    where: { target_id: { _eq: $targetId } }
+    order_by: { id: asc }
+    limit: 30
+  ) {
+    id
+    target_id
+    value
+    type
+    is_active
+  }
+  seeds_aggregate: core_seed_aggregate(where: { target_id: { _eq: $targetId } }) {
+    aggregate {
+      count
+    }
+  }
+
+  subdomains: core_subdomain(
+    where: { target_id: { _eq: $targetId } }
+    order_by: { id: asc }
+    limit: 80
+  ) {
+    id
+    target_id
+    name
+    is_active
+    is_resolvable
+    core_subdomain_ips(order_by: { ip_id: asc }, limit: 5) {
+      ip_id
+    }
+  }
+  subdomains_aggregate: core_subdomain_aggregate(where: { target_id: { _eq: $targetId } }) {
+    aggregate {
+      count
+    }
+  }
+
+  ips: core_ip(
+    where: { target_id: { _eq: $targetId } }
+    order_by: { id: asc }
+    limit: 80
+  ) {
+    id
+    target_id
+    address
+    version
+  }
+  ips_aggregate: core_ip_aggregate(where: { target_id: { _eq: $targetId } }) {
+    aggregate {
+      count
+    }
+  }
+
+  ports: core_port(
+    where: { core_ip: { target_id: { _eq: $targetId } } }
+    order_by: { id: asc }
+    limit: 80
+  ) {
+    id
+    ip_id
+    port_number
+    protocol
+    state
+    service_name
+    service_version
+  }
+  ports_aggregate: core_port_aggregate(where: { core_ip: { target_id: { _eq: $targetId } } }) {
+    aggregate {
+      count
+    }
+  }
+
+  urls: core_urlresult(
+    where: { target_id: { _eq: $targetId } }
+    order_by: { id: asc }
+    limit: 60
+  ) {
+    id
+    target_id
+    url
+    method
+    status_code
+    title
+    content_fetch_status
+    is_important
+    core_urlresult_related_subdomains(order_by: { subdomain_id: asc }, limit: 3) {
+      subdomain_id
+    }
+  }
+  urls_aggregate: core_urlresult_aggregate(where: { target_id: { _eq: $targetId } }) {
+    aggregate {
+      count
+    }
+  }
+
+  asset_edges: core_assetedge(
+    where: { target_id: { _eq: $targetId } }
+    order_by: { id: asc }
+    limit: 200
+  ) {
+    id
+    target_id
+    from_asset_type
+    from_ip_id
+    from_subdomain_id
+    from_url_id
+    from_port_id
+    to_asset_type
+    to_ip_id
+    to_subdomain_id
+    to_url_id
+    to_port_id
+    edge_type
+  }
+  asset_edges_aggregate: core_assetedge_aggregate(where: { target_id: { _eq: $targetId } }) {
+    aggregate {
+      count
+    }
+  }
+
+  actions: core_action(
+    where: { target_id: { _eq: $targetId } }
+    order_by: { id: asc }
+    limit: 100
+  ) {
+    id
+    target_id
+    plan_id
+    purpose_text
+    status
+    result_summary
+    order
+    core_attackplan {
+      id
+      target_id
+      objective
+      status
+    }
+  }
+  actions_aggregate: core_action_aggregate(where: { target_id: { _eq: $targetId } }) {
+    aggregate {
+      count
+    }
+  }
+
+  action_asset_links: core_action_asset_links(
+    where: { core_action: { target_id: { _eq: $targetId } } }
+    order_by: { id: asc }
+    limit: 200
+  ) {
+    id
+    action_id
+    assetvectorlink_id
+    core_assetvectorlink {
+      id
+      asset_type
+      status
+      ip_asset_id
+      subdomain_asset_id
+      url_asset_id
+      port_asset_id
+    }
+  }
+  action_asset_links_aggregate: core_action_asset_links_aggregate(
+    where: { core_action: { target_id: { _eq: $targetId } } }
+  ) {
+    aggregate {
+      count
+    }
+  }
+
+  asset_locks: core_assetlock(
+    where: { target_id: { _eq: $targetId }, lock_status: { _eq: "HELD" } }
+    order_by: { id: asc }
+    limit: 20
+  ) {
+    id
+    target_id
+    asset_type
+    ip_asset_id
+    subdomain_asset_id
+    url_asset_id
+    port_asset_id
+    lock_status
+    agent_role
+    acquired_at
+  }
+  asset_locks_aggregate: core_assetlock_aggregate(
+    where: { target_id: { _eq: $targetId }, lock_status: { _eq: "HELD" } }
+  ) {
+    aggregate {
+      count
+    }
+  }
+}

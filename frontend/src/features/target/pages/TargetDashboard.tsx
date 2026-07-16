@@ -18,6 +18,7 @@ import SeedsTabContent from '../components/SeedsTabContent';
 import SubdomainsTabContent from '../components/SubdomainsTabContent';
 import IPsTabContent from '../components/IPsTabContent';
 import URLsTabContent from '../components/URLsTabContent';
+import { AssetMapTabContent } from '../components/AssetMapTabContent';
 import AIOverviewTabContent from '../components/AIOverviewTabContent';
 import { TargetExecutionsPanel } from '../components/TargetExecutionsPanel';
 import { TargetFindingsPanel } from '../components/TargetFindingsPanel';
@@ -106,7 +107,7 @@ interface IPRaw {
 }
 
 type TabId = "overview" | "assets" | "attack-plans" | "findings" | "executions" | "ai-activity" | "settings";
-type AssetTabId = "seeds" | "subdomains" | "ips" | "urls" | "cve";
+type AssetTabId = "seeds" | "subdomains" | "ips" | "urls" | "cve" | "asset-map";
 type SubSortKey = "created_at_desc" | "created_at_asc" | "name_asc" | "name_desc";
 type IPSortKey = "id_desc" | "address_asc" | "address_desc";
 type URLSortKey = "created_at_desc" | "created_at_asc" | "status_code_asc" | "preliminary_score_desc" | "preliminary_score_asc";
@@ -424,7 +425,9 @@ function TargetDashboard() {
 
   const handleTabChange = (tab: TabId) => {
     setActiveTab(tab);
-    setSearchParams({ tab });
+    const nextSearchParams = new URLSearchParams(searchParams);
+    nextSearchParams.set("tab", tab);
+    setSearchParams(nextSearchParams);
     if (tab === "assets" && activeAssetTab === "subdomains") {
       setSubPage(0);
     } else if (tab === "assets" && activeAssetTab === "ips") {
@@ -475,19 +478,21 @@ function TargetDashboard() {
         </TabsContent>
 
         <TabsContent value="assets" className="mt-6 rounded-2xl border border-border-subtle bg-bg-card p-5">
-          <Tabs value={activeAssetTab} onValueChange={(value) => { if (value === "seeds" || value === "subdomains" || value === "ips" || value === "urls" || value === "cve") handleAssetTabChange(value); }}>
+          <Tabs value={activeAssetTab} onValueChange={(value) => { if (value === "seeds" || value === "subdomains" || value === "ips" || value === "urls" || value === "cve" || value === "asset-map") handleAssetTabChange(value); }}>
             <TabsList variant="line" aria-label="Asset categories" className="h-auto w-full justify-start overflow-x-auto rounded-xl bg-bg-surface p-2">
               <TabsTrigger value="seeds" className="flex-none">Seeds ({seeds.length})</TabsTrigger>
               <TabsTrigger value="subdomains" className="flex-none">Subdomains</TabsTrigger>
               <TabsTrigger value="ips" className="flex-none">IPs / Ports</TabsTrigger>
               <TabsTrigger value="urls" className="flex-none">URLs</TabsTrigger>
               <TabsTrigger value="cve" className="flex-none">CVE Report</TabsTrigger>
+              <TabsTrigger value="asset-map" className="flex-none">Asset Map</TabsTrigger>
             </TabsList>
             <TabsContent value="seeds" className="mt-5"><SeedsTabContent targetId={numericId} seeds={seeds} onRefresh={fetchBase} /></TabsContent>
             <TabsContent value="subdomains" className="mt-5"><SubdomainsTabContent targetId={numericId} subdomains={subdomains} tabLoading={tabLoading} subTotalCount={subTotalCount} subSortBy={subSortBy} subSearch={subSearch} subFilterCdn={subFilterCdn} subFilterWaf={subFilterWaf} subPage={subPage} pageSize={SUB_PAGE_SIZE} onFetch={fetchSubdomains} onSortChange={setSubSortBy} onSearchChange={setSubSearch} onFilterCdnChange={setSubFilterCdn} onFilterWafChange={setSubFilterWaf} /></TabsContent>
             <TabsContent value="ips" className="mt-5"><IPsTabContent ips={ips} tabLoading={tabLoading} ipTotalCount={ipTotalCount} ipSortBy={ipSortBy} ipPortFilter={ipPortFilter} ipPage={ipPage} pageSize={IP_PAGE_SIZE} onFetch={fetchIPs} onSortChange={setIpSortBy} onPortFilterChange={setIpPortFilter} /></TabsContent>
             <TabsContent value="urls" className="mt-5"><URLsTabContent targetId={numericId} urls={urls} tabLoading={tabLoading} urlsTotalCount={urlsTotalCount} urlsSortBy={urlsSortBy} urlSearch={urlSearch} urlStatusFilter={urlStatusFilter} urlsOffset={urlsOffset} pageSize={URLS_PAGE_SIZE} onFetch={fetchURLs} onSortChange={setUrlsSortBy} onSearchChange={setUrlSearch} onStatusFilterChange={setUrlStatusFilter} /></TabsContent>
             <TabsContent value="cve" className="mt-5"><TechStackCVEReport targetId={numericId} /></TabsContent>
+            <TabsContent value="asset-map" className="mt-5"><AssetMapTabContent targetId={numericId} /></TabsContent>
           </Tabs>
         </TabsContent>
 

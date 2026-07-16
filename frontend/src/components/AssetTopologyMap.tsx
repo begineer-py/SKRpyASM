@@ -20,42 +20,39 @@ import {
 import '@xyflow/react/dist/style.css';
 import { cn } from '@/lib/utils';
 
-import type { TargetTopology, TopologyNode } from '../services/executionApi';
+import type { AssetMapEdge, AssetMapGraph, AssetMapNode } from '../features/target/assetMap/types';
 import { layoutWithDagre } from '../utils/graphLayout';
 
 interface AssetTopologyMapProps {
-  topology: TargetTopology | null;
-  onSelectNode?: (node: TopologyNode) => void;
+  graph: AssetMapGraph | null;
+  onSelectNode?: (node: AssetMapNode) => void;
   selectedNodeId?: string | null;
 }
 
-const TYPE_COLOR: Record<string, string> = {
-  target: '#a78bfa',
-  seed: '#60a5fa',
-  subdomain: '#34d399',
-  ip: '#fbbf24',
-  url: '#94a3b8',
-  vulnerability: '#ef4444',
-  port: '#f59e0b',
-  endpoint: '#8b5cf6',
-  dnsrecord: '#06b6d4',
-  techstack: '#10b981',
-  attackvector: '#ec4899',
-};
+const TYPE_TONE = {
+  attackvector: 'purple',
+  dnsrecord: 'cyan',
+  endpoint: 'blue',
+  ip: 'amber',
+  port: 'amber',
+  seed: 'blue',
+  subdomain: 'green',
+  target: 'purple',
+  techstack: 'green',
+  url: 'cyan',
+  vulnerability: 'red',
+} as const;
 
-const TYPE_ICON: Record<string, string> = {
-  target: '🎯',
-  seed: '🌱',
-  subdomain: '🌐',
-  ip: '🖥',
-  url: '🔗',
-  vulnerability: '⚠️',
-  port: '🔌',
-  endpoint: '🔗',
-  dnsrecord: '📋',
-  techstack: '📊',
-  attackvector: '🎯',
-};
+type TopologyTone = (typeof TYPE_TONE)[keyof typeof TYPE_TONE];
+
+const TONE_VARIABLE = {
+  amber: 'var(--amber)',
+  blue: 'var(--blue)',
+  cyan: 'var(--cyan)',
+  green: 'var(--green)',
+  purple: 'var(--purple)',
+  red: 'var(--red)',
+} as const satisfies Record<TopologyTone, string>;
 
 /** Prefer rank for similar asset layers when dagre lays out. */
 const TYPE_RANK: Record<string, number> = {
@@ -75,10 +72,9 @@ const TYPE_RANK: Record<string, number> = {
 type AssetNodeData = {
   label: string;
   assetType: string;
-  color: string;
-  icon: string;
+  tone: TopologyTone;
   isActiveAttack: boolean;
-  topologyNode: TopologyNode;
+  assetNode: AssetMapNode;
 };
 
 type AssetFlowNode = Node<AssetNodeData, 'asset'>;
@@ -88,37 +84,33 @@ const AssetNode = memo(function AssetNode({ data, selected }: NodeProps<AssetFlo
   return (
     <div
       className={cn(
-        'flex items-center gap-2 min-w-[148px] max-w-[180px] px-2.5 py-2 rounded-[10px] border-[1.5px] border-[#475569] bg-gradient-to-b from-[#0f172a] to-[#0b1220] shadow-[0_2px_8px_rgba(0,0,0,0.35)] relative font-[Inter,system-ui,sans-serif]',
-        selected && 'shadow-[0_0_0_2px_rgba(34,197,94,0.45),0_4px_14px_rgba(0,0,0,0.4)] bg-[#111827]',
-        data.isActiveAttack && 'animate-[attackPulse_1.4s_ease-in-out_infinite]',
+        'asset-topology-node',
+        `asset-topology-node--${data.tone}`,
+        selected && 'asset-topology-node--selected',
+        data.isActiveAttack && 'asset-topology-node--active',
       )}
-      style={{ borderColor: data.color, ['--atm-color' as string]: data.color }}
     >
       <Handle
         type="target"
         position={Position.Top}
-        className="!w-1.5 !h-1.5 !bg-[#334155] !border !border-[#64748b] opacity-70"
+        className="asset-topology-node__handle"
       />
       {data.isActiveAttack && (
-        <span className="absolute -top-2 -right-1.5 text-[11px] leading-none [filter:drop-shadow(0_0_4px_rgba(244,114,182,0.7))]" title="Active AI attack">
-          🤖
-        </span>
+        <span className="asset-topology-node__active-marker" title="Active operation">Active operation</span>
       )}
-      <span className="text-sm leading-none shrink-0" aria-hidden>
-        {data.icon}
-      </span>
-      <div className="flex flex-col gap-0.5 min-w-0">
-        <span className="text-[9px] uppercase tracking-[0.04em] text-[var(--atm-color,#94a3b8)] font-semibold">
+      <span className="asset-topology-node__marker" aria-hidden />
+      <div className="asset-topology-node__content">
+        <span className="asset-topology-node__type">
           {data.assetType}
         </span>
-        <span className="text-[11px] text-[#e2e8f0] whitespace-nowrap overflow-hidden text-ellipsis font-['Fira_Code',ui-monospace,monospace]" title={data.label}>
+        <span className="asset-topology-node__label" title={data.label}>
           {data.label.length > 22 ? `${data.label.slice(0, 20)}…` : data.label}
         </span>
       </div>
       <Handle
         type="source"
         position={Position.Bottom}
-        className="!w-1.5 !h-1.5 !bg-[#334155] !border !border-[#64748b] opacity-70"
+        className="asset-topology-node__handle"
       />
     </div>
   );
@@ -126,49 +118,86 @@ const AssetNode = memo(function AssetNode({ data, selected }: NodeProps<AssetFlo
 
 const nodeTypes = { asset: AssetNode };
 
-function buildGraph(topology: TargetTopology): {
+function displayType(node: AssetMapNode): string {
+  const legacyType = node.metadata.attributes.legacyType;
+  return typeof legacyType === 'string' ? legacyType : node.kind;
+}
+
+function topologyTone(assetType: string): TopologyTone {
+  switch (assetType) {
+    case 'attackvector': return 'purple';
+    case 'dnsrecord': return 'cyan';
+    case 'endpoint': return 'blue';
+    case 'ip': return 'amber';
+    case 'port': return 'amber';
+    case 'seed': return 'blue';
+    case 'subdomain': return 'green';
+    case 'target': return 'purple';
+    case 'techstack': return 'green';
+    case 'url': return 'cyan';
+    case 'vulnerability': return 'red';
+    default: return 'cyan';
+  }
+}
+
+function deduplicateDisplayEdges(edges: readonly AssetMapEdge[]): AssetMapEdge[] {
+  const edgeIds = new Set<string>();
+
+  return edges.filter((edge) => {
+    if (edgeIds.has(edge.id)) return false;
+    edgeIds.add(edge.id);
+    return true;
+  });
+}
+
+function isAssetNodeData(data: unknown): data is AssetNodeData {
+  return typeof data === 'object' && data !== null && 'tone' in data && typeof data.tone === 'string';
+}
+
+function assetFlowNodeColor(node: Node): string {
+  return isAssetNodeData(node.data) ? TONE_VARIABLE[node.data.tone] : 'var(--text-muted)';
+}
+
+function buildGraph(graphNodes: readonly AssetMapNode[], edges: readonly AssetMapEdge[]): {
   nodes: AssetFlowNode[];
   edges: AssetFlowEdge[];
 } {
   // Sort by preferred rank so dagre tends to stack layers predictably
-  const sorted = [...topology.nodes].sort(
-    (a, b) => (TYPE_RANK[a.type] ?? 2) - (TYPE_RANK[b.type] ?? 2),
+  const sorted = [...graphNodes].sort(
+    (a, b) => (TYPE_RANK[displayType(a)] ?? 2) - (TYPE_RANK[displayType(b)] ?? 2),
   );
 
   const nodes: AssetFlowNode[] = sorted.map((n) => {
-    const color = TYPE_COLOR[n.type] || '#94a3b8';
+    const assetType = displayType(n);
+    const tone = topologyTone(assetType);
     return {
       id: n.id,
       type: 'asset',
       position: { x: 0, y: 0 },
       data: {
         label: n.label,
-        assetType: n.type,
-        color,
-        icon: TYPE_ICON[n.type] || '●',
-        isActiveAttack: Boolean(n.is_active_attack),
-        topologyNode: n,
+        assetType,
+        tone,
+        isActiveAttack: n.metadata.isActive,
+        assetNode: n,
       },
       width: 168,
       height: 52,
     };
   });
 
-  const edges: AssetFlowEdge[] = topology.edges.map((e) => ({
+  const flowEdges: AssetFlowEdge[] = edges.map((e) => ({
     id: e.id,
     source: e.source,
     target: e.target,
     type: 'smoothstep',
-    label: e.edge_type || undefined,
-    markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14, color: '#475569' },
-    data: { edgeType: e.edge_type },
-    style: { stroke: '#334155', strokeWidth: 1.4 },
-    labelStyle: { fill: '#64748b', fontSize: 9 },
-    labelBgStyle: { fill: '#0b1220', fillOpacity: 0.85 },
-    labelBgPadding: [4, 2] as [number, number],
+    label: e.label ?? undefined,
+    markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 },
+    data: { edgeType: e.kind },
+    labelBgPadding: [4, 2],
   }));
 
-  const laidOut = layoutWithDagre(nodes, edges, {
+  const laidOut = layoutWithDagre(nodes, flowEdges, {
     direction: 'TB',
     nodeWidth: 168,
     nodeHeight: 52,
@@ -176,20 +205,22 @@ function buildGraph(topology: TargetTopology): {
     ranksep: 70,
   });
 
-  return { nodes: laidOut, edges };
+  return { nodes: laidOut, edges: flowEdges };
 }
 
 function TopologyFlowInner({
-  topology,
+  graph,
+  displayEdges,
   onSelectNode,
   selectedNodeId,
 }: {
-  topology: TargetTopology;
-  onSelectNode?: (node: TopologyNode) => void;
+  graph: AssetMapGraph;
+  displayEdges: readonly AssetMapEdge[];
+  onSelectNode?: (node: AssetMapNode) => void;
   selectedNodeId?: string | null;
 }) {
   const { fitView } = useReactFlow();
-  const built = useMemo(() => buildGraph(topology), [topology]);
+  const built = useMemo(() => buildGraph(graph.nodes, displayEdges), [graph.nodes, displayEdges]);
   const [nodes, setNodes, onNodesChange] = useNodesState(built.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(built.edges);
 
@@ -214,10 +245,9 @@ function TopologyFlowInner({
     );
   }, [selectedNodeId, setNodes]);
 
-  const onNodeClick: NodeMouseHandler = useCallback(
+  const onNodeClick: NodeMouseHandler<AssetFlowNode> = useCallback(
     (_evt, node) => {
-      const data = node.data as AssetNodeData;
-      if (data?.topologyNode) onSelectNode?.(data.topologyNode);
+      onSelectNode?.(node.data.assetNode);
     },
     [onSelectNode],
   );
@@ -241,17 +271,17 @@ function TopologyFlowInner({
       panOnScroll
       zoomOnScroll
       colorMode="dark"
-      className="bg-[#0b1220]"
+      className="asset-topology-map__flow"
     >
-      <Background variant={BackgroundVariant.Dots} gap={18} size={1} color="#1e293b" />
+      <Background variant={BackgroundVariant.Dots} gap={18} size={1} color="var(--border-subtle)" />
       <Controls
         showInteractive={false}
-        className="!bg-[#0f172a] !border !border-[#1e293b] !rounded-lg !shadow-none [&_button]:!bg-[#0f172a] [&_button]:!border-b-[#1e293b] [&_button]:!fill-[#94a3b8] [&_button:hover]:!bg-[#1e293b]"
+        className="asset-topology-map__controls"
       />
       <MiniMap
-        className="!bg-[#0f172a] !border !border-[#1e293b] !rounded-lg"
-        nodeColor={(n) => (n.data as AssetNodeData)?.color || '#475569'}
-        maskColor="rgba(15, 23, 42, 0.75)"
+        className="asset-topology-map__minimap"
+        nodeColor={assetFlowNodeColor}
+        maskColor="var(--bg-card)"
         pannable
         zoomable
       />
@@ -259,50 +289,52 @@ function TopologyFlowInner({
   );
 }
 
-export function AssetTopologyMap({ topology, onSelectNode, selectedNodeId }: AssetTopologyMapProps) {
-  if (!topology) {
-    return <div className="px-3 py-7 text-center text-[#64748b] text-[0.78rem]">Select a target-bound thread to view topology</div>;
+export function AssetTopologyMap({ graph, onSelectNode, selectedNodeId }: AssetTopologyMapProps) {
+  if (!graph) {
+    return <div className="asset-topology-map__empty">Select a target-bound thread to view topology</div>;
   }
 
-  if (topology.nodes.length === 0) {
-    return <div className="px-3 py-7 text-center text-[#64748b] text-[0.78rem]">No assets for {topology.target_name}</div>;
+  if (graph.nodes.length === 0) {
+    return <div className="asset-topology-map__empty">No assets to display</div>;
   }
+
+  const displayEdges = deduplicateDisplayEdges(graph.edges);
+  const target = graph.nodes.find((node) => node.id === graph.targetId);
+  const activeNodeCount = graph.nodes.filter((node) => node.metadata.isActive).length;
 
   return (
-    <>
-      <style>{`@keyframes attackPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(244, 114, 182, 0.15); } 50% { box-shadow: 0 0 0 6px rgba(244, 114, 182, 0.28); } }`}</style>
       <div
-        className="bg-[#0b1220] border border-[#1e293b] rounded-[10px] overflow-hidden flex flex-col [&_.react-flow__edge-textbg]:fill-[#0b1220] [&_.react-flow__edge-text]:fill-[#64748b]"
+        className="asset-topology-map"
         data-testid="asset-topology-map"
       >
-      <div className="flex justify-between items-center px-3 py-2 border-b border-[#1e293b] gap-2 shrink-0">
-        <span className="text-[0.75rem] font-semibold text-[#e2e8f0]">Topology · {topology.target_name}</span>
-        <span className="text-[0.68rem] text-[#64748b]">
-          {topology.nodes.length} nodes · {topology.edges.length} edges
-          {topology.active_attacks?.length
-            ? ` · 🤖 ${topology.active_attacks.length} active`
+      <div className="asset-topology-map__header">
+        <span className="asset-topology-map__title">Topology · {target?.label ?? graph.targetId}</span>
+        <span className="asset-topology-map__summary">
+          {graph.nodes.length} nodes · {displayEdges.length} edges
+          {activeNodeCount > 0
+            ? ` · ${activeNodeCount} active`
             : ''}
         </span>
       </div>
       <div className="w-full h-[360px] min-h-[280px]">
         <ReactFlowProvider>
           <TopologyFlowInner
-            topology={topology}
+            graph={graph}
+            displayEdges={displayEdges}
             onSelectNode={onSelectNode}
             selectedNodeId={selectedNodeId}
           />
         </ReactFlowProvider>
       </div>
-      <div className="flex flex-wrap gap-x-3 gap-y-2 px-3 py-1.5 pb-2.5 border-t border-[#1e293b] shrink-0">
-        {Object.entries(TYPE_COLOR).map(([type, color]) => (
-          <span key={type} className="inline-flex items-center gap-1 text-[0.65rem] text-[#64748b] capitalize">
-            <i className="w-2 h-2 rounded-full inline-block" style={{ background: color }} />
+      <div className="asset-topology-map__legend">
+        {Object.entries(TYPE_TONE).map(([type, tone]) => (
+          <span key={type} className={`asset-topology-map__legend-item asset-topology-map__legend-item--${tone}`}>
+            <i className="asset-topology-map__legend-marker" />
             {type}
           </span>
         ))}
       </div>
       </div>
-    </>
   );
 }
 

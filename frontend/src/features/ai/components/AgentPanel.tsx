@@ -1,5 +1,6 @@
-import { useCallback, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
+import { useCallback, useMemo, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
 import type { AgentInteractionTree, TargetTopology, TopologyNode } from '../services/aiApi';
+import { adaptLegacyTopology } from '../legacyTopologyAdapter';
 import AgentInteractionTimeline from '../../../components/AgentInteractionTimeline';
 import AssetTopologyMap from '../../../components/AssetTopologyMap';
 import AssetDetailPanel from '../../../components/AssetDetailPanel';
@@ -66,6 +67,16 @@ export function AgentPanel({
     document.getElementById(`ai-agent-tab-${TABS[nextTab].key}`)?.focus();
   }, [onTabChange]);
 
+  const adaptedTopology = useMemo(
+    () => (topology === null ? null : adaptLegacyTopology(topology)),
+    [topology],
+  );
+  const selectedGraphNodeId = selectedTopoNode === null
+    ? null
+    : adaptedTopology?.graphNodeIdsByLegacyId.get(selectedTopoNode.id) ?? null;
+
+  if (!showTree) return null;
+
   return (
     <Drawer open={showTree} onOpenChange={(open) => {
       if (!open) {
@@ -91,91 +102,94 @@ export function AgentPanel({
           <DrawerDismiss />
         </DrawerHeader>
 
-      <div className="agent-panel-tabs mt-6" role="tablist" aria-label="Agent context views">
-        {TABS.map(({ key, label }, index) => (
-          <button
-            key={key}
-            id={`ai-agent-tab-${key}`}
-            type="button"
-            role="tab"
-            className={`agent-panel-tab ${agentPanelTab === key ? 'active' : ''}`}
-            onClick={() => onTabChange(key)}
-            onKeyDown={(event) => onTabKeyDown(event, index)}
-            aria-controls={`ai-agent-panel-${key}`}
-            aria-selected={agentPanelTab === key}
-            tabIndex={agentPanelTab === key ? 0 : -1}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+        <div className="agent-panel-tabs mt-6" role="tablist" aria-label="Agent context views">
+          {TABS.map(({ key, label }, index) => (
+            <button
+              key={key}
+              id={`ai-agent-tab-${key}`}
+              type="button"
+              role="tab"
+              className={`agent-panel-tab ${agentPanelTab === key ? 'active' : ''}`}
+              onClick={() => onTabChange(key)}
+              onKeyDown={(event) => onTabKeyDown(event, index)}
+              aria-controls={`ai-agent-panel-${key}`}
+              aria-selected={agentPanelTab === key}
+              tabIndex={agentPanelTab === key ? 0 : -1}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
 
-      <div
-        id={`ai-agent-panel-${agentPanelTab}`}
-        className="tree-body mt-4"
-        role="tabpanel"
-        aria-labelledby={`ai-agent-tab-${agentPanelTab}`}
-      >
-        {agentPanelTab === 'tree' && (
-          <>
-            {agentTree.length === 0 && (
-              <div className="tree-empty">No sub-agents yet</div>
-            )}
-            {rootNode && (
-              <TreeNodeItem
-                node={rootNode}
-                depth={0}
-                allNodes={agentTree}
-                activeNodeThreadId={activeNodeThreadId}
-                onSelect={onSelectTreeNode}
-              />
-            )}
-          </>
-        )}
+        <div
+          id={`ai-agent-panel-${agentPanelTab}`}
+          className="tree-body mt-4"
+          role="tabpanel"
+          aria-labelledby={`ai-agent-tab-${agentPanelTab}`}
+        >
+          {agentPanelTab === 'tree' && (
+            <>
+              {agentTree.length === 0 && (
+                <div className="tree-empty">No sub-agents yet</div>
+              )}
+              {rootNode && (
+                <TreeNodeItem
+                  node={rootNode}
+                  depth={0}
+                  allNodes={agentTree}
+                  activeNodeThreadId={activeNodeThreadId}
+                  onSelect={onSelectTreeNode}
+                />
+              )}
+            </>
+          )}
 
-        {agentPanelTab === 'interaction' && (
-          <AgentInteractionTimeline
-            tree={dispatchTree}
-            selectedThreadId={activeNodeThreadId ? Number(activeNodeThreadId) : null}
-            onSelectNode={(n) => {
-              if (!n.thread_id) return;
-              onSelectTreeNode({
-                thread_id: n.thread_id,
-                thread_name: n.agent_id ?? `Thread ${n.thread_id}`,
-                assistant_id: n.agent_id ?? 'automation_agent',
-                is_hidden: true,
-                bound_target_id: boundTargetId,
-                parent_thread_id: null,
-                overview_id: null,
-                overview_status: null,
-                overview_risk_score: null,
-                target_name: null,
-                created_at: n.dispatched_at ?? '',
-              });
-              if (n.graph_id) {
-                onOpenGraph(n.graph_id);
-              }
-            }}
-          />
-        )}
-
-        {agentPanelTab === 'topology' && (
-          <div className="topology-panel-stack">
-            <AssetTopologyMap
-              topology={topology}
-              selectedNodeId={selectedTopoNode?.id ?? null}
-              onSelectNode={onSelectTopoNode}
+          {agentPanelTab === 'interaction' && (
+            <AgentInteractionTimeline
+              tree={dispatchTree}
+              selectedThreadId={activeNodeThreadId ? Number(activeNodeThreadId) : null}
+              onSelectNode={(n) => {
+                if (!n.thread_id) return;
+                onSelectTreeNode({
+                  thread_id: n.thread_id,
+                  thread_name: n.agent_id ?? `Thread ${n.thread_id}`,
+                  assistant_id: n.agent_id ?? 'automation_agent',
+                  is_hidden: true,
+                  bound_target_id: boundTargetId,
+                  parent_thread_id: null,
+                  overview_id: null,
+                  overview_status: null,
+                  overview_risk_score: null,
+                  target_name: null,
+                  created_at: n.dispatched_at ?? '',
+                });
+                if (n.graph_id) {
+                  onOpenGraph(n.graph_id);
+                }
+              }}
             />
-            {selectedTopoNode && (
-              <AssetDetailPanel
-                node={selectedTopoNode}
-                onClose={() => onSelectTopoNode(null)}
-                onOpenGraph={onOpenGraph}
+          )}
+
+          {agentPanelTab === 'topology' && (
+            <div className="topology-panel-stack">
+              <AssetTopologyMap
+                graph={adaptedTopology?.graph ?? null}
+                selectedNodeId={selectedGraphNodeId}
+                onSelectNode={(node) => {
+                  const legacyNode = adaptedTopology?.legacyNodesByGraphId.get(node.id);
+                  if (legacyNode !== undefined) onSelectTopoNode(legacyNode);
+                }}
               />
-            )}
-          </div>
-        )}
-      </div>
+              {selectedTopoNode && (
+                <AssetDetailPanel
+                  node={selectedTopoNode}
+                  onClose={() => onSelectTopoNode(null)}
+                  onOpenGraph={onOpenGraph}
+                />
+              )}
+            </div>
+          )}
+        </div>
       </DrawerContent>
     </Drawer>
   );
