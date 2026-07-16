@@ -175,11 +175,11 @@ services:
     build: *backend-build
     image: docker-django:fixed   # 使用含 docker CLI + 程式碼修復的固化映像
     container_name: c2_django
-    # Run as root for migrations and docker.sock access, then drop to appuser for uvicorn
+    # Run as root for migrations and docker.sock access
     command:
       - sh
       - -c
-      - python manage.py migrate --noinput && python manage.py setup_beat_schedules && exec gosu appuser uvicorn c2_core.asgi:application --host 0.0.0.0 --port 8000 --workers 4 --loop uvloop --http httptools
+      - python manage.py migrate --noinput && python manage.py setup_beat_schedules && exec uvicorn c2_core.asgi:application --host 0.0.0.0 --port 8000 --workers 4 --loop uvloop --http httptools
     ports:
       - "127.0.0.1:8000:8000"
     env_file:
@@ -204,7 +204,7 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ../c2_core/logs:/app/c2_core/logs
+      - c2_logs:/app/c2_core/logs
       - /var/run/docker.sock:/var/run/docker.sock  # 讓 django 也能呼叫 host daemon（httpx 等工具）
     restart: unless-stopped
     healthcheck:
@@ -246,7 +246,7 @@ services:
       django:
         condition: service_healthy
     volumes:
-      - ../c2_core/logs:/app/c2_core/logs
+      - c2_logs:/app/c2_core/logs
       - /var/run/docker.sock:/var/run/docker.sock
       - /tmp/c2_sandbox_scripts:/scripthub
     restart: unless-stopped
@@ -288,7 +288,7 @@ services:
       django:
         condition: service_healthy
     volumes:
-      - ../c2_core/logs:/app/c2_core/logs
+      - c2_logs:/app/c2_core/logs
     restart: unless-stopped
     networks:
       - c2_network
@@ -296,6 +296,7 @@ services:
 volumes:
   postgres_data:
   nocodb_data: # 新增 NocoDB 持久化卷
+  c2_logs:
 
 networks:
   c2_network:

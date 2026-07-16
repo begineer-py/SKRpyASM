@@ -69,7 +69,8 @@ RUN mkdir -p /app/c2_core/logs
 
 # Create non-root user for security
 RUN groupadd -r appuser && useradd -r -g appuser appuser \
-    && chown -R appuser:appuser /app /usr/local/bin/subfinder /usr/local/bin/nuclei /usr/local/bin/katana
+    && chown -R appuser:appuser /app /usr/local/bin/subfinder /usr/local/bin/nuclei /usr/local/bin/katana \
+    && chmod 777 /app/c2_core/logs
 
 # Switch to non-root user
 USER appuser
