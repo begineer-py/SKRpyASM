@@ -86,7 +86,7 @@ Wave 2: Styles + tests (2 todos - parallel)
   QA scenarios: Fullscreen on 1920x1080 and 1366x768; Evidence .omo/evidence/task-3-asset-map-fullscreen.json
   Commit: Y | style(asset-map): add fullscreen modal viewport styles
 
-- [ ] 4. Extend AssetTopologyMap.spec.tsx for fullscreen functionality
+- [x] 4. Extend AssetTopologyMap.spec.tsx for fullscreen functionality
   What to do / Must NOT do: Add tests for fullscreen toggle, dialog render, fitView call, selection sync. Use existing test patterns.
   Parallelization: Wave 2 | Blocked by: 2, 3 | Blocks: 5
   References: frontend/src/components/AssetTopologyMap.spec.tsx (existing tests), frontend/src/features/target/components/AssetMapTabContent.spec.tsx:82 (truncatedGraph fixture)
