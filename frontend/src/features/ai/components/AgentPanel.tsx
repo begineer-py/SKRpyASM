@@ -1,14 +1,22 @@
-import type { ReactNode } from 'react';
+import { useCallback, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
 import type { AgentInteractionTree, TargetTopology, TopologyNode } from '../services/aiApi';
 import AgentInteractionTimeline from '../../../components/AgentInteractionTimeline';
 import AssetTopologyMap from '../../../components/AssetTopologyMap';
 import AssetDetailPanel from '../../../components/AssetDetailPanel';
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerDismiss,
+  DrawerHeader,
+  DrawerTitle,
+} from '../../../components/ui/drawer';
 import { TreeNodeItem, type TreeNode } from './TreePanel';
 
 interface AgentPanelProps {
   showTree: boolean;
   onClose: () => void;
-  treeConnected: boolean;
+  triggerRef: RefObject<HTMLButtonElement | null>;
   agentPanelTab: 'tree' | 'interaction' | 'topology';
   onTabChange: (tab: 'tree' | 'interaction' | 'topology') => void;
   agentTree: TreeNode[];
@@ -18,7 +26,6 @@ interface AgentPanelProps {
   dispatchTree: AgentInteractionTree | null;
   boundTargetId: number | null;
   onOpenGraph: (graphId: number) => void;
-  onOpenLogsPanel: () => void;
   topology: TargetTopology | null;
   selectedTopoNode: TopologyNode | null;
   onSelectTopoNode: (node: TopologyNode | null) => void;
@@ -33,7 +40,7 @@ const TABS: { key: 'tree' | 'interaction' | 'topology'; label: string }[] = [
 export function AgentPanel({
   showTree,
   onClose,
-  treeConnected,
+  triggerRef,
   agentPanelTab,
   onTabChange,
   agentTree,
@@ -43,40 +50,72 @@ export function AgentPanel({
   dispatchTree,
   boundTargetId,
   onOpenGraph,
-  onOpenLogsPanel,
   topology,
   selectedTopoNode,
   onSelectTopoNode,
 }: AgentPanelProps): ReactNode {
-  if (!showTree) return null;
+  const onTabKeyDown = useCallback((event: KeyboardEvent<HTMLButtonElement>, currentTab: number) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const nextTab = event.key === 'Home'
+      ? 0
+      : event.key === 'End'
+        ? TABS.length - 1
+        : (currentTab + (event.key === 'ArrowRight' ? 1 : -1) + TABS.length) % TABS.length;
+    onTabChange(TABS[nextTab].key);
+    document.getElementById(`ai-agent-tab-${TABS[nextTab].key}`)?.focus();
+  }, [onTabChange]);
 
   return (
-    <aside className="agent-tree-panel agent-tree-panel--wide">
-      <div className="tree-panel-header">
-        <h4>AGENTS</h4>
-        <div className="tree-panel-actions">
-          <span
-            className={`tree-live-dot ${treeConnected ? 'connected' : 'disconnected'}`}
-            title={treeConnected ? 'Live — auto-updating' : 'Disconnected'}
-          />
-          <button className="tree-action-btn" onClick={onClose} title="Close">✕</button>
-        </div>
-      </div>
+    <Drawer open={showTree} onOpenChange={(open) => {
+      if (!open) {
+        onClose();
+        window.requestAnimationFrame(() => triggerRef.current?.focus());
+      }
+    }}>
+      <DrawerContent
+        id="ai-agent-context-drawer"
+        aria-describedby="ai-agent-context-description"
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          triggerRef.current?.focus();
+        }}
+      >
+        <DrawerHeader>
+          <div>
+            <DrawerTitle>Agent context</DrawerTitle>
+            <DrawerDescription id="ai-agent-context-description">
+              Inspect delegated agents, their relationships, and target topology when needed.
+            </DrawerDescription>
+          </div>
+          <DrawerDismiss />
+        </DrawerHeader>
 
-      <div className="agent-panel-tabs">
-        {TABS.map(({ key, label }) => (
+      <div className="agent-panel-tabs mt-6" role="tablist" aria-label="Agent context views">
+        {TABS.map(({ key, label }, index) => (
           <button
             key={key}
+            id={`ai-agent-tab-${key}`}
             type="button"
+            role="tab"
             className={`agent-panel-tab ${agentPanelTab === key ? 'active' : ''}`}
             onClick={() => onTabChange(key)}
+            onKeyDown={(event) => onTabKeyDown(event, index)}
+            aria-controls={`ai-agent-panel-${key}`}
+            aria-selected={agentPanelTab === key}
+            tabIndex={agentPanelTab === key ? 0 : -1}
           >
             {label}
           </button>
         ))}
       </div>
 
-      <div className="tree-body">
+      <div
+        id={`ai-agent-panel-${agentPanelTab}`}
+        className="tree-body mt-4"
+        role="tabpanel"
+        aria-labelledby={`ai-agent-tab-${agentPanelTab}`}
+      >
         {agentPanelTab === 'tree' && (
           <>
             {agentTree.length === 0 && (
@@ -115,7 +154,6 @@ export function AgentPanel({
               });
               if (n.graph_id) {
                 onOpenGraph(n.graph_id);
-                onOpenLogsPanel();
               }
             }}
           />
@@ -132,15 +170,13 @@ export function AgentPanel({
               <AssetDetailPanel
                 node={selectedTopoNode}
                 onClose={() => onSelectTopoNode(null)}
-                onOpenGraph={(gid) => {
-                  onOpenGraph(gid);
-                  onOpenLogsPanel();
-                }}
+                onOpenGraph={onOpenGraph}
               />
             )}
           </div>
         )}
       </div>
-    </aside>
+      </DrawerContent>
+    </Drawer>
   );
 }

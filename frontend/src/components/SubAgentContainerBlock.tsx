@@ -1,7 +1,6 @@
 /* eslint-disable react-refresh/only-export-components -- view adapter and types are intentionally co-located with this UI contract. */
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import ExecutionTimelineViewer from './ExecutionTimelineViewer';
 import BlobPageViewer from './BlobPageViewer';
 import type { SubAgentDispatchItem } from '../services/executionApi';
 
@@ -72,15 +71,16 @@ export function SubAgentContainerBlock({ graph, onViewGraph, onViewThread }: Sub
   const [activeBlobPage, setActiveBlobPage] = useState<{ blobId: number; page: number } | null>(null);
   const statusKey = STATUS_CLASS[graph.status] || 'neutral';
   const instruction = graph.dispatch_instruction || '(no objective)';
+  const detailsId = `subagent-details-${graph.dispatch_id}`;
 
   return (
     <div className="mx-3 my-2.5 border border-[#334155] rounded-xl bg-gradient-to-br from-[rgba(30,41,59,0.9)] to-[rgba(15,23,42,0.95)] overflow-hidden shadow-[0_4px_16px_rgba(0,0,0,0.25)]" data-testid={`subagent-block-${graph.dispatch_id}`}>
-      <div
-        className="flex items-center gap-2 px-3 py-2.5 cursor-pointer select-none hover:bg-[rgba(51,65,85,0.35)]"
+      <button
+        type="button"
+        className="flex w-full items-center gap-2 border-0 bg-transparent px-3 py-2.5 text-left cursor-pointer select-none hover:bg-[rgba(51,65,85,0.35)]"
         onClick={() => setExpanded((v) => !v)}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setExpanded((v) => !v); }}
+        aria-expanded={expanded}
+        aria-controls={detailsId}
       >
         <span className="text-[0.72rem] font-semibold text-[#a78bfa]">🤖 AI Sub-agent</span>
         <span className="font-['Fira_Code',monospace] text-[0.72rem] text-[#e2e8f0] bg-[#1e293b] px-2 py-0.5 rounded-md">{graph.sub_agent_type}</span>
@@ -96,7 +96,7 @@ export function SubAgentContainerBlock({ graph, onViewGraph, onViewThread }: Sub
           </span>
         )}
         <span className="ml-auto text-[#64748b] text-[0.7rem]">{expanded ? '▲' : '▼'}</span>
-      </div>
+      </button>
 
       <div className="px-3 pb-2 [&_code]:block [&_code]:font-['Fira_Code',monospace] [&_code]:text-[0.72rem] [&_code]:text-[#94a3b8] [&_code]:bg-[#0f172a] [&_code]:border [&_code]:border-[#1e293b] [&_code]:rounded-md [&_code]:px-2 [&_code]:py-1.5 [&_code]:whitespace-pre-wrap [&_code]:break-words">
         <code>
@@ -110,7 +110,7 @@ export function SubAgentContainerBlock({ graph, onViewGraph, onViewThread }: Sub
       )}
 
       {expanded && (
-        <div className="border-t border-[#1e293b] px-3 py-2.5 flex flex-col gap-2.5">
+        <div id={detailsId} className="border-t border-[#1e293b] px-3 py-2.5 flex flex-col gap-2.5">
           {graph.content_blobs.length === 0 && (
             <div className="text-[0.75rem] text-[#64748b] text-center p-2">No ContentBlob artifacts yet</div>
           )}
@@ -147,11 +147,6 @@ export function SubAgentContainerBlock({ graph, onViewGraph, onViewThread }: Sub
             </div>
           ))}
 
-          {graph.graph_id != null && (
-            <div className="max-h-[280px] overflow-auto border border-[#1e293b] rounded-lg">
-              <ExecutionTimelineViewer graphId={graph.graph_id} compact autoScroll={false} />
-            </div>
-          )}
         </div>
       )}
 

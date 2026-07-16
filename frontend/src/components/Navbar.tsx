@@ -1,79 +1,175 @@
-import { useState } from 'react';
-import { Activity, Bot, BriefcaseBusiness, KeyRound, Menu, PanelLeftClose, PanelLeftOpen, Radar, ScanSearch, Settings2, ShieldAlert, Timer, X } from 'lucide-react';
-import { NavLink, useNavigate } from 'react-router-dom';
-//定義收起功能屬性
+import { useEffect, useState, type ComponentType } from 'react';
+import { Activity, Bot, BriefcaseBusiness, KeyRound, Menu, PanelLeftClose, PanelLeftOpen, Radar, ScanSearch, Settings2, ShieldAlert, Timer } from 'lucide-react';
+import { NavLink, useLocation } from 'react-router-dom';
+
+import { Drawer, DrawerContent, DrawerDescription, DrawerDismiss, DrawerHeader, DrawerTitle, DrawerTrigger } from './ui/drawer';
+
 interface NavbarProps {
-  collapsed: boolean;
-  onToggleCollapse: () => void;
+  readonly collapsed: boolean;
+  readonly onToggleCollapse: () => void;
+}
+
+interface NavigationItem {
+  readonly label: string;
+  readonly path: string;
+  readonly icon: ComponentType<{ readonly size?: number; readonly strokeWidth?: number; readonly 'aria-hidden'?: boolean }>;
+  readonly end?: boolean;
+}
+
+interface NavigationGroup {
+  readonly label: string;
+  readonly items: readonly NavigationItem[];
+}
+
+const navigationGroups = [
+  {
+    label: '作業',
+    items: [
+      { label: '目標', path: '/', icon: Radar, end: true },
+      { label: '執行監控', path: '/execution-monitor', icon: Activity },
+      { label: '排程', path: '/scheduler', icon: Timer },
+    ],
+  },
+  {
+    label: '分析',
+    items: [
+      { label: '漏洞', path: '/vulnerabilities', icon: ShieldAlert },
+      { label: 'CVE 情報', path: '/cve-intelligence', icon: ScanSearch },
+      { label: 'AI 工作台', path: '/aicenter', icon: Bot },
+      { label: '技能庫', path: '/skills', icon: BriefcaseBusiness },
+    ],
+  },
+] satisfies readonly NavigationGroup[];
+
+const settingsNavigation = [
+  { label: 'Agent 設定', path: '/agent-config', icon: Settings2 },
+  { label: 'API 金鑰', path: '/api-keys', icon: KeyRound },
+  { label: '請求政策', path: '/pentest-config', icon: Settings2 },
+] satisfies readonly NavigationItem[];
+
+const settingsPaths = settingsNavigation.map(({ path }) => path);
+
+function NavigationLink({ item, onNavigate }: { readonly item: NavigationItem; readonly onNavigate?: () => void }) {
+  const Icon = item.icon;
+  const location = useLocation();
+  const isActive = item.end
+    ? location.pathname === item.path
+    : location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
+
+  return (
+    <NavLink
+      to={item.path}
+      end={item.end}
+      className={`c2-navbar__link${isActive ? ' active' : ''}`}
+      aria-label={item.label}
+      aria-current={isActive ? 'page' : undefined}
+      data-tooltip={item.label}
+      title={item.label}
+      onClick={onNavigate}
+    >
+      <Icon size={18} strokeWidth={1.8} aria-hidden />
+      <span className="c2-navbar__link-label">{item.label}</span>
+    </NavLink>
+  );
+}
+
+function NavigationGroups({ onNavigate, includeSettings = false }: { readonly onNavigate?: () => void; readonly includeSettings?: boolean }) {
+  return (
+    <>
+      {navigationGroups.map((group) => (
+        <section className="c2-navbar__group" key={group.label} aria-label={group.label}>
+          <p className="c2-navbar__group-label">{group.label}</p>
+          {group.items.map((item) => <NavigationLink item={item} key={item.path} onNavigate={onNavigate} />)}
+        </section>
+      ))}
+      {includeSettings && (
+        <section className="c2-navbar__group" aria-label="系統">
+          <p className="c2-navbar__group-label">系統</p>
+          {settingsNavigation.map((item) => <NavigationLink item={item} key={item.path} onNavigate={onNavigate} />)}
+        </section>
+      )}
+    </>
+  );
 }
 
 function Navbar({ collapsed, onToggleCollapse }: NavbarProps) {
-  const navigate = useNavigate();
-  const [isOpen, setIsOpen] = useState(false);
+  const location = useLocation();
+  const [isMobileNavigationOpen, setIsMobileNavigationOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(() => settingsPaths.includes(location.pathname));
 
-  const linkClass = ({ isActive }: { isActive: boolean }) => `c2-navbar__link${isActive ? ' active' : ''}`;
-  const closeMenu = () => setIsOpen(false);
+  useEffect(() => {
+    if (settingsPaths.includes(location.pathname)) setIsSettingsOpen(true);
+  }, [location.pathname]);
 
   return (
-    <nav className={`c2-navbar${isOpen ? ' is-open' : ''}${collapsed ? ' is-collapsed' : ''}`}>
+    <>
+      <nav className={`c2-navbar${collapsed ? ' is-collapsed' : ''}`} aria-label="主要導覽">
       <div className="c2-navbar__topline">
-      <button
-        className="c2-navbar__logo bg-transparent border-none cursor-pointer p-0"
-        onClick={() => { navigate('/'); closeMenu(); }}
-      >
-        <span className="c2-navbar__mark">ASM</span>
-        <span className="c2-navbar__brand-copy"><strong>SKRpyASM</strong><small>surface intelligence</small></span>
-      </button>
-      <button
-        className="c2-navbar__collapse-toggle"
-        type="button"
-        onClick={onToggleCollapse}
-        aria-label={collapsed ? '展開導覽列' : '收合導覽列'}
-        title={collapsed ? '展開導覽列' : '收合導覽列'}
-      >
-        {collapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
-      </button>
-      <button className="c2-navbar__menu-toggle" type="button" aria-label={isOpen ? '關閉導覽列' : '開啟導覽列'} aria-expanded={isOpen} onClick={() => setIsOpen((value) => !value)}>
-        {isOpen ? <X size={18} /> : <Menu size={18} />}
-      </button>
+        <div className="c2-navbar__logo" aria-label="SKRpyASM">
+          <span className="c2-navbar__mark" aria-hidden>ASM</span>
+          <span className="c2-navbar__brand-copy"><strong>SKRpyASM</strong><small>surface intelligence</small></span>
+        </div>
+        <button
+          className="c2-navbar__collapse-toggle"
+          type="button"
+          onClick={onToggleCollapse}
+          aria-label={collapsed ? '展開導覽列' : '收合導覽列'}
+          title={collapsed ? '展開導覽列' : '收合導覽列'}
+        >
+          {collapsed ? <PanelLeftOpen size={18} aria-hidden /> : <PanelLeftClose size={18} aria-hidden />}
+        </button>
       </div>
 
-      <div className="c2-navbar__links" onClick={closeMenu}>
-        <div className="c2-navbar__group-label"><span>01</span> 作業</div>
-        <NavLink to="/" end className={linkClass} title="目標"><Radar size={16} strokeWidth={1.8} />
-          <span>目標</span>
-        </NavLink>
-        <NavLink to="/execution-monitor" className={linkClass} title="執行監控"><Activity size={16} strokeWidth={1.8} />
-          <span>執行監控</span>
-        </NavLink>
-        <NavLink to="/scheduler" className={linkClass} title="排程"><Timer size={16} strokeWidth={1.8} />
-          <span>排程</span>
-        </NavLink>
-        <div className="c2-navbar__group-label"><span>02</span> 分析</div>
-        <NavLink to="/vulnerabilities" className={linkClass} title="漏洞"><ShieldAlert size={16} strokeWidth={1.8} />
-          <span>漏洞</span>
-        </NavLink>
-        <NavLink to="/cve-intelligence" className={linkClass} title="CVE 情報"><ScanSearch size={16} strokeWidth={1.8} />
-          <span>CVE 情報</span>
-        </NavLink>
-        <NavLink to="/aicenter" className={linkClass} title="AI 工作台"><Bot size={16} strokeWidth={1.8} />
-          <span>AI 工作台</span>
-        </NavLink>
-        <NavLink to="/skills" className={linkClass} title="技能庫"><BriefcaseBusiness size={16} strokeWidth={1.8} />
-          <span>技能庫</span>
-        </NavLink>
-        <div className="c2-navbar__group-label"><span>03</span> 系統</div>
-        <NavLink to="/agent-config" className={linkClass} title="Agent 設定"><Settings2 size={16} strokeWidth={1.8} />
-          <span>Agent 設定</span>
-        </NavLink>
-        <NavLink to="/api-keys" className={linkClass} title="API 金鑰"><KeyRound size={16} strokeWidth={1.8} />
-          <span>API 金鑰</span>
-        </NavLink>
-        <NavLink to="/pentest-config" className={linkClass} title="請求政策"><Settings2 size={16} strokeWidth={1.8} />
-          <span>請求政策</span>
-        </NavLink>
+      <div className="c2-navbar__links">
+        <NavigationGroups />
       </div>
-    </nav>
+
+      <div className="c2-navbar__settings">
+        <button
+          className={`c2-navbar__settings-trigger${isSettingsOpen ? ' active' : ''}`}
+          type="button"
+          onClick={() => setIsSettingsOpen((value) => !value)}
+          aria-expanded={isSettingsOpen}
+          aria-controls="c2-system-navigation"
+          aria-label="系統設定"
+          data-tooltip="系統設定"
+          title="系統設定"
+        >
+          <Settings2 size={18} strokeWidth={1.8} aria-hidden />
+          <span className="c2-navbar__link-label">系統設定</span>
+        </button>
+        {isSettingsOpen && (
+          <div className="c2-navbar__settings-panel" id="c2-system-navigation">
+            {settingsNavigation.map((item) => <NavigationLink item={item} key={item.path} />)}
+          </div>
+        )}
+      </div>
+      </nav>
+
+      <Drawer open={isMobileNavigationOpen} onOpenChange={setIsMobileNavigationOpen}>
+        <header className="c2-mobile-nav">
+          <div className="c2-mobile-nav__brand" aria-label="SKRpyASM">
+            <span className="c2-navbar__mark" aria-hidden>ASM</span>
+            <strong>SKRpyASM</strong>
+          </div>
+          <DrawerTrigger className="c2-mobile-nav__trigger" aria-label="開啟導覽列" title="開啟導覽列">
+            <Menu size={20} aria-hidden />
+          </DrawerTrigger>
+        </header>
+        <DrawerContent className="c2-mobile-nav-drawer">
+          <DrawerHeader>
+            <div>
+              <DrawerTitle>導覽</DrawerTitle>
+              <DrawerDescription>選擇工作區或系統設定。</DrawerDescription>
+            </div>
+            <DrawerDismiss />
+          </DrawerHeader>
+          <nav className="c2-mobile-nav-drawer__links" aria-label="主要導覽">
+            <NavigationGroups includeSettings onNavigate={() => setIsMobileNavigationOpen(false)} />
+          </nav>
+        </DrawerContent>
+      </Drawer>
+    </>
   );
 }
 

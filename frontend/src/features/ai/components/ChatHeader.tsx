@@ -1,66 +1,71 @@
-import { Activity, Bot, ChevronDown, Eye, PanelLeftOpen, Radio } from 'lucide-react';
+import { Activity, Bot, Eye, PanelLeftOpen } from 'lucide-react';
+import type { RefObject } from 'react';
 
 interface ChatHeaderProps {
   label: string | null;
   graphCount: number;
-  showLogs: boolean;
   showEvents: boolean;
   showTree: boolean;
   treeAgentCount: number;
   hasTree: boolean;
-  onToggleLogs: () => void;
+  selectedGraphId: number | null;
+  onOpenGraph: (graphId: number) => void;
   onToggleEvents: () => void;
   onToggleTree: () => void;
+  agentTriggerRef: RefObject<HTMLButtonElement | null>;
+  eventsTriggerRef: RefObject<HTMLButtonElement | null>;
 }
 
 const ChatHeader: React.FC<ChatHeaderProps> = ({
   label,
   graphCount,
-  showLogs,
   showEvents,
   showTree,
   treeAgentCount,
   hasTree,
-  onToggleLogs,
+  selectedGraphId,
+  onOpenGraph,
   onToggleEvents,
   onToggleTree,
+  agentTriggerRef,
+  eventsTriggerRef,
 }) => {
   return (
     <header className="ai-chat-header">
       <div className="ai-chat-header__context">
         <span className="ai-chat-header__icon"><Bot size={17} /></span>
         <div>
-          <span className="ai-kicker">ACTIVE THREAD</span>
           <h2>{label || 'Untitled conversation'}</h2>
         </div>
-        <ChevronDown size={15} className="ai-chat-header__chevron" aria-hidden="true" />
       </div>
-      <div className="ai-chat-header__status"><Radio size={13} /><span>Live session</span></div>
       <div className="ai-chat-header__actions">
-        {graphCount > 0 && (
+        {graphCount > 0 && selectedGraphId != null && (
           <button
-            className={`ai-toolbar-button ${showLogs ? 'is-active' : ''}`}
-            onClick={onToggleLogs}
-            title="Toggle execution timeline"
-            aria-pressed={showLogs}
+            className="ai-toolbar-button"
+            onClick={() => onOpenGraph(selectedGraphId)}
+            title="Open execution monitor"
           >
             <Activity size={15} /> <span>{graphCount} graph{graphCount > 1 ? 's' : ''}</span>
           </button>
         )}
-        <button
-          className={`ai-toolbar-button ${showEvents ? 'is-active' : ''}`}
-          onClick={onToggleEvents}
-          title="Toggle thread events"
-          aria-pressed={showEvents}
+          <button
+            ref={eventsTriggerRef}
+            className={`ai-toolbar-button ${showEvents ? 'is-active' : ''}`}
+            onClick={onToggleEvents}
+            title="Open thread events"
+            aria-expanded={showEvents}
+            aria-controls="ai-thread-events-drawer"
         >
           <Eye size={15} /> <span>Events</span>
         </button>
         {hasTree && (
           <button
+            ref={agentTriggerRef}
             className={`ai-toolbar-button ai-toolbar-button--agent ${showTree ? 'is-active' : ''}`}
             onClick={onToggleTree}
-            title="Toggle Agent Tree"
-            aria-pressed={showTree}
+            title="Open agent context"
+            aria-expanded={showTree}
+            aria-controls="ai-agent-context-drawer"
           >
             <PanelLeftOpen size={15} /> <span>{treeAgentCount > 1 ? `${treeAgentCount - 1} agent${treeAgentCount > 2 ? 's' : ''}` : 'Agents'}</span>
           </button>

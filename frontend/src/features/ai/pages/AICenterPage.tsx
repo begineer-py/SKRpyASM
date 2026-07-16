@@ -35,7 +35,6 @@ import { buildTreeNodes, type TreeNode } from '../components/TreePanel';
 import { Sidebar } from '../components/Sidebar';
 import { AgentPanel } from '../components/AgentPanel';
 import ChatHeader from '../components/ChatHeader';
-import ExecutionLogsPanel from '../components/ExecutionLogsPanel';
 import ThreadEventsPanel from '../components/ThreadEventsPanel';
 import { cn } from '@/lib/utils';
 
@@ -61,10 +60,6 @@ const AICenterPage: React.FC = () => {
     DEFAULT_MSG_FILTER,
   );
   const [dispatchedGraphs, setDispatchedGraphs] = useState<DispatchedGraphView[]>([]);
-  const [graphPage, setGraphPage] = useState(1);
-  const [graphStatusFilter, setGraphStatusFilter] = useState('');
-  const [graphHasMore, setGraphHasMore] = useState(false);
-  const GRAPHS_PER_PAGE = 5;
 
   // Sidebar state
   const [threadsLoading, setThreadsLoading] = useState(true);
@@ -81,23 +76,19 @@ const AICenterPage: React.FC = () => {
   // Agent tree state
   const [rootThreadId, setRootThreadId] = useState<string | null>(null);
   const [agentTree, setAgentTree] = useState<TreeNode[]>([]);
-  const [showTreePanel, setShowTreePanel] = useState(true);
+  const [showTreePanel, setShowTreePanel] = useState(false);
   const [activeNodeThreadId, setActiveNodeThreadId] = useState<string | null>(null);
   const [agentPanelTab, setAgentPanelTab] = useState<'tree' | 'interaction' | 'topology'>('tree');
   const [dispatchTree, setDispatchTree] = useState<AgentInteractionTree | null>(null);
   const [topology, setTopology] = useState<TargetTopology | null>(null);
   const [selectedTopoNode, setSelectedTopoNode] = useState<TopologyNode | null>(null);
 
-  // Execution graph panel state
   const [selectedGraphId, setSelectedGraphId] = useState<number | null>(null);
   const [activeThreadGraphs, setActiveThreadGraphs] = useState<ExecutionGraph[]>([]);
-  const [showLogsPanel, setShowLogsPanel] = useState(false);
 
   // Thread events panel state
   const [showEventsPanel, setShowEventsPanel] = useState(false);
 
-  // Overview sidebar state
-  const [sidebarTab, setSidebarTab] = useState<'threads' | 'overviews'>('threads');
   const [overviews, setOverviews] = useState<OverviewData[]>([]);
   const [overviewsLoading, setOverviewsLoading] = useState(false);
 
@@ -106,6 +97,8 @@ const AICenterPage: React.FC = () => {
   const cleanupStreamRef = useRef<(() => void) | null>(null);
   const cleanupMessageEventsRef = useRef<(() => void) | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const agentTriggerRef = useRef<HTMLButtonElement>(null);
+  const eventsTriggerRef = useRef<HTMLButtonElement>(null);
 
   const selectThread = useCallback((id: string | null) => {
     setSelectedThreadId(id);
@@ -126,7 +119,7 @@ const AICenterPage: React.FC = () => {
     };
   }, [rootThreadId]);
 
-  const { data: treeRawData, isConnected: treeConnected } = useHasuraSubscription(
+  const { data: treeRawData } = useHasuraSubscription(
     GET_AGENT_TREE_SUBSCRIPTION,
     treeSubVars,
     Boolean(rootThreadId && treeSubVars)
@@ -149,31 +142,22 @@ const AICenterPage: React.FC = () => {
     if (!activeNodeThreadId) {
       setActiveThreadGraphs([]);
       setSelectedGraphId(null);
-      setGraphPage(1);
-      setGraphHasMore(false);
       return;
     }
 
-    const offset = (graphPage - 1) * GRAPHS_PER_PAGE;
     void executionApi
       .listGraphs({
         thread_id: Number(activeNodeThreadId),
-        limit: GRAPHS_PER_PAGE,
-        offset,
-        status: graphStatusFilter || undefined,
+        limit: 5,
       })
       .then((graphs) => {
         if (cancelled) return;
-        setActiveThreadGraphs((prev) => (graphPage === 1 ? graphs : [...prev, ...graphs]));
-        setGraphHasMore(graphs.length >= GRAPHS_PER_PAGE);
-        if (graphPage === 1) {
-          const running = graphs.find((graph) => graph.status === 'RUNNING' || graph.status === 'WAITING');
-          setSelectedGraphId((current) => current ?? running?.id ?? graphs[0]?.id ?? null);
-          setShowLogsPanel(graphs.length > 0);
-        }
+        setActiveThreadGraphs(graphs);
+        const running = graphs.find((graph) => graph.status === 'RUNNING' || graph.status === 'WAITING');
+        setSelectedGraphId((current) => current ?? running?.id ?? graphs[0]?.id ?? null);
       })
       .catch(() => {
-        if (!cancelled && graphPage === 1) {
+        if (!cancelled) {
           setActiveThreadGraphs([]);
           setSelectedGraphId(null);
         }
@@ -182,7 +166,7 @@ const AICenterPage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [activeNodeThreadId, graphPage, graphStatusFilter]);
+  }, [activeNodeThreadId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -258,17 +242,15 @@ const AICenterPage: React.FC = () => {
   };
   useEffect(() => { scrollToBottom(); }, [messages, streamingText]);
 
-  // Thread refresh is intentionally scoped to the active target/filter controls.
   // loadThreads also updates the selected thread and would make this effect loop.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { loadThreads(); }, [targetSearchId, showInternal]);
+  useEffect(() => { loadThreads(); }, [showInternal]);
 
   const loadThreads = async () => {
     setThreadsLoading(true);
     setThreadsError(null);
     try {
-      const params: { include_hidden: boolean; target_id?: number } = { include_hidden: showInternal };
-      if (targetSearchId.trim()) params.target_id = parseInt(targetSearchId);
+      const params = { include_hidden: showInternal };
 
       const res = await assistantApi.getThreads(params);
       const filtered = showInternal
@@ -335,28 +317,11 @@ const AICenterPage: React.FC = () => {
     [dispatchedGraphs],
   );
 
-  const handleArchiveGraph = async (graphId: number) => {
-    try {
-      await executionApi.archiveGraph(graphId, true);
-      setActiveThreadGraphs((prev) => prev.filter((g) => g.id !== graphId));
-      if (selectedGraphId === graphId) {
-        setSelectedGraphId(null);
-      }
-    } catch (err) {
-      console.error('Failed to archive graph', err);
+  const openGraph = useCallback((graphId: number) => {
+    if (Number.isSafeInteger(graphId) && graphId > 0) {
+      navigate(`/execution-monitor?graph=${graphId}`);
     }
-  };
-
-  const handleDeleteGraph = async (graphId: number) => {
-    if (!window.confirm(`Delete execution graph #${graphId}?`)) return;
-    try {
-      await executionApi.deleteGraph(graphId);
-      setActiveThreadGraphs((prev) => prev.filter((g) => g.id !== graphId));
-      if (selectedGraphId === graphId) setSelectedGraphId(null);
-    } catch (err) {
-      console.error('Failed to delete graph', err);
-    }
-  };
+  }, [navigate]);
 
   useEffect(() => {
     if (!selectedThreadId) return;
@@ -435,12 +400,9 @@ const AICenterPage: React.FC = () => {
     setActiveNodeThreadId(String(thread.id));
     setBoundTargetId(thread.bound_target_id ?? null);
     setRootThreadId(thread.assistant_id === 'hacker_assistant_agent' ? String(thread.id) : null);
-    setShowLogsPanel(false);
     setShowEventsPanel(false);
     setSelectedGraphId(null);
     setActiveThreadGraphs([]);
-    setGraphPage(1);
-    setGraphStatusFilter('');
   };
 
   const handleSelectTreeNode = useCallback((node: TreeNode) => {
@@ -458,17 +420,22 @@ const AICenterPage: React.FC = () => {
 
     setSelectedGraphId(null);
     setActiveThreadGraphs([]);
-    setGraphPage(1);
-    setGraphStatusFilter('');
-    setShowLogsPanel(node.assistant_id !== 'hacker_assistant_agent');
   }, [selectThread]);
 
-  const createNewThread = async () => {
+  const createNewThread = async (targetId?: number) => {
+    let createdThread: ThreadSummary | null = null;
     try {
-      const res = await assistantApi.createThread('New chat');
+      createdThread = await assistantApi.createThread('New chat');
+      if (targetId !== undefined) await assistantApi.bindTarget(createdThread.id, targetId);
       await loadThreads();
-      handleSelectSidebarThread(res);
-    } catch (err) { console.error('Failed to create thread', err); }
+      handleSelectSidebarThread({ ...createdThread, bound_target_id: targetId ?? null });
+    } catch (err) {
+      if (createdThread && targetId !== undefined) {
+        try { await assistantApi.deleteThread(createdThread.id); } catch (deleteError) { console.error('Failed to remove unbound conversation after bind failure', deleteError); }
+      }
+      setThreadsError(`Failed to create conversation: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      console.error('Failed to create thread', err);
+    }
   };
 
   const handleDeleteThread = async (threadId: string | null) => {
@@ -482,7 +449,6 @@ const AICenterPage: React.FC = () => {
         setMessages([]);
         setRootThreadId(null);
         setAgentTree([]);
-        setShowLogsPanel(false);
       }
       await loadThreads();
     } catch (err) { console.error('Failed to delete thread', err); }
@@ -603,8 +569,6 @@ const AICenterPage: React.FC = () => {
         onResetFilters={resetWorkbenchFilters}
         threadsLoading={threadsLoading}
         threadsError={threadsError}
-        sidebarTab={sidebarTab}
-        onSidebarTabChange={setSidebarTab}
         threads={allThreads}
         selectedThreadId={selectedThreadId}
         onSelectThread={handleSelectSidebarThread}
@@ -614,7 +578,13 @@ const AICenterPage: React.FC = () => {
         overviewsLoading={overviewsLoading}
         boundTargetId={boundTargetId}
         onNavigate={navigate}
-        onUnbindTarget={async () => { if (!selectedThreadId) return; await assistantApi.unbindTarget(selectedThreadId); setBoundTargetId(null); }}
+        onUnbindTarget={async () => {
+          if (!selectedThreadId) return;
+          await assistantApi.unbindTarget(selectedThreadId);
+          setBoundTargetId(null);
+          setSelectedThreadData((thread) => thread ? { ...thread, bound_target_id: null } : null);
+          await loadThreads();
+        }}
       />
 
       {/* ─── Main chat ───────────────────────────────────────────────── */}
@@ -629,14 +599,16 @@ const AICenterPage: React.FC = () => {
               <ChatHeader
                 label={chatTargetLabel}
                 graphCount={activeThreadGraphs.length}
-                showLogs={showLogsPanel}
                 showEvents={showEventsPanel}
                 showTree={showTreePanel}
                 treeAgentCount={agentTree.length}
                 hasTree={!!rootThreadId}
-                onToggleLogs={() => setShowLogsPanel(v => !v)}
+                selectedGraphId={selectedGraphId}
+                onOpenGraph={openGraph}
                 onToggleEvents={() => setShowEventsPanel(v => !v)}
                 onToggleTree={() => setShowTreePanel(v => !v)}
+                agentTriggerRef={agentTriggerRef}
+                eventsTriggerRef={eventsTriggerRef}
               />
 
               {/* Upper area: messages + input */}
@@ -671,10 +643,7 @@ const AICenterPage: React.FC = () => {
                           <SubAgentContainerBlock
                             key={`sa-${item.message.id}`}
                             graph={matched}
-                            onViewGraph={(gid) => {
-                              setSelectedGraphId(gid);
-                              setShowLogsPanel(true);
-                            }}
+                            onViewGraph={openGraph}
                             onViewThread={(tid) => {
                               handleSelectSidebarThread({
                                 id: tid,
@@ -750,29 +719,12 @@ const AICenterPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* ── Execution timeline panel ─────────────────────────── */}
-              {showLogsPanel && (
-                <ExecutionLogsPanel
-                  selectedGraphId={selectedGraphId}
-                  activeThreadGraphs={activeThreadGraphs}
-                  graphStatusFilter={graphStatusFilter}
-                  graphHasMore={graphHasMore}
-                  onSelectGraph={setSelectedGraphId}
-                  onStatusFilterChange={(filter) => { setGraphStatusFilter(filter); setGraphPage(1); }}
-                  onArchiveGraph={handleArchiveGraph}
-                  onDeleteGraph={handleDeleteGraph}
-                  onLoadMore={() => setGraphPage((p) => p + 1)}
-                  onClose={() => setShowLogsPanel(false)}
-                />
-              )}
-
-              {/* ── Thread events panel ──────────────────────────────── */}
-              {showEventsPanel && (
-                <ThreadEventsPanel
-                  threadId={selectedThreadId}
-                  onClose={() => setShowEventsPanel(false)}
-                />
-              )}
+              <ThreadEventsPanel
+                open={showEventsPanel}
+                threadId={selectedThreadId}
+                onOpenChange={setShowEventsPanel}
+                triggerRef={eventsTriggerRef}
+              />
             </>
           ) : (
             <div className="ai-workbench-empty">
@@ -781,7 +733,7 @@ const AICenterPage: React.FC = () => {
                 {allThreads.length === 0 ? 'Create a new conversation to get started' : 'Select a conversation'}
               </div>
               <p>{allThreads.length === 0 ? 'Your agent workspace will appear here once a conversation is active.' : 'Choose a thread from the conversation index to inspect its messages and execution context.'}</p>
-              {allThreads.length === 0 && <button className="ai-primary-button" type="button" onClick={createNewThread}> <MessageSquarePlus size={15} /> New Chat</button>}
+              {allThreads.length === 0 && <button className="ai-primary-button" type="button" onClick={() => createNewThread()}> <MessageSquarePlus size={15} /> New Chat</button>}
             </div>
           )}
         </div>
@@ -790,7 +742,7 @@ const AICenterPage: React.FC = () => {
       <AgentPanel
         showTree={showTree}
         onClose={() => setShowTreePanel(false)}
-        treeConnected={treeConnected}
+        triggerRef={agentTriggerRef}
         agentPanelTab={agentPanelTab}
         onTabChange={setAgentPanelTab}
         agentTree={agentTree}
@@ -799,8 +751,7 @@ const AICenterPage: React.FC = () => {
         onSelectTreeNode={handleSelectTreeNode}
         dispatchTree={dispatchTree}
         boundTargetId={boundTargetId}
-        onOpenGraph={setSelectedGraphId}
-        onOpenLogsPanel={() => setShowLogsPanel(true)}
+        onOpenGraph={openGraph}
         topology={topology}
         selectedTopoNode={selectedTopoNode}
         onSelectTopoNode={setSelectedTopoNode}

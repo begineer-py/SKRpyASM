@@ -9,6 +9,8 @@
     "gen:gql": "graphql-codegen",
     "gen": "npm run gen:gql && npm run gen:api",
     "build": "npm run gen && tsc -b && vite build",
+    "diagnostics": "npm run diagnostics:doctor",
+    "diagnostics:doctor": "react-doctor --json",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -56,6 +58,9 @@
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^16.3.0",
     "openapi-typescript": "^7.13.0",
+    "react-doctor": "^0.7.8",
+    "react-grab": "^0.1.48",
+    "react-scan": "^0.5.7",
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.35.1",
     "vite": "^7.0.4"
