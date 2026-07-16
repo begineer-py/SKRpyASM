@@ -1,0 +1,123 @@
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - navigation [ref=e4]:
+      - generic [ref=e5]:
+        - button "ASM SKRpyASM surface intelligence" [ref=e6] [cursor=pointer]:
+          - generic [ref=e7]: ASM
+          - generic [ref=e8]:
+            - strong [ref=e9]: SKRpyASM
+            - generic [ref=e10]: surface intelligence
+        - button "收合導覽列" [ref=e11] [cursor=pointer]
+        - button "開啟導覽列" [ref=e180] [cursor=pointer]
+    - main [ref=e79]:
+      - main [ref=e80]:
+        - generic [ref=e81]:
+          - button "Back" [ref=e82] [cursor=pointer]
+          - generic [ref=e83]:
+            - paragraph [ref=e84]: "Vulnerability #26"
+            - paragraph [ref=e85]: https://vuln-f9wi.onrender.com/
+          - generic [ref=e182]:
+            - button "Cancel" [ref=e183] [cursor=pointer]
+            - button "Save" [disabled] [ref=e184]
+        - tablist "漏洞工作區" [ref=e87]:
+          - tab "Details" [ref=e88]
+          - tab "PoCs" [ref=e89]
+          - tab "Report" [active] [selected] [ref=e90]
+        - tabpanel "Report" [ref=e332]:
+          - generic [ref=e333]:
+            - generic [ref=e334]:
+              - generic [ref=e335]: 已同步
+              - generic [ref=e336]:
+                - button "Markdown" [ref=e337] [cursor=pointer]
+                - button "PDF" [ref=e338] [cursor=pointer]
+            - generic [ref=e339]:
+              - generic [ref=e340]:
+                - generic [ref=e341]: MARKDOWN SOURCE
+                - code [ref=e346]:
+                  - generic [ref=e347]:
+                    - textbox "Editor content" [ref=e348]
+                    - textbox [ref=e349]
+                    - generic [ref=e350]: "1"
+                    - generic [ref=e355]: "# 漏洞報告：Missing Security Headers"
+              - generic [ref=e363]:
+                - generic [ref=e364]: PREVIEW
+                - generic [ref=e366]:
+                  - heading "漏洞報告：Missing Security Headers (HSTS, CSP, Permissions-Policy)" [level=1] [ref=e367]
+                  - separator [ref=e368]
+                  - heading "基本資訊" [level=2] [ref=e369]
+                  - table [ref=e370]:
+                    - rowgroup [ref=e371]:
+                      - row [ref=e372]:
+                        - columnheader "項目" [ref=e373]
+                        - columnheader "內容" [ref=e374]
+                    - rowgroup [ref=e375]:
+                      - row [ref=e376]:
+                        - cell [ref=e377]:
+                          - strong [ref=e378]: 漏洞 ID
+                        - cell "#26" [ref=e379]
+                      - row [ref=e380]:
+                        - cell [ref=e381]:
+                          - strong [ref=e382]: 嚴重程度
+                        - cell "中危 (Medium)" [ref=e383]
+                      - row [ref=e384]:
+                        - cell [ref=e385]:
+                          - strong [ref=e386]: 驗證狀態
+                        - cell "驗證中" [ref=e387]
+                      - row [ref=e388]:
+                        - cell [ref=e389]:
+                          - strong [ref=e390]: 發現位置
+                        - cell [ref=e391]:
+                          - code [ref=e392]: https://vuln-f9wi.onrender.com/
+                      - row [ref=e393]:
+                        - cell [ref=e394]:
+                          - strong [ref=e395]: 偵測工具
+                        - cell "automation-agent" [ref=e396]
+                      - row [ref=e397]:
+                        - cell [ref=e398]:
+                          - strong [ref=e399]: 模板 ID
+                        - cell [ref=e400]:
+                          - code [ref=e401]: missing-security-headers-(hsts,-csp,-permissions-policy)
+                      - row [ref=e402]:
+                        - cell [ref=e403]:
+                          - strong [ref=e404]: CVE 豐富化
+                        - cell "待豐富化" [ref=e405]
+                      - row [ref=e406]:
+                        - cell [ref=e407]:
+                          - strong [ref=e408]: 首次發現
+                        - cell "2026/07/04 下午01:56" [ref=e409]
+                      - row [ref=e410]:
+                        - cell [ref=e411]:
+                          - strong [ref=e412]: 最後發現
+                        - cell "2026/07/04 下午01:56" [ref=e413]
+                      - row [ref=e414]:
+                        - cell [ref=e415]:
+                          - strong [ref=e416]: 最後更新
+                        - cell "2026/07/04 下午01:56" [ref=e417]
+                  - heading "漏洞描述" [level=2] [ref=e418]
+                  - paragraph [ref=e419]: "The application is missing several critical security headers:"
+                  - paragraph [ref=e420]:
+                    - strong [ref=e421]: "Missing Headers:"
+                  - list [ref=e422]:
+                    - listitem [ref=e423]:
+                      - strong [ref=e424]: Strict-Transport-Security (HSTS)
+                      - text: "- Not set. Without HSTS, users are vulnerable to SSL stripping attacks and downgrade attacks."
+                    - listitem [ref=e425]:
+                      - strong [ref=e426]: Content-Security-Policy (CSP)
+                      - text: "- Not set. Without CSP, the application is fully vulnerable to XSS attacks (both reflected and stored). Any injected JavaScript can execute without restriction."
+                    - listitem [ref=e427]:
+                      - strong [ref=e428]: Permissions-Policy
+                      - text: "- Not set. Browser features (camera, microphone, geolocation) are not restricted."
+                  - paragraph [ref=e429]:
+                    - strong [ref=e430]: "Present Headers (for reference):"
+                  - list [ref=e431]:
+                    - listitem [ref=e432]: "X-Content-Type-Options: nosniff ✓"
+                    - listitem [ref=e433]: "X-Frame-Options: DENY ✓"
+                    - listitem [ref=e434]: "Referrer-Policy: same-origin ✓"
+                  - paragraph [ref=e435]: The absence of CSP is particularly concerning given that the application uses Pico CSS from CDN and has multiple user-input fields that could be exploited for XSS.
+                  - heading "原始請求 (Request)" [level=2] [ref=e436]
+                  - code [ref=e438]: "GET / HTTP/2 Host: vuln-f9wi.onrender.com"
+                  - heading "原始回應 (Response)" [level=2] [ref=e439]
+                  - code [ref=e441]: "HTTP/2 200 server: cloudflare x-content-type-options: nosniff x-frame-options: DENY referrer-policy: same-origin (Strict-Transport-Security: MISSING) (Content-Security-Policy: MISSING) (Permissions-Policy: MISSING)"
+  - generic [ref=e331]:
+    - alert
+    - alert

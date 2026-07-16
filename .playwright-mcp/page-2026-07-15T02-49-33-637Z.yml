@@ -1,0 +1,83 @@
+- generic:
+  - generic:
+    - generic:
+      - navigation:
+        - generic:
+          - button:
+            - generic: ASM
+            - generic:
+              - strong: SKRpyASM
+              - generic: surface intelligence
+          - button
+        - generic:
+          - generic:
+            - generic: "01"
+            - text: 作業
+          - link:
+            - /url: /
+            - generic: 目標
+          - link:
+            - /url: /execution-monitor
+            - generic: 執行監控
+          - link:
+            - /url: /scheduler
+            - generic: 排程
+          - generic:
+            - generic: "02"
+            - text: 分析
+          - link:
+            - /url: /vulnerabilities
+            - generic: 漏洞
+          - link:
+            - /url: /cve-intelligence
+            - generic: CVE 情報
+          - link:
+            - /url: /aicenter
+            - generic: AI 工作台
+          - link:
+            - /url: /skills
+            - generic: 技能庫
+          - generic:
+            - generic: "03"
+            - text: 系統
+          - link:
+            - /url: /agent-config
+            - generic: Agent 設定
+          - link:
+            - /url: /api-keys
+            - generic: API 金鑰
+          - link:
+            - /url: /pentest-config
+            - generic: 請求政策
+      - main:
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - heading [level=1]: Targets
+                - paragraph: 選擇 Target 以管理資產、計畫與執行記錄。
+              - generic:
+                - button: 重新整理
+                - button: 建立 Target
+            - list:
+              - listitem:
+                - generic:
+                  - heading [level=2]: 建中園遊會靶場
+                  - button
+                - paragraph: Django 點餐系統 — https://vuln-f9wi.onrender.com
+                - generic:
+                  - button: 開啟目標
+  - dialog [ref=f2e111]:
+    - generic [ref=f2e112]:
+      - generic [ref=f2e113]:
+        - heading "建立 Target" [level=2] [ref=f2e114]
+        - paragraph [ref=f2e115]: 輸入目標的基本資訊後，即可從其工作區管理資產與後續作業。
+      - button "關閉" [ref=f2e116]
+    - generic [ref=f2e121]:
+      - generic [ref=f2e122]:
+        - generic [ref=f2e123]: Target 名稱
+        - textbox "Target 名稱" [active] [ref=f2e124]: 只
+      - generic [ref=f2e125]:
+        - generic [ref=f2e126]: 說明
+        - textbox "說明" [ref=f2e127]
+      - button "建立 Target" [ref=f2e129]

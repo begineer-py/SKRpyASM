@@ -1,0 +1,69 @@
+- generic [ref=e3]:
+  - navigation [ref=e4]:
+    - generic [ref=e5]:
+      - button "ASM SKRpyASM surface intelligence" [ref=e6] [cursor=pointer]:
+        - generic [ref=e7]: ASM
+        - generic [ref=e8]:
+          - strong [ref=e9]: SKRpyASM
+          - generic [ref=e10]: surface intelligence
+      - button "收合導覽列" [ref=e11] [cursor=pointer]
+    - generic [ref=e15]:
+      - generic [ref=e16]:
+        - generic [ref=e17]: "01"
+        - text: 作業
+      - link "目標" [ref=e18] [cursor=pointer]:
+        - /url: /
+      - link "執行監控" [ref=e27] [cursor=pointer]:
+        - /url: /execution-monitor
+      - link "排程" [ref=e31] [cursor=pointer]:
+        - /url: /scheduler
+      - generic [ref=e36]:
+        - generic [ref=e37]: "02"
+        - text: 分析
+      - link "漏洞" [ref=e38] [cursor=pointer]:
+        - /url: /vulnerabilities
+      - link "CVE 情報" [ref=e42] [cursor=pointer]:
+        - /url: /cve-intelligence
+      - link "AI 工作台" [ref=e51] [cursor=pointer]:
+        - /url: /aicenter
+      - link "技能庫" [ref=e56] [cursor=pointer]:
+        - /url: /skills
+      - generic [ref=e62]:
+        - generic [ref=e63]: "03"
+        - text: 系統
+      - link "Agent 設定" [ref=e64] [cursor=pointer]:
+        - /url: /agent-config
+      - link "API 金鑰" [ref=e69] [cursor=pointer]:
+        - /url: /api-keys
+      - link "請求政策" [ref=e74] [cursor=pointer]:
+        - /url: /pentest-config
+  - main [ref=e79]:
+    - generic [ref=e81]:
+      - generic [ref=e82]:
+        - generic [ref=e83]:
+          - heading "目標 00" [level=2] [ref=e85]
+          - button "更新中" [disabled] [ref=e86]
+        - list
+      - complementary [ref=e92]:
+        - heading "新增目標" [level=3] [ref=e94]
+        - generic [ref=e95]:
+          - generic [ref=e96]: 專案名稱
+          - textbox "專案名稱" [ref=e97]:
+            - /placeholder: 目標名稱（例如 SpaceX）
+        - generic [ref=e98]:
+          - generic [ref=e99]: 任務說明
+          - textbox "任務說明" [ref=e100]:
+            - /placeholder: 任務說明／範圍
+        - button "建立目標" [ref=e101] [cursor=pointer]
+        - generic [ref=e103]:
+          - strong [ref=e104]: 建立流程
+          - list [ref=e105]:
+            - listitem [ref=e106]:
+              - generic [ref=e107]: "01"
+              - text: 新增專案
+            - listitem [ref=e108]:
+              - generic [ref=e109]: "02"
+              - text: 開啟作業
+            - listitem [ref=e110]:
+              - generic [ref=e111]: "03"
+              - text: 加入 Seeds 與資產

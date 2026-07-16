@@ -1,0 +1,103 @@
+- generic [ref=f1e3]:
+  - navigation [ref=f1e4]:
+    - generic [ref=f1e5]:
+      - button "ASM SKRpyASM surface intelligence" [ref=f1e6] [cursor=pointer]:
+        - generic [ref=f1e7]: ASM
+        - generic [ref=f1e8]:
+          - strong [ref=f1e9]: SKRpyASM
+          - generic [ref=f1e10]: surface intelligence
+      - button "收合導覽列" [ref=f1e11] [cursor=pointer]
+    - generic [ref=f1e15]:
+      - generic [ref=f1e16]:
+        - generic [ref=f1e17]: "01"
+        - text: 作業
+      - link "目標" [ref=f1e18] [cursor=pointer]:
+        - /url: /
+      - link "執行監控" [ref=f1e27] [cursor=pointer]:
+        - /url: /execution-monitor
+      - link "排程" [ref=f1e31] [cursor=pointer]:
+        - /url: /scheduler
+      - generic [ref=f1e36]:
+        - generic [ref=f1e37]: "02"
+        - text: 分析
+      - link "漏洞" [ref=f1e38] [cursor=pointer]:
+        - /url: /vulnerabilities
+      - link "CVE 情報" [ref=f1e42] [cursor=pointer]:
+        - /url: /cve-intelligence
+      - link "AI 工作台" [ref=f1e51] [cursor=pointer]:
+        - /url: /aicenter
+      - link "技能庫" [ref=f1e56] [cursor=pointer]:
+        - /url: /skills
+      - generic [ref=f1e62]:
+        - generic [ref=f1e63]: "03"
+        - text: 系統
+      - link "Agent 設定" [ref=f1e64] [cursor=pointer]:
+        - /url: /agent-config
+      - link "API 金鑰" [ref=f1e69] [cursor=pointer]:
+        - /url: /api-keys
+      - link "請求政策" [ref=f1e74] [cursor=pointer]:
+        - /url: /pentest-config
+  - main [ref=f1e79]:
+    - generic [ref=f1e80]:
+      - generic [ref=f1e81]:
+        - button "返回列表" [ref=f1e82] [cursor=pointer]: ← BACK
+        - generic [ref=f1e83]: "EDIT #undefined —"
+        - generic [ref=f1e84]: ⚠ Vulnerability 1 not found
+        - button "SAVE" [ref=f1e85] [cursor=pointer]
+      - tablist [ref=f1e86]:
+        - tab "FIELDS" [selected] [ref=f1e87] [cursor=pointer]:
+          - generic [ref=f1e88]: 📋
+          - text: FIELDS
+        - tab "POC" [ref=f1e89] [cursor=pointer]:
+          - generic [ref=f1e90]: 💻
+          - text: POC
+        - tab "REPORT" [ref=f1e91] [cursor=pointer]:
+          - generic [ref=f1e92]: 📄
+          - text: REPORT
+      - generic [ref=f1e95]:
+        - generic [ref=f1e96]:
+          - generic [ref=f1e97]: Name *
+          - 'textbox "如: OpenSSH Default Config" [ref=f1e98]'
+          - generic [ref=f1e99]:
+            - generic [ref=f1e100]:
+              - generic [ref=f1e101]: Severity *
+              - combobox [ref=f1e102]:
+                - option "CRITICAL"
+                - option "HIGH"
+                - option "MEDIUM" [selected]
+                - option "LOW"
+                - option "INFO"
+            - generic [ref=f1e103]:
+              - generic [ref=f1e104]: Status
+              - combobox [ref=f1e105]:
+                - option "Unverified" [selected]
+                - option "Confirmed"
+                - option "False Positive"
+          - generic [ref=f1e106]: Target
+          - combobox [ref=f1e107]:
+            - option "— 無關聯 Target —" [selected]
+          - generic [ref=f1e108]: Matched At *
+          - 'textbox "如: 45.33.32.156:22 或 https://example.com" [ref=f1e109]'
+          - generic [ref=f1e110]:
+            - generic [ref=f1e111]:
+              - generic [ref=f1e112]: Template ID
+              - textbox "manual" [ref=f1e113]
+            - generic [ref=f1e114]:
+              - generic [ref=f1e115]: Tool Source
+              - textbox "manual" [ref=f1e116]
+          - generic [ref=f1e117]: Raw Request
+          - textbox "GET / HTTP/1.1..." [ref=f1e118]
+          - generic [ref=f1e119]: Raw Response
+          - textbox "HTTP/1.1 200 OK..." [ref=f1e120]
+          - generic [ref=f1e121]: 提示：Description 與 Remediation 使用右側 Monaco 編輯器（支援 Markdown 語法）。
+        - generic [ref=f1e122]:
+          - generic [ref=f1e123]:
+            - generic [ref=f1e124]: DescriptionMarkdown
+            - generic [ref=f1e126]:
+              - generic [ref=f1e127]: 載入編輯器…
+              - generic: 詳細描述此漏洞的技術細節、影響範圍...
+          - generic [ref=f1e130]:
+            - generic [ref=f1e131]: RemediationMarkdown
+            - generic [ref=f1e133]:
+              - generic [ref=f1e134]: 載入編輯器…
+              - generic: 修復建議、緩解措施、升級指引...

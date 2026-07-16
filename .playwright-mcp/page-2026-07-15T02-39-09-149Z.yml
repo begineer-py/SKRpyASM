@@ -1,0 +1,41 @@
+- generic [ref=f3e3]:
+  - navigation [ref=f3e4]:
+    - generic [ref=f3e5]:
+      - button "ASM SKRpyASM surface intelligence" [ref=f3e6] [cursor=pointer]:
+        - generic [ref=f3e7]: ASM
+        - generic [ref=f3e8]:
+          - strong [ref=f3e9]: SKRpyASM
+          - generic [ref=f3e10]: surface intelligence
+      - button "收合導覽列" [ref=f3e11] [cursor=pointer]
+    - generic [ref=f3e15]:
+      - generic [ref=f3e16]:
+        - generic [ref=f3e17]: "01"
+        - text: 作業
+      - link "目標" [ref=f3e18] [cursor=pointer]:
+        - /url: /
+      - link "執行監控" [ref=f3e27] [cursor=pointer]:
+        - /url: /execution-monitor
+      - link "排程" [ref=f3e31] [cursor=pointer]:
+        - /url: /scheduler
+      - generic [ref=f3e36]:
+        - generic [ref=f3e37]: "02"
+        - text: 分析
+      - link "漏洞" [ref=f3e38] [cursor=pointer]:
+        - /url: /vulnerabilities
+      - link "CVE 情報" [ref=f3e42] [cursor=pointer]:
+        - /url: /cve-intelligence
+      - link "AI 工作台" [ref=f3e51] [cursor=pointer]:
+        - /url: /aicenter
+      - link "技能庫" [ref=f3e56] [cursor=pointer]:
+        - /url: /skills
+      - generic [ref=f3e62]:
+        - generic [ref=f3e63]: "03"
+        - text: 系統
+      - link "Agent 設定" [ref=f3e64] [cursor=pointer]:
+        - /url: /agent-config
+      - link "API 金鑰" [ref=f3e69] [cursor=pointer]:
+        - /url: /api-keys
+      - link "請求政策" [ref=f3e74] [cursor=pointer]:
+        - /url: /pentest-config
+  - main [ref=f3e79]:
+    - main [ref=f3e80]: 載入漏洞資料…

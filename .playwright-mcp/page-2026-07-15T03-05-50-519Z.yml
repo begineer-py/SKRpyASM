@@ -1,0 +1,5 @@
+- alert [ref=e3]:
+  - generic [ref=e4]:
+    - paragraph [ref=e5]: Application error
+    - heading "This view could not be rendered." [level=1] [ref=e6]
+    - paragraph [ref=e7]: Refresh the page and try again. If the problem persists, check the browser console for the captured error.
