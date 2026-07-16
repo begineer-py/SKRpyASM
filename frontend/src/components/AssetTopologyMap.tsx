@@ -20,6 +20,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 import type { AssetMapEdge, AssetMapGraph, AssetMapNode } from '../features/target/assetMap/types';
 import { layoutWithDagre } from '../utils/graphLayout';
@@ -307,47 +308,68 @@ export function AssetTopologyMap({ graph, onSelectNode, selectedNodeId }: AssetT
   const activeNodeCount = graph.nodes.filter((node) => node.metadata.isActive).length;
 
   return (
+    <>
       <div
         className="asset-topology-map"
         data-testid="asset-topology-map"
       >
-      <div className="asset-topology-map__header">
-        <span className="asset-topology-map__title">Topology · {target?.label ?? graph.targetId}</span>
-        <span className="asset-topology-map__summary">
-          {graph.nodes.length} nodes · {displayEdges.length} edges
-          {activeNodeCount > 0
-            ? ` · ${activeNodeCount} active`
-            : ''}
-        </span>
-        <button
-          type="button"
-          className="c2-btn c2-btn--ghost c2-btn--icon"
-          onClick={onFullscreenToggle}
-          aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-          title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-        >
-          {isFullscreen ? <Minimize2 aria-hidden="true" size={18} /> : <Maximize2 aria-hidden="true" size={18} />}
-        </button>
-      </div>
-      <div className="w-full h-[360px] min-h-[280px]">
-        <ReactFlowProvider>
-          <TopologyFlowInner
-            graph={graph}
-            displayEdges={displayEdges}
-            onSelectNode={onSelectNode}
-            selectedNodeId={selectedNodeId}
-          />
-        </ReactFlowProvider>
-      </div>
-      <div className="asset-topology-map__legend">
-        {Object.entries(TYPE_TONE).map(([type, tone]) => (
-          <span key={type} className={`asset-topology-map__legend-item asset-topology-map__legend-item--${tone}`}>
-            <i className="asset-topology-map__legend-marker" />
-            {type}
+        <div className="asset-topology-map__header">
+          <span className="asset-topology-map__title">Topology · {target?.label ?? graph.targetId}</span>
+          <span className="asset-topology-map__summary">
+            {graph.nodes.length} nodes · {displayEdges.length} edges
+            {activeNodeCount > 0
+              ? ` · ${activeNodeCount} active`
+              : ''}
           </span>
-        ))}
+          <button
+            type="button"
+            className="c2-btn c2-btn--ghost c2-btn--icon"
+            onClick={onFullscreenToggle}
+            aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+            title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+          >
+            {isFullscreen ? <Minimize2 aria-hidden="true" size={18} /> : <Maximize2 aria-hidden="true" size={18} />}
+          </button>
+        </div>
+        <div className="w-full h-[360px] min-h-[280px]">
+          <ReactFlowProvider>
+            <TopologyFlowInner
+              graph={graph}
+              displayEdges={displayEdges}
+              onSelectNode={onSelectNode}
+              selectedNodeId={selectedNodeId}
+            />
+          </ReactFlowProvider>
+        </div>
+        <div className="asset-topology-map__legend">
+          {Object.entries(TYPE_TONE).map(([type, tone]) => (
+            <span key={type} className={`asset-topology-map__legend-item asset-topology-map__legend-item--${tone}`}>
+              <i className="asset-topology-map__legend-marker" />
+              {type}
+            </span>
+          ))}
+        </div>
       </div>
-      </div>
+
+      {/* Fullscreen Dialog */}
+      <Dialog open={isFullscreen} onOpenChange={setIsFullscreen}>
+        <DialogContent className="max-w-full w-[calc(100%-2rem)] h-[calc(100vh-120px)] p-4">
+          <DialogHeader>
+            <DialogTitle>Asset Map (Fullscreen)</DialogTitle>
+          </DialogHeader>
+          <div className="h-full w-full">
+            <ReactFlowProvider>
+              <TopologyFlowInner
+                graph={graph}
+                displayEdges={displayEdges}
+                onSelectNode={onSelectNode}
+                selectedNodeId={selectedNodeId}
+              />
+            </ReactFlowProvider>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

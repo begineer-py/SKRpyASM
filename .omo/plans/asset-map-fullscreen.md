@@ -70,7 +70,7 @@ Wave 2: Styles + tests (2 todos - parallel)
   QA scenarios: Click button toggles state; keyboard accessible; correct aria-label; Evidence .omo/evidence/task-1-asset-map-fullscreen.json
   Commit: Y | feat(asset-map): add fullscreen toggle button to topology map header
 
-- [ ] 2. Implement fullscreen Dialog with separate ReactFlow instance
+- [x] 2. Implement fullscreen Dialog with separate ReactFlow instance
   What to do / Must NOT do: Add Dialog modal that opens when isFullscreen=true. Render full ReactFlowProvider + TopologyFlowInside with height `calc(100vh - 120px)`. Call fitView on open. Sync selectedNodeId between inline and fullscreen. Do NOT share ReactFlow instance.
   Parallelization: Wave 1 | Blocked by: 1 | Blocks: 4
   References: frontend/src/components/AssetTopologyMap.tsx:211-290 (TopologyFlowInner), :319 (fixed height container), components/ui/dialog.tsx:50-82 (DialogContent), ExecutionTimelineViewer.tsx:273 (calc(100vh-...) pattern)
