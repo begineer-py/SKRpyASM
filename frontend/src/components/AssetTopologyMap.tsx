@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, memo } from 'react';
+import { useCallback, useEffect, useMemo, memo, useState } from 'react';
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -18,6 +18,7 @@ import {
   type NodeMouseHandler,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { Maximize2, Minimize2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 import type { AssetMapEdge, AssetMapGraph, AssetMapNode } from '../features/target/assetMap/types';
@@ -290,6 +291,9 @@ function TopologyFlowInner({
 }
 
 export function AssetTopologyMap({ graph, onSelectNode, selectedNodeId }: AssetTopologyMapProps) {
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const onFullscreenToggle = useCallback(() => setIsFullscreen((prev) => !prev), []);
+
   if (!graph) {
     return <div className="asset-topology-map__empty">Select a target-bound thread to view topology</div>;
   }
@@ -315,6 +319,15 @@ export function AssetTopologyMap({ graph, onSelectNode, selectedNodeId }: AssetT
             ? ` · ${activeNodeCount} active`
             : ''}
         </span>
+        <button
+          type="button"
+          className="c2-btn c2-btn--ghost c2-btn--icon"
+          onClick={onFullscreenToggle}
+          aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+          title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+        >
+          {isFullscreen ? <Minimize2 aria-hidden="true" size={18} /> : <Maximize2 aria-hidden="true" size={18} />}
+        </button>
       </div>
       <div className="w-full h-[360px] min-h-[280px]">
         <ReactFlowProvider>
