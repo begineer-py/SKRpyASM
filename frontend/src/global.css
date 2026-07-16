@@ -73,6 +73,202 @@
   --card-padding: 20px;
 }
 
+.asset-topology-map {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.asset-topology-map__empty {
+  color: var(--text-muted);
+  padding: 28px 12px;
+  text-align: center;
+  font-size: 0.78rem;
+}
+
+.asset-topology-map__header {
+  align-items: center;
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+  justify-content: space-between;
+  padding: 8px 12px;
+}
+
+.asset-topology-map__title {
+  color: var(--text-primary);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.asset-topology-map__summary {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+}
+
+.asset-topology-map__flow {
+  background: var(--bg-panel);
+}
+
+.asset-topology-node {
+  --asset-topology-tone: var(--cyan);
+  align-items: center;
+  background: var(--bg-card);
+  border: 1.5px solid var(--asset-topology-tone);
+  border-radius: 10px;
+  box-shadow: var(--shadow-soft);
+  display: flex;
+  font-family: var(--font-body);
+  gap: 8px;
+  max-width: 180px;
+  min-width: 148px;
+  padding: 8px 10px;
+  position: relative;
+}
+
+.asset-topology-node--amber { --asset-topology-tone: var(--amber); }
+.asset-topology-node--blue { --asset-topology-tone: var(--blue); }
+.asset-topology-node--cyan { --asset-topology-tone: var(--cyan); }
+.asset-topology-node--green { --asset-topology-tone: var(--green); }
+.asset-topology-node--purple { --asset-topology-tone: var(--purple); }
+.asset-topology-node--red { --asset-topology-tone: var(--red); }
+
+.asset-topology-node--selected {
+  box-shadow: var(--glow-cyan);
+}
+
+.asset-topology-node--active {
+  animation: asset-topology-pulse 1.4s ease-in-out infinite;
+}
+
+.asset-topology-node__handle {
+  background: var(--bg-elevated) !important;
+  border: 1px solid var(--border-normal) !important;
+  height: 6px !important;
+  opacity: 0.7;
+  width: 6px !important;
+}
+
+.asset-topology-node__marker,
+.asset-topology-map__legend-marker {
+  background: currentColor;
+  border-radius: 999px;
+  display: inline-block;
+  flex-shrink: 0;
+  height: 8px;
+  width: 8px;
+}
+
+.asset-topology-node__marker {
+  color: var(--asset-topology-tone);
+}
+
+.asset-topology-node__content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.asset-topology-node__type {
+  color: var(--asset-topology-tone);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.asset-topology-node__label {
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asset-topology-node__active-marker {
+  background: var(--cyan-glow);
+  border: 1px solid var(--border-cyan);
+  border-radius: 999px;
+  color: var(--text-cyan);
+  font-size: 9px;
+  line-height: 1;
+  padding: 2px 4px;
+  position: absolute;
+  right: -8px;
+  top: -8px;
+}
+
+.asset-topology-map .react-flow__edge-path {
+  stroke: var(--border-normal);
+  stroke-width: 1.4;
+}
+
+.asset-topology-map .react-flow__edge-text {
+  fill: var(--text-muted);
+  font-size: 9px;
+}
+
+.asset-topology-map .react-flow__edge-textbg {
+  fill: var(--bg-panel);
+}
+
+.asset-topology-map__controls,
+.asset-topology-map__minimap {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: 8px !important;
+}
+
+.asset-topology-map__controls {
+  box-shadow: none !important;
+}
+
+.asset-topology-map__controls button {
+  background: var(--bg-card) !important;
+  border-bottom-color: var(--border-subtle) !important;
+  fill: var(--text-secondary) !important;
+}
+
+.asset-topology-map__controls button:hover {
+  background: var(--bg-card-hover) !important;
+}
+
+.asset-topology-map__legend {
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 6px 12px 10px;
+}
+
+.asset-topology-map__legend-item {
+  align-items: center;
+  color: var(--text-muted);
+  display: inline-flex;
+  font-size: 0.65rem;
+  gap: 4px;
+  text-transform: capitalize;
+}
+
+.asset-topology-map__legend-item--amber .asset-topology-map__legend-marker { color: var(--amber); }
+.asset-topology-map__legend-item--blue .asset-topology-map__legend-marker { color: var(--blue); }
+.asset-topology-map__legend-item--cyan .asset-topology-map__legend-marker { color: var(--cyan); }
+.asset-topology-map__legend-item--green .asset-topology-map__legend-marker { color: var(--green); }
+.asset-topology-map__legend-item--purple .asset-topology-map__legend-marker { color: var(--purple); }
+.asset-topology-map__legend-item--red .asset-topology-map__legend-marker { color: var(--red); }
+
+@keyframes asset-topology-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--cyan-glow); }
+  50% { box-shadow: 0 0 0 6px var(--cyan-glow); }
+}
+
 @theme {
   /* Colors - Backgrounds */
   --color-bg-base: #050814;
