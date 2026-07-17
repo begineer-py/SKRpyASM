@@ -155,7 +155,7 @@ export function SubAgentContainerBlock({ graph, onViewGraph, onViewThread }: Sub
 
             {graph.graph_id != null && (
               <div className="max-h-[280px] overflow-auto border border-[#1e293b] rounded-lg">
-                <ExecutionTimelineViewer graphId={graph.graph_id} compact autoScroll={false} />
+                <ExecutionTimelineViewer graphId={graph.graph_id} compact autoScroll={false} maxEvents={100} />
               </div>
             )}
           </>

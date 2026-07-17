@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { assistantApi, type ThreadEvent } from '../services/assistantApi';
 import { useThreadEventStream } from '../hooks/useThreadEventStream';
+import { useVirtualizer } from '@tanstack/react-virtual';
 
 interface ThreadEventTimelineProps {
   threadId: number | string | null;
@@ -51,6 +52,7 @@ export default function ThreadEventTimeline({ threadId, autoScroll = true }: Thr
   const [historicalEvents, setHistoricalEvents] = useState<ThreadEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<Error | null>(null);
+  const parentRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -77,6 +79,26 @@ export default function ThreadEventTimeline({ threadId, autoScroll = true }: Thr
   const { events, isConnected, error, lastSequence } = useThreadEventStream(threadId, historicalEvents);
 
   const filteredEvents = useMemo(() => events, [events]);
+
+  // Virtualizer for efficient rendering of large event lists
+  const virtualizer = useVirtualizer({
+    count: filteredEvents.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 100,
+    overscan: 5,
+    measureElement: (element) => element.getBoundingClientRect().height,
+  });
+
+  // Auto-scroll to bottom when new events arrive
+  const scrollToBottom = useCallback(() => {
+    if (autoScroll && parentRef.current) {
+      parentRef.current.scrollTop = parentRef.current.scrollHeight;
+    }
+  }, [autoScroll]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [filteredEvents.length, scrollToBottom]);
 
   useEffect(() => {
     if (autoScroll && endRef.current) {
@@ -113,45 +135,79 @@ export default function ThreadEventTimeline({ threadId, autoScroll = true }: Thr
 
       {visibleError && <div className="px-4 py-2.5 text-[#fca5a5] bg-[rgba(239,68,68,0.12)] border-b border-[rgba(248,113,113,0.24)]">{visibleError.message}</div>}
 
-      <div className="flex-1 min-h-0 overflow-y-auto p-2.5">
-        {loading && filteredEvents.length === 0 && (
-          <div className="flex items-center justify-center min-h-[160px] text-[#94a3b8]">Loading events...</div>
-        )}
-        {!loading && filteredEvents.length === 0 && (
-          <div className="flex items-center justify-center min-h-[160px] text-[#94a3b8]">No events yet.</div>
-        )}
-        {filteredEvents.map((event) => {
-          const evStatus = statusClass(event.status);
-          return (
-            <div
-              key={`${event.sequence}-${event.id}`}
-              className={cn(
-                'mb-3 overflow-hidden border border-[rgba(148,163,184,0.16)] border-l-4 border-l-[#64748b] rounded-[10px] bg-[#0d1424]',
-                evStatus && STATUS_BORDER[evStatus],
-              )}
-            >
-              <div className="flex items-center gap-2 px-3.5 py-3 flex-wrap">
-                <span className="text-sm">{eventIcon(event.event_type)}</span>
-                <span className={cn(pillClass, 'text-[#cbd5e1] bg-[rgba(148,163,184,0.14)]')}>{event.event_type}</span>
-                {event.status && (
-                  <span className={cn(pillClass, evStatus ? STATUS_PILL[evStatus] : '')}>{event.status}</span>
-                )}
-                {event.tool_name && <span className={cn(pillClass, 'text-[#cbd5e1] bg-[rgba(148,163,184,0.14)]')}>{event.tool_name}</span>}
-                <span className={cn(pillClass, 'text-[#cbd5e1] bg-[rgba(148,163,184,0.14)]')}>#{event.sequence}</span>
-                <span className="ml-auto text-[#94a3b8] text-[12px]">{new Date(event.created_at).toLocaleTimeString()}</span>
+      <div className="flex-1 min-h-0 overflow-hidden p-2.5">
+        <div
+          ref={parentRef}
+          className="h-full overflow-y-auto"
+          style={{ contain: 'layout' }}
+        >
+          {loading && filteredEvents.length === 0 && (
+            <div className="flex items-center justify-center min-h-[160px] text-[#94a3b8]">Loading events...</div>
+          )}
+          {!loading && filteredEvents.length === 0 && (
+            <div className="flex items-center justify-center min-h-[160px] text-[#94a3b8]">No events yet.</div>
+          )}
+          {filteredEvents.length > 0 && (
+            <>
+              <div
+                style={{
+                  height: virtualizer.getTotalSize(),
+                  width: '100%',
+                  position: 'relative',
+                }}
+              >
+                {virtualizer.getVirtualItems().map((virtualRow) => (
+                  <div
+                    key={virtualRow.key}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: `${virtualRow.size}px`,
+                      transform: `translateY(${virtualRow.start}px)`,
+                    }}
+                  >
+                    {(() => {
+                      const event = filteredEvents[virtualRow.index];
+                      if (!event) return null;
+                      const evStatus = statusClass(event.status);
+                      return (
+                        <div
+                          key={`${event.sequence}-${event.id}`}
+                          className={cn(
+                            'mb-3 overflow-hidden border border-[rgba(148,163,184,0.16)] border-l-4 border-l-[#64748b] rounded-[10px] bg-[#0d1424]',
+                            evStatus && STATUS_BORDER[evStatus],
+                          )}
+                        >
+                          <div className="flex items-center gap-2 px-3.5 py-3 flex-wrap">
+                            <span className="text-sm">{eventIcon(event.event_type)}</span>
+                            <span className={cn(pillClass, 'text-[#cbd5e1] bg-[rgba(148,163,184,0.14)]')}>{event.event_type}</span>
+                            {event.status && (
+                              <span className={cn(pillClass, evStatus ? STATUS_PILL[evStatus] : '')}>{event.status}</span>
+                            )}
+                            {event.tool_name && <span className={cn(pillClass, 'text-[#cbd5e1] bg-[rgba(148,163,184,0.14)]')}>{event.tool_name}</span>}
+                            <span className={cn(pillClass, 'text-[#cbd5e1] bg-[rgba(148,163,184,0.14)]')}>#{event.sequence}</span>
+                            <span className="ml-auto text-[#94a3b8] text-[12px]">{new Date(event.created_at).toLocaleTimeString()}</span>
+                          </div>
+                          {event.content && (
+                            <div className="px-3.5 pb-3 break-anywhere whitespace-pre-wrap text-[#cbd5e1] text-[14px] leading-6">{event.content}</div>
+                          )}
+                          {Object.keys(event.payload || {}).length > 0 && (
+                            <pre className="overflow-x-auto mx-3.5 mb-3 px-3 py-2 text-[#e2e8f0] bg-[#050814] border border-[rgba(148,163,184,0.12)] rounded-md text-[12px] leading-5">
+                              {JSON.stringify(event.payload, null, 2)}
+                            </pre>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                ))}
               </div>
-              {event.content && (
-                <div className="px-3.5 pb-3 break-anywhere whitespace-pre-wrap text-[#cbd5e1] text-[14px] leading-6">{event.content}</div>
-              )}
-              {Object.keys(event.payload || {}).length > 0 && (
-                <pre className="overflow-x-auto mx-3.5 mb-3 px-3 py-2 text-[#e2e8f0] bg-[#050814] border border-[rgba(148,163,184,0.12)] rounded-md text-[12px] leading-5">
-                  {JSON.stringify(event.payload, null, 2)}
-                </pre>
-              )}
-            </div>
-          );
-        })}
-        <div ref={endRef} />
+            </>
+          )}
+          <div ref={endRef} />
+        </div>
       </div>
     </div>
   );

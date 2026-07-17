@@ -5,6 +5,7 @@ interface ToolCallGroupProps {
   calls: DisplayMessage[];
   results: DisplayMessage[];
   defaultOpen?: boolean;
+  maxVisible?: number;
 }
 
 function ToolCallItem({ msg }: { msg: DisplayMessage }) {
@@ -39,11 +40,16 @@ function ToolResultItem({ msg }: { msg: DisplayMessage }) {
   );
 }
 
-export function ToolCallGroup({ calls, results, defaultOpen = false }: ToolCallGroupProps) {
+export function ToolCallGroup({ calls, results, defaultOpen = false, maxVisible = 10 }: ToolCallGroupProps) {
   const [open, setOpen] = useState(defaultOpen);
+  const [showAll, setShowAll] = useState(false);
   const names = calls
     .flatMap((c) => c.toolCalls?.map((tc) => tc.name) ?? (c.toolName ? [c.toolName] : []))
     .filter(Boolean);
+
+  const allItems = [...calls, ...results];
+  const visibleItems = showAll ? allItems : allItems.slice(0, maxVisible);
+  const hasMore = allItems.length > maxVisible;
 
   return (
     <div className="mx-3 my-2 border border-[#1e293b] rounded-[10px] bg-[rgba(30,41,59,0.55)] overflow-hidden" data-testid="tool-call-group">
@@ -62,12 +68,19 @@ export function ToolCallGroup({ calls, results, defaultOpen = false }: ToolCallG
       </button>
       {open && (
         <div className="border-t border-[#1e293b] px-3 py-2 pb-3 flex flex-col gap-2">
-          {calls.map((c) => (
-            <ToolCallItem key={c.id} msg={c} />
-          ))}
-          {results.map((r) => (
-            <ToolResultItem key={r.id} msg={r} />
-          ))}
+          {visibleItems.map((item) => {
+            if (calls.includes(item)) return <ToolCallItem key={item.id} msg={item} />;
+            return <ToolResultItem key={item.id} msg={item} />;
+          })}
+          {hasMore && !showAll && (
+            <button
+              type="button"
+              className="mt-1 w-full text-center text-[#38bdf8] hover:text-[#7dd3fc] text-[0.72rem] py-1.5 border-t border-[#1e293b]"
+              onClick={() => setShowAll(true)}
+            >
+              Show {allItems.length - maxVisible} more…
+            </button>
+          )}
         </div>
       )}
     </div>

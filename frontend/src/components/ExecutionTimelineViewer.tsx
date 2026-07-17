@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Activity, MousePointer2, Radio, Filter, X, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useExecutionEventStream } from '../hooks/useExecutionEventStream';
 import { executionApi } from '../services/executionApi';
 import type { ExecutionEvent, ExecutionGraphDetail } from '../services/executionApi';
+import { useVirtualizer } from '@tanstack/react-virtual';
 
 const EMPTY_EVENTS: ExecutionEvent[] = [];
 
@@ -11,6 +12,7 @@ interface ExecutionTimelineViewerProps {
   graphId: number | null;
   autoScroll?: boolean;
   compact?: boolean;
+  maxEvents?: number;
 }
 
 const STATUS_CLASS: Record<string, string> = {
@@ -185,13 +187,14 @@ function NodeFilterPopover({
   );
 }
 
-export default function ExecutionTimelineViewer({ graphId, autoScroll = true, compact = false }: ExecutionTimelineViewerProps) {
+export default function ExecutionTimelineViewer({ graphId, autoScroll = true, compact = false, maxEvents = 500 }: ExecutionTimelineViewerProps) {
   const [graph, setGraph] = useState<ExecutionGraphDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<Error | null>(null);
   const [filter, setFilter] = useState('');
   const [nodeFilter, setNodeFilter] = useState<NodeFilterState>(DEFAULT_NODE_FILTER);
   const [expandedEventId, setExpandedEventId] = useState<number | null>(null);
+  const parentRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -219,7 +222,7 @@ export default function ExecutionTimelineViewer({ graphId, autoScroll = true, co
     };
   }, [graphId]);
 
-  const { events, isConnected, error, lastSequence } = useExecutionEventStream(graphId, graph?.events ?? EMPTY_EVENTS);
+  const { events, isConnected, error, lastSequence } = useExecutionEventStream(graphId, graph?.events ?? EMPTY_EVENTS, true, 5, maxEvents);
 
   const nodeById = useMemo(() => {
     const map = new Map<number, string>();
@@ -258,6 +261,36 @@ export default function ExecutionTimelineViewer({ graphId, autoScroll = true, co
     });
     return result;
   }, [events, filter, nodeById, filteredNodes]);
+
+  // Virtualizer for efficient rendering of large event lists
+  const virtualizer = useVirtualizer({
+    count: filteredEvents.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: (index) => {
+      const event = filteredEvents[index];
+      if (!event) return compact ? 80 : 120;
+      // Expanded events are much taller due to payload display
+      return expandedEventId === event.id ? (compact ? 280 : 420) : (compact ? 80 : 120);
+    },
+    overscan: 5,
+    measureElement: (element) => element.getBoundingClientRect().height,
+  });
+
+  // Auto-scroll to bottom when new events arrive
+  const scrollToBottom = useCallback(() => {
+    if (autoScroll && parentRef.current) {
+      parentRef.current.scrollTop = parentRef.current.scrollHeight;
+    }
+  }, [autoScroll]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [filteredEvents.length, scrollToBottom]);
+
+  // Re-measure when expanded event changes (height changes significantly)
+  useEffect(() => {
+    virtualizer.measure();
+  }, [expandedEventId, virtualizer]);
 
   useEffect(() => {
     if (autoScroll && endRef.current) {
@@ -333,21 +366,55 @@ export default function ExecutionTimelineViewer({ graphId, autoScroll = true, co
         <span className={cn(pillClass, 'text-[#cbd5e1] bg-[rgba(148,163,184,0.14)]')}>{graph?.artifacts.length ?? 0} artifacts</span>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto p-3">
-        {filteredEvents.length === 0 ? (
-          <div className="flex items-center justify-center min-h-[180px] text-[#94a3b8]">No execution events yet.</div>
-        ) : (
-          filteredEvents.map((event) => (
-            <TimelineEvent
-              key={`${event.sequence}-${event.id}`}
-              event={event}
-              nodeName={event.node_id ? nodeById.get(event.node_id) : undefined}
-              expanded={expandedEventId === event.id}
-              onToggle={() => setExpandedEventId((current) => current === event.id ? null : event.id)}
-            />
-          ))
-        )}
-        <div ref={endRef} />
+      <div className="flex-1 min-h-0 overflow-hidden p-3">
+        <div
+          ref={parentRef}
+          className="h-full overflow-y-auto"
+          style={{ contain: 'layout' }}
+        >
+          {filteredEvents.length === 0 ? (
+            <div className="flex items-center justify-center min-h-[180px] text-[#94a3b8]">No execution events yet.</div>
+          ) : (
+            <>
+              <div
+                style={{
+                  height: virtualizer.getTotalSize(),
+                  width: '100%',
+                  position: 'relative',
+                }}
+              >
+                {virtualizer.getVirtualItems().map((virtualRow) => (
+                  <div
+                    key={virtualRow.key}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: `${virtualRow.size}px`,
+                      transform: `translateY(${virtualRow.start}px)`,
+                    }}
+                  >
+                    {(() => {
+                      const event = filteredEvents[virtualRow.index];
+                      if (!event) return null;
+                      return (
+                        <TimelineEvent
+                          key={`${event.sequence}-${event.id}`}
+                          event={event}
+                          nodeName={event.node_id ? nodeById.get(event.node_id) : undefined}
+                          expanded={expandedEventId === event.id}
+                          onToggle={() => setExpandedEventId((current) => current === event.id ? null : event.id)}
+                        />
+                      );
+                    })()}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+          <div ref={endRef} />
+        </div>
       </div>
     </div>
   );
