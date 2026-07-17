@@ -176,6 +176,7 @@ services:
     image: docker-django:fixed   # 使用含 docker CLI + 程式碼修復的固化映像
     container_name: c2_django
     # Run as root for migrations and docker.sock access
+    user: "root"
     command:
       - sh
       - -c
