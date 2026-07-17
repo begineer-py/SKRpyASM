@@ -19,6 +19,7 @@ export function useThreadEventStream(
   initialEvents: ThreadEvent[] = [],
   autoReconnect = true,
   maxRetries = 5,
+  maxEvents = 500,
 ): UseThreadEventStreamReturn {
   const url = threadId ? `assistant/threads/${threadId}/events/stream/` : null;
 
@@ -27,6 +28,7 @@ export function useThreadEventStream(
     initialEvents,
     autoReconnect,
     maxRetries,
+    maxEvents,
     eventDiscriminator: 'thread_event',
     errorMessage: 'Thread event stream error',
     isEventType: (data): data is ThreadEvent & Record<string, unknown> =>

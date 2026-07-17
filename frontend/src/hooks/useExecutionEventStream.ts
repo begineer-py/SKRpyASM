@@ -19,6 +19,7 @@ export function useExecutionEventStream(
   initialEvents: ExecutionEvent[] = [],
   autoReconnect = true,
   maxRetries = 5,
+  maxEvents = 500,
 ): UseExecutionEventStreamReturn {
   const url = (graphId && graphId > 0) ? `core/executions/${graphId}/events/stream/` : null;
 
@@ -27,6 +28,7 @@ export function useExecutionEventStream(
     initialEvents,
     autoReconnect,
     maxRetries,
+    maxEvents,
     eventDiscriminator: 'execution_event',
     errorMessage: 'Execution event stream error',
     isEventType: (data): data is ExecutionEvent & Record<string, unknown> =>

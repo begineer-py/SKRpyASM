@@ -54,6 +54,9 @@ export interface UseSSEStreamOptions<T> {
   eventDiscriminator: string;
   /** Fallback error message when the server doesn't provide one */
   errorMessage: string;
+  /** Maximum number of events to keep in memory (default: 500). Older events are evicted.
+   *  Historical events can still be fetched via paginated REST API (listEvents with after/limit). */
+  maxEvents?: number;
 }
 
 export interface UseSSEStreamReturn<T> {
@@ -81,6 +84,7 @@ export function useSSEStream<T extends { sequence: number }>(
     onDone,
     onError,
     errorMessage,
+    maxEvents = 500,
   } = options;
 
   // ── State ──
@@ -122,15 +126,20 @@ export function useSSEStream<T extends { sequence: number }>(
     setLastSequence(sequence);
   }, [initialEvents]);
 
-  // ── Add event with deduplication + sort ──
+  // ── Add event with deduplication + sort + eviction ──
 
   const addEvent = useCallback((event: T) => {
     if (eventsRef.current.some((existing) => existing.sequence === event.sequence)) return;
-    eventsRef.current = [...eventsRef.current, event].sort((a, b) => a.sequence - b.sequence);
+    const next = [...eventsRef.current, event].sort((a, b) => a.sequence - b.sequence);
+    if (next.length > maxEvents) {
+      eventsRef.current = next.slice(-maxEvents);
+    } else {
+      eventsRef.current = next;
+    }
     lastSequenceRef.current = event.sequence;
     setEvents(eventsRef.current);
     setLastSequence(event.sequence);
-  }, []);
+  }, [maxEvents]);
 
   // ── Parse raw SSE text into typed event ──
 
