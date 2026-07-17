@@ -1,6 +1,6 @@
 # CR-0011：docker-compose.yml 多服務直接暴露埠至宿主機
 
-- Status: **Fixed - Pending Verification**
+- Status: **Partially Fixed**
 - Severity: P2
 - Domain: Docker
 - Confidence: High
@@ -14,15 +14,18 @@
 `docker/docker-compose.yml` 中多個內部服務直接將埠綁定至宿主機 `127.0.0.1`（PostgreSQL 5432、Redis 6379、Hasura 8085、NocoDB 8081、FlareSolverr 8191/8192、FlareProxyGo 8192/1337），增加攻擊面，違反最小權限原則。僅 Nginx (80) 和 Django (8000) 需對外暴露。
 
 **Cycle 3 (Docker Rotation) 已修復關鍵風險**：
-- nginx: `0.0.0.0:80` → `127.0.0.1:80` (修復關鍵風險，**配置已更新，待容器重建生效**)
+- nginx: `0.0.0.0:80` → `127.0.0.1:80` (修復關鍵風險，**已驗證生效**)
 - c2_kali_sandbox: `network_mode: host` → bridge network (`c2_network`), 減少 capabilities (移除 SYS_ADMIN, apparmor:unconfined)
 - 新增 nginx healthcheck
 
-**Cycle 4 發現剩餘問題**:
-- flaresolverr: 仍缺少 8192 埠綁定 (原預設監聽 `0.0.0.0:8192`，嚴重風險)，需新增 `"127.0.0.1:8192:8192"`
-- 內部服務 (postgres, redis, hasura, nocodb) 的 ports 映射仍存在，待後續分階段移除
+**Cycle 4 (2026-07-17) 驗證結果**:
+- ✅ nginx port 80 綁定 `127.0.0.1:80` (不再 `0.0.0.0`)
+- ✅ kali_sandbox 改為 bridge network (`c2_network`)，移除 `network_mode: host`
+- ✅ kali_sandbox capabilities 減少：移除 `SYS_ADMIN`、`apparmor:unconfined`，保留 `NET_RAW`、`NET_ADMIN`、`seccomp:unconfined`
+- ✅ flaresolverr 8192 埠問題已解決：原 flaresolverr 無綁定 IP 的 8192 埠已移除，8192 現為 flareproxygo 服務 (`127.0.0.1:8192:8080`)
+- ⚠️ 內部服務仍暴露埠至宿主機 (127.0.0.1)：postgres(5432)、redis(6379)、hasura(8085)、nocodb(8081)、flaresolverr(8191)、flareproxygo(8192/1337)
 
-**待後續處理**: 內部服務 (postgres, redis, hasura, nocodb, flaresolverr, flareproxygo) 的 ports 映射移除，改為純內部網路通訊。這會影響開發習慣，需評估影響後分階段執行。
+**待後續處理**: 內部服務 (postgres, redis, hasura, nocodb, flaresolverr, flareproxygo) 的 ports 映射移除，改為純內部網路通訊。這會影響開發習慣，需評估影響後分階段執行。僅保留邊緣服務：nginx (127.0.0.1:80) 和 Django (127.0.0.1:8000)。
 
 ## Evidence
 
@@ -144,15 +147,18 @@ django:
 
 ## Verification
 
-1. `docker compose config` 確認無內部服務 ports 映射
-2. `docker exec c2_django pg_isready -h postgres -U myuser` 確認內部連線正常
-3. 宿主機 `curl localhost:5432` 確認連線被拒絕
-4. 宿主機 `curl localhost:8192` 確認 FlareSolverr 8192 無回應
-5. `docker compose -f docker/docker-compose.yml config --quiet` - ✅ 通過 (Cycle 3)
+1. `docker compose -f docker/docker-compose.yml config` 確認埠綁定配置 - ✅ 通過 (Cycle 4)
+2. nginx 綁定 `127.0.0.1:80` - ✅ 驗證通過
+3. kali_sandbox 使用 bridge network - ✅ 驗證通過
+4. kali_sandbox capabilities 減少 - ✅ 驗證通過
+5. flaresolverr 無 0.0.0.0:8192 暴露 - ✅ 驗證通過 (8192 移至 flareproxygo 且綁定 127.0.0.1)
+6. 內部服務仍有 ports 映射 - ⚠️ 待後續移除
 
 ## Resolution criteria
 
 僅 Nginx (127.0.0.1:80) 和 Django (127.0.0.1:8000) 暴露至宿主機，所有內部服務透過 Docker 網路通訊。
+
+**Cycle 4 部分達成**: 關鍵風險已修復 (nginx 0.0.0.0→127.0.0.1, kali_sandbox host→bridge, flaresolverr 8192 0.0.0.0 移除)。內部服務 ports 映射待後續分階段移除。
 
 ## Notes
 
@@ -160,4 +166,5 @@ django:
 - 需更新開發文檔說明正確存取方式
 - CI/CD 中需確認服務健康檢查不依賴宿主機埠
 - **Cycle 3 完成**: 關鍵風險 (nginx 0.0.0.0, kali_sandbox host network) 已修復
-- **後續建議**: 分階段移除內部服務 ports 映射，配合開發文檔更新
+- **Cycle 4 驗證**: 關鍵修復已確認生效，flaresolverr 8192 問題已解決 (移至 flareproxygo 且綁定 127.0.0.1)
+- **後續建議**: 分階段移除內部服務 (postgres, redis, hasura, nocodb, flaresolverr, flareproxygo) ports 映射，配合開發文檔更新

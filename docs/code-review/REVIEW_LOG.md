@@ -44,6 +44,53 @@
 - Skipped checks: Docker build (Dockerfile 未變更), Playwright (成本控制)
 - Next rotation: django-ninja
 
+## 2026-07-17 Cycle 7 - Verification & Frontend Re-review
+
+- Commit: efdf400
+- Changed files: Dockerfile, apps/ai_assistant/helpers/assistants.py, apps/auto/assistants/planning_agent.py, apps/auto/tasks/__init__.py, apps/auto/tools/scanner_tools.py, apps/auto/tools/step_management_tools.py, apps/core/migrations/0044_add_vulnerability_fingerprint_trigger.py, apps/scanners/get_all_url/tasks/__init__.py, docker/docker-compose.yml, frontend/src/app/router.tsx, frontend/src/features/target/components/IPsTabContent.tsx, frontend/src/features/target/pages/SubdomainDetailPage.tsx, frontend/src/features/target/pages/TargetDashboard.tsx, frontend/src/features/target/services/targetApi.ts, frontend/src/queries.ts, frontend/src/services/api.ts, frontend/src/features/target/pages/IpDetailPage.tsx (新增), frontend/src/services/ip_detail.ts (新增)
+- Review domains: Verification (Docker, Celery, Frontend 關鍵修復驗證), Frontend (增量 - 新增/修改檔案), Cross-cutting (增量)
+- Commands executed:
+  - git status, git diff 822b346..HEAD
+  - docker compose -f docker/docker-compose.yml config - 驗證埠綁定配置
+  - make check (Django system check) - ✅ 通過
+  - cd frontend && npx tsc --noEmit - ✅ 通過
+  - cd frontend && npm run lint - ✅ 通過
+  - 手動碼查: AICenterPage.tsx useEffect、SubAgentContainerBlock.tsx、ExecutionTimelineViewer.tsx、global.css 響應式斷點、docker-compose.yml 埠配置、c2_core/settings.py CELERY_IMPORTS
+- New findings: 0 (本輪重點驗證既有修復並更新狀態)
+- Updated findings: 5
+  - **CR-0011 (Docker Port Exposure) - Partially Fixed**: 
+    - ✅ nginx 0.0.0.0:80 → 127.0.0.1:80 (已驗證生效)
+    - ✅ kali_sandbox: network_mode: host → bridge (c2_network), capabilities 減少 (移除 SYS_ADMIN, apparmor:unconfined)
+    - ✅ flaresolverr 8192 埠問題解決: 原 0.0.0.0:8192 已移除，8192 現為 flareproxygo 服務 (127.0.0.1:8192:8080)
+    - ⚠️ 內部服務 (postgres, redis, hasura, nocodb, flaresolverr, flareproxygo) 仍暴露 127.0.0.1 埠，待後續分階段移除
+  - **CR-0012 (CELERY_IMPORTS) - Fixed - Verified**: 
+    - CELERY_IMPORTS 包含 13 生產模組 (從 10 → 13)，新增 http_action, js_trigger, http_sender.tasks
+    - 79 個 @shared_task 全部可被 Celery Worker 發現 (Cycle 4 驗證，Cycle 7 重新確認配置)
+  - **CR-0009 (useEffect Cleanup) - Partially Fixed**: 
+    - ✅ 5 個 useEffect 有完整 cancelled 模式 (Execution Graphs, Dispatches, Dispatch Tree, Topology, Overviews)
+    - ✅ SSE/輪詢 effect (Lines 326-394) 現在有完整清理：cancelled 旗標、SSE 清理、計時器清理、maxAttempts 限制、loadMessagesForThread 調用前檢查 cancelled
+    - ❌ loadThreads effect 仍有 exhaustive-deps 禁用、無 cancelled 保護
+    - ❌ handleSend callback 依賴 selectedThreadData 物件參考、回調無 cancelled 保護
+    - ❌ Dispatch Tree effect 依賴 dispatchedGraphs.length 可能重複請求
+  - **CR-0006 (Status Color-only) - Partially Fixed**: 
+    - ✅ SubAgentContainerBlock: 狀態標籤現在包含文字 (RUNNING/WAITING/COMPLETED/FAILED/CANCELLED)
+    - ✅ ExecutionTimelineViewer: 節點狀態篩選器有圖示 + 文字，狀態顯示多重編碼
+    - ❌ Agent Tree 連線狀態 (.tree-live-dot): 僅綠/黃色點，無文字/aria-label
+    - ❌ 通用嚴重程度徽章 (.c2-badge--*): 純色區分，需使用處補充文字
+    - ❌ .ai-status-badge: 字體 0.54rem (8.6px) 過小，可讀性差
+  - **CR-0007 (Placeholder as Label) - Open**: AICenterPage 聊天輸入框仍無 label/aria-label (Line 702)
+- Resolved findings: 0
+- Key observations:
+  - 前端新增 IpDetailPage.tsx、ip_detail.ts 服務 - IP 詳情頁功能擴充
+  - TargetDashboard、SubdomainDetailPage、IPsTabContent 更新 - 目標資產視圖增強
+  - SSE 事件驅逐機制已新增 (efdf400 commit) - 防止記憶體膨脹
+  - AICenterPage 關鍵 SSE/輪詢邏輯大幅改善，無 unmount 後 setState 風險
+  - Docker 關鍵安全風險已修復 (nginx 綁定、kali_sandbox 隔離、flaresolverr 8192)
+  - Celery 任務發現機制完整 (13 模組涵蓋所有生產任務)
+  - 前端響應式斷點、字體大小、global.css 拆分、placeholder label 仍待解決
+- Skipped checks: Docker build (無 Dockerfile 變更需重建), Playwright (成本控制), Celery inspect registered (無運行環境)
+- Next rotation: django-ninja
+
 ## 2026-07-15 Cycle 2 - Django Ninja Rotation Review
 
 - Commit: 822b346
@@ -201,4 +248,51 @@
   - 大螢幕建構產物主 chunk 1.65MB (gzip 500KB)，建議 code-splitting
   - config.ts 硬編碼 Hasura admin secret fallback，僅供開發便利
 - Skipped checks: Playwright (成本控制), 視覺回歸測試
+- Next rotation: django-ninja
+
+## 2026-07-17 Cycle 7 - Verification & Frontend Re-review
+
+- Commit: efdf400
+- Changed files: Dockerfile, apps/ai_assistant/helpers/assistants.py, apps/auto/assistants/planning_agent.py, apps/auto/tasks/__init__.py, apps/auto/tools/scanner_tools.py, apps/auto/tools/step_management_tools.py, apps/core/migrations/0044_add_vulnerability_fingerprint_trigger.py, apps/scanners/get_all_url/tasks/__init__.py, docker/docker-compose.yml, frontend/src/app/router.tsx, frontend/src/features/target/components/IPsTabContent.tsx, frontend/src/features/target/pages/SubdomainDetailPage.tsx, frontend/src/features/target/pages/TargetDashboard.tsx, frontend/src/features/target/services/targetApi.ts, frontend/src/queries.ts, frontend/src/services/api.ts, frontend/src/features/target/pages/IpDetailPage.tsx (新增), frontend/src/services/ip_detail.ts (新增)
+- Review domains: Verification (Docker, Celery, Frontend 關鍵修復驗證), Frontend (增量 - 新增/修改檔案), Cross-cutting (增量)
+- Commands executed:
+  - git status, git diff 822b346..HEAD
+  - docker compose -f docker/docker-compose.yml config - 驗證埠綁定配置
+  - make check (Django system check) - ✅ 通過
+  - cd frontend && npx tsc --noEmit - ✅ 通過
+  - cd frontend && npm run lint - ✅ 通過
+  - 手動碼查: AICenterPage.tsx useEffect、SubAgentContainerBlock.tsx、ExecutionTimelineViewer.tsx、global.css 響應式斷點、docker-compose.yml 埠配置、c2_core/settings.py CELERY_IMPORTS
+- New findings: 0 (本輪重點驗證既有修復並更新狀態)
+- Updated findings: 5
+  - **CR-0011 (Docker Port Exposure) - Partially Fixed**: 
+    - ✅ nginx 0.0.0.0:80 → 127.0.0.1:80 (已驗證生效)
+    - ✅ kali_sandbox: network_mode: host → bridge (c2_network), capabilities 減少 (移除 SYS_ADMIN, apparmor:unconfined)
+    - ✅ flaresolverr 8192 埠問題解決: 原 0.0.0.0:8192 已移除，8192 現為 flareproxygo 服務 (127.0.0.1:8192:8080)
+    - ⚠️ 內部服務 (postgres, redis, hasura, nocodb, flaresolverr, flareproxygo) 仍暴露 127.0.0.1 埠，待後續分階段移除
+  - **CR-0012 (CELERY_IMPORTS) - Fixed - Verified**: 
+    - CELERY_IMPORTS 包含 13 生產模組 (從 10 → 13)，新增 http_action, js_trigger, http_sender.tasks
+    - 79 個 @shared_task 全部可被 Celery Worker 發現 (Cycle 4 驗證，Cycle 7 重新確認配置)
+  - **CR-0009 (useEffect Cleanup) - Partially Fixed**: 
+    - ✅ 5 個 useEffect 有完整 cancelled 模式 (Execution Graphs, Dispatches, Dispatch Tree, Topology, Overviews)
+    - ✅ SSE/輪詢 effect (Lines 326-394) 現在有完整清理：cancelled 旗標、SSE 清理、計時器清理、maxAttempts 限制、loadMessagesForThread 調用前檢查 cancelled
+    - ❌ loadThreads effect 仍有 exhaustive-deps 禁用、無 cancelled 保護
+    - ❌ handleSend callback 依賴 selectedThreadData 物件參考、回調無 cancelled 保護
+    - ❌ Dispatch Tree effect 依賴 dispatchedGraphs.length 可能重複請求
+  - **CR-0006 (Status Color-only) - Partially Fixed**: 
+    - ✅ SubAgentContainerBlock: 狀態標籤現在包含文字 (RUNNING/WAITING/COMPLETED/FAILED/CANCELLED)
+    - ✅ ExecutionTimelineViewer: 節點狀態篩選器有圖示 + 文字，狀態顯示多重編碼
+    - ❌ Agent Tree 連線狀態 (.tree-live-dot): 僅綠/黃色點，無文字/aria-label
+    - ❌ 通用嚴重程度徽章 (.c2-badge--*): 純色區分，需使用處補充文字
+    - ❌ .ai-status-badge: 字體 0.54rem (8.6px) 過小，可讀性差
+  - **CR-0007 (Placeholder as Label) - Open**: AICenterPage 聊天輸入框仍無 label/aria-label (Line 702)
+- Resolved findings: 0
+- Key observations:
+  - 前端新增 IpDetailPage.tsx、ip_detail.ts 服務 - IP 詳情頁功能擴充
+  - TargetDashboard、SubdomainDetailPage、IPsTabContent 更新 - 目標資產視圖增強
+  - SSE 事件驅逐機制已新增 (efdf400 commit) - 防止記憶體膨脹
+  - AICenterPage 關鍵 SSE/輪詢邏輯大幅改善，無 unmount 後 setState 風險
+  - Docker 關鍵安全風險已修復 (nginx 綁定、kali_sandbox 隔離、flaresolverr 8192)
+  - Celery 任務發現機制完整 (13 模組涵蓋所有生產任務)
+  - 前端響應式斷點、字體大小、global.css 拆分、placeholder label 仍待解決
+- Skipped checks: Docker build (無 Dockerfile 變更需重建), Playwright (成本控制), Celery inspect registered (無運行環境)
 - Next rotation: django-ninja

@@ -1,8 +1,8 @@
 {
-  "last_reviewed_commit": "822b346",
-  "last_reviewed_at": "2026-07-15T21:30:00Z",
+  "last_reviewed_commit": "efdf400",
+  "last_reviewed_at": "2026-07-17T07:30:00Z",
   "next_finding_id": 21,
-  "review_cycle": 6,
+  "review_cycle": 7,
   "next_rotation_domain": "django-ninja",
   "finding_fingerprints": {
     "documentation/duplicate-file/Agents.md/root": "CR-0001",

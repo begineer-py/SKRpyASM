@@ -15,7 +15,7 @@ AI Workbench 聊天輸入框（`.ai-composer__input`）使用 `placeholder="Mess
 ## Evidence
 
 - File: `frontend/src/features/ai/pages/AICenterPage.tsx`
-- Lines: 731-738
+- Lines: 700-708
 - Symbol: ai-composer__input textarea
 
 ```tsx
@@ -29,6 +29,7 @@ AI Workbench 聊天輸入框（`.ai-composer__input`）使用 `placeholder="Mess
   rows={3}
 />
 ```
+(第 700-708 行，無 `id`、`aria-label` 或關聯 `<label>`)
 
 CSS 中無隱藏 label 的處理，輸入框無 `aria-label` 或 `aria-labelledby`。
 

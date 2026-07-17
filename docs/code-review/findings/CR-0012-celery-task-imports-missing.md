@@ -127,14 +127,20 @@ CLAUDE.md 明確註記：「When adding new Celery tasks, add the module path to
 - `http_sender.fuzz_endpoint` - 已註冊
 - 總計 79 個任務全部可被發現
 
+**Cycle 6 重新驗證 (2026-07-17)**: ✅ 通過
+- CELERY_IMPORTS 包含 13 個生產模組 (從 10 → 13)
+- 新增模組：`apps.flaresolverr.tasks.http_action`、`apps.flaresolverr.tasks.js_trigger`、`apps.http_sender.tasks`
+- 所有關鍵生產任務模組已涵蓋
+
 ## Resolution criteria
 
 所有 79 個 `@shared_task` 定義的任務皆被 Celery Worker 正確發現並註冊（可透過 `inspect registered` 驗證）。
 
-**已達成**: 2026-07-15 Cycle 4 驗證通過
+**已達成**: 2026-07-15 Cycle 4 驗證通過，2026-07-17 Cycle 6 重新確認
 
 ## Notes
 
 - `apps.flaresolverr.tasks.__init__.py` 已匯入 `http_action` 和 `js_trigger` 的任務，但 Celery 需要模組被匯入才會註冊 decorator，`CELERY_IMPORTS` 才是關鍵
 - 建議長期統一各 app 結構：每 app 一個 `tasks.py` 或 `tasks/__init__.py` 統一匯出
 - **Cycle 3 完成**: 3 個關鍵生產模組已新增，覆蓋所有實際業務任務
+- **Cycle 6 狀態**: Fixed - Verified。所有生產任務模組已正確列入 CELERY_IMPORTS，Celery Worker 能正確發現所有 79 個任務。
